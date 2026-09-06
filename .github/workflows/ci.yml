@@ -1,0 +1,65 @@
+name: Verificar y publicar
+
+# Cada push a main verifica el proyecto y, si pasa, publica la app.
+# Los pull requests solo verifican: nada se publica sin haber sido integrado.
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# Si llegan dos pushes seguidos, se cancela el despliegue viejo. Nunca se
+# cancela uno en curso: una publicación a medias es peor que una tardía.
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  verificar:
+    name: Tipos, tests y compilación
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Instalar dependencias
+        run: npm ci
+
+      - name: Revisar los tipos
+        run: npm run typecheck
+
+      - name: Correr los tests
+        run: npm test
+
+      - name: Compilar
+        # GitHub Pages sirve el sitio desde /nombre-del-repo/, así que el build
+        # necesita saberlo. En Vercel, Netlify o un dominio propio esta variable
+        # no se define y la app queda servida desde la raíz.
+        run: BASE_PATH="/${GITHUB_REPOSITORY#*/}/" npm run build
+
+      - name: Guardar el resultado
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: dist
+
+  publicar:
+    name: Publicar en GitHub Pages
+    needs: verificar
+    if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.despliegue.outputs.page_url }}
+    steps:
+      - id: despliegue
+        uses: actions/deploy-pages@v4
