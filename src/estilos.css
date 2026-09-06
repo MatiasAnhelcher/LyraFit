@@ -1,0 +1,178 @@
+@import 'tailwindcss';
+
+/**
+ * El sistema visual de la app.
+ *
+ * Todo color, sombra y espacio sale de estas variables. Es lo que hace que
+ * cambiar el tema entero sea cambiar diez líneas y no doscientas.
+ *
+ * La app se usa entrenando: con el pulso alto, el celular apoyado en el piso y
+ * a veces con sol de frente. De ahí salen las decisiones — tipografía grande,
+ * mucho contraste y botones a los que no le podés errar.
+ */
+
+@theme {
+  --color-fondo: #ffffff;
+  --color-superficie: #f4f5f7;
+  --color-superficie-alta: #e9ebef;
+  --color-borde: #d8dbe1;
+  --color-texto: #12151a;
+  --color-texto-suave: #5c6270;
+  --color-acento: #e2521a;
+  --color-acento-suave: #fdece5;
+
+  --color-empuje: #e2521a;
+  --color-traccion: #0f7ea8;
+  --color-piernas: #4d7c0f;
+  --color-core: #7c3aed;
+
+  --color-exito: #15803d;
+  --color-alerta: #b45309;
+  --color-error: #b91c1c;
+
+  /*
+   * Los gráficos usan su propia paleta y no los colores de la interfaz.
+   * Un color pensado para un título sobre fondo blanco casi nunca sirve como
+   * relleno de una barra: cambia la superficie, cambia el contraste y cambia
+   * lo que puede distinguir alguien que no ve bien los colores. Estos cuatro
+   * valores están verificados contra la superficie de cada tema — banda de
+   * luminosidad, separación para daltonismo y contraste mínimo.
+   */
+  --color-grafico-1: #e2521a;
+  --color-grafico-2: #0f7ea8;
+  --color-grafico-3: #4d7c0f;
+  --color-grafico-4: #7c3aed;
+  --color-grafico-grilla: #dfe2e8;
+
+  --font-sans:
+    ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', sans-serif;
+  --font-numeros: ui-monospace, 'SF Mono', 'Roboto Mono', 'Courier New', monospace;
+}
+
+@layer theme {
+  :root {
+    color-scheme: light dark;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-tema='claro']) {
+      --color-fondo: #0b0e13;
+      --color-superficie: #141922;
+      --color-superficie-alta: #1e2531;
+      --color-borde: #2a3341;
+      --color-texto: #eef1f6;
+      --color-texto-suave: #99a2b3;
+      --color-acento: #ff7a45;
+      --color-acento-suave: #2a1710;
+
+      --color-empuje: #ff7a45;
+      --color-traccion: #38bdf8;
+      --color-piernas: #a3e635;
+      --color-core: #c084fc;
+
+      --color-exito: #4ade80;
+      --color-alerta: #fbbf24;
+      --color-error: #f87171;
+
+      --color-grafico-1: #ea580c;
+      --color-grafico-2: #0284c7;
+      --color-grafico-3: #65a30d;
+      --color-grafico-4: #9333ea;
+      --color-grafico-grilla: #232b37;
+    }
+  }
+
+  :root[data-tema='oscuro'] {
+    --color-fondo: #0b0e13;
+    --color-superficie: #141922;
+    --color-superficie-alta: #1e2531;
+    --color-borde: #2a3341;
+    --color-texto: #eef1f6;
+    --color-texto-suave: #99a2b3;
+    --color-acento: #ff7a45;
+    --color-acento-suave: #2a1710;
+
+    --color-empuje: #ff7a45;
+    --color-traccion: #38bdf8;
+    --color-piernas: #a3e635;
+    --color-core: #c084fc;
+
+    --color-exito: #4ade80;
+    --color-alerta: #fbbf24;
+    --color-error: #f87171;
+
+    --color-grafico-1: #ea580c;
+    --color-grafico-2: #0284c7;
+    --color-grafico-3: #65a30d;
+    --color-grafico-4: #9333ea;
+    --color-grafico-grilla: #232b37;
+  }
+}
+
+@layer base {
+  * {
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  html {
+    /* Que el rebote del scroll no muestre una franja blanca en el celular. */
+    background-color: var(--color-fondo);
+  }
+
+  body {
+    margin: 0;
+    background-color: var(--color-fondo);
+    color: var(--color-texto);
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+    overscroll-behavior-y: none;
+  }
+
+  /* Los números de entrenamiento se leen de un vistazo, sin bailar de ancho. */
+  .cifra {
+    font-family: var(--font-numeros);
+    font-variant-numeric: tabular-nums;
+    letter-spacing: -0.02em;
+  }
+
+  button {
+    font-family: inherit;
+    touch-action: manipulation;
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--color-acento);
+    outline-offset: 2px;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      transition-duration: 0.01ms !important;
+    }
+  }
+}
+
+@layer components {
+  .tarjeta {
+    background-color: var(--color-superficie);
+    border: 1px solid var(--color-borde);
+    border-radius: 1rem;
+  }
+
+  .pulso-descanso {
+    animation: pulso 2s ease-in-out infinite;
+  }
+
+  @keyframes pulso {
+    0%,
+    100% {
+      opacity: 1;
+    }
+    50% {
+      opacity: 0.55;
+    }
+  }
+}
