@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="Palanca">
+  <rect width="64" height="64" rx="14" fill="#0b0e13"/>
+  <!-- La barra fija y el cuerpo horizontal: la silueta de una palanca frontal. -->
+  <rect x="10" y="15" width="44" height="5" rx="2.5" fill="#ff7a45"/>
+  <path d="M32 20v9" stroke="#ff7a45" stroke-width="5" stroke-linecap="round"/>
+  <path d="M32 33h18" stroke="#ff7a45" stroke-width="5" stroke-linecap="round"/>
+  <circle cx="26" cy="33" r="5.5" fill="#ff7a45"/>
+  <path d="M14 45h36" stroke="#3a4453" stroke-width="4" stroke-linecap="round"/>
+</svg>
