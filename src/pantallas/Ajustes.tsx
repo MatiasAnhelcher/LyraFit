@@ -37,7 +37,7 @@ export function Ajustes() {
     const url = URL.createObjectURL(blob)
     const enlace = document.createElement('a')
     enlace.href = url
-    enlace.download = `palanca-${respaldo.exportadoEn.slice(0, 10)}.json`
+    enlace.download = `lyrafit-${respaldo.exportadoEn.slice(0, 10)}.json`
     enlace.click()
     URL.revokeObjectURL(url)
     setAviso({ tono: 'ok', texto: 'Copia descargada.' })
@@ -57,7 +57,7 @@ export function Ajustes() {
         texto:
           error instanceof RespaldoInvalido
             ? error.message
-            : 'No se pudo leer el archivo. ¿Es una copia de Palanca?',
+            : 'No se pudo leer el archivo. ¿Es una copia de LyraFit?',
       })
     }
   }
@@ -249,7 +249,7 @@ export function Ajustes() {
       </section>
 
       <p className="pb-4 text-center text-xs text-[var(--color-texto-suave)]">
-        Palanca · versión 0.1.0
+        LyraFit · versión 0.1.0
       </p>
     </>
   )

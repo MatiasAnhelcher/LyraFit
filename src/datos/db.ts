@@ -25,14 +25,14 @@ export interface Pendiente {
   creadoEn: number
 }
 
-export class BasePalanca extends Dexie {
+export class BaseLyraFit extends Dexie {
   sesiones!: Table<Sesion, string>
   avances!: Table<Avance, Patron>
   preferencias!: Table<Preferencias, string>
   pendientes!: Table<Pendiente, number>
 
   constructor() {
-    super('palanca')
+    super('lyrafit')
 
     // Cada versión es una migración. Nunca se edita una versión ya publicada:
     // se agrega la siguiente. Así la base de alguien que ya venía usando la
@@ -46,7 +46,7 @@ export class BasePalanca extends Dexie {
   }
 }
 
-export const db = new BasePalanca()
+export const db = new BaseLyraFit()
 
 export const PREFERENCIAS_POR_DEFECTO: Preferencias = {
   id: 'unico',

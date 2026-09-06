@@ -233,7 +233,7 @@ export class RespaldoInvalido extends Error {}
 
 export function validarRespaldo(dato: unknown): Respaldo {
   if (typeof dato !== 'object' || dato === null) {
-    throw new RespaldoInvalido('El archivo no tiene el formato de una copia de Palanca.')
+    throw new RespaldoInvalido('El archivo no tiene el formato de una copia de LyraFit.')
   }
 
   const posible = dato as Partial<Respaldo>

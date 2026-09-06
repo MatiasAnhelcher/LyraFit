@@ -23,8 +23,8 @@ export default defineConfig({
       registerType: 'autoUpdate',
       includeAssets: ['favicon.svg'],
       manifest: {
-        name: 'Palanca — Entrenamiento de calistenia',
-        short_name: 'Palanca',
+        name: 'LyraFit — Entrenamiento de calistenia',
+        short_name: 'LyraFit',
         description:
           'Progresiones de calistenia, registro de entrenamientos y temporizador. Funciona sin conexión.',
         lang: 'es-AR',

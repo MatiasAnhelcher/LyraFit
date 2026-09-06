@@ -1,4 +1,4 @@
-# Palanca
+# LyraFit
 
 Entrenamiento de calistenia con progresiones reales. Registrás lo que hiciste y
 la app decide qué te toca la próxima vez: cuándo sumar repeticiones, cuándo
