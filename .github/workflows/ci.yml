@@ -41,6 +41,14 @@ jobs:
       - name: Correr los tests
         run: npm test
 
+      # El runner corre en UTC, y en UTC los errores de zona horaria no se ven.
+      # Repetir la suite al este de Greenwich es lo que hace falta para que un
+      # cálculo de fechas mal hecho falle acá y no en el teléfono de alguien.
+      - name: Correr los tests en otro huso horario
+        run: npm test
+        env:
+          TZ: Australia/Sydney
+
       - name: Compilar
         # GitHub Pages sirve el sitio desde /nombre-del-repo/, así que el build
         # necesita saberlo. En Vercel, Netlify o un dominio propio esta variable

@@ -1,7 +1,19 @@
-import type { ReactNode } from 'react'
-import type { Patron } from '@/dominio/tipos'
+/**
+ * Las piezas compartidas del sistema Efeméride.
+ *
+ * Casi todo lo visual vive en `estilos.css` como clases; acá están las que
+ * tienen algo de lógica o que se repiten tantas veces que conviene que existan
+ * una sola vez.
+ *
+ * La regla de oro del sistema: nada brilla salvo la estrella de la carta, y
+ * nada usa cursiva salvo el motor. Si aparece un componente nuevo que rompe
+ * alguna de las dos, el sistema deja de funcionar entero.
+ */
 
-/** Cada patrón tiene su color y se mantiene igual en toda la app. */
+import type { ReactNode } from 'react'
+import type { Medida, Patron } from '@/dominio/tipos'
+
+/** El patrón como tinta sobre papel. Para la noche está la rampa de luz. */
 export const COLOR_PATRON: Record<Patron, string> = {
   empuje: 'var(--color-empuje)',
   traccion: 'var(--color-traccion)',
@@ -9,117 +21,189 @@ export const COLOR_PATRON: Record<Patron, string> = {
   core: 'var(--color-core)',
 }
 
-export function Titulo({ children, accion }: { children: ReactNode; accion?: ReactNode }) {
-  return (
-    <header className="mb-5 flex items-end justify-between gap-4">
-      <h1 className="text-2xl font-bold tracking-tight">{children}</h1>
-      {accion}
-    </header>
-  )
+/** El rótulo de lámina: el título es una placa, no un titular. */
+export function Rotulo({ children, className = '' }: { children: ReactNode; className?: string }) {
+  return <p className={`rotulo ${className}`}>{children}</p>
 }
 
-export function Etiqueta({ patron, children }: { patron: Patron; children: ReactNode }) {
+/** El contenedor de filas regladas. Las reglas van a sangre; el texto no. */
+export function Registro({ children, className = '' }: { children: ReactNode; className?: string }) {
+  return <div className={`registro ${className}`}>{children}</div>
+}
+
+/** El cuadradito de 8px que marca el patrón en el canal de la izquierda. */
+export function Glifo({ patron }: { patron: Patron }) {
   return (
     <span
-      className="inline-flex w-fit shrink-0 items-center gap-1.5 self-start rounded-full px-2.5 py-1 text-xs font-semibold"
-      style={{
-        color: COLOR_PATRON[patron],
-        backgroundColor: `color-mix(in srgb, ${COLOR_PATRON[patron]} 14%, transparent)`,
-      }}
-    >
-      {children}
-    </span>
+      className="glifo"
+      style={{ ['--tinta-patron' as string]: COLOR_PATRON[patron] }}
+      aria-hidden
+    />
   )
 }
 
-export function Barra({ porcentaje, color }: { porcentaje: number; color: string }) {
-  const valor = Math.max(0, Math.min(100, porcentaje))
-  return (
-    <div
-      className="h-1.5 w-full overflow-hidden rounded-full bg-[var(--color-superficie-alta)]"
-      role="progressbar"
-      aria-valuenow={valor}
-      aria-valuemin={0}
-      aria-valuemax={100}
-    >
-      <div
-        className="h-full rounded-full transition-[width] duration-500"
-        style={{ width: `${valor}%`, backgroundColor: color }}
-      />
-    </div>
-  )
-}
-
-export function Boton({
+/**
+ * La barra de acción principal, pegada al canto de la pantalla.
+ *
+ * Por la ley de Fitts, un objetivo contra el borde tiene ancho infinito hacia
+ * afuera: no se le puede errar con la mano transpirada, que es la condición
+ * real de uso de esta app.
+ */
+export function Accion({
   children,
   onClick,
-  variante = 'principal',
   tipo = 'button',
   deshabilitado = false,
+  esfuerzo = false,
   className = '',
 }: {
   children: ReactNode
   onClick?: () => void
-  variante?: 'principal' | 'secundario' | 'peligro' | 'fantasma'
   tipo?: 'button' | 'submit'
   deshabilitado?: boolean
+  /** True en la pantalla de entrenar, donde el objetivo táctil sube a 88px. */
+  esfuerzo?: boolean
   className?: string
 }) {
-  const estilos: Record<string, string> = {
-    principal:
-      'bg-[var(--color-acento)] text-white hover:opacity-90 disabled:opacity-40',
-    secundario:
-      'bg-[var(--color-superficie-alta)] text-[var(--color-texto)] hover:opacity-80 disabled:opacity-40',
-    peligro:
-      'bg-transparent text-[var(--color-error)] border border-[var(--color-error)] hover:bg-[var(--color-error)]/10',
-    fantasma:
-      'bg-transparent text-[var(--color-texto-suave)] hover:text-[var(--color-texto)]',
-  }
-
   return (
     <button
       type={tipo}
       onClick={onClick}
       disabled={deshabilitado}
-      className={`rounded-xl px-4 py-3 text-sm font-semibold transition disabled:cursor-not-allowed ${estilos[variante]} ${className}`}
+      className={`accion${esfuerzo ? ' accion-esfuerzo' : ''} ${className}`}
     >
       {children}
     </button>
   )
 }
 
+/** La acción que no empuja: terminar es terminar. */
+export function AccionQuieta({
+  children,
+  onClick,
+  deshabilitado = false,
+}: {
+  children: ReactNode
+  onClick?: () => void
+  deshabilitado?: boolean
+}) {
+  return (
+    <button type="button" onClick={onClick} disabled={deshabilitado} className="accion-quieta">
+      {children}
+    </button>
+  )
+}
+
+/**
+ * La voz del motor.
+ *
+ * Es lo único de la app en cursiva y es deliberadamente más grande que el
+ * cuerpo: la explicación del algoritmo no es letra chica, es el activo
+ * diferencial del producto. Un mal día se dice en ámbar; nunca en rojo.
+ */
+export function Glosa({
+  children,
+  cita,
+  tono,
+}: {
+  children: ReactNode
+  /** La regla que se aplicó. El motor firma lo que decide. */
+  cita?: string
+  tono?: 'ambar'
+}) {
+  return (
+    <div>
+      <p className="glosa glosa-motor" {...(tono ? { 'data-tono': tono } : {})}>
+        {children}
+      </p>
+      {cita && <span className="cita">{cita}</span>}
+    </div>
+  )
+}
+
+/**
+ * El acumulador monotónico, como marca de cuaderno.
+ *
+ * Un trazo por sesión, largo cada cinco, el último en Vega. Nunca baja: si
+ * faltaste tres semanas sigue diciendo lo mismo, sin huecos ni marcas de
+ * ausencia. Es exactamente lo que una racha no puede ser.
+ */
+export function Tira({ cantidad, tope = 120 }: { cantidad: number; tope?: number }) {
+  const visibles = Math.min(cantidad, tope)
+  return (
+    <div className="tira" aria-hidden>
+      {Array.from({ length: visibles }, (_, i) => (
+        <span key={i} />
+      ))}
+    </div>
+  )
+}
+
+/** El estado vacío: las reglas ya dibujadas, quietas. Sin esqueleto latiendo. */
+export function Cargando({ filas = 3 }: { filas?: number }) {
+  return (
+    <div className="registro" aria-busy="true" aria-live="polite">
+      {Array.from({ length: filas }, (_, i) => (
+        <div key={i} className="fila-vacia" />
+      ))}
+    </div>
+  )
+}
+
 export function Vacio({ titulo, texto }: { titulo: string; texto: string }) {
   return (
-    <div className="tarjeta px-5 py-10 text-center">
-      <p className="font-semibold">{titulo}</p>
-      <p className="mt-2 text-sm text-[var(--color-texto-suave)]">{texto}</p>
+    <div className="py-10">
+      <p className="nombre">{titulo}</p>
+      <p className="mt-2 max-w-[40ch] text-sm leading-relaxed text-[var(--color-glosa)]">{texto}</p>
     </div>
   )
 }
 
-export function Dato({ valor, etiqueta }: { valor: ReactNode; etiqueta: string }) {
-  return (
-    <div className="tarjeta px-3 py-4 text-center">
-      <p className="cifra text-2xl font-bold">{valor}</p>
-      <p className="mt-1 text-[0.7rem] uppercase tracking-wide text-[var(--color-texto-suave)]">
-        {etiqueta}
-      </p>
-    </div>
-  )
-}
+// ─── Texto ───────────────────────────────────────────────────────────────
 
-/** Singular o plural, sin el "1 ejercicios" que delata a una app apurada. */
 export function plural(cantidad: number, singular: string, varios: string): string {
   return `${cantidad} ${cantidad === 1 ? singular : varios}`
 }
 
-/** "repeticiones" o "segundos", pero en la forma corta que se lee mejor. */
-export function unidad(medida: 'repeticiones' | 'segundos', cantidad: number): string {
-  if (medida === 'segundos') return `${cantidad}s`
-  return `${cantidad}`
+/** El número con su unidad, cuando la unidad hace falta para entenderlo. */
+export function unidad(medida: Medida, cantidad: number): string {
+  return medida === 'segundos' ? `${cantidad}s` : `${cantidad}`
 }
 
-export function nombreUnidad(medida: 'repeticiones' | 'segundos', plural = true): string {
-  if (medida === 'segundos') return plural ? 'segundos' : 'segundo'
-  return plural ? 'repeticiones' : 'repetición'
+export function nombreUnidad(medida: Medida, muchas = true): string {
+  if (medida === 'segundos') return muchas ? 'segundos' : 'segundo'
+  return muchas ? 'repeticiones' : 'repetición'
 }
+
+/** El objetivo escrito como en la tabla: 3×12, con el × discreto. */
+export function Objetivo({ series, cantidad, medida }: { series: number; cantidad: number; medida: Medida }) {
+  return (
+    <span className="cifra-fila">
+      {series}
+      <span className="por">×</span>
+      {cantidad}
+      {medida === 'segundos' && <span className="unidad">s</span>}
+    </span>
+  )
+}
+
+// ─── Compatibilidad ──────────────────────────────────────────────────────
+// El sistema viejo tenía `Boton`, `Titulo`, `Etiqueta`, `Barra` y `Dato`. Se
+// mantienen mientras queden pantallas sin migrar, y se borran cuando no queden.
+
+export const Boton = ({
+  children,
+  onClick,
+  deshabilitado,
+  className = '',
+}: {
+  children: ReactNode
+  onClick?: () => void
+  variante?: string
+  deshabilitado?: boolean
+  className?: string
+}) => (
+  <Accion onClick={onClick} deshabilitado={deshabilitado} className={className}>
+    {children}
+  </Accion>
+)

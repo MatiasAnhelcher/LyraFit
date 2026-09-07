@@ -53,11 +53,38 @@ async function main() {
       if (m.type() === 'error') problemas.push(`Error en consola (${tema}): ${m.text()}`)
     })
 
+    // El alta primero: sin completarla, el portero manda todo a /alta.
     await pagina.goto(`${BASE}/#/`, { waitUntil: 'networkidle' })
+    await pagina.waitForTimeout(500)
+    await capturar(pagina, `0-alta-${tema}`)
+    await revisarDesborde(pagina, `Alta (${tema})`)
+
+    await pagina.getByRole('button', { name: 'Empezar', exact: true }).click()
+    await pagina.getByRole('button', { name: 'Sí, tengo barra' }).click()
+    // Cuatro pruebas de nivel: se suben unas repeticiones y se sigue.
+    for (let i = 0; i < 4; i++) {
+      for (let n = 0; n < 6; n++) {
+        await pagina.getByRole('button', { name: 'Sumar' }).click()
+      }
+      const seguir = pagina.getByRole('button', { name: 'Siguiente', exact: true })
+      const plan = pagina.getByRole('button', { name: 'Ver mi plan' })
+      if (await plan.isVisible().catch(() => false)) await plan.click()
+      else await seguir.click()
+      await pagina.waitForTimeout(120)
+    }
+    await pagina.waitForTimeout(300)
+    await capturar(pagina, `0b-plan-${tema}`)
+    await revisarDesborde(pagina, `Revelación del plan (${tema})`)
+
+    await pagina.getByRole('button', { name: 'Seguir', exact: true }).click()
+    await pagina.waitForTimeout(200)
+    await pagina.getByRole('button', { name: /Cuerpo completo/ }).click()
+    await pagina.waitForTimeout(600)
+
     await capturar(pagina, `1-hoy-${tema}`)
     await revisarDesborde(pagina, `Hoy (${tema})`)
 
-    // Una sesión completa: se registran todas las series de todos los bloques.
+    // Una sesión completa: se anotan todas las series de todos los bloques.
     await pagina.goto(`${BASE}/#/entrenar`, { waitUntil: 'networkidle' })
     await pagina.waitForTimeout(600)
     await capturar(pagina, `2-entrenar-${tema}`)
@@ -66,44 +93,58 @@ async function main() {
     for (let vuelta = 0; vuelta < 60; vuelta++) {
       // Nombres exactos: sin `exact`, "Saltear" también engancha "Saltear este
       // ejercicio" y la revisión se saltea media sesión sin avisar.
-      const registrar = pagina.getByRole('button', { name: 'Registrar serie', exact: true })
+      const anotar = pagina.getByRole('button', { name: 'Anotar serie', exact: true })
       const saltear = pagina.getByRole('button', { name: 'Saltear', exact: true })
       const siguiente = pagina.getByRole('button', { name: 'Siguiente ejercicio', exact: true })
-      const terminar = pagina.getByRole('button', { name: 'Terminar sesión', exact: true })
+      const terminar = pagina.getByRole('button', { name: 'Terminar', exact: true })
 
-      if (await registrar.isVisible().catch(() => false)) {
-        await registrar.click()
-      } else if (await saltear.isVisible().catch(() => false)) {
+      if (await saltear.isVisible().catch(() => false)) {
         await saltear.click() // saltea el descanso
+      } else if (await anotar.isVisible().catch(() => false)) {
+        await anotar.click()
       } else if (await siguiente.isVisible().catch(() => false)) {
         await siguiente.click()
       } else if (await terminar.isVisible().catch(() => false)) {
-        if (vuelta === 0) continue
         await terminar.click()
         break
       }
       await pagina.waitForTimeout(120)
     }
 
-    await pagina.waitForTimeout(700)
-    await capturar(pagina, `3-resumen-${tema}`)
-    await revisarDesborde(pagina, `Resumen de sesión (${tema})`)
+    // La serie de cierre, y después las tres preguntas del final.
+    await pagina.waitForTimeout(400)
+    await capturar(pagina, `3-serie-de-cierre-${tema}`)
+    await revisarDesborde(pagina, `Serie de cierre (${tema})`)
+    await pagina.getByRole('button', { name: 'Listo', exact: true }).click()
+
+    await pagina.waitForTimeout(400)
+    await capturar(pagina, `4-preguntas-${tema}`)
+    await revisarDesborde(pagina, `Preguntas del final (${tema})`)
+    for (const respuesta of ['Exigente', 'Bien', 'Bastante']) {
+      await pagina.getByRole('button', { name: respuesta, exact: true }).click()
+    }
+    await pagina.getByRole('button', { name: 'Cerrar la sesión' }).click()
+
+    // El cierre se revela por etapas: hay que esperar a que termine.
+    await pagina.waitForTimeout(4200)
+    await capturar(pagina, `5-cierre-${tema}`)
+    await revisarDesborde(pagina, `Cierre (${tema})`)
 
     await pagina.goto(`${BASE}/#/biblioteca`, { waitUntil: 'networkidle' })
-    await capturar(pagina, `4-biblioteca-${tema}`)
+    await capturar(pagina, `6-biblioteca-${tema}`)
     await revisarDesborde(pagina, `Biblioteca (${tema})`)
 
-    await pagina.goto(`${BASE}/#/biblioteca/dominada-completa`, { waitUntil: 'networkidle' })
-    await capturar(pagina, `5-ficha-${tema}`)
+    await pagina.goto(`${BASE}/#/biblioteca/flexion-completa`, { waitUntil: 'networkidle' })
+    await capturar(pagina, `7-ficha-${tema}`)
     await revisarDesborde(pagina, `Ficha de ejercicio (${tema})`)
 
     await pagina.goto(`${BASE}/#/progreso`, { waitUntil: 'networkidle' })
     await pagina.waitForTimeout(900)
-    await capturar(pagina, `6-progreso-${tema}`)
+    await capturar(pagina, `8-progreso-${tema}`)
     await revisarDesborde(pagina, `Progreso (${tema})`)
 
     await pagina.goto(`${BASE}/#/ajustes`, { waitUntil: 'networkidle' })
-    await capturar(pagina, `7-ajustes-${tema}`)
+    await capturar(pagina, `9-ajustes-${tema}`)
     await revisarDesborde(pagina, `Ajustes (${tema})`)
 
     await contexto.close()
@@ -117,7 +158,7 @@ async function main() {
   })
   const escritorio = await ancho.newPage()
   await escritorio.goto(`${BASE}/#/`, { waitUntil: 'networkidle' })
-  await escritorio.screenshot({ path: `${SALIDA}/8-escritorio.png` })
+  await escritorio.screenshot({ path: `${SALIDA}/10-escritorio.png` })
   await revisarDesborde(escritorio, 'escritorio')
   await ancho.close()
 

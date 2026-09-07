@@ -1,7 +1,27 @@
+/**
+ * Hoy.
+ *
+ * La pantalla que se abre veinte veces por semana. De ahí sale casi todo su
+ * diseño: es la que más tiene que callarse.
+ *
+ * Lo que cambió respecto de la versión anterior, y por qué:
+ *
+ * - **Se fue la racha.** Estaba rota —adherencia perfecta con la rutina por
+ *   defecto mostraba un 3— pero el problema de fondo era otro: en una app de
+ *   fuerza el descanso es parte del plan, así que premiar días consecutivos es
+ *   premiar exactamente lo que no hay que hacer. En su lugar hay un contador
+ *   que solo sube y una ventana de veintiocho días que siempre se puede
+ *   recuperar.
+ *
+ * - **Se fue el "volumen".** Sumaba repeticiones con segundos.
+ *
+ * - **Apareció la carta.** Una barra de porcentaje no ubica a nadie; un camino
+ *   con nodos dice de dónde viniste, dónde estás y qué falta.
+ */
+
 import { useNavigate } from 'react-router-dom'
 import { useLiveQuery } from 'dexie-react-hooks'
-import { buscarEjercicio, cadenaDe, NOMBRE_PATRON, POR_ID } from '@/dominio/biblioteca'
-import { porcentajeDeCadena } from '@/dominio/progresion'
+import { NOMBRE_PATRON, buscarEjercicio, cadenaDe } from '@/dominio/biblioteca'
 import {
   NOMBRE_DIA,
   RUTINA_POR_DEFECTO,
@@ -10,10 +30,18 @@ import {
   proximoDia,
   tocaEntrenar,
 } from '@/dominio/rutinas'
-import { rachaActual, totales } from '@/dominio/estadisticas'
-import { fechaISO, leerAvances, leerPreferencias, leerSesiones } from '@/datos/repositorio'
-import { Barra, Boton, COLOR_PATRON, Dato, Etiqueta, plural, unidad } from '@/componentes/ui'
-import { IconoLlama, IconoReloj } from '@/componentes/iconos'
+import { adherencia, esVuelta, proximoHito, sesionesDeVida } from '@/dominio/adherencia'
+import { bandaSostenida, ajusteDelDia } from '@/dominio/estado'
+import {
+  fechaISO,
+  leerAvances,
+  leerEstadoDeHoy,
+  leerEstados,
+  leerPreferencias,
+  leerSesiones,
+} from '@/datos/repositorio'
+import { Carta } from '@/componentes/carta'
+import { Accion, Cargando, Glifo, Glosa, Objetivo, Rotulo, Tira } from '@/componentes/ui'
 
 const FORMATO_FECHA = new Intl.DateTimeFormat('es-AR', {
   weekday: 'long',
@@ -24,154 +52,189 @@ const FORMATO_FECHA = new Intl.DateTimeFormat('es-AR', {
 export function Hoy() {
   const navegar = useNavigate()
   const hoy = new Date()
+  const fecha = fechaISO(hoy)
 
   const avances = useLiveQuery(leerAvances, [])
   const preferencias = useLiveQuery(leerPreferencias, [])
   const sesiones = useLiveQuery(() => leerSesiones(), [])
+  const estados = useLiveQuery(leerEstados, [])
+  const estadoDeHoy = useLiveQuery(leerEstadoDeHoy, [])
 
-  if (!avances || !preferencias || !sesiones) {
-    return <p className="py-16 text-center text-[var(--color-texto-suave)]">Cargando…</p>
+  if (!avances || !preferencias || !sesiones || !estados) {
+    return (
+      <>
+        <Rotulo>{FORMATO_FECHA.format(hoy).toUpperCase()}</Rotulo>
+        <div className="mt-6">
+          <Cargando filas={4} />
+        </div>
+      </>
+    )
   }
 
-  const rutina = RUTINA_POR_ID.get(preferencias.rutinaActivaId) ?? RUTINA_POR_ID.get(RUTINA_POR_DEFECTO)!
+  const rutina =
+    RUTINA_POR_ID.get(preferencias.rutinaActivaId) ?? RUTINA_POR_ID.get(RUTINA_POR_DEFECTO)!
   const esDiaDeEntrenar = tocaEntrenar(rutina, hoy)
   const siguiente = proximoDia(rutina, hoy)
-  const resumen = totales(sesiones, fechaISO(hoy))
-  const entrenoHoy = sesiones.some((s) => s.fecha === fechaISO(hoy))
+  const entrenoHoy = sesiones.some((s) => s.fecha === fecha)
+  const total = sesionesDeVida(sesiones)
+  const hito = proximoHito(total)
+  const marcha = adherencia(sesiones, fecha, rutina.dias.length)
+  const banda = bandaSostenida(estados, fecha)
+  const ajuste = ajusteDelDia(banda)
+  const vuelve = esVuelta(sesiones, fecha)
+
+  const bloques = rutina.bloques.flatMap((bloque) => {
+    const avance = avances.get(bloque.patron)
+    const ejercicio = avance ? buscarEjercicio(avance.ejercicioId) : undefined
+    return avance && ejercicio ? [{ patron: bloque.patron, avance, ejercicio }] : []
+  })
+
+  const filasDeCarta = [...avances.values()].map((avance) => ({
+    patron: avance.patron,
+    avance,
+  }))
 
   return (
     <>
-      <header className="mb-6">
-        <p className="text-sm text-[var(--color-texto-suave)]">
-          {FORMATO_FECHA.format(hoy)}
+      <header>
+        <Rotulo>{FORMATO_FECHA.format(hoy).toUpperCase()}</Rotulo>
+        <p className="cifra-identidad mt-3">{String(total).padStart(3, '0')}</p>
+        <p className="mt-1 text-sm text-[var(--color-glosa)]">
+          {total === 0
+            ? 'sesiones. Todavía ninguna.'
+            : total === 1
+              ? 'sesión en tu vida.'
+              : 'sesiones en tu vida.'}
         </p>
-        <h1 className="mt-1 text-3xl font-bold tracking-tight">
-          {entrenoHoy
-            ? 'Entrenaste hoy'
-            : esDiaDeEntrenar
-              ? 'Hoy toca entrenar'
-              : 'Hoy toca descansar'}
-        </h1>
-        <p className="mt-2 text-sm text-[var(--color-texto-suave)]">
-          {entrenoHoy
-            ? 'Sesión registrada. Si querés sumar otra vuelta, adelante.'
-            : esDiaDeEntrenar
-              ? `${rutina.nombre} · ${plural(rutina.bloques.length, 'bloque', 'bloques')}`
-              : siguiente
-                ? `El próximo es el ${NOMBRE_DIA[diaDeLaSemana(siguiente)]?.toLowerCase()}. El descanso es cuando el músculo se construye.`
-                : 'No tenés días de entrenamiento configurados.'}
-        </p>
+        {total > 0 && (
+          <div className="mt-4">
+            <Tira cantidad={total} />
+          </div>
+        )}
+        {hito && hito.faltan <= 5 && total > 0 && (
+          <p className="mt-4 text-sm text-[var(--color-glosa)]">
+            Te {hito.faltan === 1 ? 'falta' : 'faltan'}{' '}
+            <span className="cifra text-[var(--color-tinta)]">{hito.faltan}</span> para llegar a{' '}
+            <span className="cifra text-[var(--color-tinta)]">{hito.hito}</span>.
+          </p>
+        )}
       </header>
 
-      <section className="mb-6 grid grid-cols-3 gap-3">
-        <Dato
-          valor={
-            <span className="inline-flex items-center gap-1.5">
-              <IconoLlama className="h-5 w-5 text-[var(--color-acento)]" />
-              {rachaActual(sesiones, fechaISO(hoy))}
-            </span>
-          }
-          etiqueta="Racha"
-        />
-        <Dato valor={resumen.sesiones} etiqueta="Sesiones" />
-        <Dato valor={resumen.volumen.toLocaleString('es-AR')} etiqueta="Volumen" />
-      </section>
+      {ajuste.mensaje && (
+        <div className="mt-8">
+          <Glosa tono="ambar" cita={`Regla · estado sostenido ${banda === 'rojo' ? '3 días' : '2 de 3'}`}>
+            {ajuste.mensaje}
+          </Glosa>
+        </div>
+      )}
 
-      <section className="mb-6">
-        <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-[var(--color-texto-suave)]">
-          {esDiaDeEntrenar ? 'La sesión de hoy' : 'Tu próxima sesión'}
-        </h2>
+      {preferencias.estadoActivo && !estadoDeHoy && (
+        <button
+          onClick={() => navegar('/estado')}
+          className="registro mt-8 w-full text-left"
+          style={{ borderTop: '1px solid var(--color-regla)' }}
+        >
+          <div className="fila-pulsable">
+            <span className="canal">?</span>
+            <span className="nombre">¿Cómo venís hoy?</span>
+            <span className="rotulo">15 s</span>
+          </div>
+        </button>
+      )}
 
-        <ul className="space-y-3">
-          {rutina.bloques.map((bloque) => {
-            const avance = avances.get(bloque.patron)
-            if (!avance) return null
+      <section className="mt-8">
+        <Rotulo>
+          {entrenoHoy
+            ? 'YA ENTRENASTE HOY'
+            : esDiaDeEntrenar
+              ? vuelve
+                ? 'SESIÓN DE VUELTA'
+                : `HOY · ${rutina.nombre.toUpperCase()}`
+              : 'HOY TOCA DESCANSAR'}
+        </Rotulo>
 
-            const ejercicio = buscarEjercicio(avance.ejercicioId)
-            if (!ejercicio) return null
-
-            const cadena = cadenaDe(bloque.patron)
+        <div className="registro mt-3">
+          {bloques.map(({ patron, avance, ejercicio }) => {
+            const cadena = cadenaDe(patron)
             const posicion = cadena.ejercicios.indexOf(ejercicio.id) + 1
-            const color = COLOR_PATRON[bloque.patron]
-
             return (
-              <li key={bloque.patron} className="tarjeta p-4">
-                <div className="flex items-start justify-between gap-3">
-                  <div className="min-w-0">
-                    <Etiqueta patron={bloque.patron}>{NOMBRE_PATRON[bloque.patron]}</Etiqueta>
-                    <p className="mt-2 font-semibold leading-tight">{ejercicio.nombre}</p>
-                    <p className="mt-1 text-sm text-[var(--color-texto-suave)]">
-                      Nivel {posicion} de {cadena.ejercicios.length}
-                    </p>
-                  </div>
-
-                  <div className="shrink-0 text-right">
-                    <p className="cifra text-2xl font-bold" style={{ color }}>
-                      {avance.objetivoActual.series}×
-                      {unidad(ejercicio.medida, avance.objetivoActual.cantidad)}
-                    </p>
-                    <p className="mt-0.5 text-[0.7rem] uppercase tracking-wide text-[var(--color-texto-suave)]">
-                      objetivo
-                    </p>
-                  </div>
-                </div>
-
-                <div className="mt-4">
-                  <Barra porcentaje={porcentajeDeCadena(avance, cadena, POR_ID)} color={color} />
-                </div>
-
-                {avance.rachaExitos > 0 && (
-                  <p className="mt-3 text-xs font-medium" style={{ color }}>
-                    Una sesión más cumpliendo el objetivo y subís de nivel.
-                  </p>
-                )}
-                {avance.rachaFallos > 0 && (
-                  <p className="mt-3 text-xs font-medium text-[var(--color-alerta)]">
-                    La última salió floja. Si se repite, bajamos la carga.
-                  </p>
-                )}
-              </li>
+              <div key={patron}>
+                <span className="canal">
+                  <Glifo patron={patron} />
+                </span>
+                <span className="min-w-0">
+                  <span className="nombre block truncate">{ejercicio.nombre}</span>
+                  <span className="rotulo mt-0.5 block">
+                    {NOMBRE_PATRON[patron]} · {posicion}/{cadena.ejercicios.length}
+                  </span>
+                </span>
+                <Objetivo
+                  series={avance.objetivoActual.series}
+                  cantidad={Math.round(avance.objetivoActual.cantidad * ajuste.factor)}
+                  medida={ejercicio.medida}
+                />
+              </div>
             )
           })}
-        </ul>
+        </div>
+
+        {!esDiaDeEntrenar && siguiente && (
+          <p className="mt-4 text-sm leading-relaxed text-[var(--color-glosa)]">
+            El próximo es el {NOMBRE_DIA[diaDeLaSemana(siguiente)]?.toLowerCase()}. Descansar no
+            es una pausa del plan: es la parte del plan en la que el músculo se construye.
+          </p>
+        )}
       </section>
 
-      <Boton className="w-full py-4 text-base" onClick={() => navegar('/entrenar')}>
-        {entrenoHoy ? 'Entrenar otra vez' : 'Empezar entrenamiento'}
-      </Boton>
+      <section className="mt-8">
+        <Rotulo className="mb-3">DÓNDE ESTÁS</Rotulo>
+        <Carta filas={filasDeCarta} />
+      </section>
 
-      {sesiones.length > 0 && (
-        <section className="mt-8">
-          <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-[var(--color-texto-suave)]">
-            Últimas sesiones
-          </h2>
-          <ul className="space-y-2">
-            {sesiones.slice(0, 3).map((sesion) => (
-              <li
-                key={sesion.id}
-                className="tarjeta flex items-center justify-between px-4 py-3 text-sm"
-              >
-                <span>
-                  {new Date(`${sesion.fecha}T12:00:00`).toLocaleDateString('es-AR', {
-                    weekday: 'short',
-                    day: 'numeric',
-                    month: 'short',
-                  })}
-                </span>
-                <span className="flex items-center gap-3 text-[var(--color-texto-suave)]">
-                  <span className="cifra">
-                    {plural(sesion.registros.length, 'ejercicio', 'ejercicios')}
-                  </span>
-                  <span className="inline-flex items-center gap-1">
-                    <IconoReloj className="h-4 w-4" />
-                    <span className="cifra">{Math.round(sesion.duracionSegundos / 60)} min</span>
-                  </span>
-                </span>
-              </li>
-            ))}
-          </ul>
-        </section>
-      )}
+      <section className="mt-8">
+        <div className="flex items-baseline justify-between gap-4">
+          <Rotulo>ÚLTIMOS 28 DÍAS</Rotulo>
+          <p className="cifra text-sm">
+            {preferencias.encuadre === 'restante'
+              ? `faltan ${Math.max(0, marcha.meta - marcha.hechas - marcha.cubiertos)}`
+              : `${marcha.hechas} de ${marcha.meta}`}
+          </p>
+        </div>
+        <div className="mt-2 flex h-1.5 gap-px" aria-hidden>
+          {Array.from({ length: marcha.meta }, (_, i) => (
+            <span
+              key={i}
+              className="flex-1"
+              style={{
+                backgroundColor:
+                  i < marcha.hechas
+                    ? 'var(--color-vega)'
+                    : i < marcha.hechas + marcha.cubiertos
+                      ? 'var(--color-regla-fuerte)'
+                      : 'var(--color-regla)',
+              }}
+            />
+          ))}
+        </div>
+        {marcha.cubiertos > 0 && (
+          <p className="mt-2 text-xs text-[var(--color-glosa)]">
+            {marcha.cubiertos === 1 ? 'Un día cubierto' : `${marcha.cubiertos} días cubiertos`} con
+            tus créditos. Faltar estaba previsto.
+          </p>
+        )}
+      </section>
+
+      <div className="mt-10 -mx-4">
+        <Accion onClick={() => navegar('/entrenar')}>
+          {entrenoHoy ? 'Entrenar otra vez' : vuelve ? 'Volver a empezar' : 'Empezar'}
+        </Accion>
+        <button
+          onClick={() => navegar('/entrenar?corta=1')}
+          className="accion-quieta"
+        >
+          Solo tengo 7 minutos
+        </button>
+      </div>
     </>
   )
 }

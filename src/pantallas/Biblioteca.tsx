@@ -1,96 +1,76 @@
 import { Link } from 'react-router-dom'
 import { useLiveQuery } from 'dexie-react-hooks'
-import { CADENAS, NOMBRE_PATRON, POR_ID, buscarEjercicio } from '@/dominio/biblioteca'
+import { CADENAS, NOMBRE_PATRON, POR_ID } from '@/dominio/biblioteca'
 import { leerAvances } from '@/datos/repositorio'
-import { Barra, COLOR_PATRON, Etiqueta, Titulo, unidad } from '@/componentes/ui'
-import { porcentajeDeCadena } from '@/dominio/progresion'
+import { Cargando, Glifo, Objetivo, Rotulo } from '@/componentes/ui'
 
+/**
+ * La biblioteca.
+ *
+ * Cada cadena entera, en orden, con el eslabón donde estás marcado. Lo que
+ * falta no está bloqueado ni tachado: está sin marcar. Se puede leer la ficha
+ * de cualquier ejercicio, incluso los que faltan años — saber a dónde lleva el
+ * camino es la mitad de las ganas de recorrerlo.
+ */
 export function Biblioteca() {
   const avances = useLiveQuery(leerAvances, [])
+  if (!avances) return <Cargando filas={6} />
 
   return (
     <>
-      <Titulo>Ejercicios</Titulo>
-      <p className="-mt-3 mb-6 text-sm leading-relaxed text-[var(--color-texto-suave)]">
-        Cuatro cadenas, un patrón de movimiento cada una. Se sube de nivel
-        cuando el objetivo está firme, no cuando aburre.
+      <Rotulo>BIBLIOTECA</Rotulo>
+      <p className="mt-2 max-w-[40ch] text-xs leading-relaxed text-[var(--color-glosa)]">
+        Treinta y nueve ejercicios en cuatro cadenas, de más accesible a más exigente. El eslabón
+        donde estás va marcado.
       </p>
 
-      <div className="space-y-8">
-        {CADENAS.map((cadena) => {
-          const avance = avances?.get(cadena.patron)
-          const actual = avance ? buscarEjercicio(avance.ejercicioId) : undefined
-          const color = COLOR_PATRON[cadena.patron]
+      {CADENAS.map((cadena) => {
+        const avance = avances.get(cadena.patron)
+        const actual = avance ? cadena.ejercicios.indexOf(avance.ejercicioId) : -1
 
-          return (
-            <section key={cadena.patron}>
-              <div className="mb-3">
-                <div className="flex items-center justify-between gap-3">
-                  <h2 className="text-lg font-bold">{NOMBRE_PATRON[cadena.patron]}</h2>
-                  {avance && (
-                    <span className="cifra text-sm font-semibold" style={{ color }}>
-                      {porcentajeDeCadena(avance, cadena, POR_ID)}%
+        return (
+          <section key={cadena.patron} className="mt-8">
+            <div className="flex items-center gap-2">
+              <Glifo patron={cadena.patron} />
+              <Rotulo>{NOMBRE_PATRON[cadena.patron].toUpperCase()}</Rotulo>
+            </div>
+            <p className="mt-2 max-w-[42ch] text-sm leading-relaxed text-[var(--color-glosa)]">
+              {cadena.descripcion}
+            </p>
+
+            <div className="registro mt-3">
+              {cadena.ejercicios.map((id, i) => {
+                const ejercicio = POR_ID.get(id)
+                if (!ejercicio) return null
+                const aca = i === actual
+                const hecho = i < actual
+
+                return (
+                  <Link key={id} to={`/biblioteca/${id}`} className="fila-pulsable">
+                    <span className="canal" style={aca ? { color: 'var(--color-vega)' } : undefined}>
+                      {aca ? '◆' : String(i + 1).padStart(2, '0')}
                     </span>
-                  )}
-                </div>
-                <p className="mt-1 text-sm leading-relaxed text-[var(--color-texto-suave)]">
-                  {cadena.descripcion}
-                </p>
-                {avance && (
-                  <div className="mt-3">
-                    <Barra
-                      porcentaje={porcentajeDeCadena(avance, cadena, POR_ID)}
-                      color={color}
-                    />
-                  </div>
-                )}
-              </div>
-
-              <ol className="space-y-2">
-                {cadena.ejercicios.map((id, i) => {
-                  const ejercicio = buscarEjercicio(id)
-                  if (!ejercicio) return null
-
-                  const esActual = actual?.id === id
-                  const superado = actual ? i < cadena.ejercicios.indexOf(actual.id) : false
-
-                  return (
-                    <li key={id}>
-                      <Link
-                        to={`/biblioteca/${id}`}
-                        className="tarjeta flex items-center gap-3 p-3 transition hover:border-[var(--color-texto-suave)]"
-                        style={esActual ? { borderColor: color } : undefined}
+                    <span className="min-w-0">
+                      <span
+                        className="nombre block truncate"
+                        style={hecho ? { color: 'var(--color-glosa)' } : undefined}
                       >
-                        <span
-                          className="cifra flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-sm font-bold"
-                          style={{
-                            backgroundColor: superado
-                              ? `color-mix(in srgb, ${color} 18%, transparent)`
-                              : 'var(--color-superficie-alta)',
-                            color: superado ? color : 'var(--color-texto-suave)',
-                          }}
-                        >
-                          {i + 1}
-                        </span>
-
-                        <span className="min-w-0 flex-1">
-                          <span className="block truncate font-medium">{ejercicio.nombre}</span>
-                          <span className="cifra block text-xs text-[var(--color-texto-suave)]">
-                            {ejercicio.objetivo.series}×
-                            {unidad(ejercicio.medida, ejercicio.objetivo.cantidad)} para pasar
-                          </span>
-                        </span>
-
-                        {esActual && <Etiqueta patron={cadena.patron}>Acá estás</Etiqueta>}
-                      </Link>
-                    </li>
-                  )
-                })}
-              </ol>
-            </section>
-          )
-        })}
-      </div>
+                        {ejercicio.nombre}
+                      </span>
+                      {aca && <span className="rotulo mt-0.5 block">ESTÁS ACÁ</span>}
+                    </span>
+                    <Objetivo
+                      series={ejercicio.series}
+                      cantidad={ejercicio.ventana.max}
+                      medida={ejercicio.medida}
+                    />
+                  </Link>
+                )
+              })}
+            </div>
+          </section>
+        )
+      })}
     </>
   )
 }

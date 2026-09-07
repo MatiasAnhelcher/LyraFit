@@ -13,7 +13,7 @@
 import type { Cadena, Ejercicio, Patron } from './tipos'
 
 export const EJERCICIOS: Ejercicio[] = [
-  // ─── Empuje ────────────────────────────────────────────────────────────
+  // ─── Empuje ──────────────────────────────────────────────────────────
   {
     id: 'flexion-pared',
     nombre: 'Flexiones en la pared',
@@ -33,8 +33,33 @@ export const EJERCICIOS: Ejercicio[] = [
       'Abrir los codos a noventa grados: castiga los hombros sin sumar nada.',
       'Bajar rápido y rebotar. El control en la bajada es la mitad del ejercicio.',
     ],
-    entrada: { series: 3, cantidad: 10 },
-    objetivo: { series: 3, cantidad: 25 },
+    ventana: { min: 8, max: 15 },
+    series: 3,
+    ccr: 0.2,
+    descansoSegundos: 60,
+  },
+  {
+    id: 'flexion-inclinada-alta',
+    nombre: 'Flexiones inclinadas altas',
+    patron: 'empuje',
+    medida: 'repeticiones',
+    nivel: 2,
+    resumen:
+      'Las manos sobre una mesada o el respaldo de un sillón, bastante más alto que un banco. Es el escalón que faltaba entre la pared y el piso.',
+    tecnica: [
+      'Apoyá las manos al ancho de los hombros sobre una mesada o un mueble firme, más o menos a la altura de la cintura.',
+      'Caminá los pies para atrás hasta que quedes en una sola línea, con el peso adelante.',
+      'Bajá el pecho hasta el borde con los codos cerca del cuerpo, no abiertos en cruz.',
+      'Empujá hasta estirar los brazos del todo y sostené la línea entre repetición y repetición.',
+    ],
+    erroresComunes: [
+      'Apoyarse en algo que se corre o se vuelca. Cargale el peso antes de empezar la serie.',
+      'Dejar los pies demasiado cerca del apoyo: quedás casi parado y el ejercicio no pesa nada.',
+      'Adelantar la cabeza para tocar antes. El que tiene que llegar al borde es el pecho.',
+    ],
+    ventana: { min: 8, max: 15 },
+    series: 3,
+    ccr: 0.3,
     descansoSegundos: 60,
   },
   {
@@ -42,7 +67,7 @@ export const EJERCICIOS: Ejercicio[] = [
     nombre: 'Flexiones inclinadas',
     patron: 'empuje',
     medida: 'repeticiones',
-    nivel: 2,
+    nivel: 3,
     resumen:
       'Las mismas flexiones, con las manos sobre una superficie elevada. Cuanto más baja la superficie, más pesa.',
     tecnica: [
@@ -56,8 +81,33 @@ export const EJERCICIOS: Ejercicio[] = [
       'Bajar la cadera y trabajar de arco en vez de plancha.',
       'Recortar el recorrido para sumar repeticiones.',
     ],
-    entrada: { series: 3, cantidad: 8 },
-    objetivo: { series: 3, cantidad: 20 },
+    ventana: { min: 8, max: 15 },
+    series: 3,
+    ccr: 0.4,
+    descansoSegundos: 75,
+  },
+  {
+    id: 'flexion-inclinada-baja',
+    nombre: 'Flexiones inclinadas bajas',
+    patron: 'empuje',
+    medida: 'repeticiones',
+    nivel: 4,
+    resumen:
+      'Las manos sobre un escalón o una silla baja. Es el último paso antes de las flexiones de rodillas: cerca de la mitad del peso del cuerpo ya va sobre los brazos.',
+    tecnica: [
+      'Apoyá las manos al ancho de los hombros en un escalón o en el asiento de una silla apoyada contra la pared.',
+      'Llevá los pies bien atrás y apretá glúteos y abdomen hasta formar una línea de talones a cabeza.',
+      'Bajá hasta tocar el borde con el pecho, con los codos a unos cuarenta y cinco grados del cuerpo.',
+      'Empujá el apoyo lejos tuyo hasta estirar los codos del todo.',
+    ],
+    erroresComunes: [
+      'Usar una silla suelta que se desliza hacia adelante justo cuando llegás abajo.',
+      'Hundir la cadera y trabajar de arco en vez de plancha.',
+      'Bajar de golpe y rebotar contra el borde en lugar de frenar el peso.',
+    ],
+    ventana: { min: 8, max: 15 },
+    series: 3,
+    ccr: 0.46,
     descansoSegundos: 75,
   },
   {
@@ -65,7 +115,7 @@ export const EJERCICIOS: Ejercicio[] = [
     nombre: 'Flexiones de rodillas',
     patron: 'empuje',
     medida: 'repeticiones',
-    nivel: 3,
+    nivel: 5,
     resumen:
       'Ya en el piso, pero con el punto de apoyo en las rodillas: alrededor del sesenta por ciento del peso del cuerpo.',
     tecnica: [
@@ -79,8 +129,9 @@ export const EJERCICIOS: Ejercicio[] = [
       'Adelantar la cabeza para tocar el piso antes que el pecho.',
       'Perder la tensión del abdomen a partir de la quinta repetición.',
     ],
-    entrada: { series: 3, cantidad: 8 },
-    objetivo: { series: 3, cantidad: 18 },
+    ventana: { min: 8, max: 15 },
+    series: 3,
+    ccr: 0.53,
     descansoSegundos: 75,
   },
   {
@@ -88,7 +139,7 @@ export const EJERCICIOS: Ejercicio[] = [
     nombre: 'Flexiones completas',
     patron: 'empuje',
     medida: 'repeticiones',
-    nivel: 4,
+    nivel: 6,
     resumen:
       'El ejercicio de empuje de toda la vida. Si lo hacés bien, es todo lo que necesitás durante mucho tiempo.',
     tecnica: [
@@ -102,8 +153,9 @@ export const EJERCICIOS: Ejercicio[] = [
       'Aguantar la respiración: soltá el aire al subir.',
       'Juntar los omóplatos arriba en vez de mantener los hombros firmes.',
     ],
-    entrada: { series: 3, cantidad: 5 },
-    objetivo: { series: 3, cantidad: 15 },
+    ventana: { min: 5, max: 12 },
+    series: 3,
+    ccr: 0.64,
     descansoSegundos: 90,
   },
   {
@@ -111,7 +163,7 @@ export const EJERCICIOS: Ejercicio[] = [
     nombre: 'Flexiones diamante',
     patron: 'empuje',
     medida: 'repeticiones',
-    nivel: 5,
+    nivel: 7,
     resumen:
       'Manos juntas debajo del pecho. Se lleva el trabajo al tríceps y a la parte interna del pectoral.',
     tecnica: [
@@ -125,8 +177,9 @@ export const EJERCICIOS: Ejercicio[] = [
       'Abrir los codos para poder bajar más: si se abren, todavía no es el momento.',
       'Forzar la muñeca. Si molesta, hacelas sobre los puños o sobre agarres.',
     ],
-    entrada: { series: 3, cantidad: 5 },
-    objetivo: { series: 3, cantidad: 15 },
+    ventana: { min: 5, max: 12 },
+    series: 3,
+    ccr: 0.7,
     descansoSegundos: 90,
   },
   {
@@ -134,7 +187,7 @@ export const EJERCICIOS: Ejercicio[] = [
     nombre: 'Flexiones declinadas',
     patron: 'empuje',
     medida: 'repeticiones',
-    nivel: 6,
+    nivel: 8,
     resumen:
       'Los pies elevados. Se traslada peso a los hombros y prepara el terreno para las verticales.',
     tecnica: [
@@ -148,16 +201,41 @@ export const EJERCICIOS: Ejercicio[] = [
       'Dejar que la espalda baja se arquee.',
       'Apoyar los pies en algo con ruedas.',
     ],
-    entrada: { series: 3, cantidad: 5 },
-    objetivo: { series: 3, cantidad: 15 },
+    ventana: { min: 5, max: 12 },
+    series: 3,
+    ccr: 0.75,
     descansoSegundos: 90,
+  },
+  {
+    id: 'flexion-pseudoplancha',
+    nombre: 'Flexiones pseudo plancha',
+    patron: 'empuje',
+    medida: 'repeticiones',
+    nivel: 9,
+    resumen:
+      'Manos a la altura de la cintura, dedos apuntando a los pies y el cuerpo volcado hacia adelante. Es el puente hacia la plancha y le pide muchísimo al hombro de adelante.',
+    tecnica: [
+      'Apoyá las manos al ancho de los hombros a la altura de la cintura, con los dedos apuntando hacia los pies.',
+      'Llevá los hombros por delante de las manos: cuanto más adelante, más pesa.',
+      'Bajá con los codos pegados al cuerpo, sin dejar que la cadera se hunda ni se levante.',
+      'Empujá el piso hacia atrás para volver, sosteniendo los hombros adelante todo el recorrido.',
+    ],
+    erroresComunes: [
+      'Ganar inclinación de golpe. El hombro de adelante trabaja estirado y en desventaja, así que se avanza de a pocos centímetros por vez.',
+      'Forzar la muñeca. Si molesta, hacelas sobre agarres paralelos y sumá movilidad de muñeca aparte.',
+      'Subir la cola para aguantar la posición, que descarga justo lo que se está entrenando.',
+    ],
+    ventana: { min: 4, max: 10 },
+    series: 3,
+    ccr: 0.82,
+    descansoSegundos: 120,
   },
   {
     id: 'flexion-arquera',
     nombre: 'Flexiones arqueras',
     patron: 'empuje',
     medida: 'repeticiones',
-    nivel: 7,
+    nivel: 10,
     resumen:
       'Un brazo trabaja y el otro acompaña estirado. El paso intermedio real hacia la flexión a una mano.',
     tecnica: [
@@ -171,8 +249,9 @@ export const EJERCICIOS: Ejercicio[] = [
       'Contar como una repetición lo que fueron dos medias.',
       'Descuidar el lado más débil. Se avanza al ritmo del más flojo.',
     ],
-    entrada: { series: 3, cantidad: 4 },
-    objetivo: { series: 3, cantidad: 12 },
+    ventana: { min: 3, max: 8 },
+    series: 3,
+    ccr: 0.9,
     descansoSegundos: 120,
   },
   {
@@ -180,7 +259,7 @@ export const EJERCICIOS: Ejercicio[] = [
     nombre: 'Flexiones a una mano',
     patron: 'empuje',
     medida: 'repeticiones',
-    nivel: 8,
+    nivel: 11,
     resumen:
       'El final de la cadena de empuje. Tanto fuerza de pectoral y tríceps como capacidad del core para evitar que el cuerpo rote.',
     tecnica: [
@@ -194,12 +273,12 @@ export const EJERCICIOS: Ejercicio[] = [
       'Rebotar en el piso.',
       'Trabajar solo el lado fuerte.',
     ],
-    entrada: { series: 3, cantidad: 2 },
-    objetivo: { series: 3, cantidad: 8 },
+    ventana: { min: 2, max: 6 },
+    series: 3,
+    ccr: 1.0,
     descansoSegundos: 150,
   },
-
-  // ─── Tracción ──────────────────────────────────────────────────────────
+  // ─── Tracción ────────────────────────────────────────────────────────
   {
     id: 'remo-australiano-alto',
     nombre: 'Remo australiano alto',
@@ -219,8 +298,33 @@ export const EJERCICIOS: Ejercicio[] = [
       'Doblar la cadera en vez de mantener el cuerpo derecho.',
       'Estirar el cuello para acercar la cara antes que el pecho.',
     ],
-    entrada: { series: 3, cantidad: 8 },
-    objetivo: { series: 3, cantidad: 20 },
+    ventana: { min: 8, max: 15 },
+    series: 3,
+    ccr: 0.4,
+    descansoSegundos: 75,
+  },
+  {
+    id: 'remo-australiano-medio',
+    nombre: 'Remo australiano medio',
+    patron: 'traccion',
+    medida: 'repeticiones',
+    nivel: 2,
+    resumen:
+      'La barra a la altura de la cintura y el cuerpo a unos cuarenta y cinco grados. Alrededor de la mitad del peso corporal colgando de la espalda.',
+    tecnica: [
+      'Agarrá la barra al ancho de los hombros con las palmas hacia adelante.',
+      'Caminá los pies hasta quedar a unos cuarenta y cinco grados, con el cuerpo derecho.',
+      'Empezá bajando los omóplatos y recién después doblá los codos.',
+      'Tocá la barra con el esternón y bajá hasta estirar los brazos del todo.',
+    ],
+    erroresComunes: [
+      'Ir acercando los pies serie a serie y terminar más parado que al principio.',
+      'Doblar la cadera. De talones a cabeza tiene que ser una tabla.',
+      'Encogerse de hombros al tirar, en vez de llevarlos hacia abajo y atrás.',
+    ],
+    ventana: { min: 8, max: 15 },
+    series: 3,
+    ccr: 0.49,
     descansoSegundos: 75,
   },
   {
@@ -228,7 +332,7 @@ export const EJERCICIOS: Ejercicio[] = [
     nombre: 'Remo australiano bajo',
     patron: 'traccion',
     medida: 'repeticiones',
-    nivel: 2,
+    nivel: 3,
     resumen:
       'El mismo remo con el cuerpo más horizontal. Cerca del setenta por ciento del peso corporal.',
     tecnica: [
@@ -242,8 +346,33 @@ export const EJERCICIOS: Ejercicio[] = [
       'Cortar el recorrido arriba.',
       'Soltar la tensión del abdomen y quedar colgando de la espalda baja.',
     ],
-    entrada: { series: 3, cantidad: 6 },
-    objetivo: { series: 3, cantidad: 15 },
+    ventana: { min: 6, max: 12 },
+    series: 3,
+    ccr: 0.58,
+    descansoSegundos: 90,
+  },
+  {
+    id: 'remo-australiano-pies-elevados',
+    nombre: 'Remo australiano con pies elevados',
+    patron: 'traccion',
+    medida: 'repeticiones',
+    nivel: 4,
+    resumen:
+      'El remo horizontal con los pies sobre una silla. Es lo que hace falta para pasar de mover la mitad del peso a mover casi todo.',
+    tecnica: [
+      'Poné una silla firme debajo de una barra a la altura de la cadera y apoyá los talones arriba.',
+      'Colgate con los brazos estirados: el cuerpo queda paralelo al piso o apenas más alto.',
+      'Apretá glúteos y abdomen para no quedar colgado de la espalda baja.',
+      'Tirá hasta tocar la barra con el pecho y bajá controlado hasta estirar del todo.',
+    ],
+    erroresComunes: [
+      'Elegir un apoyo tan alto que la cadera se quiebra sola y no hay forma de sostener la línea.',
+      'Dejar caer la cadera cuando aparece el cansancio y terminar la serie hecho una hamaca.',
+      'Cortar el recorrido arriba y quedarse a un palmo de la barra.',
+    ],
+    ventana: { min: 6, max: 12 },
+    series: 3,
+    ccr: 0.66,
     descansoSegundos: 90,
   },
   {
@@ -251,7 +380,7 @@ export const EJERCICIOS: Ejercicio[] = [
     nombre: 'Dominadas negativas',
     patron: 'traccion',
     medida: 'segundos',
-    nivel: 3,
+    nivel: 5,
     resumen:
       'Solo la bajada, lo más lenta posible. Es la forma más rápida y segura de construir la primera dominada.',
     tecnica: [
@@ -265,8 +394,9 @@ export const EJERCICIOS: Ejercicio[] = [
       'Frenar arriba y no llegar a estirar los brazos.',
       'Hacer demasiadas: son exigentes y dejan agujetas por varios días.',
     ],
-    entrada: { series: 3, cantidad: 5 },
-    objetivo: { series: 3, cantidad: 20 },
+    ventana: { min: 8, max: 20 },
+    series: 3,
+    ccr: 0.72,
     descansoSegundos: 120,
   },
   {
@@ -274,7 +404,7 @@ export const EJERCICIOS: Ejercicio[] = [
     nombre: 'Dominadas asistidas con banda',
     patron: 'traccion',
     medida: 'repeticiones',
-    nivel: 4,
+    nivel: 6,
     resumen:
       'El gesto completo con una banda elástica que devuelve parte del peso. Se va cambiando por bandas más finas.',
     tecnica: [
@@ -288,8 +418,33 @@ export const EJERCICIOS: Ejercicio[] = [
       'Impulsarse con las piernas.',
       'Quedarse en la misma banda por comodidad.',
     ],
-    entrada: { series: 3, cantidad: 5 },
-    objetivo: { series: 3, cantidad: 12 },
+    ventana: { min: 5, max: 12 },
+    series: 3,
+    ccr: 0.78,
+    descansoSegundos: 120,
+  },
+  {
+    id: 'dominada-asistida-leve',
+    nombre: 'Dominadas con banda liviana',
+    patron: 'traccion',
+    medida: 'repeticiones',
+    nivel: 7,
+    resumen:
+      'La misma dominada asistida, pero con una banda más fina. Es el último empujón antes de la dominada limpia.',
+    tecnica: [
+      'Enganchá una banda fina en la barra y apoyá un pie en el otro extremo.',
+      'Agarre al ancho de los hombros, palmas hacia adelante, brazos estirados abajo.',
+      'Tirá hasta pasar la pera por encima de la barra sin ayudarte con las piernas.',
+      'Bajá controlado hasta el colgado completo antes de la próxima.',
+    ],
+    erroresComunes: [
+      'Volver a la banda gruesa cuando la serie se pone difícil, en vez de cortarla y descansar.',
+      'Aprovechar el rebote de la banda abajo para arrancar la repetición.',
+      'Elegir la banda por lo que sale en la primera repetición y no por lo que sale en la última.',
+    ],
+    ventana: { min: 4, max: 10 },
+    series: 3,
+    ccr: 0.86,
     descansoSegundos: 120,
   },
   {
@@ -297,7 +452,7 @@ export const EJERCICIOS: Ejercicio[] = [
     nombre: 'Dominadas completas',
     patron: 'traccion',
     medida: 'repeticiones',
-    nivel: 5,
+    nivel: 8,
     resumen:
       'La medida universal de la fuerza de tracción. Sin ayuda, sin impulso, recorrido completo.',
     tecnica: [
@@ -311,8 +466,9 @@ export const EJERCICIOS: Ejercicio[] = [
       'Quedarse a mitad de camino y contarla igual.',
       'Colgarse muerto de los hombros entre repetición y repetición.',
     ],
-    entrada: { series: 3, cantidad: 3 },
-    objetivo: { series: 3, cantidad: 12 },
+    ventana: { min: 3, max: 10 },
+    series: 3,
+    ccr: 0.95,
     descansoSegundos: 150,
   },
   {
@@ -320,7 +476,7 @@ export const EJERCICIOS: Ejercicio[] = [
     nombre: 'Dominadas arqueras',
     patron: 'traccion',
     medida: 'repeticiones',
-    nivel: 6,
+    nivel: 9,
     resumen:
       'Se sube hacia un lado mientras el otro brazo se estira. El camino a la dominada a un brazo.',
     tecnica: [
@@ -334,8 +490,9 @@ export const EJERCICIOS: Ejercicio[] = [
       'Sacrificar el recorrido completo por llegar más al costado.',
       'Pasar a este nivel sin doce dominadas limpias.',
     ],
-    entrada: { series: 3, cantidad: 3 },
-    objetivo: { series: 3, cantidad: 10 },
+    ventana: { min: 3, max: 8 },
+    series: 3,
+    ccr: 1.15,
     descansoSegundos: 150,
   },
   {
@@ -343,7 +500,7 @@ export const EJERCICIOS: Ejercicio[] = [
     nombre: 'Dominadas a un brazo asistidas',
     patron: 'traccion',
     medida: 'repeticiones',
-    nivel: 7,
+    nivel: 10,
     resumen:
       'Un brazo tracciona y el otro sostiene la muñeca o una toalla. El último escalón antes de la dominada a un brazo.',
     tecnica: [
@@ -357,12 +514,12 @@ export const EJERCICIOS: Ejercicio[] = [
       'Descuidar el codo: si molesta, bajá un nivel y sumá trabajo de antebrazo.',
       'Entrenarlas con poco descanso entre series.',
     ],
-    entrada: { series: 3, cantidad: 2 },
-    objetivo: { series: 3, cantidad: 8 },
+    ventana: { min: 2, max: 6 },
+    series: 3,
+    ccr: 1.4,
     descansoSegundos: 180,
   },
-
-  // ─── Piernas ───────────────────────────────────────────────────────────
+  // ─── Piernas ─────────────────────────────────────────────────────────
   {
     id: 'sentadilla-banco',
     nombre: 'Sentadillas al banco',
@@ -382,8 +539,33 @@ export const EJERCICIOS: Ejercicio[] = [
       'Levantar los talones del piso.',
       'Meter las rodillas hacia adentro al subir.',
     ],
-    entrada: { series: 3, cantidad: 10 },
-    objetivo: { series: 3, cantidad: 25 },
+    ventana: { min: 10, max: 15 },
+    series: 3,
+    ccr: 0.35,
+    descansoSegundos: 60,
+  },
+  {
+    id: 'sentadilla-asistida',
+    nombre: 'Sentadillas asistidas',
+    patron: 'piernas',
+    medida: 'repeticiones',
+    nivel: 2,
+    resumen:
+      'La sentadilla completa agarrándote del marco de una puerta o de un poste, usando los brazos lo mínimo indispensable para llegar abajo con la espalda derecha.',
+    tecnica: [
+      'Agarrate del marco con las dos manos a la altura del pecho, con los pies al ancho de los hombros y a un paso del apoyo.',
+      'Bajá lento hasta el fondo dejando que los brazos solo te acomoden el equilibrio.',
+      'Abajo sostené el pecho arriba y la espalda con su curva natural.',
+      'Subí empujando el piso con los talones y soltando el agarre todo lo que puedas.',
+    ],
+    erroresComunes: [
+      'Traccionar con los brazos para subir, que convierte esto en otro ejercicio.',
+      'Levantar los talones para bajar más. Es preferible bajar menos y quedar apoyado.',
+      'Dejar que las rodillas se vayan hacia adentro al salir del fondo.',
+    ],
+    ventana: { min: 10, max: 15 },
+    series: 3,
+    ccr: 0.42,
     descansoSegundos: 60,
   },
   {
@@ -391,7 +573,7 @@ export const EJERCICIOS: Ejercicio[] = [
     nombre: 'Sentadillas completas',
     patron: 'piernas',
     medida: 'repeticiones',
-    nivel: 2,
+    nivel: 3,
     resumen:
       'Sin apoyo y hasta abajo. La base de todo el trabajo de piernas que viene después.',
     tecnica: [
@@ -405,16 +587,41 @@ export const EJERCICIOS: Ejercicio[] = [
       'Quedarse a medio recorrido por costumbre.',
       'Forzar la profundidad a costa de la técnica.',
     ],
-    entrada: { series: 3, cantidad: 10 },
-    objetivo: { series: 3, cantidad: 30 },
+    ventana: { min: 10, max: 15 },
+    series: 3,
+    ccr: 0.5,
     descansoSegundos: 75,
+  },
+  {
+    id: 'zancada',
+    nombre: 'Zancadas',
+    patron: 'piernas',
+    medida: 'repeticiones',
+    nivel: 4,
+    resumen:
+      'El primer ejercicio de la cadena en el que cada pierna trabaja sola, todavía con el otro pie en el piso para ayudar con el equilibrio. La cantidad es por pierna.',
+    tecnica: [
+      'Parate derecho con los pies al ancho de las caderas y adelantá una pierna un paso largo.',
+      'Bajá vertical hasta que la rodilla de atrás quede a un puño del piso.',
+      'El peso va sobre el talón de adelante, con el torso erguido.',
+      'Empujá con la pierna de adelante para volver y completá todas las repeticiones antes de cambiar de lado.',
+    ],
+    erroresComunes: [
+      'Dar un paso corto: la rodilla de adelante queda muy volcada sobre el pie y ahí es donde aparece la molestia.',
+      'Golpear el piso con la rodilla de atrás en vez de frenar la bajada.',
+      'Inclinar el torso hacia adelante para llegar abajo.',
+    ],
+    ventana: { min: 8, max: 12 },
+    series: 3,
+    ccr: 0.62,
+    descansoSegundos: 90,
   },
   {
     id: 'sentadilla-bulgara',
     nombre: 'Sentadilla búlgara',
     patron: 'piernas',
     medida: 'repeticiones',
-    nivel: 3,
+    nivel: 5,
     resumen:
       'Una pierna adelante, el pie de atrás elevado. Casi todo el peso sobre una sola pierna, con el equilibrio todavía asistido.',
     tecnica: [
@@ -428,16 +635,41 @@ export const EJERCICIOS: Ejercicio[] = [
       'Inclinar el torso adelante y convertirlo en un ejercicio de cadera.',
       'Empujar con la pierna de atrás.',
     ],
-    entrada: { series: 3, cantidad: 6 },
-    objetivo: { series: 3, cantidad: 15 },
+    ventana: { min: 6, max: 12 },
+    series: 3,
+    ccr: 0.72,
     descansoSegundos: 90,
+  },
+  {
+    id: 'sentadilla-a-banco-una-pierna',
+    nombre: 'Sentadilla a una pierna al banco',
+    patron: 'piernas',
+    medida: 'repeticiones',
+    nivel: 6,
+    resumen:
+      'Sentarse y levantarse de un banco con una sola pierna. Acá se progresa bajando la altura del banco, no sumando repeticiones sin fin. La cantidad es por pierna.',
+    tecnica: [
+      'Parate de espaldas al banco, en una pierna, con la otra estirada adelante.',
+      'Bajá llevando la cadera atrás hasta apoyar apenas en el asiento, sin dejarte caer.',
+      'Tocá y subí empujando con el talón, sin tomar impulso con la pierna libre.',
+      'Cuando llegues al techo de repeticiones, buscá un banco más bajo y volvé a empezar.',
+    ],
+    erroresComunes: [
+      'Desplomarse en el banco y usar el rebote para salir.',
+      'Apoyar el pie de la pierna libre en el último tramo, que es justo donde está el trabajo.',
+      'Bajar la altura del banco de golpe y perder la técnica en todas las repeticiones.',
+    ],
+    ventana: { min: 5, max: 10 },
+    series: 3,
+    ccr: 0.82,
+    descansoSegundos: 120,
   },
   {
     id: 'sentadilla-una-pierna-asistida',
     nombre: 'Sentadilla a una pierna asistida',
     patron: 'piernas',
     medida: 'repeticiones',
-    nivel: 4,
+    nivel: 7,
     resumen:
       'La pistol completa, pero sosteniéndote de algo. Se va soltando el agarre a medida que aparece la fuerza y el equilibrio.',
     tecnica: [
@@ -451,8 +683,9 @@ export const EJERCICIOS: Ejercicio[] = [
       'Apoyar el talón de la pierna libre a mitad de camino.',
       'Levantar el talón de la pierna que trabaja.',
     ],
-    entrada: { series: 3, cantidad: 4 },
-    objetivo: { series: 3, cantidad: 12 },
+    ventana: { min: 5, max: 10 },
+    series: 3,
+    ccr: 0.9,
     descansoSegundos: 120,
   },
   {
@@ -460,7 +693,7 @@ export const EJERCICIOS: Ejercicio[] = [
     nombre: 'Sentadilla a una pierna',
     patron: 'piernas',
     medida: 'repeticiones',
-    nivel: 5,
+    nivel: 8,
     resumen:
       'La pistol. Fuerza, movilidad de tobillo y equilibrio en un solo movimiento.',
     tecnica: [
@@ -474,12 +707,36 @@ export const EJERCICIOS: Ejercicio[] = [
       'Perder el equilibrio hacia atrás por falta de movilidad de tobillo.',
       'Entrenar solo la pierna que sale mejor.',
     ],
-    entrada: { series: 3, cantidad: 3 },
-    objetivo: { series: 3, cantidad: 10 },
+    ventana: { min: 3, max: 8 },
+    series: 3,
+    ccr: 1.0,
     descansoSegundos: 120,
   },
-
-  // ─── Core ──────────────────────────────────────────────────────────────
+  {
+    id: 'pistol-con-pausa',
+    nombre: 'Sentadilla a una pierna con pausa',
+    patron: 'piernas',
+    medida: 'repeticiones',
+    nivel: 9,
+    resumen:
+      'La pistol con dos segundos de pausa abajo, que es justo donde se pierde la tensión. La cantidad es por pierna.',
+    tecnica: [
+      'Parate en una pierna con la otra estirada adelante y los brazos al frente para contrapesar.',
+      'Bajá controlado hasta el fondo, sin dejarte caer en el último tramo.',
+      'Sostené dos segundos abajo, con el talón apoyado y el pecho arriba.',
+      'Subí empujando parejo, sin rebote y sin apoyar la pierna libre.',
+    ],
+    erroresComunes: [
+      'Aflojar en el fondo y quedar colgado de la rodilla en vez de sostener con la pierna. La pausa está justamente para eso.',
+      'Dejar que la rodilla se vaya hacia adentro al salir del fondo, que es el punto de menos control de todo el recorrido.',
+      'Sumar la pausa antes de tener la pistol limpia. Primero el recorrido, después el tiempo abajo.',
+    ],
+    ventana: { min: 3, max: 8 },
+    series: 3,
+    ccr: 1.1,
+    descansoSegundos: 150,
+  },
+  // ─── Core ────────────────────────────────────────────────────────────
   {
     id: 'plancha-rodillas',
     nombre: 'Plancha de rodillas',
@@ -499,9 +756,10 @@ export const EJERCICIOS: Ejercicio[] = [
       'Hundir la espalda baja.',
       'Aguantar la respiración todo el tiempo.',
     ],
-    entrada: { series: 3, cantidad: 20 },
-    objetivo: { series: 3, cantidad: 60 },
-    descansoSegundos: 60,
+    ventana: { min: 15, max: 30 },
+    series: 3,
+    ccr: 0.35,
+    descansoSegundos: 45,
   },
   {
     id: 'plancha',
@@ -522,16 +780,89 @@ export const EJERCICIOS: Ejercicio[] = [
       'Contar el tiempo mientras la forma ya se rompió.',
       'Apretar los hombros hacia las orejas.',
     ],
-    entrada: { series: 3, cantidad: 20 },
-    objetivo: { series: 3, cantidad: 90 },
+    ventana: { min: 15, max: 30 },
+    series: 3,
+    ccr: 0.48,
     descansoSegundos: 60,
+  },
+  {
+    id: 'plancha-brazo-alternado',
+    nombre: 'Plancha con brazo alternado',
+    patron: 'core',
+    medida: 'segundos',
+    nivel: 3,
+    resumen:
+      'Una plancha en la que vas levantando un brazo por vez cada pocos segundos. Suma la tarea de resistir la rotación sin cambiar de ejercicio.',
+    tecnica: [
+      'Armá la plancha con apoyo en las manos, brazos estirados y pies un poco más separados que las caderas.',
+      'Levantá una mano unos centímetros del piso y sostené dos o tres segundos.',
+      'Apoyá y cambiá de lado, sin dejar que la cadera se vaya hacia el costado.',
+      'Contá el tiempo total que sostenés la posición, no la cantidad de cambios.',
+    ],
+    erroresComunes: [
+      'Rotar la cadera hacia el lado del brazo que se levanta.',
+      'Juntar los pies, que angosta la base y hace imposible sostener la línea.',
+      'Levantar el brazo de golpe y usar ese envión para pasar al otro lado.',
+    ],
+    ventana: { min: 15, max: 30 },
+    series: 3,
+    ccr: 0.56,
+    descansoSegundos: 60,
+  },
+  {
+    id: 'elevacion-rodillas-suelo',
+    nombre: 'Elevación de rodillas en el suelo',
+    patron: 'core',
+    medida: 'repeticiones',
+    nivel: 4,
+    resumen:
+      'Acostado boca arriba, llevar las rodillas al pecho sin despegar la zona lumbar del piso. Es el puente entre sostener la línea y mover las piernas.',
+    tecnica: [
+      'Acostate boca arriba con los brazos al costado y las palmas apoyadas.',
+      'Pegá la espalda baja al piso antes de empezar y no la sueltes en toda la serie.',
+      'Llevá las rodillas al pecho enrollando la pelvis, no solo doblando la cadera.',
+      'Bajá lento hasta dejar los pies a un palmo del piso y arrancá la próxima.',
+    ],
+    erroresComunes: [
+      'Dejar que la espalda baja se arquee: ahí el trabajo se va a los flexores de la cadera. Si no lo podés evitar, bajá menos las piernas.',
+      'Empujar contra el piso con las manos para ayudarse a subir.',
+      'Dejar caer las piernas y usar el rebote para la repetición siguiente.',
+    ],
+    ventana: { min: 8, max: 15 },
+    series: 3,
+    ccr: 0.62,
+    descansoSegundos: 60,
+  },
+  {
+    id: 'elevacion-piernas-suelo',
+    nombre: 'Elevación de piernas en el suelo',
+    patron: 'core',
+    medida: 'repeticiones',
+    nivel: 5,
+    resumen:
+      'Lo mismo pero con las piernas estiradas. La palanca es mucho más larga, así que cuesta bastante más sostener la espalda pegada al piso.',
+    tecnica: [
+      'Acostate boca arriba con las piernas estiradas y juntas y las manos al costado de la cadera.',
+      'Pegá la espalda baja al piso y sostenela así todo el recorrido.',
+      'Subí las piernas estiradas hasta dejarlas perpendiculares al piso.',
+      'Bajá lento y frená justo antes de que la espalda se empiece a despegar.',
+    ],
+    erroresComunes: [
+      'Bajar más de lo que la espalda aguanta pegada. El punto donde se despega es el final del recorrido, aunque los pies queden lejos del piso.',
+      'Doblar las rodillas a mitad de camino para llegar más abajo.',
+      'Dejar caer las piernas y golpear el piso con los talones.',
+    ],
+    ventana: { min: 6, max: 12 },
+    series: 3,
+    ccr: 0.72,
+    descansoSegundos: 75,
   },
   {
     id: 'elevacion-rodillas-colgado',
     nombre: 'Elevación de rodillas colgado',
     patron: 'core',
     medida: 'repeticiones',
-    nivel: 3,
+    nivel: 6,
     resumen:
       'Colgado de la barra, subir las rodillas al pecho. Suma trabajo de agarre al del abdomen.',
     tecnica: [
@@ -545,8 +876,9 @@ export const EJERCICIOS: Ejercicio[] = [
       'Subir solo hasta la cintura.',
       'Encogerse de hombros al colgarse.',
     ],
-    entrada: { series: 3, cantidad: 6 },
-    objetivo: { series: 3, cantidad: 15 },
+    ventana: { min: 5, max: 12 },
+    series: 3,
+    ccr: 0.8,
     descansoSegundos: 90,
   },
   {
@@ -554,7 +886,7 @@ export const EJERCICIOS: Ejercicio[] = [
     nombre: 'Elevación de piernas colgado',
     patron: 'core',
     medida: 'repeticiones',
-    nivel: 4,
+    nivel: 7,
     resumen:
       'Las piernas estiradas hasta la altura de la barra. Bastante más exigente que con las rodillas dobladas.',
     tecnica: [
@@ -568,16 +900,41 @@ export const EJERCICIOS: Ejercicio[] = [
       'Balancearse para llegar.',
       'Bajar de golpe y castigar la espalda baja.',
     ],
-    entrada: { series: 3, cantidad: 5 },
-    objetivo: { series: 3, cantidad: 12 },
+    ventana: { min: 5, max: 10 },
+    series: 3,
+    ccr: 0.9,
     descansoSegundos: 120,
+  },
+  {
+    id: 'palanca-frontal-negativa',
+    nombre: 'Palanca frontal negativa',
+    patron: 'core',
+    medida: 'segundos',
+    nivel: 8,
+    resumen:
+      'Desde colgado con las rodillas al pecho, bajar el cuerpo lo más lento posible hasta la horizontal. Los segundos que registrás son los de bajada controlada, sumados.',
+    tecnica: [
+      'Colgate con agarre prono, los brazos estirados y firmes, y llevá las rodillas al pecho.',
+      'Rotá hasta quedar horizontal de espaldas al piso, con la espalda plana.',
+      'Estirá las piernas de a poco mientras el cuerpo baja, resistiendo todo el camino.',
+      'Cortá cuando ya no podés frenar la bajada y contá solo los segundos en que tuviste el control.',
+    ],
+    erroresComunes: [
+      'Doblar los codos para aguantar un poco más. Van rectos y activos: el codo es lo que más se resiente acá, y se cuida cortando la serie antes.',
+      'Arquear la espalda baja para simular la horizontal. Si la cadera se hunde, volvé a agrupar las rodillas y terminá ahí.',
+      'Empezar con esto sin tener firmes la palanca agrupada y las dominadas completas.',
+    ],
+    ventana: { min: 8, max: 20 },
+    series: 3,
+    ccr: 1.0,
+    descansoSegundos: 150,
   },
   {
     id: 'palanca-frontal-agrupada',
     nombre: 'Palanca frontal agrupada',
     patron: 'core',
     medida: 'segundos',
-    nivel: 5,
+    nivel: 9,
     resumen:
       'Colgado y horizontal con las rodillas al pecho. La primera parada real en el camino a la palanca frontal.',
     tecnica: [
@@ -591,8 +948,9 @@ export const EJERCICIOS: Ejercicio[] = [
       'Arquear la espalda y perder la horizontal.',
       'Ir a esta posición sin tener dominadas y elevaciones de piernas firmes.',
     ],
-    entrada: { series: 3, cantidad: 5 },
-    objetivo: { series: 3, cantidad: 30 },
+    ventana: { min: 8, max: 20 },
+    series: 3,
+    ccr: 1.15,
     descansoSegundos: 150,
   },
 ]
@@ -605,11 +963,14 @@ export const CADENAS: Cadena[] = [
       'Pectoral, hombro y tríceps. De la pared a la flexión a una mano, sacándole apoyo al cuerpo en cada paso.',
     ejercicios: [
       'flexion-pared',
+      'flexion-inclinada-alta',
       'flexion-inclinada',
+      'flexion-inclinada-baja',
       'flexion-rodillas',
       'flexion-completa',
       'flexion-diamante',
       'flexion-declinada',
+      'flexion-pseudoplancha',
       'flexion-arquera',
       'flexion-una-mano',
     ],
@@ -621,9 +982,12 @@ export const CADENAS: Cadena[] = [
       'Espalda, bíceps y agarre. El camino a la primera dominada y, mucho más adelante, a la dominada a un brazo.',
     ejercicios: [
       'remo-australiano-alto',
+      'remo-australiano-medio',
       'remo-australiano-bajo',
+      'remo-australiano-pies-elevados',
       'dominada-negativa',
       'dominada-asistida',
+      'dominada-asistida-leve',
       'dominada-completa',
       'dominada-arquera',
       'dominada-un-brazo-asistida',
@@ -636,10 +1000,14 @@ export const CADENAS: Cadena[] = [
       'Cuádriceps, glúteos y equilibrio. De la sentadilla al banco a la sentadilla a una pierna.',
     ejercicios: [
       'sentadilla-banco',
+      'sentadilla-asistida',
       'sentadilla-completa',
+      'zancada',
       'sentadilla-bulgara',
+      'sentadilla-a-banco-una-pierna',
       'sentadilla-una-pierna-asistida',
       'pistol-squat',
+      'pistol-con-pausa',
     ],
   },
   {
@@ -650,8 +1018,12 @@ export const CADENAS: Cadena[] = [
     ejercicios: [
       'plancha-rodillas',
       'plancha',
+      'plancha-brazo-alternado',
+      'elevacion-rodillas-suelo',
+      'elevacion-piernas-suelo',
       'elevacion-rodillas-colgado',
       'elevacion-piernas-colgado',
+      'palanca-frontal-negativa',
       'palanca-frontal-agrupada',
     ],
   },
