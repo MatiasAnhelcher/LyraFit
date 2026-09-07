@@ -7,19 +7,24 @@
  * que necesita internet para anotar una serie es una app que vas a dejar de
  * usar el primer día que la barra esté lejos del wifi.
  *
+ * Y como no hay servidor, esto no es *una* copia de tus datos: es la única. De
+ * ahí sale el resto del diseño de esta carpeta — el respaldo automático de
+ * `respaldo.ts`, el pedido de persistencia al navegador y el aviso en Ajustes
+ * cuando ese pedido no alcanza.
+ *
  * Cada escritura deja además una marca en `pendientes`. Hoy nadie las lee: es
  * la costura por donde va a entrar la sincronización entre dispositivos sin
- * tener que reescribir la app. Está explicado en el README.
+ * tener que reescribir la app.
  */
 
 import Dexie, { type Table } from 'dexie'
-import type { Avance, Patron, Preferencias, Sesion } from '@/dominio/tipos'
+import type { Avance, Estado, Patron, Preferencias, Sesion } from '@/dominio/tipos'
 import { RUTINA_POR_DEFECTO } from '@/dominio/rutinas'
 
 /** Una escritura a la espera de viajar al servidor, cuando exista un servidor. */
 export interface Pendiente {
   id?: number
-  tabla: 'sesiones' | 'avances' | 'preferencias'
+  tabla: 'sesiones' | 'avances' | 'preferencias' | 'estados'
   clave: string
   operacion: 'guardar' | 'borrar'
   creadoEn: number
@@ -30,6 +35,7 @@ export class BaseLyraFit extends Dexie {
   avances!: Table<Avance, Patron>
   preferencias!: Table<Preferencias, string>
   pendientes!: Table<Pendiente, number>
+  estados!: Table<Estado, string>
 
   constructor() {
     super('lyrafit')
@@ -43,6 +49,46 @@ export class BaseLyraFit extends Dexie {
       preferencias: 'id',
       pendientes: '++id, creadoEn',
     })
+
+    // v2 — el chequeo diario, y el motor de progresión reescrito.
+    //
+    // El `Avance` cambió de forma: las dos rachas se reemplazaron por una
+    // señal suavizada. Los campos nuevos no van en el índice, así que Dexie no
+    // necesita saber de ellos, pero los avances que ya estaban guardados sí
+    // hay que traducirlos o el motor arranca leyendo `undefined`.
+    this.version(2)
+      .stores({
+        sesiones: 'id, fecha, finalizadaEn',
+        avances: 'patron, actualizadoEn',
+        preferencias: 'id',
+        pendientes: '++id, creadoEn',
+        estados: 'fecha, actualizadoEn',
+      })
+      .upgrade(async (tx) => {
+        await tx
+          .table('avances')
+          .toCollection()
+          .modify((avance: Record<string, unknown>) => {
+            // Quien venía cumpliendo arranca con la señal a favor; quien venía
+            // fallando, en contra. Es la traducción más fiel posible de dos
+            // contadores a una media móvil.
+            const exitos = Number(avance.rachaExitos ?? 0)
+            const fallos = Number(avance.rachaFallos ?? 0)
+            avance.senal = fallos > 0 ? 0.8 : exitos > 0 ? 1 : 0.95
+            avance.sesionesEnObjetivo = 0
+            avance.graciaRestante = 0
+            delete avance.rachaExitos
+            delete avance.rachaFallos
+          })
+
+        // Las sesiones viejas son todas del plan: es el único tipo que existía.
+        await tx
+          .table('sesiones')
+          .toCollection()
+          .modify((sesion: Record<string, unknown>) => {
+            sesion.tipo ??= 'plan'
+          })
+      })
   }
 }
 
@@ -53,6 +99,9 @@ export const PREFERENCIAS_POR_DEFECTO: Preferencias = {
   rutinaActivaId: RUTINA_POR_DEFECTO,
   sonidoDescanso: true,
   tema: 'sistema',
+  encuadre: 'logrado',
+  estadoActivo: false,
+  prediccionActiva: true,
 }
 
 /** Registra la escritura en la cola de sincronización. */
