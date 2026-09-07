@@ -96,6 +96,20 @@ describe('agrupación semanal', () => {
     expect(lunesDe('2026-09-02')).toBe('2026-08-31') // miércoles
   })
 
+  it('siempre devuelve un lunes, en cualquier huso horario', () => {
+    // La versión anterior formateaba con toISOString(), que convierte a UTC:
+    // al este de Greenwich la medianoche local cae el día anterior y el lunes
+    // salía domingo. Se recorre un año entero para que ninguna combinación de
+    // huso y horario de verano se escape.
+    const dia = new Date('2026-01-01T00:00:00')
+    for (let i = 0; i < 365; i++) {
+      const fecha = `${dia.getFullYear()}-${String(dia.getMonth() + 1).padStart(2, '0')}-${String(dia.getDate()).padStart(2, '0')}`
+      const lunes = lunesDe(fecha)
+      expect(new Date(`${lunes}T00:00:00`).getDay(), `${fecha} → ${lunes}`).toBe(1)
+      dia.setDate(dia.getDate() + 1)
+    }
+  })
+
   it('agrupa las sesiones por semana y las ordena', () => {
     const semanas = porSemana([
       sesion('2026-09-02', 'flexion-completa', [10, 10]),

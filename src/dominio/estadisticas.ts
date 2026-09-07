@@ -78,13 +78,26 @@ export interface ResumenSemana {
   minutos: number
 }
 
+/**
+ * Formatea una fecha como AAAA-MM-DD leyendo sus campos locales.
+ *
+ * La tentación es `toISOString().slice(0, 10)`, pero eso convierte a UTC: al
+ * este de Greenwich la medianoche local cae el día anterior, así que el lunes
+ * salía domingo para toda Europa, Asia y Oceanía. Los días de la app son días
+ * locales; el huso no tiene que entrar en la cuenta.
+ */
+function comoISO(fecha: Date): string {
+  const dosDigitos = (n: number) => String(n).padStart(2, '0')
+  return `${fecha.getFullYear()}-${dosDigitos(fecha.getMonth() + 1)}-${dosDigitos(fecha.getDate())}`
+}
+
 /** El lunes de la semana a la que pertenece una fecha. */
 export function lunesDe(fechaISO: string): string {
   const fecha = new Date(`${fechaISO}T00:00:00`)
   const dia = fecha.getDay()
   const retroceso = dia === 0 ? 6 : dia - 1
   fecha.setDate(fecha.getDate() - retroceso)
-  return fecha.toISOString().slice(0, 10)
+  return comoISO(fecha)
 }
 
 /** Agrupa el historial por semana, de la más vieja a la más nueva. */
