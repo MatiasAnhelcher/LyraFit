@@ -661,3 +661,53 @@ export function porcentajeDeCadena(
 
   return Math.round(((posicion + dentroDelNivel) / total) * 100)
 }
+
+/**
+ * Cuántas sesiones faltan para llegar a un ejercicio, si todo sale bien.
+ *
+ * Se calcula corriendo el motor en seco contra alguien que cumple siempre. No
+ * es una promesa y la pantalla lo dice con esas palabras: es el mejor caso
+ * imaginable, y sirve para que la persona vea que el camino existe y tiene
+ * forma, no para prometerle una fecha.
+ *
+ * Devuelve null si el ejercicio no está más adelante en la cadena.
+ */
+export function proyectar(
+  avance: Avance,
+  ctx: Contexto,
+  hasta: string,
+  tope = 600,
+): number | null {
+  const destino = ctx.cadena.ejercicios.indexOf(hasta)
+  const actual = ctx.cadena.ejercicios.indexOf(avance.ejercicioId)
+  if (destino === -1 || actual === -1 || destino <= actual) return null
+
+  let corriendo = avance
+  for (let sesion = 1; sesion <= tope; sesion++) {
+    const objetivo = corriendo.objetivoActual
+    const series: Serie[] = Array.from({ length: objetivo.series }, () => ({
+      logrado: objetivo.cantidad,
+    }))
+    const decision = siguienteAvance(
+      corriendo,
+      { rendimiento: rendimientoDeSesion(objetivo, series), tipico: objetivo.cantidad },
+      ctx,
+      corriendo.actualizadoEn,
+    )
+    corriendo = decision.avance
+    if (corriendo.ejercicioId === hasta) return sesion
+  }
+  return null
+}
+
+/** El primer ejercicio de la cadena que todavía no se alcanzó. */
+export function proximoHitoDeCadena(
+  avance: Avance,
+  cadena: Cadena,
+  ejercicios: Map<string, Ejercicio>,
+): Ejercicio | null {
+  const posicion = cadena.ejercicios.indexOf(avance.ejercicioId)
+  if (posicion === -1) return null
+  const siguiente = cadena.ejercicios[posicion + 1]
+  return siguiente ? (ejercicios.get(siguiente) ?? null) : null
+}

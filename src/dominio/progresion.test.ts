@@ -15,6 +15,7 @@ import {
   porcentajeDeCadena,
   recalibrar,
   rendimientoDeSesion,
+  proyectar,
   siguienteAvance,
   ubicarEnCadena,
 } from './progresion'
@@ -418,5 +419,27 @@ describe('conUnidad', () => {
   it('dice segundos cuando son segundos', () => {
     expect(conUnidad('segundos', 30)).toBe('30 segundos')
     expect(conUnidad('repeticiones', 12)).toBe('12')
+  })
+})
+
+describe('proyectar', () => {
+  it('estima cuántas sesiones faltan para llegar a un ejercicio', () => {
+    const inicial = avanceInicial(empuje, POR_ID, 0)
+    const sesiones = proyectar(inicial, ctx, 'flexion-completa')
+    expect(sesiones).toBeGreaterThan(20)
+    expect(sesiones).toBeLessThan(200)
+  })
+
+  it('cuanto más lejos está el ejercicio, más sesiones faltan', () => {
+    const inicial = avanceInicial(empuje, POR_ID, 0)
+    expect(proyectar(inicial, ctx, 'flexion-arquera')!).toBeGreaterThan(
+      proyectar(inicial, ctx, 'flexion-completa')!,
+    )
+  })
+
+  it('no proyecta hacia atrás ni hacia donde ya estás', () => {
+    const avance = avanceEn('flexion-diamante', 8)
+    expect(proyectar(avance, ctx, 'flexion-completa')).toBeNull()
+    expect(proyectar(avance, ctx, 'flexion-diamante')).toBeNull()
   })
 })
