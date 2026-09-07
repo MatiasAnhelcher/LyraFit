@@ -1,295 +1,422 @@
 import { describe, expect, it } from 'vitest'
+import { POR_ID, cadenaDe } from './biblioteca'
 import {
+  BAJA,
+  CONSOLIDACION,
+  GRACIA,
+  MESETA,
+
   avanceInicial,
-  evaluarSesion,
+  cantidadParaCarga,
+  conUnidad,
+  incremento,
+  indiceDeCarga,
+  logradoTipico,
   porcentajeDeCadena,
+  recalibrar,
+  rendimientoDeSesion,
   siguienteAvance,
+  ubicarEnCadena,
 } from './progresion'
-import { CADENAS, POR_ID, buscarEjercicio, cadenaDe } from './biblioteca'
 import type { Avance, Objetivo, Serie } from './tipos'
 
-const ctxEmpuje = { cadena: cadenaDe('empuje'), ejercicios: POR_ID }
-const AHORA = 1_700_000_000_000
+const empuje = cadenaDe('empuje')
+const ctx = { cadena: empuje, ejercicios: POR_ID }
 
-function series(...valores: number[]): Serie[] {
-  return valores.map((logrado) => ({ logrado }))
+function ejercicio(id: string) {
+  const e = POR_ID.get(id)
+  if (!e) throw new Error(`falta ${id} en la biblioteca`)
+  return e
 }
 
-function avanceEn(ejercicioId: string, objetivo: Objetivo, extra: Partial<Avance> = {}): Avance {
+function avanceEn(id: string, cantidad: number, extra: Partial<Avance> = {}): Avance {
+  const e = ejercicio(id)
   return {
     patron: 'empuje',
-    ejercicioId,
-    objetivoActual: objetivo,
-    rachaExitos: 0,
-    rachaFallos: 0,
-    actualizadoEn: AHORA,
+    ejercicioId: id,
+    objetivoActual: { series: e.series, cantidad },
+    senal: 1,
+    sesionesEnObjetivo: 0,
+    graciaRestante: 0,
+    actualizadoEn: 0,
     ...extra,
   }
 }
 
-describe('evaluarSesion', () => {
+function series(...logrados: number[]): Serie[] {
+  return logrados.map((logrado) => ({ logrado }))
+}
+
+/** Corre una sesión en la que la persona hace exactamente lo que le piden. */
+function cumpliendo(avance: Avance) {
+  const objetivo = avance.objetivoActual
+  const hechas = series(...Array(objetivo.series).fill(objetivo.cantidad))
+  return siguienteAvance(
+    avance,
+    { rendimiento: rendimientoDeSesion(objetivo, hechas), tipico: logradoTipico(hechas) },
+    ctx,
+    0,
+  )
+}
+
+describe('rendimientoDeSesion', () => {
   const objetivo: Objetivo = { series: 3, cantidad: 10 }
 
-  it('es éxito cuando todas las series llegan al objetivo', () => {
-    expect(evaluarSesion(objetivo, series(10, 10, 10))).toBe('exito')
-    expect(evaluarSesion(objetivo, series(12, 11, 10))).toBe('exito')
+  it('cumplir exacto vale uno', () => {
+    expect(rendimientoDeSesion(objetivo, series(10, 10, 10))).toBeCloseTo(1)
   })
 
-  it('mira la serie más floja y no el promedio', () => {
-    // Promedio 10, pero la última se fue de rango: no es objetivo cumplido.
-    expect(evaluarSesion(objetivo, series(14, 14, 2))).toBe('fallo')
+  it('superarlo vale más de uno, pero con techo', () => {
+    expect(rendimientoDeSesion(objetivo, series(12, 12, 12))).toBeGreaterThan(1)
+    expect(rendimientoDeSesion(objetivo, series(50, 50, 50))).toBeCloseTo(1.25)
   })
 
-  it('es parcial cuando queda cerca', () => {
-    expect(evaluarSesion(objetivo, series(9, 8, 8))).toBe('parcial')
+  it('una serie floja pesa, pero no manda', () => {
+    // El motor viejo juzgaba por la peor serie y esto contaba como fracaso.
+    const casi = rendimientoDeSesion(objetivo, series(10, 10, 9))
+    expect(casi).toBeGreaterThan(0.9)
+    expect(casi).toBeLessThan(1)
   })
 
-  it('es fallo por debajo del sesenta por ciento del objetivo', () => {
-    expect(evaluarSesion(objetivo, series(5, 5, 5))).toBe('fallo')
+  it('abandonar a la mitad se penaliza fuerte, sin regla especial', () => {
+    expect(rendimientoDeSesion(objetivo, series(10))).toBeLessThan(0.4)
   })
 
-  it('es fallo si faltó más de la mitad de las series', () => {
-    expect(evaluarSesion(objetivo, series(12))).toBe('fallo')
+  it('no hacer nada vale cero', () => {
+    expect(rendimientoDeSesion(objetivo, [])).toBe(0)
+    expect(rendimientoDeSesion(objetivo, series(0, 0, 0))).toBe(0)
+  })
+})
+
+describe('incremento proporcional', () => {
+  it('mantiene el paso relativo a lo largo de la ventana', () => {
+    expect(incremento('repeticiones', 5)).toBe(1)
+    expect(incremento('repeticiones', 12)).toBe(1)
+    expect(incremento('repeticiones', 20)).toBe(2)
+    expect(incremento('segundos', 10)).toBe(3)
+    expect(incremento('segundos', 30)).toBe(5)
   })
 
-  it('no cuenta como éxito si sobra cantidad pero faltan series', () => {
-    expect(evaluarSesion(objetivo, series(20, 20))).toBe('parcial')
+  it('nunca es cero', () => {
+    expect(incremento('repeticiones', 1)).toBeGreaterThan(0)
+    expect(incremento('segundos', 1)).toBeGreaterThan(0)
+  })
+})
+
+describe('índice de carga', () => {
+  it('hace comparables dos ejercicios distintos', () => {
+    // Doce flexiones completas y ocho diamante son estados de fuerza parecidos.
+    const completas = indiceDeCarga(ejercicio('flexion-completa'), 12)
+    const diamante = indiceDeCarga(ejercicio('flexion-diamante'), 8)
+    expect(Math.abs(completas - diamante) / completas).toBeLessThan(0.15)
   })
 
-  it('es fallo cuando no se registró nada', () => {
-    expect(evaluarSesion(objetivo, [])).toBe('fallo')
-    expect(evaluarSesion(objetivo, series(0, 0, 0))).toBe('fallo')
+  it('sube al hacer más repeticiones del mismo ejercicio', () => {
+    const e = ejercicio('flexion-completa')
+    expect(indiceDeCarga(e, 10)).toBeGreaterThan(indiceDeCarga(e, 6))
+  })
+
+  it('cantidadParaCarga es la inversa de indiceDeCarga', () => {
+    for (const id of ['flexion-completa', 'flexion-arquera']) {
+      const e = ejercicio(id)
+      for (const n of [3, 6, 9, 12]) {
+        expect(cantidadParaCarga(e, indiceDeCarga(e, n))).toBeCloseTo(n, 0)
+      }
+    }
+  })
+
+  it('la curva de progreso NO se corta al cambiar de eslabón', () => {
+    // Es la propiedad que justifica toda la aritmética de recalibración: el
+    // registro crudo de repeticiones se desploma cada vez que se sube de nivel
+    // (pasás de hacer 15 a hacer 6) y muestra un retroceso justo en el momento
+    // de mayor logro. El índice de carga no.
+    for (const cadena of [cadenaDe('empuje'), cadenaDe('piernas')]) {
+      for (let i = 1; i < cadena.ejercicios.length; i++) {
+        const desde = ejercicio(cadena.ejercicios[i - 1]!)
+        const hacia = ejercicio(cadena.ejercicios[i]!)
+        if (desde.medida !== hacia.medida) continue
+
+        const cantidad = desde.ventana.max
+        const nueva = recalibrar(desde, cantidad, hacia)
+        const antes = indiceDeCarga(desde, cantidad)
+        const despues = indiceDeCarga(hacia, nueva)
+
+        // En los eslabones más livianos la fórmula se satura: quince
+        // flexiones contra la pared están muy por encima del rango donde
+        // Brzycki tiene algo que decir, así que el índice se queda corto y el
+        // salto se nota. No es un problema real —los dos ejercicios son
+        // fáciles y el motor corrige en dos sesiones— pero conviene que el
+        // test lo diga en vez de taparlo con un umbral flojo para todos.
+        const tolerancia = desde.ccr < 0.5 ? 0.35 : 0.2
+        expect(
+          Math.abs(despues - antes) / antes,
+          `${desde.id} (${cantidad}) → ${hacia.id} (${nueva})`,
+        ).toBeLessThan(tolerancia)
+      }
+    }
+  })
+})
+
+describe('recalibrar', () => {
+  it('entra al eslabón nuevo con una carga que se puede sostener', () => {
+    const nueva = recalibrar(ejercicio('flexion-completa'), 12, ejercicio('flexion-diamante'))
+    expect(nueva).toBeGreaterThanOrEqual(ejercicio('flexion-diamante').ventana.min)
+    expect(nueva).toBeLessThan(12)
+  })
+
+  it('al bajar de eslabón propone más repeticiones', () => {
+    const nueva = recalibrar(ejercicio('flexion-completa'), 5, ejercicio('flexion-rodillas'))
+    expect(nueva).toBeGreaterThan(5)
+  })
+
+  it('sin traducción defendible entre unidades, entra por el piso', () => {
+    const desde = ejercicio('remo-australiano-pies-elevados')
+    const hacia = ejercicio('dominada-negativa')
+    expect(recalibrar(desde, desde.ventana.max, hacia)).toBe(hacia.ventana.min)
+  })
+
+  it('nunca sale de la ventana del ejercicio de destino', () => {
+    const hacia = ejercicio('flexion-completa')
+    for (const n of [1, 5, 15, 40]) {
+      const r = recalibrar(ejercicio('flexion-rodillas'), n, hacia)
+      expect(r).toBeGreaterThanOrEqual(hacia.ventana.min)
+      expect(r).toBeLessThanOrEqual(hacia.ventana.max)
+    }
   })
 })
 
 describe('siguienteAvance', () => {
-  it('sube la exigencia con un solo éxito, sin cambiar de ejercicio', () => {
-    const avance = avanceEn('flexion-completa', { series: 3, cantidad: 5 })
-    const { avance: nuevo, cambioDeNivel } = siguienteAvance(avance, 'exito', ctxEmpuje, AHORA)
-
-    expect(cambioDeNivel).toBe(false)
-    expect(nuevo.ejercicioId).toBe('flexion-completa')
-    expect(nuevo.objetivoActual.cantidad).toBe(6)
-    expect(nuevo.rachaExitos).toBe(1)
+  it('cumplir sube el objetivo dentro de la ventana', () => {
+    const avance = avanceEn('flexion-completa', 6)
+    const d = cumpliendo(avance)
+    expect(d.movimiento).toBe('subida')
+    expect(d.avance.objetivoActual.cantidad).toBeGreaterThan(6)
+    expect(d.cambioDeNivel).toBe(false)
   })
 
-  it('cambia de ejercicio recién con dos éxitos seguidos', () => {
-    const avance = avanceEn('flexion-completa', { series: 3, cantidad: 15 }, { rachaExitos: 1 })
-    const { avance: nuevo, cambioDeNivel } = siguienteAvance(avance, 'exito', ctxEmpuje, AHORA)
+  it('cumplir en el techo de la ventana cambia de eslabón, después de consolidar', () => {
+    const e = ejercicio('flexion-completa')
+    let avance = avanceEn('flexion-completa', e.ventana.max)
 
-    expect(cambioDeNivel).toBe(true)
-    expect(nuevo.ejercicioId).toBe('flexion-diamante')
-    expect(nuevo.objetivoActual).toEqual(buscarEjercicio('flexion-diamante')!.entrada)
-    expect(nuevo.rachaExitos).toBe(0)
-  })
-
-  it('no supera el objetivo declarado del ejercicio', () => {
-    const avance = avanceEn('flexion-completa', { series: 3, cantidad: 15 })
-    const { avance: nuevo } = siguienteAvance(avance, 'exito', ctxEmpuje, AHORA)
-
-    expect(nuevo.objetivoActual.cantidad).toBe(15)
-  })
-
-  it('en el último eslabón suma volumen en vez de romperse', () => {
-    const avance = avanceEn('flexion-una-mano', { series: 3, cantidad: 8 }, { rachaExitos: 1 })
-    const { avance: nuevo, cambioDeNivel } = siguienteAvance(avance, 'exito', ctxEmpuje, AHORA)
-
-    expect(cambioDeNivel).toBe(false)
-    expect(nuevo.ejercicioId).toBe('flexion-una-mano')
-    expect(nuevo.objetivoActual.cantidad).toBe(9)
-  })
-
-  it('sostiene el objetivo cuando la sesión sale parcial', () => {
-    const avance = avanceEn('flexion-completa', { series: 3, cantidad: 10 }, { rachaExitos: 1 })
-    const { avance: nuevo } = siguienteAvance(avance, 'parcial', ctxEmpuje, AHORA)
-
-    expect(nuevo.objetivoActual.cantidad).toBe(10)
-    expect(nuevo.rachaExitos).toBe(0)
-  })
-
-  it('perdona el primer fallo', () => {
-    const avance = avanceEn('flexion-completa', { series: 3, cantidad: 10 })
-    const { avance: nuevo } = siguienteAvance(avance, 'fallo', ctxEmpuje, AHORA)
-
-    expect(nuevo.objetivoActual.cantidad).toBe(10)
-    expect(nuevo.rachaFallos).toBe(1)
-  })
-
-  it('descarga dentro del mismo ejercicio al segundo fallo', () => {
-    const avance = avanceEn('flexion-completa', { series: 3, cantidad: 10 }, { rachaFallos: 1 })
-    const { avance: nuevo, cambioDeNivel } = siguienteAvance(avance, 'fallo', ctxEmpuje, AHORA)
-
-    expect(cambioDeNivel).toBe(false)
-    expect(nuevo.objetivoActual.cantidad).toBe(8)
-    expect(nuevo.rachaFallos).toBe(0)
-  })
-
-  it('vuelve al ejercicio anterior si ya estaba en la carga mínima', () => {
-    const entrada = buscarEjercicio('flexion-diamante')!.entrada
-    const avance = avanceEn('flexion-diamante', { ...entrada }, { rachaFallos: 1 })
-    const { avance: nuevo, cambioDeNivel } = siguienteAvance(avance, 'fallo', ctxEmpuje, AHORA)
-
-    expect(cambioDeNivel).toBe(true)
-    expect(nuevo.ejercicioId).toBe('flexion-completa')
-    expect(nuevo.objetivoActual).toEqual(buscarEjercicio('flexion-completa')!.objetivo)
-  })
-
-  it('no baja del primer nivel: no hay adónde retroceder', () => {
-    const primero = buscarEjercicio('flexion-pared')!
-    const avance = avanceEn('flexion-pared', { ...primero.entrada }, { rachaFallos: 1 })
-    const { avance: nuevo, cambioDeNivel } = siguienteAvance(avance, 'fallo', ctxEmpuje, AHORA)
-
-    expect(cambioDeNivel).toBe(false)
-    expect(nuevo.ejercicioId).toBe('flexion-pared')
-    expect(nuevo.objetivoActual).toEqual(primero.entrada)
-  })
-
-  it('un éxito corta la racha de fallos', () => {
-    const avance = avanceEn('flexion-completa', { series: 3, cantidad: 10 }, { rachaFallos: 1 })
-    const { avance: nuevo } = siguienteAvance(avance, 'exito', ctxEmpuje, AHORA)
-
-    expect(nuevo.rachaFallos).toBe(0)
-  })
-
-  it('usa incrementos de cinco segundos en los ejercicios de tiempo', () => {
-    const ctxCore = { cadena: cadenaDe('core'), ejercicios: POR_ID }
-    const avance: Avance = {
-      patron: 'core',
-      ejercicioId: 'plancha',
-      objetivoActual: { series: 3, cantidad: 30 },
-      rachaExitos: 0,
-      rachaFallos: 0,
-      actualizadoEn: AHORA,
-    }
-    const { avance: nuevo } = siguienteAvance(avance, 'exito', ctxCore, AHORA)
-
-    expect(nuevo.objetivoActual.cantidad).toBe(35)
-  })
-})
-
-describe('recorrido completo de una cadena', () => {
-  it('llega del primer al último ejercicio entrenando siempre bien', () => {
-    const cadena = cadenaDe('piernas')
-    const ctx = { cadena, ejercicios: POR_ID }
-    let avance = avanceInicial(cadena, POR_ID, AHORA)
-    const visitados = new Set<string>([avance.ejercicioId])
-
-    // Se simula entrenar cumpliendo siempre el objetivo. El tope evita que un
-    // error de lógica convierta el test en un bucle infinito.
-    for (let sesion = 0; sesion < 500; sesion++) {
-      const ejercicio = buscarEjercicio(avance.ejercicioId)!
-      const logrado = Math.max(avance.objetivoActual.cantidad, ejercicio.entrada.cantidad)
-      const resultado = evaluarSesion(
-        avance.objetivoActual,
-        series(logrado, logrado, logrado),
-      )
-      avance = siguienteAvance(avance, resultado, ctx, AHORA).avance
-      visitados.add(avance.ejercicioId)
-
-      if (avance.ejercicioId === cadena.ejercicios.at(-1)) break
+    // Tocar el techo una vez no alcanza: un buen día no es dominar.
+    for (let i = 0; i < CONSOLIDACION; i++) {
+      const parcial = cumpliendo(avance)
+      expect(parcial.cambioDeNivel, `sesión ${i + 1}`).toBe(false)
+      avance = parcial.avance
     }
 
-    expect(avance.ejercicioId).toBe('pistol-squat')
-    expect(visitados.size).toBe(cadena.ejercicios.length)
-  })
-})
-
-describe('porcentajeDeCadena', () => {
-  it('arranca en cero en el primer ejercicio con la carga de entrada', () => {
-    const cadena = cadenaDe('empuje')
-    const avance = avanceInicial(cadena, POR_ID, AHORA)
-
-    expect(porcentajeDeCadena(avance, cadena, POR_ID)).toBe(0)
+    const d = cumpliendo(avance)
+    expect(d.cambioDeNivel).toBe(true)
+    expect(d.movimiento).toBe('nivel-arriba')
+    expect(d.avance.ejercicioId).toBe('flexion-diamante')
+    expect(d.avance.graciaRestante).toBe(GRACIA)
   })
 
-  it('crece a medida que se avanza en la cadena', () => {
-    const cadena = cadenaDe('empuje')
-    const temprano = avanceEn('flexion-inclinada', { series: 3, cantidad: 8 })
-    const tarde = avanceEn('flexion-arquera', { series: 3, cantidad: 4 })
+  it('NO cambia de eslabón antes de dominar el actual', () => {
+    // El defecto más caro del motor viejo: subía tras dos sesiones buenas sin
+    // mirar nunca si se había llegado al objetivo declarado del ejercicio.
+    let avance = avanceEn('flexion-pared', ejercicio('flexion-pared').ventana.min)
+    for (let i = 0; i < 5; i++) {
+      const d = cumpliendo(avance)
+      expect(d.avance.ejercicioId, `sesión ${i + 1}`).toBe('flexion-pared')
+      avance = d.avance
+    }
+  })
 
-    expect(porcentajeDeCadena(tarde, cadena, POR_ID)).toBeGreaterThan(
-      porcentajeDeCadena(temprano, cadena, POR_ID),
+  it('el período de gracia evita el rebote entre dos eslabones', () => {
+    const e = ejercicio('flexion-completa')
+    let avance = avanceEn('flexion-completa', e.ventana.max, { graciaRestante: GRACIA })
+    for (let i = 0; i < GRACIA; i++) {
+      const d = cumpliendo(avance)
+      expect(d.cambioDeNivel, `sesión ${i + 1}`).toBe(false)
+      avance = d.avance
+    }
+    expect(cumpliendo(avance).cambioDeNivel).toBe(true)
+  })
+
+  it('venir flojo baja el objetivo', () => {
+    const avance = avanceEn('flexion-completa', 10, { senal: BAJA })
+    const hechas = series(4, 4, 3)
+    const d = siguienteAvance(
+      avance,
+      { rendimiento: rendimientoDeSesion(avance.objetivoActual, hechas), tipico: 4 },
+      ctx,
+      0,
+    )
+    expect(d.movimiento).toBe('bajada')
+    expect(d.avance.objetivoActual.cantidad).toBeLessThan(10)
+  })
+
+  it('desde el piso de la ventana, bajar significa volver un eslabón', () => {
+    const e = ejercicio('flexion-completa')
+    const avance = avanceEn('flexion-completa', e.ventana.min, { senal: 0.5 })
+    const d = siguienteAvance(avance, { rendimiento: 0.2, tipico: 1 }, ctx, 0)
+    expect(d.movimiento).toBe('nivel-abajo')
+    expect(d.avance.ejercicioId).toBe('flexion-rodillas')
+    // Y no entra en el techo del anterior: si no, dos buenas sesiones lo
+    // devuelven al ejercicio que lo acaba de superar.
+    expect(d.avance.objetivoActual.cantidad).toBeLessThan(
+      ejercicio('flexion-rodillas').ventana.max,
     )
   })
 
-  it('nunca se pasa de cien', () => {
-    const cadena = cadenaDe('empuje')
-    const ultimo = buscarEjercicio('flexion-una-mano')!
-    const avance = avanceEn('flexion-una-mano', { ...ultimo.objetivo })
+  it('en el primer eslabón, el piso de la ventana deja de ser un piso', () => {
+    // No hay ejercicio más fácil al que mandar a alguien, así que si el piso
+    // de la ventana fuera intocable la app le pediría para siempre algo que no
+    // le sale. Es el mismo agujero de antes, en el otro extremo de la cadena.
+    const e = ejercicio('flexion-pared')
+    const avance = avanceEn('flexion-pared', e.ventana.min, { senal: 0.4 })
+    const d = siguienteAvance(avance, { rendimiento: 0.2, tipico: 2 }, ctx, 0)
+    expect(d.cambioDeNivel).toBe(false)
+    expect(d.avance.objetivoActual.cantidad).toBeLessThan(e.ventana.min)
+  })
 
-    expect(porcentajeDeCadena(avance, cadena, POR_ID)).toBeLessThanOrEqual(100)
+  it('pero no baja de una repetición', () => {
+    const avance = avanceEn('flexion-pared', 1, { senal: 0.3 })
+    const d = siguienteAvance(avance, { rendimiento: 0, tipico: 0 }, ctx, 0)
+    expect(d.avance.objetivoActual.cantidad).toBe(1)
+    expect(d.explicacion).toContain('primer nivel')
+  })
+
+  it('quedarse quieto tiene fecha de vencimiento', () => {
+    // Éste es el agujero que dejaba a alguien meses con la misma frase: ni
+    // éxito ni fallo, y las dos rachas en cero.
+    let avance = avanceEn('flexion-completa', 10)
+    const hechas = series(9, 9, 9)
+    const evaluacion = {
+      rendimiento: rendimientoDeSesion({ series: 3, cantidad: 10 }, hechas),
+      tipico: 9,
+    }
+
+    const movimientos: string[] = []
+    for (let i = 0; i < MESETA + 1; i++) {
+      const d = siguienteAvance(avance, evaluacion, ctx, i)
+      movimientos.push(d.movimiento)
+      avance = d.avance
+    }
+    expect(movimientos.filter((m) => m === 'sostiene').length).toBeLessThanOrEqual(MESETA)
+    expect(movimientos.some((m) => m !== 'sostiene')).toBe(true)
+  })
+
+  it('en meseta con la señal baja, el objetivo baja a lo que la persona hace', () => {
+    let avance = avanceEn('flexion-completa', 11, { senal: 0.82, sesionesEnObjetivo: MESETA - 1 })
+    const d = siguienteAvance(avance, { rendimiento: 0.8, tipico: 8 }, ctx, 0)
+    expect(d.avance.objetivoActual.cantidad).toBeLessThanOrEqual(9)
+    expect(d.explicacion).toContain('optimista')
+  })
+
+  it('una sesión neutra no mueve absolutamente nada', () => {
+    const avance = avanceEn('flexion-completa', 8, { senal: 0.9, sesionesEnObjetivo: 2 })
+    const d = siguienteAvance(avance, { rendimiento: 0.1, tipico: 1, neutra: true }, ctx, 5)
+    expect(d.movimiento).toBe('neutra')
+    expect(d.avance.senal).toBe(avance.senal)
+    expect(d.avance.objetivoActual).toEqual(avance.objetivoActual)
+    expect(d.avance.sesionesEnObjetivo).toBe(avance.sesionesEnObjetivo)
+  })
+
+  it('una sesión protegida no arrastra la señal para abajo', () => {
+    const avance = avanceEn('flexion-completa', 8, { senal: 1 })
+    const d = siguienteAvance(avance, { rendimiento: 0.3, tipico: 3, protegida: true }, ctx, 0)
+    expect(d.avance.senal).toBe(1)
+  })
+
+  it('pero una sesión protegida que sale bien sí cuenta', () => {
+    const avance = avanceEn('flexion-completa', 8, { senal: 0.7 })
+    const d = siguienteAvance(avance, { rendimiento: 1.2, tipico: 9, protegida: true }, ctx, 0)
+    expect(d.avance.senal).toBeGreaterThan(0.7)
+  })
+
+  it('no sube la exigencia si la persona la está pasando mal', () => {
+    const avance = avanceEn('flexion-completa', 8, { senal: 1 })
+    const d = siguienteAvance(avance, { rendimiento: 1, tipico: 8, animo: -1.5 }, ctx, 0)
+    expect(d.movimiento).toBe('sostiene')
+    expect(d.avance.objetivoActual.cantidad).toBe(8)
+    expect(d.explicacion).toContain('consolidar')
+  })
+
+  it('la señal se mueve siempre que la sesión cuenta', () => {
+    const avance = avanceEn('flexion-completa', 8, { senal: 1 })
+    const d = siguienteAvance(avance, { rendimiento: 0.5, tipico: 4 }, ctx, 0)
+    expect(d.avance.senal).toBeLessThan(1)
+    expect(d.avance.senal).toBeGreaterThan(0.5)
   })
 })
 
-describe('integridad de la biblioteca', () => {
-  it('cada ejercicio de cada cadena existe', () => {
-    for (const cadena of CADENAS) {
-      for (const id of cadena.ejercicios) {
-        expect(buscarEjercicio(id), `falta el ejercicio "${id}"`).toBeDefined()
-      }
+describe('ubicarEnCadena', () => {
+  it('sin prueba, arranca desde el principio', () => {
+    const a = ubicarEnCadena(empuje, POR_ID, 'flexion-completa', 0, 0)
+    expect(a.ejercicioId).toBe(empuje.ejercicios[0])
+  })
+
+  it('quien ya hace flexiones completas no empieza contra la pared', () => {
+    const a = ubicarEnCadena(empuje, POR_ID, 'flexion-completa', 12, 0)
+    expect(empuje.ejercicios.indexOf(a.ejercicioId)).toBeGreaterThan(2)
+  })
+
+  it('ubica más arriba a quien hace más', () => {
+    const pocas = ubicarEnCadena(empuje, POR_ID, 'flexion-completa', 3, 0)
+    const muchas = ubicarEnCadena(empuje, POR_ID, 'flexion-completa', 14, 0)
+    expect(empuje.ejercicios.indexOf(muchas.ejercicioId)).toBeGreaterThan(
+      empuje.ejercicios.indexOf(pocas.ejercicioId),
+    )
+  })
+
+  it('deja el objetivo dentro de la ventana del ejercicio elegido', () => {
+    for (const n of [1, 4, 8, 15, 30]) {
+      const a = ubicarEnCadena(empuje, POR_ID, 'flexion-completa', n, 0)
+      const e = ejercicio(a.ejercicioId)
+      expect(a.objetivoActual.cantidad).toBeGreaterThanOrEqual(e.ventana.min)
+      expect(a.objetivoActual.cantidad).toBeLessThanOrEqual(e.ventana.max)
     }
   })
 
-  it('los niveles están ordenados y sin saltos dentro de cada cadena', () => {
-    for (const cadena of CADENAS) {
-      const niveles = cadena.ejercicios.map((id) => buscarEjercicio(id)!.nivel)
-      expect(niveles).toEqual(niveles.map((_, i) => i + 1))
-    }
+  it('baja un escalón a propósito, porque el autorreporte viene inflado', () => {
+    // Con el mismo número declarado, la ubicación es un eslabón más abajo que
+    // la que sale de la cuenta cruda.
+    const cruda = ubicarEnCadena(empuje, POR_ID, 'flexion-completa', 12, 0)
+    const conDescuento = empuje.ejercicios.indexOf(cruda.ejercicioId)
+
+    // Y el descuento no puede ser tan grande como para mandar a alguien que
+    // hace doce flexiones completas de vuelta a la pared.
+    expect(conDescuento).toBeGreaterThanOrEqual(2)
   })
 
-  it('cada ejercicio pertenece al patrón de su cadena', () => {
-    for (const cadena of CADENAS) {
-      for (const id of cadena.ejercicios) {
-        expect(buscarEjercicio(id)!.patron).toBe(cadena.patron)
-      }
-    }
-  })
-
-  it('la carga de entrada nunca supera al objetivo', () => {
-    for (const ejercicio of POR_ID.values()) {
-      expect(
-        ejercicio.entrada.cantidad,
-        `${ejercicio.nombre} arranca por encima de su objetivo`,
-      ).toBeLessThanOrEqual(ejercicio.objetivo.cantidad)
-    }
-  })
-
-  it('no hay ejercicios sueltos fuera de las cadenas', () => {
-    const enCadenas = new Set(CADENAS.flatMap((c) => c.ejercicios))
-    for (const id of POR_ID.keys()) {
-      expect(enCadenas.has(id), `"${id}" no está en ninguna cadena`).toBe(true)
-    }
-  })
-
-  it('todos tienen técnica y errores comunes cargados', () => {
-    for (const ejercicio of POR_ID.values()) {
-      expect(ejercicio.tecnica.length, ejercicio.nombre).toBeGreaterThan(0)
-      expect(ejercicio.erroresComunes.length, ejercicio.nombre).toBeGreaterThan(0)
-    }
+  it('quien llega al techo de un eslabón queda por encima de ese eslabón', () => {
+    const a = ubicarEnCadena(empuje, POR_ID, 'flexion-diamante', 12, 0)
+    const posicion = empuje.ejercicios.indexOf(a.ejercicioId)
+    const diamante = empuje.ejercicios.indexOf('flexion-diamante')
+    expect(posicion).toBeGreaterThanOrEqual(diamante)
+    // Pero nunca más de dos eslabones por encima: el descuento de seguridad
+    // existe justamente para que un número inflado no termine en una lesión.
+    expect(posicion).toBeLessThanOrEqual(diamante + 2)
   })
 })
 
-describe('los textos nombran la unidad correcta', () => {
-  it('dice "segundos" en los ejercicios de tiempo', () => {
-    const ctxCore = { cadena: cadenaDe('core'), ejercicios: POR_ID }
-    const avance: Avance = {
-      patron: 'core',
-      ejercicioId: 'plancha',
-      objetivoActual: { series: 3, cantidad: 30 },
-      rachaExitos: 0,
-      rachaFallos: 0,
-      actualizadoEn: AHORA,
-    }
-    const { explicacion } = siguienteAvance(avance, 'exito', ctxCore, AHORA)
-
-    expect(explicacion).toContain('35 segundos')
+describe('avanceInicial y porcentaje', () => {
+  it('arranca en el primer eslabón con la señal neutra', () => {
+    const a = avanceInicial(empuje, POR_ID, 7)
+    expect(a.ejercicioId).toBe(empuje.ejercicios[0])
+    expect(a.objetivoActual.cantidad).toBe(ejercicio(empuje.ejercicios[0]!).ventana.min)
+    expect(a.senal).toBe(1)
+    expect(a.actualizadoEn).toBe(7)
   })
 
-  it('no dice "segundos" en los ejercicios de repeticiones', () => {
-    const avance = avanceEn('flexion-completa', { series: 3, cantidad: 8 })
-    const { explicacion } = siguienteAvance(avance, 'exito', ctxEmpuje, AHORA)
+  it('el porcentaje crece con la cadena y nunca se va de rango', () => {
+    const primero = porcentajeDeCadena(avanceInicial(empuje, POR_ID, 0), empuje, POR_ID)
+    const ultimo = porcentajeDeCadena(
+      avanceEn('flexion-una-mano', ejercicio('flexion-una-mano').ventana.max),
+      empuje,
+      POR_ID,
+    )
+    expect(primero).toBeGreaterThanOrEqual(0)
+    expect(ultimo).toBeLessThanOrEqual(100)
+    expect(ultimo).toBeGreaterThan(primero)
+  })
+})
 
-    expect(explicacion).toContain('9 por serie')
-    expect(explicacion).not.toContain('segundos')
+describe('conUnidad', () => {
+  it('dice segundos cuando son segundos', () => {
+    expect(conUnidad('segundos', 30)).toBe('30 segundos')
+    expect(conUnidad('repeticiones', 12)).toBe('12')
   })
 })

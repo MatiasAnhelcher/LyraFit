@@ -4,100 +4,71 @@
  * Funciones puras sobre las sesiones ya guardadas. No hay ningún número
  * guardado en la base que después pueda quedar desactualizado: todo se calcula
  * a partir de lo que efectivamente entrenaste.
+ *
+ * Dos cosas que estaban acá y ya no están, porque hacían más mal que bien:
+ *
+ * - **El "volumen"** sumaba repeticiones con segundos. Veinticinco segundos de
+ *   plancha más diez flexiones daban treinta y cinco de algo que no existe. Era
+ *   la tercera cifra de la pantalla principal y el eje de todos los gráficos.
+ *   Lo reemplaza el conteo de series, que sí es comparable, y el índice de
+ *   carga, que sí dice algo sobre fuerza.
+ *
+ * - **La racha de días.** Estaba rota —contaba días de calendario con hueco
+ *   máximo de dos, y las rutinas de la app tienen huecos de tres y cuatro, así
+ *   que alguien impecable durante dos meses veía un tres— pero el problema no
+ *   era el cálculo. En una app de fuerza el descanso es parte del programa, y
+ *   una racha diaria premia exactamente lo que no hay que hacer. Lo que la
+ *   reemplaza vive en `adherencia.ts`.
  */
 
 import type { Patron, Sesion } from './tipos'
 import { POR_ID } from './biblioteca'
+import { indiceDeCarga } from './progresion'
+import { lunesDe } from './adherencia'
 
-/** Volumen de una serie: repeticiones, o segundos de sostén. */
-export function volumenDeSesion(sesion: Sesion): number {
-  return sesion.registros.reduce(
-    (total, registro) =>
-      total + registro.series.reduce((suma, serie) => suma + serie.logrado, 0),
-    0,
-  )
+/** Cuántas series se completaron en una sesión. Es la unidad comparable. */
+export function seriesDeSesion(sesion: Sesion): number {
+  return sesion.registros.reduce((total, r) => total + r.series.length, 0)
 }
 
-export function volumenPorPatron(sesion: Sesion): Record<Patron, number> {
-  const acumulado: Record<Patron, number> = {
-    empuje: 0,
-    traccion: 0,
-    piernas: 0,
-    core: 0,
-  }
+export function seriesPorPatron(sesion: Sesion): Record<Patron, number> {
+  const acumulado: Record<Patron, number> = { empuje: 0, traccion: 0, piernas: 0, core: 0 }
 
   for (const registro of sesion.registros) {
     const ejercicio = POR_ID.get(registro.ejercicioId)
     if (!ejercicio) continue
-    acumulado[ejercicio.patron] += registro.series.reduce(
-      (suma, serie) => suma + serie.logrado,
-      0,
-    )
+    acumulado[ejercicio.patron] += registro.series.length
   }
-
   return acumulado
 }
 
-/** Diferencia en días entre dos fechas AAAA-MM-DD. */
-function diasEntre(desde: string, hasta: string): number {
-  const a = new Date(`${desde}T00:00:00`)
-  const b = new Date(`${hasta}T00:00:00`)
-  return Math.round((b.getTime() - a.getTime()) / 86_400_000)
+/**
+ * Repeticiones totales de una sesión, contando solo lo que se mide en
+ * repeticiones. Los sostenes tienen su propia cuenta porque son otra cosa.
+ */
+export function repeticionesDeSesion(sesion: Sesion): number {
+  return sumarPorMedida(sesion, 'repeticiones')
 }
 
-/**
- * Racha de días entrenados: cuántos días seguidos con al menos una sesión,
- * contando hacia atrás desde hoy. Se permite un día de hueco porque descansar
- * es parte del plan, no una falla — el que rompe la racha es el segundo.
- */
-export function rachaActual(sesiones: Sesion[], hoy: string): number {
-  const dias = [...new Set(sesiones.map((s) => s.fecha))].sort().reverse()
-  const primero = dias[0]
-  if (!primero) return 0
+/** Segundos de sostén de una sesión. */
+export function segundosDeSesion(sesion: Sesion): number {
+  return sumarPorMedida(sesion, 'segundos')
+}
 
-  // Si hace más de dos días que no entrenás, la racha ya se cortó.
-  if (diasEntre(primero, hoy) > 2) return 0
-
-  let racha = 1
-  for (let i = 1; i < dias.length; i++) {
-    const anterior = dias[i - 1]
-    const actual = dias[i]
-    if (!anterior || !actual) break
-    if (diasEntre(actual, anterior) <= 2) racha++
-    else break
-  }
-
-  return racha
+function sumarPorMedida(sesion: Sesion, medida: 'repeticiones' | 'segundos'): number {
+  return sesion.registros.reduce((total, registro) => {
+    const ejercicio = POR_ID.get(registro.ejercicioId)
+    if (!ejercicio || ejercicio.medida !== medida) return total
+    return total + registro.series.reduce((suma, serie) => suma + serie.logrado, 0)
+  }, 0)
 }
 
 export interface ResumenSemana {
   /** Lunes de esa semana, en formato AAAA-MM-DD. */
   semana: string
   sesiones: number
-  volumen: number
+  series: number
   minutos: number
-}
-
-/**
- * Formatea una fecha como AAAA-MM-DD leyendo sus campos locales.
- *
- * La tentación es `toISOString().slice(0, 10)`, pero eso convierte a UTC: al
- * este de Greenwich la medianoche local cae el día anterior, así que el lunes
- * salía domingo para toda Europa, Asia y Oceanía. Los días de la app son días
- * locales; el huso no tiene que entrar en la cuenta.
- */
-function comoISO(fecha: Date): string {
-  const dosDigitos = (n: number) => String(n).padStart(2, '0')
-  return `${fecha.getFullYear()}-${dosDigitos(fecha.getMonth() + 1)}-${dosDigitos(fecha.getDate())}`
-}
-
-/** El lunes de la semana a la que pertenece una fecha. */
-export function lunesDe(fechaISO: string): string {
-  const fecha = new Date(`${fechaISO}T00:00:00`)
-  const dia = fecha.getDay()
-  const retroceso = dia === 0 ? 6 : dia - 1
-  fecha.setDate(fecha.getDate() - retroceso)
-  return comoISO(fecha)
 }
 
 /** Agrupa el historial por semana, de la más vieja a la más nueva. */
@@ -106,9 +77,9 @@ export function porSemana(sesiones: Sesion[]): ResumenSemana[] {
 
   for (const sesion of sesiones) {
     const semana = lunesDe(sesion.fecha)
-    const actual = mapa.get(semana) ?? { semana, sesiones: 0, volumen: 0, minutos: 0 }
+    const actual = mapa.get(semana) ?? { semana, sesiones: 0, series: 0, minutos: 0 }
     actual.sesiones += 1
-    actual.volumen += volumenDeSesion(sesion)
+    actual.series += seriesDeSesion(sesion)
     actual.minutos += Math.round(sesion.duracionSegundos / 60)
     mapa.set(semana, actual)
   }
@@ -120,8 +91,8 @@ export interface PuntoHistorico {
   fecha: string
   /** La mejor serie de ese día para ese ejercicio. */
   mejor: number
-  /** Volumen total del ejercicio ese día. */
-  volumen: number
+  /** Cuántas series se hicieron. */
+  series: number
 }
 
 /** La evolución de un ejercicio puntual a lo largo del tiempo. */
@@ -139,7 +110,7 @@ export function historicoDeEjercicio(
       puntos.push({
         fecha: sesion.fecha,
         mejor: Math.max(...logros),
-        volumen: logros.reduce((a, b) => a + b, 0),
+        series: logros.length,
       })
     }
   }
@@ -154,20 +125,62 @@ export function recordDe(sesiones: Sesion[], ejercicioId: string): number {
   return Math.max(...puntos.map((p) => p.mejor))
 }
 
-export interface Totales {
-  sesiones: number
-  volumen: number
-  minutos: number
-  racha: number
+export interface PuntoDeFuerza {
+  fecha: string
+  /** El índice de carga de la mejor serie del día en esta cadena. */
+  carga: number
+  ejercicioId: string
 }
 
-export function totales(sesiones: Sesion[], hoy: string): Totales {
+/**
+ * La curva de fuerza de una cadena, en índice de carga.
+ *
+ * Es el gráfico que antes no se podía dibujar. El registro crudo de
+ * repeticiones se desploma cada vez que se cambia de eslabón —pasás de hacer
+ * quince a hacer seis— y muestra un retroceso justo en el momento de mayor
+ * logro. El índice de carga hace comparables ejercicios distintos, así que la
+ * línea sube parejo a través de toda la cadena.
+ *
+ * Es una estimación, y en la pantalla se dice.
+ */
+export function curvaDeFuerza(sesiones: Sesion[], patron: Patron): PuntoDeFuerza[] {
+  const porDia = new Map<string, PuntoDeFuerza>()
+
+  for (const sesion of sesiones) {
+    for (const registro of sesion.registros) {
+      const ejercicio = POR_ID.get(registro.ejercicioId)
+      if (!ejercicio || ejercicio.patron !== patron) continue
+
+      const mejor = Math.max(0, ...registro.series.map((s) => s.logrado))
+      if (mejor <= 0) continue
+
+      const carga = indiceDeCarga(ejercicio, mejor)
+      const previo = porDia.get(sesion.fecha)
+      if (!previo || carga > previo.carga) {
+        porDia.set(sesion.fecha, { fecha: sesion.fecha, carga, ejercicioId: ejercicio.id })
+      }
+    }
+  }
+
+  return [...porDia.values()].sort((a, b) => a.fecha.localeCompare(b.fecha))
+}
+
+export interface Totales {
+  sesiones: number
+  series: number
+  minutos: number
+  repeticiones: number
+  segundos: number
+}
+
+export function totales(sesiones: Sesion[]): Totales {
   return {
     sesiones: sesiones.length,
-    volumen: sesiones.reduce((suma, s) => suma + volumenDeSesion(s), 0),
-    minutos: Math.round(
-      sesiones.reduce((suma, s) => suma + s.duracionSegundos, 0) / 60,
-    ),
-    racha: rachaActual(sesiones, hoy),
+    series: sesiones.reduce((suma, s) => suma + seriesDeSesion(s), 0),
+    minutos: Math.round(sesiones.reduce((suma, s) => suma + s.duracionSegundos, 0) / 60),
+    repeticiones: sesiones.reduce((suma, s) => suma + repeticionesDeSesion(s), 0),
+    segundos: sesiones.reduce((suma, s) => suma + segundosDeSesion(s), 0),
   }
 }
+
+export { lunesDe }
