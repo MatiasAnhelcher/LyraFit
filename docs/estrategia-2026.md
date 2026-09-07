@@ -29,6 +29,39 @@ falta, y último lo que sería lindo tener.**
 
 ---
 
+## Estado de implementación
+
+Este documento se escribió como análisis. Lo que sigue ya está construido y en
+la rama, así que el diagnóstico de la sección 1 describe el estado **anterior**
+al trabajo, no el actual:
+
+| Sección | Estado |
+|---|---|
+| §1.1 Estado absorbente del motor | **Hecho.** Señal EWMA sin reinicios + ruptura de meseta a las 4 sesiones |
+| §1.2 Cadenas agotadas en 5 semanas | **Hecho.** Compuerta de dominio, consolidación del techo, 39 ejercicios |
+| §1.4 Racha rota | **Hecho.** Borrada y reemplazada por adherencia rodante, créditos e identidad |
+| §1.5 `lunesDe` y persistencia | **Hecho.** Más una corrida de CI con `TZ` al este |
+| §1.5 `Serie.esfuerzo` sin usar | **Hecho.** Esfuerzo, ánimo, predicción y RIR |
+| §1.6 Sin alta ni test de nivel | **Hecho.** |
+| §1.6 Sin borrar sesión mal cargada | Pendiente |
+| §1.6 "Volumen" mezclando unidades | **Hecho.** Series, repeticiones y segundos por separado |
+| §3 Arquitectura de adherencia | **Hecho.** A28, créditos, sesión de vuelta, sesión corta, identidad |
+| §4 Motor v2 completo | **Hecho**, salvo los micro-escalones dinámicos de §4.8 |
+| §5.1 Delta de vitalidad | **Hecho.** |
+| §5.2 Calibración interoceptiva | **Hecho.** |
+| §5.3–5.4 Chequeo diario e índice | **Hecho.** |
+| §5.5 Módulo de alimentación | Pendiente |
+| §5.7 Ritual de respiración | Pendiente |
+| §6.9 Backup automático | **Hecho.** OPFS con rotación de tres |
+| §6.9 Web Push | Pendiente |
+| §8 Ola 1 | 11 de 12 |
+
+El sistema visual **Efeméride** no estaba en este documento: salió de una
+exploración posterior de tres direcciones independientes con un jurado que las
+integró. Está descrito en el encabezado de `src/estilos.css`.
+
+---
+
 ## 1. Diagnóstico sin anestesia
 
 LyraFit está mucho mejor construida de lo que está diseñada. La arquitectura es la de

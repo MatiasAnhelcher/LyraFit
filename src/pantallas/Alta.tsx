@@ -26,7 +26,7 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { POR_ID, NOMBRE_PATRON, cadenaDe } from '@/dominio/biblioteca'
-import { proyectar, ubicarEnCadena } from '@/dominio/progresion'
+import { proximoHitoDeCadena, proyectar, ubicarEnCadena } from '@/dominio/progresion'
 import { RUTINAS } from '@/dominio/rutinas'
 import type { Patron } from '@/dominio/tipos'
 import { guardarPreferencias, ubicarDesdePrueba } from '@/datos/repositorio'
@@ -334,12 +334,19 @@ function Plan({
 }) {
   // La proyección se calcula con el mismo motor que va a decidir mañana, así
   // que no es una promesa de marketing: es aritmética sobre reglas públicas.
+  //
+  // Y se proyecta al PRÓXIMO eslabón, no al final de la cadena. El número al
+  // final es igual de correcto y no se lo cree nadie: "flexión a una mano en
+  // treinta y cinco sesiones" suena a mentira aunque sea el piso teórico
+  // exacto, y una promesa que no se cree hace más daño que no dar ninguna. El
+  // final de la cadena se nombra, que es lo que da la escala, pero sin cifra.
   const empuje = ubicaciones.find((u) => u.patron === 'empuje')
   const cadena = cadenaDe('empuje')
-  const meta = POR_ID.get('flexion-una-mano')!
-  const sesiones = empuje
-    ? proyectar(empuje.avance, { cadena, ejercicios: POR_ID }, meta.id)
-    : null
+  const contexto = { cadena, ejercicios: POR_ID }
+  const siguiente = empuje ? proximoHitoDeCadena(empuje.avance, cadena, POR_ID) : null
+  const sesiones =
+    empuje && siguiente ? proyectar(empuje.avance, contexto, siguiente.id) : null
+  const meta = POR_ID.get(cadena.ejercicios[cadena.ejercicios.length - 1]!)!
 
   return (
     <>
@@ -377,12 +384,13 @@ function Plan({
           })}
         </ul>
 
-        {sesiones !== null && (
-          <p className="mt-6 text-sm leading-relaxed text-[var(--color-texto-suave)]">
-            Desde acá hasta <span className="font-semibold text-[var(--color-texto)]">{meta.nombre}</span>{' '}
-            hay <span className="cifra font-semibold text-[var(--color-texto)]">{sesiones}</span>{' '}
-            sesiones, contando que salga todo bien y no falles ninguna. Nunca sale todo
-            bien: tomalo como la forma del camino, no como una fecha.
+        {sesiones !== null && siguiente && (
+          <p className="mt-6 max-w-[42ch] text-sm leading-relaxed text-[var(--color-texto-suave)]">
+            Tu próximo eslabón de empuje es{' '}
+            <span className="font-semibold text-[var(--color-texto)]">{siguiente.nombre}</span>: unas{' '}
+            <span className="cifra font-semibold text-[var(--color-texto)]">{sesiones}</span>{' '}
+            sesiones si sale todo bien. Al final de esa cadena está {meta.nombre.toLowerCase()},
+            y eso lleva años. La app no te va a apurar para llegar.
           </p>
         )}
       </div>
