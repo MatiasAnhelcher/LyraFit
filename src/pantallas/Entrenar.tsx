@@ -1,18 +1,58 @@
+/**
+ * Entrenar.
+ *
+ * Es la única pantalla que se mira con el pulso a ciento cuarenta, de reojo,
+ * entre respiraciones y a veces con sol de frente. Por eso conmuta la app
+ * entera a noche fija: blanco puro sobre casi negro es el par de mayor
+ * contraste del sistema, y acá es donde hace falta.
+ *
+ * Tres cosas nuevas, y ninguna es decorativa:
+ *
+ * - **La predicción antes de cada serie.** Cuesta cero toques si aceptás el
+ *   número que ya está puesto, y convierte datos que la app igual iba a
+ *   guardar en una medida de qué tan bien te conocés el cuerpo. No da puntos
+ *   a propósito: si diera puntos, se podría hacer trampa prediciendo bajo.
+ *
+ * - **La serie de cierre.** Después de la última serie prescrita se agrega una
+ *   serie fácil, al sesenta por ciento, que nunca cuenta para fallo. Sale de
+ *   la regla del pico y el final: lo que uno recuerda de una sesión, y lo que
+ *   predice si va a haber una próxima, depende del pico y del final mucho más
+ *   que del promedio. Terminar destruido envenena el recuerdo de todo lo demás.
+ *
+ * - **El descanso se muestra vaciando un arco**, en silencio y en lineal. Lo
+ *   que había antes latía a opacidad variable: un elemento que late mientras
+ *   tenés el pulso alto es estresante y encima hace ilegible el número.
+ */
+
 import { useMemo, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { useLiveQuery } from 'dexie-react-hooks'
-import { buscarEjercicio, NOMBRE_PATRON } from '@/dominio/biblioteca'
+import { NOMBRE_PATRON, buscarEjercicio } from '@/dominio/biblioteca'
 import { RUTINA_POR_DEFECTO, RUTINA_POR_ID } from '@/dominio/rutinas'
-import type { RegistroEjercicio, Serie } from '@/dominio/tipos'
-import { cerrarSesion, leerAvances, leerPreferencias, type ResumenSesion } from '@/datos/repositorio'
+import { ajusteDelDia, bandaSostenida } from '@/dominio/estado'
+import { esVuelta, RECORTE_DE_VUELTA } from '@/dominio/adherencia'
+import type { RegistroEjercicio, Serie, TipoSesion } from '@/dominio/tipos'
+import {
+  cerrarSesion,
+  fechaISO,
+  leerAvances,
+  leerEstados,
+  leerPreferencias,
+  leerSesiones,
+  type ResumenSesion,
+} from '@/datos/repositorio'
+import { respaldarEnSilencio } from '@/datos/respaldo'
 import { comoReloj, useCronometro, useTemporizador } from '@/hooks/useTemporizador'
-import { Boton, COLOR_PATRON, Etiqueta, nombreUnidad, plural, unidad } from '@/componentes/ui'
-import { IconoAtras, IconoTilde, IconoSubir, IconoBajar } from '@/componentes/iconos'
+import { useModoDePantalla, usePantallaDespierta } from '@/hooks/usePantalla'
+import { Accion, AccionQuieta, Rotulo, nombreUnidad } from '@/componentes/ui'
+import { Cierre } from './Cierre'
 
 /** Un pitido corto al terminar el descanso, sin archivos de audio. */
 function pitar() {
   try {
-    const Contexto = window.AudioContext ?? (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext
+    const Contexto =
+      window.AudioContext ??
+      (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext
     if (!Contexto) return
     const ctx = new Contexto()
     const osc = ctx.createOscillator()
@@ -27,8 +67,7 @@ function pitar() {
     osc.stop(ctx.currentTime + 0.42)
     setTimeout(() => void ctx.close(), 600)
   } catch {
-    // Si el navegador no deja hacer sonar nada sin un gesto previo, no pasa
-    // nada: el descanso igual termina y la pantalla lo muestra.
+    /* Si el navegador no deja sonar sin un gesto previo, el descanso igual termina. */
   }
 }
 
@@ -36,19 +75,29 @@ function vibrar(patron: number | number[]) {
   try {
     navigator.vibrate?.(patron)
   } catch {
-    /* No todos los dispositivos vibran. No es motivo para romper nada. */
+    /* En iOS no existe. No es motivo para romper nada. */
   }
 }
 
+type Etapa = 'series' | 'cierre-serie' | 'preguntas'
+
 export function Entrenar() {
   const navegar = useNavigate()
+  const [parametros] = useSearchParams()
+  const esCorta = parametros.get('corta') === '1'
+
   const avances = useLiveQuery(leerAvances, [])
   const preferencias = useLiveQuery(leerPreferencias, [])
+  const estados = useLiveQuery(leerEstados, [])
+  const historial = useLiveQuery(() => leerSesiones(), [])
 
   const [indice, setIndice] = useState(0)
   const [hechas, setHechas] = useState<Record<string, Serie[]>>({})
+  const [etapa, setEtapa] = useState<Etapa>('series')
   const [resumen, setResumen] = useState<ResumenSesion | null>(null)
   const [guardando, setGuardando] = useState(false)
+  const [prediccion, setPrediccion] = useState<number | null>(null)
+  const [vitalidadPre] = useState<number | undefined>(undefined)
 
   const duracion = useCronometro(resumen === null)
   const descanso = useTemporizador(() => {
@@ -56,54 +105,79 @@ export function Entrenar() {
     vibrar([120, 80, 120])
   })
 
+  useModoDePantalla(resumen ? 'cierre' : 'entrenar')
+  usePantallaDespierta(resumen === null)
+
   const rutina = preferencias
     ? (RUTINA_POR_ID.get(preferencias.rutinaActivaId) ?? RUTINA_POR_ID.get(RUTINA_POR_DEFECTO)!)
     : null
 
+  /** El factor del día: estado sostenido y sesión de vuelta se multiplican. */
+  const factor = useMemo(() => {
+    if (!estados || !historial) return 1
+    const ajuste = ajusteDelDia(bandaSostenida(estados, fechaISO()))
+    const vuelta = esVuelta(historial, fechaISO()) ? RECORTE_DE_VUELTA : 1
+    return ajuste.factor * vuelta
+  }, [estados, historial])
+
   /** Los ejercicios concretos de la sesión, según el avance de cada patrón. */
   const plan = useMemo(() => {
     if (!rutina || !avances) return []
-    return rutina.bloques.flatMap((bloque) => {
+    const bloques = esCorta ? rutina.bloques.slice(0, rutina.bloques.length) : rutina.bloques
+    return bloques.flatMap((bloque) => {
       const avance = avances.get(bloque.patron)
       const ejercicio = avance ? buscarEjercicio(avance.ejercicioId) : undefined
-      return avance && ejercicio ? [{ ejercicio, objetivo: avance.objetivoActual }] : []
+      if (!avance || !ejercicio) return []
+      // La sesión corta es un ejercicio por cadena y una serie de cada uno.
+      const series = esCorta ? 1 : avance.objetivoActual.series
+      const cantidad = Math.max(1, Math.round(avance.objetivoActual.cantidad * factor))
+      return [{ ejercicio, objetivo: { series, cantidad } }]
     })
-  }, [rutina, avances])
+  }, [rutina, avances, esCorta, factor])
 
-  const [valor, setValor] = useState<number | null>(null)
-
-  if (!avances || !preferencias || plan.length === 0) {
-    return <p className="p-8 text-center text-[var(--color-texto-suave)]">Preparando la sesión…</p>
+  if (!avances || !preferencias || !historial || plan.length === 0) {
+    return (
+      <div className="flex min-h-dvh items-center justify-center">
+        <Rotulo>PREPARANDO LA SESIÓN…</Rotulo>
+      </div>
+    )
   }
 
   if (resumen) {
-    return <Resumen resumen={resumen} duracion={duracion} alSalir={() => navegar('/')} />
+    return <Cierre resumen={resumen} duracion={duracion} alSalir={() => navegar('/')} />
   }
 
   const paso = plan[indice]!
   const { ejercicio, objetivo } = paso
   const series = hechas[ejercicio.id] ?? []
   const completo = series.length >= objetivo.series
-  const color = COLOR_PATRON[ejercicio.patron]
-  const propuesto = valor ?? objetivo.cantidad
   const esUltimo = indice === plan.length - 1
+  const propuesto = prediccion ?? objetivo.cantidad
+  const salto = ejercicio.medida === 'segundos' ? 5 : 1
 
-  function registrarSerie() {
-    const logrado = Math.max(0, propuesto)
+  // La serie de cierre: el ejercicio más fácil de la sesión, al 60%.
+  const cierre = plan.reduce((facil, p) => (p.ejercicio.ccr < facil.ejercicio.ccr ? p : facil), plan[0]!)
+  const objetivoCierre = Math.max(1, Math.round(cierre.objetivo.cantidad * 0.6))
+
+  function registrarSerie(idEjercicio: string, logrado: number, predicho?: number) {
     setHechas((previas) => ({
       ...previas,
-      [ejercicio.id]: [...(previas[ejercicio.id] ?? []), { logrado }],
+      [idEjercicio]: [
+        ...(previas[idEjercicio] ?? []),
+        { logrado, ...(predicho !== undefined ? { predicho } : {}) },
+      ],
     }))
-    setValor(null)
+    setPrediccion(null)
     vibrar(40)
-
-    // No tiene sentido descansar después de la última serie del ejercicio.
-    if (series.length + 1 < objetivo.series) {
-      descanso.arrancar(ejercicio.descansoSegundos)
-    }
   }
 
-  function deshacerSerie() {
+  function anotar() {
+    const logrado = Math.max(0, propuesto)
+    registrarSerie(ejercicio.id, logrado, preferencias?.prediccionActiva ? propuesto : undefined)
+    if (series.length + 1 < objetivo.series) descanso.arrancar(ejercicio.descansoSegundos)
+  }
+
+  function deshacer() {
     setHechas((previas) => ({
       ...previas,
       [ejercicio.id]: (previas[ejercicio.id] ?? []).slice(0, -1),
@@ -113,11 +187,16 @@ export function Entrenar() {
 
   function avanzar() {
     descanso.detener()
-    setValor(null)
-    setIndice((i) => Math.min(i + 1, plan.length - 1))
+    setPrediccion(null)
+    if (!esUltimo) setIndice((i) => i + 1)
+    else setEtapa('cierre-serie')
   }
 
-  async function terminar() {
+  async function terminar(datos: {
+    esfuerzo?: number
+    animo?: number
+    vitalidadPost?: number
+  }) {
     setGuardando(true)
     descanso.detener()
 
@@ -127,8 +206,23 @@ export function Entrenar() {
       series: hechas[e.id] ?? [],
     }))
 
+    const tipo: TipoSesion = esCorta
+      ? 'corta'
+      : esVuelta(historial ?? [], fechaISO())
+        ? 'vuelta'
+        : 'plan'
+
     try {
-      setResumen(await cerrarSesion(registros, duracion))
+      const cerrada = await cerrarSesion({
+        registros,
+        duracionSegundos: duracion,
+        tipo,
+        ...(vitalidadPre !== undefined ? { vitalidadPre } : {}),
+        ...datos,
+      })
+      setResumen(cerrada)
+      // El respaldo ocurre solo, sin avisar y sin poder romper nada.
+      void respaldarEnSilencio()
     } finally {
       setGuardando(false)
     }
@@ -136,45 +230,58 @@ export function Entrenar() {
 
   const algoRegistrado = Object.values(hechas).some((s) => s.length > 0)
 
+  if (etapa === 'preguntas') {
+    return (
+      <Preguntas
+        guardando={guardando}
+        onListo={(datos) => void terminar(datos)}
+      />
+    )
+  }
+
+  if (etapa === 'cierre-serie') {
+    return (
+      <SerieDeCierre
+        nombre={cierre.ejercicio.nombre}
+        cantidad={objetivoCierre}
+        medida={cierre.ejercicio.medida}
+        onHecho={() => {
+          registrarSerie(cierre.ejercicio.id, objetivoCierre)
+          setEtapa('preguntas')
+        }}
+        onSaltear={() => setEtapa('preguntas')}
+      />
+    )
+  }
+
   return (
-    <div className="flex min-h-dvh flex-col bg-[var(--color-fondo)]">
-      <header className="flex items-center justify-between border-b border-[var(--color-borde)] px-4 py-3">
-        <button
-          onClick={() => navegar('/')}
-          className="flex items-center gap-1 text-sm text-[var(--color-texto-suave)]"
-        >
-          <IconoAtras className="h-5 w-5" />
+    <div className="flex min-h-dvh flex-col">
+      <header className="flex items-center justify-between px-4 py-3">
+        <button onClick={() => navegar('/')} className="rotulo">
           Salir
         </button>
-        <p className="cifra text-sm text-[var(--color-texto-suave)]">{comoReloj(duracion)}</p>
+        <p className="cifra text-sm text-[var(--color-glosa)]">{comoReloj(duracion)}</p>
       </header>
 
-      <div className="flex gap-1.5 px-4 pt-4">
+      <div className="flex gap-px px-4">
         {plan.map((p, i) => (
           <div
             key={p.ejercicio.id}
-            className="h-1 flex-1 rounded-full transition-colors"
+            className="h-0.5 flex-1"
             style={{
-              backgroundColor:
-                i < indice
-                  ? COLOR_PATRON[p.ejercicio.patron]
-                  : i === indice
-                    ? color
-                    : 'var(--color-superficie-alta)',
-              opacity: i < indice ? 0.45 : 1,
+              backgroundColor: i <= indice ? 'var(--color-vega)' : 'var(--color-regla)',
+              opacity: i < indice ? 0.5 : 1,
             }}
           />
         ))}
       </div>
 
-      <main className="mx-auto flex w-full max-w-lg flex-1 flex-col px-4 pt-6">
-        <Etiqueta patron={ejercicio.patron}>{NOMBRE_PATRON[ejercicio.patron]}</Etiqueta>
-        <h1 className="mt-3 text-3xl font-bold leading-tight tracking-tight">
-          {ejercicio.nombre}
-        </h1>
-        <p className="mt-2 text-sm text-[var(--color-texto-suave)]">
-          Objetivo: {objetivo.series} series de {unidad(ejercicio.medida, objetivo.cantidad)}
-        </p>
+      <main className="mx-auto flex w-full max-w-lg flex-1 flex-col px-4 pt-8">
+        <Rotulo>
+          {NOMBRE_PATRON[ejercicio.patron].toUpperCase()} · SERIE {Math.min(series.length + 1, objetivo.series)} DE{' '}
+          {objetivo.series}
+        </Rotulo>
+        <h1 className="mt-2 text-3xl font-bold leading-tight tracking-tight">{ejercicio.nombre}</h1>
 
         <ul className="mt-6 flex gap-2" aria-label="Series de este ejercicio">
           {Array.from({ length: objetivo.series }).map((_, i) => {
@@ -183,193 +290,290 @@ export function Entrenar() {
             return (
               <li
                 key={i}
-                className="flex h-14 flex-1 items-center justify-center rounded-xl border-2 text-lg font-bold transition"
+                className="cifra flex h-14 flex-1 items-center justify-center text-lg"
                 style={{
-                  borderColor: serie ? color : activa ? color : 'var(--color-borde)',
-                  backgroundColor: serie
-                    ? `color-mix(in srgb, ${color} 16%, transparent)`
-                    : 'transparent',
-                  color: serie ? color : 'var(--color-texto-suave)',
-                  borderStyle: activa && !serie ? 'dashed' : 'solid',
+                  border: `1px ${activa && !serie ? 'dashed' : 'solid'} ${
+                    serie || activa ? 'var(--color-vega)' : 'var(--color-regla)'
+                  }`,
+                  color: serie ? 'var(--color-tinta)' : 'var(--color-glosa)',
                 }}
               >
-                <span className="cifra">{serie ? serie.logrado : i + 1}</span>
+                {serie ? serie.logrado : '·'}
               </li>
             )
           })}
         </ul>
 
         {descanso.activo ? (
-          <section className="mt-8 flex flex-1 flex-col items-center justify-center pb-8">
-            <p className="text-sm uppercase tracking-wide text-[var(--color-texto-suave)]">
-              Descanso
-            </p>
-            <p className="cifra pulso-descanso mt-2 text-6xl font-bold" style={{ color }}>
-              {comoReloj(descanso.restante)}
-            </p>
-            <div className="mt-6 flex gap-3">
-              <Boton variante="secundario" onClick={() => descanso.sumar(30)}>
-                +30 s
-              </Boton>
-              <Boton variante="secundario" onClick={descanso.detener}>
-                Saltear
-              </Boton>
-            </div>
-          </section>
+          <Descanso
+            restante={descanso.restante}
+            total={ejercicio.descansoSegundos}
+            onSumar={() => descanso.sumar(30)}
+            onSaltear={descanso.detener}
+          />
         ) : completo ? (
-          <section className="mt-8 flex flex-1 flex-col items-center justify-center text-center">
-            <div
-              className="flex h-16 w-16 items-center justify-center rounded-full"
-              style={{ backgroundColor: `color-mix(in srgb, ${color} 18%, transparent)` }}
-            >
-              <IconoTilde className="h-8 w-8" style={{ color }} />
-            </div>
-            <p className="mt-4 font-semibold">Ejercicio completo</p>
-            <button
-              onClick={deshacerSerie}
-              className="mt-2 text-sm text-[var(--color-texto-suave)] underline underline-offset-4"
-            >
+          <section className="flex flex-1 flex-col items-center justify-center text-center">
+            <Rotulo>EJERCICIO COMPLETO</Rotulo>
+            <button onClick={deshacer} className="mt-3 text-sm text-[var(--color-glosa)] underline underline-offset-4">
               Deshacer la última serie
             </button>
           </section>
         ) : (
-          <section className="mt-8 flex flex-1 flex-col justify-center pb-8">
-            <p className="text-center text-sm text-[var(--color-texto-suave)]">
-              Serie {series.length + 1} · {nombreUnidad(ejercicio.medida)}
+          <section className="flex flex-1 flex-col justify-center pb-8">
+            <p className="text-center text-sm text-[var(--color-glosa)]">
+              {preferencias.prediccionActiva
+                ? '¿Cuántas te salen ahora?'
+                : `${nombreUnidad(ejercicio.medida)} de esta serie`}
             </p>
 
-            <div className="mt-3 flex items-center justify-center gap-6">
+            <div className="mt-4 flex items-center justify-center gap-6">
               <button
-                onClick={() => setValor(Math.max(0, propuesto - (ejercicio.medida === 'segundos' ? 5 : 1)))}
-                className="flex h-14 w-14 items-center justify-center rounded-full bg-[var(--color-superficie-alta)]"
+                onClick={() => setPrediccion(Math.max(0, propuesto - salto))}
+                className="cifra flex h-16 w-16 items-center justify-center text-3xl"
+                style={{ border: '1px solid var(--color-regla)' }}
                 aria-label="Restar"
               >
-                <IconoBajar className="h-6 w-6" />
+                −
               </button>
-
-              <p className="cifra w-28 text-center text-6xl font-bold tabular-nums">
-                {propuesto}
-              </p>
-
+              <p className="cifra w-32 text-center text-7xl">{propuesto}</p>
               <button
-                onClick={() => setValor(propuesto + (ejercicio.medida === 'segundos' ? 5 : 1))}
-                className="flex h-14 w-14 items-center justify-center rounded-full bg-[var(--color-superficie-alta)]"
+                onClick={() => setPrediccion(propuesto + salto)}
+                className="cifra flex h-16 w-16 items-center justify-center text-3xl"
+                style={{ border: '1px solid var(--color-regla)' }}
                 aria-label="Sumar"
               >
-                <IconoSubir className="h-6 w-6" />
+                +
               </button>
             </div>
 
             {series.length > 0 && (
-              <div className="mt-4 text-center">
-                <button
-                  onClick={deshacerSerie}
-                  className="text-sm text-[var(--color-texto-suave)] underline underline-offset-4"
-                >
-                  Deshacer la última
-                </button>
-              </div>
+              <button
+                onClick={deshacer}
+                className="mt-6 text-center text-sm text-[var(--color-glosa)] underline underline-offset-4"
+              >
+                Deshacer la última
+              </button>
             )}
           </section>
         )}
-
-        <div className="mt-auto space-y-3 pb-8 pt-8">
-          {!completo && !descanso.activo && (
-            <Boton className="w-full py-4 text-base" onClick={registrarSerie}>
-              Registrar serie
-            </Boton>
-          )}
-
-          {completo && !esUltimo && (
-            <Boton className="w-full py-4 text-base" onClick={avanzar}>
-              Siguiente ejercicio
-            </Boton>
-          )}
-
-          {(completo || algoRegistrado) && (
-            <Boton
-              variante={completo && esUltimo ? 'principal' : 'secundario'}
-              className="w-full py-4 text-base"
-              onClick={() => void terminar()}
-              deshabilitado={guardando || !algoRegistrado}
-            >
-              {guardando ? 'Guardando…' : 'Terminar sesión'}
-            </Boton>
-          )}
-
-          {!completo && !esUltimo && (
-            <Boton variante="fantasma" className="w-full" onClick={avanzar}>
-              Saltear este ejercicio
-            </Boton>
-          )}
-        </div>
       </main>
+
+      <div className="mt-auto">
+        {!completo && !descanso.activo && (
+          <Accion esfuerzo onClick={anotar}>
+            Anotar serie
+          </Accion>
+        )}
+        {completo && (
+          <Accion esfuerzo onClick={avanzar}>
+            {esUltimo ? 'Terminar' : 'Siguiente ejercicio'}
+          </Accion>
+        )}
+        {!completo && !esUltimo && (
+          <AccionQuieta onClick={avanzar}>Saltear este ejercicio</AccionQuieta>
+        )}
+        {!completo && esUltimo && algoRegistrado && (
+          <AccionQuieta onClick={() => setEtapa('cierre-serie')}>Terminar acá</AccionQuieta>
+        )}
+      </div>
     </div>
   )
 }
 
-function Resumen({
-  resumen,
-  duracion,
-  alSalir,
+/** El descanso: un arco que se vacía en silencio. Lineal, porque es tiempo real. */
+function Descanso({
+  restante,
+  total,
+  onSumar,
+  onSaltear,
 }: {
-  resumen: ResumenSesion
-  duracion: number
-  alSalir: () => void
+  restante: number
+  total: number
+  onSumar: () => void
+  onSaltear: () => void
 }) {
-  const volumen = resumen.sesion.registros.reduce(
-    (total, r) => total + r.series.reduce((s, serie) => s + serie.logrado, 0),
-    0,
+  return (
+    <section className="flex flex-1 flex-col items-center justify-center pb-8">
+      <div className="relative flex h-44 w-44 items-center justify-center">
+        <svg viewBox="0 0 100 100" className="absolute inset-0 h-full w-full">
+          <circle className="arco-descanso-fondo" cx="50" cy="50" r="46" />
+          <circle
+            className="arco-descanso"
+            cx="50"
+            cy="50"
+            r="46"
+            pathLength={1}
+            style={{ ['--resto' as string]: String(Math.max(0, restante / Math.max(total, 1))) }}
+          />
+        </svg>
+        <p className="cifra text-5xl">{comoReloj(restante)}</p>
+      </div>
+      <div className="mt-8 flex gap-3">
+        <button onClick={onSumar} className="rotulo px-4 py-3" style={{ border: '1px solid var(--color-regla)' }}>
+          +30 s
+        </button>
+        <button onClick={onSaltear} className="rotulo px-4 py-3" style={{ border: '1px solid var(--color-regla)' }}>
+          Saltear
+        </button>
+      </div>
+    </section>
   )
+}
+
+/**
+ * La serie de cierre.
+ *
+ * Nunca cuenta para fallo y siempre se puede saltear. Está para que la sesión
+ * termine en una nota que se pueda sostener, no en el punto más duro.
+ */
+function SerieDeCierre({
+  nombre,
+  cantidad,
+  medida,
+  onHecho,
+  onSaltear,
+}: {
+  nombre: string
+  cantidad: number
+  medida: 'repeticiones' | 'segundos'
+  onHecho: () => void
+  onSaltear: () => void
+}) {
+  return (
+    <div className="flex min-h-dvh flex-col">
+      <main className="mx-auto flex w-full max-w-lg flex-1 flex-col justify-center px-4">
+        <Rotulo>CIERRE</Rotulo>
+        <h1 className="mt-2 text-3xl font-bold leading-tight tracking-tight">{nombre}</h1>
+        <p className="cifra mt-8 text-7xl">
+          {cantidad}
+          {medida === 'segundos' && <span className="unidad">s</span>}
+        </p>
+        <p className="mt-6 max-w-[36ch] text-sm leading-relaxed text-[var(--color-glosa)]">
+          Una serie fácil para terminar. No cuenta para la progresión y no se puede fallar: está
+          para que te vayas con la sensación de que podías más, que es lo que hace que vuelvas.
+        </p>
+      </main>
+      <div className="mt-auto">
+        <Accion esfuerzo onClick={onHecho}>
+          Listo
+        </Accion>
+        <AccionQuieta onClick={onSaltear}>Saltear el cierre</AccionQuieta>
+      </div>
+    </div>
+  )
+}
+
+/** Las preguntas del final. Tres toques, todos opcionales. */
+function Preguntas({
+  guardando,
+  onListo,
+}: {
+  guardando: boolean
+  onListo: (datos: { esfuerzo?: number; animo?: number; vitalidadPost?: number }) => void
+}) {
+  const [esfuerzo, setEsfuerzo] = useState<number | undefined>()
+  const [animo, setAnimo] = useState<number | undefined>()
+  const [energia, setEnergia] = useState<number | undefined>()
 
   return (
-    <div className="mx-auto flex min-h-dvh w-full max-w-lg flex-col px-5 py-10">
-      <h1 className="text-3xl font-bold tracking-tight">Sesión terminada</h1>
-      <p className="mt-2 text-[var(--color-texto-suave)]">
-        {comoReloj(duracion)} · {volumen} en total ·{' '}
-        {plural(resumen.sesion.registros.length, 'ejercicio', 'ejercicios')}
-      </p>
+    <div className="flex min-h-dvh flex-col">
+      <main className="mx-auto w-full max-w-lg flex-1 px-4 pt-10">
+        <Rotulo>ANTES DE CERRAR</Rotulo>
 
-      <ul className="mt-8 space-y-3">
-        {resumen.decisiones.map(({ patron, decision }) => (
-          <li key={patron} className="tarjeta p-4">
-            <div className="flex items-center justify-between">
-              <Etiqueta patron={patron}>{NOMBRE_PATRON[patron]}</Etiqueta>
-              {decision.cambioDeNivel && (
-                <span
-                  className="text-xs font-bold uppercase tracking-wide"
-                  style={{ color: COLOR_PATRON[patron] }}
-                >
-                  Cambio de nivel
-                </span>
-              )}
-            </div>
-            <p className="mt-3 text-sm leading-relaxed">{decision.explicacion}</p>
-            <p className="mt-2 text-xs text-[var(--color-texto-suave)]">
-              Próxima vez:{' '}
-              <span className="cifra">
-                {decision.avance.objetivoActual.series}×
-                {unidad(
-                  buscarEjercicio(decision.avance.ejercicioId)?.medida ?? 'repeticiones',
-                  decision.avance.objetivoActual.cantidad,
-                )}
-              </span>{' '}
-              de {buscarEjercicio(decision.avance.ejercicioId)?.nombre}
-            </p>
-          </li>
-        ))}
-      </ul>
+        <Pregunta
+          titulo="¿Qué tan dura te resultó?"
+          opciones={[
+            [2, 'Suave'],
+            [4, 'Moderada'],
+            [6, 'Exigente'],
+            [8, 'Dura'],
+            [10, 'Al límite'],
+          ]}
+          valor={esfuerzo}
+          onElegir={setEsfuerzo}
+        />
 
-      {resumen.decisiones.length === 0 && (
-        <p className="mt-8 text-sm text-[var(--color-texto-suave)]">
-          La sesión quedó registrada. Como no completaste los ejercicios que
-          tocaban, el plan se mantiene igual.
+        <Pregunta
+          titulo="¿Cómo te sentiste haciéndola?"
+          opciones={[
+            [-2, 'Mal'],
+            [-1, 'Cuesta arriba'],
+            [0, 'Neutra'],
+            [1, 'Bien'],
+            [2, 'Muy bien'],
+          ]}
+          valor={animo}
+          onElegir={setAnimo}
+        />
+
+        <Pregunta
+          titulo="¿Cuánta energía tenés ahora?"
+          opciones={[
+            [1, 'Nada'],
+            [3, 'Poca'],
+            [5, 'Normal'],
+            [6, 'Bastante'],
+            [7, 'Mucha'],
+          ]}
+          valor={energia}
+          onElegir={setEnergia}
+        />
+
+        <p className="mt-8 max-w-[38ch] text-xs leading-relaxed text-[var(--color-glosa)]">
+          Nada de esto es obligatorio. Lo usa el motor para no bajarte el objetivo por un mal día,
+          y para mostrarte con tus propios datos qué te deja entrenar.
         </p>
-      )}
+      </main>
 
-      <Boton className="mt-auto w-full py-4 text-base" onClick={alSalir}>
-        Listo
-      </Boton>
+      <div className="mt-auto">
+        <Accion
+          esfuerzo
+          deshabilitado={guardando}
+          onClick={() =>
+            onListo({
+              ...(esfuerzo !== undefined ? { esfuerzo } : {}),
+              ...(animo !== undefined ? { animo } : {}),
+              ...(energia !== undefined ? { vitalidadPost: energia } : {}),
+            })
+          }
+        >
+          {guardando ? 'Guardando…' : 'Cerrar la sesión'}
+        </Accion>
+      </div>
     </div>
+  )
+}
+
+function Pregunta({
+  titulo,
+  opciones,
+  valor,
+  onElegir,
+}: {
+  titulo: string
+  opciones: [number, string][]
+  valor: number | undefined
+  onElegir: (n: number) => void
+}) {
+  return (
+    <section className="mt-8">
+      <p className="nombre">{titulo}</p>
+      <div className="mt-3 flex gap-px">
+        {opciones.map(([n, etiqueta]) => (
+          <button
+            key={n}
+            onClick={() => onElegir(n)}
+            className="flex-1 px-1 py-3 text-[0.6875rem] leading-tight"
+            style={{
+              border: '1px solid var(--color-regla)',
+              backgroundColor: valor === n ? 'var(--color-vega)' : 'transparent',
+              color: valor === n ? '#100f0d' : 'var(--color-glosa)',
+            }}
+          >
+            {etiqueta}
+          </button>
+        ))}
+      </div>
+    </section>
   )
 }

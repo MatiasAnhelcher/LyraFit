@@ -31,27 +31,28 @@
  */
 
 /* ==========================================================================
-   FUENTES — autoalojadas. Una PWA offline real no le puede pedir nada a
-   fonts.gstatic.com: sin conexión, un <link> a Google Fonts deja la app sin
-   tipografía y sin fallback controlado. Dos familias, cuatro archivos.
+   FUENTES — autoalojadas y subseteadas. Una PWA offline real no le puede
+   pedir nada a fonts.gstatic.com: sin conexión, un <link> a Google Fonts
+   deja la app sin tipografía y sin fallback controlado.
 
-   La jurisdicción tipográfica paga el ancho de banda: la serif ROMANA solo
-   compone la cifra de identidad y los acumuladores, o sea que dibuja diez
-   glifos y nada más. Subseteada a los dígitos baja de 129 kB a ~4 kB. La
-   cursiva sí lleva latín completo, porque el motor escribe frases enteras.
+   Dos familias, cuatro archivos, 57 kB en total — menos que una sola foto.
+   Lo que hace barato el presupuesto es la jurisdicción tipográfica: cuando
+   una voz tiene un trabajo estrecho, el archivo puede ser igual de estrecho.
 
-     LATIN='U+0020-007E,U+00A0-00FF,U+2013,U+2014,U+2018,U+2019,U+201C,U+201D'
+     plex-mono-400.woff2      9.1 kB  estática
+     plex-mono-600.woff2      9.9 kB  estática
+     newsreader.woff2        23.8 kB  variable SOLO en opsz 56-72
+     newsreader-italic.woff2 14.5 kB  estática (opsz 20 / wght 380 horneados)
 
-     pyftsubset 'IBMPlexMono-Regular.ttf'  --unicodes=$LATIN --flavor=woff2 \
-       --output-file=public/fuentes/plex-mono-400.woff2
-     pyftsubset 'IBMPlexMono-SemiBold.ttf' --unicodes=$LATIN --flavor=woff2 \
-       --output-file=public/fuentes/plex-mono-600.woff2
-     pyftsubset 'Newsreader-Italic[opsz,wght].ttf' --unicodes=$LATIN \
-       --flavor=woff2 --output-file=public/fuentes/newsreader-italic.woff2
-     pyftsubset 'Newsreader[opsz,wght].ttf' --unicodes='U+0030-0039' \
-       --flavor=woff2 --output-file=public/fuentes/newsreader.woff2
+   La romana conserva el eje óptico porque la identidad se ve a dos tamaños
+   (la cifra de Cierre y el acumulador de Progreso) y el eje hace ese ajuste
+   mejor que escalar el mismo dibujo. La cursiva no lo necesita: aparece
+   siempre al mismo cuerpo, así que se hornea en una instancia fija.
 
-   Presupuesto resultante: ~167 kB, casi todo en la cursiva del motor.
+   Ojo con `font-variation-settings`: pedir un eje que el archivo no tiene
+   NO da error, se ignora en silencio. Por eso acá solo se pide 'opsz', y
+   solo sobre la romana. El peso viene del @font-face.
+
    En vite.config.ts hay que sumar woff2 al globPatterns de workbox para que
    el service worker las precachee junto al js, el css y el html.
    ========================================================================== */
@@ -68,10 +69,11 @@
   font-weight: 600;
   font-display: swap;
 }
-/* Newsreader, recortada a lo que el sistema usa de verdad.
-   La romana conserva el eje óptico 56-72 porque la identidad se ve a dos
-   tamaños; la cursiva quedó como instancia fija en opsz 20 / wght 380, que
-   es el único lugar donde aparece. Entre las cuatro fuentes suman 64 KB. */
+/* Newsreader, recortada a lo que el sistema usa de verdad: la romana solo
+   compone cifras de identidad, la cursiva solo la voz del motor.
+   `font-synthesis: none` en body es obligatorio con instancias estáticas —
+   sin eso el navegador inventa una negrita o una cursiva falsa cuando pide
+   un peso que el archivo no tiene, y la voz del motor deja de ser una voz. */
 @font-face {
   font-family: 'Lectura';
   src: url('/fuentes/newsreader.woff2') format('woff2');
@@ -246,7 +248,13 @@
    * Es un interruptor, no disciplina del desarrollador: la decoración se
    * apaga por CSS. Ningún componente puede "olvidarse" de apagarse.
    */
-  :root[data-pantalla='entrenar'] {
+  /*
+   * El cierre comparte la noche —es el mismo momento, con el pulso todavía
+   * alto— pero NO comparte el apagado de decoración de más abajo. Ahí la
+   * carta y la voz del motor son el contenido, no el adorno.
+   */
+  :root[data-pantalla='entrenar'],
+  :root[data-pantalla='cierre'] {
     --color-fondo: #080b11;
     --color-papel: #0f1620;
     --color-tinta: #ffffff;
@@ -380,8 +388,12 @@
      en una matrícula, y una matrícula es identidad. */
   .cifra-identidad {
     font-family: var(--font-lectura);
+    /* opsz 72 es un eje real del woff2 (56-72). No se pide 'wght': ese eje
+       no existe en el archivo, viene horneado en 500 desde el @font-face.
+       Pedir un eje inexistente no da error, se ignora — y eso es peor, porque
+       parece que funciona. */
     font-optical-sizing: none;
-    font-variation-settings: 'opsz' 72, 'wght' 500;
+    font-variation-settings: 'opsz' 72;
     font-variant-numeric: lining-nums tabular-nums;
     font-size: clamp(4.5rem, 30vw, 8rem);
     line-height: 0.82;
@@ -395,8 +407,10 @@
   /* Un escalón menos: los acumuladores monotónicos de Progreso. */
   .cifra-acumulador {
     font-family: var(--font-lectura);
+    /* Mas chico que la identidad, asi que le toca el otro extremo del eje
+       optico: trazos apenas mas robustos y espaciado mas abierto. */
     font-optical-sizing: none;
-    font-variation-settings: 'opsz' 60, 'wght' 500;
+    font-variation-settings: 'opsz' 56;
     font-variant-numeric: lining-nums tabular-nums;
     font-size: clamp(2.5rem, 13vw, 3.5rem);
     line-height: 0.9;
@@ -409,8 +423,9 @@
   .glosa {
     font-family: var(--font-lectura);
     font-style: italic;
-    font-optical-sizing: none;
-    font-variation-settings: 'opsz' 20, 'wght' 380;
+    /* La cursiva es una instancia estatica: opsz 20 y wght 380 ya vienen
+       horneados en el archivo. No hay ejes que pedir. */
+    font-weight: 380;
     font-size: 1.0625rem;
     line-height: 1.45;
     color: var(--color-tinta);
@@ -779,7 +794,8 @@
     }
   }
   :root[data-tema='oscuro'] .accion,
-  :root[data-pantalla='entrenar'] .accion {
+  :root[data-pantalla='entrenar'] .accion,
+  :root[data-pantalla='cierre'] .accion {
     color: #100f0d;
   }
 
@@ -924,6 +940,16 @@
   [data-pantalla='entrenar'] {
     font-size: 1.0625rem;
   }
+  /*
+   * Durante el esfuerzo no hay carta, ni tira, ni glosa: con el pulso a 140 y
+   * el sol de frente, todo lo que no sea el número que hay que mirar estorba.
+   *
+   * Ojo con el alcance: esto vale para la sesión, NO para el cierre. El cierre
+   * usa `data-pantalla='cierre'`, que hereda la misma noche pero conserva la
+   * composición — ahí la carta y la voz del motor son exactamente el
+   * contenido, y apagarlas dejaba la pantalla más importante de la app en una
+   * lista de rótulos sin nada adentro.
+   */
   [data-pantalla='entrenar'] .carta,
   [data-pantalla='entrenar'] .tira,
   [data-pantalla='entrenar'] .glosa {

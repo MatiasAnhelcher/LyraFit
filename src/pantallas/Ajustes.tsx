@@ -1,7 +1,6 @@
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
-import { RUTINAS } from '@/dominio/rutinas'
-import { DIA_CORTO } from '@/dominio/rutinas'
+import { RUTINAS, DIA_CORTO } from '@/dominio/rutinas'
 import type { Preferencias } from '@/dominio/tipos'
 import {
   RespaldoInvalido,
@@ -12,245 +11,275 @@ import {
   leerPreferencias,
   validarRespaldo,
 } from '@/datos/repositorio'
-import { Boton, Titulo } from '@/componentes/ui'
-import { IconoTilde } from '@/componentes/iconos'
-
-const TEMAS: { valor: Preferencias['tema']; etiqueta: string }[] = [
-  { valor: 'sistema', etiqueta: 'Sistema' },
-  { valor: 'claro', etiqueta: 'Claro' },
-  { valor: 'oscuro', etiqueta: 'Oscuro' },
-]
+import { estadoDeAlmacenamiento, type EstadoDeAlmacenamiento } from '@/datos/respaldo'
+import { Accion, AccionQuieta, Cargando, Rotulo } from '@/componentes/ui'
 
 export function Ajustes() {
   const preferencias = useLiveQuery(leerPreferencias, [])
   const archivo = useRef<HTMLInputElement>(null)
-  const [aviso, setAviso] = useState<{ tono: 'ok' | 'error'; texto: string } | null>(null)
-  const [confirmandoBorrado, setConfirmandoBorrado] = useState(false)
+  const [aviso, setAviso] = useState<string | null>(null)
+  const [confirmando, setConfirmando] = useState(false)
+  const [almacenamiento, setAlmacenamiento] = useState<EstadoDeAlmacenamiento | null>(null)
 
-  if (!preferencias) {
-    return <p className="py-16 text-center text-[var(--color-texto-suave)]">Cargando…</p>
-  }
+  useEffect(() => {
+    void estadoDeAlmacenamiento().then(setAlmacenamiento)
+  }, [])
 
-  async function descargarRespaldo() {
-    const respaldo = await exportarTodo()
-    const blob = new Blob([JSON.stringify(respaldo, null, 2)], { type: 'application/json' })
+  if (!preferencias) return <Cargando filas={6} />
+
+  const cambiar = (cambios: Partial<Preferencias>) => void guardarPreferencias(cambios)
+
+  async function descargar() {
+    const datos = await exportarTodo()
+    const blob = new Blob([JSON.stringify(datos, null, 2)], { type: 'application/json' })
+    const nombre = `lyrafit-${datos.exportadoEn.slice(0, 10)}.json`
+
+    // Compartir es el camino portable: `showSaveFilePicker` no existe en Safari
+    // y WebKit tiene posición oficial de no implementarlo.
+    const puedeCompartir =
+      typeof navigator.canShare === 'function' &&
+      navigator.canShare({ files: [new File([blob], nombre, { type: 'application/json' })] })
+
+    if (puedeCompartir) {
+      try {
+        await navigator.share({
+          files: [new File([blob], nombre, { type: 'application/json' })],
+          title: 'Copia de LyraFit',
+        })
+        return
+      } catch {
+        /* Si cancela, se cae al camino de descarga de siempre. */
+      }
+    }
+
     const url = URL.createObjectURL(blob)
     const enlace = document.createElement('a')
     enlace.href = url
-    enlace.download = `lyrafit-${respaldo.exportadoEn.slice(0, 10)}.json`
+    enlace.download = nombre
     enlace.click()
     URL.revokeObjectURL(url)
-    setAviso({ tono: 'ok', texto: 'Copia descargada.' })
   }
 
-  async function cargarRespaldo(entrada: File) {
+  async function importar(entrada: File) {
     try {
       const respaldo = validarRespaldo(JSON.parse(await entrada.text()))
       await importarTodo(respaldo)
-      setAviso({
-        tono: 'ok',
-        texto: `Se restauraron ${respaldo.sesiones.length} sesiones.`,
-      })
+      setAviso(`Listo: ${respaldo.sesiones.length} sesiones restauradas.`)
     } catch (error) {
-      setAviso({
-        tono: 'error',
-        texto:
-          error instanceof RespaldoInvalido
-            ? error.message
-            : 'No se pudo leer el archivo. ¿Es una copia de LyraFit?',
-      })
+      setAviso(
+        error instanceof RespaldoInvalido
+          ? error.message
+          : 'No se pudo leer el archivo. ¿Es una copia de LyraFit?',
+      )
     }
   }
 
   return (
     <>
-      <Titulo>Ajustes</Titulo>
+      <Rotulo>AJUSTES</Rotulo>
 
-      <section className="mb-8">
-        <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-[var(--color-texto-suave)]">
-          Rutina
-        </h2>
-        <ul className="space-y-2">
-          {RUTINAS.map((rutina) => {
-            const activa = rutina.id === preferencias.rutinaActivaId
-            return (
-              <li key={rutina.id}>
-                <button
-                  onClick={() => void guardarPreferencias({ rutinaActivaId: rutina.id })}
-                  className="tarjeta w-full p-4 text-left transition"
-                  style={activa ? { borderColor: 'var(--color-acento)' } : undefined}
-                >
-                  <div className="flex items-start justify-between gap-3">
-                    <div>
-                      <p className="font-semibold">{rutina.nombre}</p>
-                      <p className="mt-1 flex gap-1">
-                        {[1, 2, 3, 4, 5, 6, 7].map((dia) => (
-                          <span
-                            key={dia}
-                            className="cifra flex h-6 w-6 items-center justify-center rounded text-[0.65rem] font-bold"
-                            style={{
-                              backgroundColor: rutina.dias.includes(dia)
-                                ? 'var(--color-acento)'
-                                : 'var(--color-superficie-alta)',
-                              color: rutina.dias.includes(dia)
-                                ? '#fff'
-                                : 'var(--color-texto-suave)',
-                            }}
-                          >
-                            {DIA_CORTO[dia]}
-                          </span>
-                        ))}
-                      </p>
-                    </div>
-                    {activa && (
-                      <IconoTilde className="h-5 w-5 shrink-0 text-[var(--color-acento)]" />
-                    )}
-                  </div>
-                  <p className="mt-3 text-sm leading-relaxed text-[var(--color-texto-suave)]">
-                    {rutina.descripcion}
-                  </p>
-                </button>
-              </li>
-            )
-          })}
-        </ul>
-      </section>
-
-      <section className="mb-8">
-        <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-[var(--color-texto-suave)]">
-          Apariencia
-        </h2>
-        <div className="flex gap-2">
-          {TEMAS.map(({ valor, etiqueta }) => (
+      <section className="mt-6">
+        <Rotulo>RUTINA</Rotulo>
+        <div className="registro mt-3">
+          {RUTINAS.map((rutina) => (
             <button
-              key={valor}
-              onClick={() => void guardarPreferencias({ tema: valor })}
-              className="flex-1 rounded-xl border px-3 py-3 text-sm font-medium transition"
-              style={{
-                borderColor:
-                  preferencias.tema === valor ? 'var(--color-acento)' : 'var(--color-borde)',
-                color:
-                  preferencias.tema === valor
-                    ? 'var(--color-acento)'
-                    : 'var(--color-texto-suave)',
-              }}
+              key={rutina.id}
+              onClick={() => cambiar({ rutinaActivaId: rutina.id })}
+              className="fila-pulsable"
             >
-              {etiqueta}
+              <span className="canal">
+                {rutina.id === preferencias.rutinaActivaId ? '◆' : '◇'}
+              </span>
+              <span className="min-w-0">
+                <span className="nombre block">{rutina.nombre}</span>
+                <span className="rotulo mt-0.5 block">
+                  {rutina.dias.map((d) => DIA_CORTO[d]).join(' · ')}
+                </span>
+              </span>
+              <span className="cifra-fila">{rutina.dias.length}</span>
             </button>
           ))}
         </div>
       </section>
 
-      <section className="mb-8">
-        <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-[var(--color-texto-suave)]">
-          Sonido
-        </h2>
-        <label className="tarjeta flex items-center justify-between gap-4 p-4">
-          <span className="text-sm">
-            Avisar cuando termina el descanso
-            <span className="mt-1 block text-xs text-[var(--color-texto-suave)]">
-              Un pitido corto y una vibración, para no tener que mirar la pantalla.
+      <section className="mt-8">
+        <Rotulo>LA APP</Rotulo>
+        <div className="registro mt-3">
+          <Interruptor
+            titulo="Chequeo diario"
+            detalle="Tres preguntas, quince segundos. Evita que el motor te baje el objetivo por un mal día."
+            activo={preferencias.estadoActivo === true}
+            onCambiar={(v) => cambiar({ estadoActivo: v })}
+          />
+          <Interruptor
+            titulo="Predecir cada serie"
+            detalle="Cuesta cero toques si aceptás el número. Mide qué tan bien te conocés el cuerpo."
+            activo={preferencias.prediccionActiva !== false}
+            onCambiar={(v) => cambiar({ prediccionActiva: v })}
+          />
+          <Interruptor
+            titulo="Sonido al terminar el descanso"
+            activo={preferencias.sonidoDescanso}
+            onCambiar={(v) => cambiar({ sonidoDescanso: v })}
+          />
+          <div>
+            <span className="canal">◐</span>
+            <span className="nombre">Tema</span>
+            <span className="flex gap-px">
+              {(['claro', 'oscuro', 'sistema'] as const).map((t) => (
+                <button
+                  key={t}
+                  onClick={() => cambiar({ tema: t })}
+                  className="px-2.5 py-1.5 text-[0.625rem] uppercase tracking-wider"
+                  style={{
+                    border: '1px solid var(--color-regla)',
+                    backgroundColor: preferencias.tema === t ? 'var(--color-vega)' : 'transparent',
+                    color: preferencias.tema === t ? '#fff' : 'var(--color-glosa)',
+                  }}
+                >
+                  {t}
+                </button>
+              ))}
             </span>
-          </span>
-          <input
-            type="checkbox"
-            checked={preferencias.sonidoDescanso}
-            onChange={(e) => void guardarPreferencias({ sonidoDescanso: e.target.checked })}
-            className="h-6 w-6 shrink-0 accent-[var(--color-acento)]"
-          />
-        </label>
-      </section>
-
-      <section className="mb-8">
-        <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-[var(--color-texto-suave)]">
-          Tus datos
-        </h2>
-        <div className="tarjeta p-4">
-          <p className="text-sm leading-relaxed text-[var(--color-texto-suave)]">
-            Todo lo que registrás vive en este dispositivo, no en un servidor. Eso
-            hace que la app funcione sin señal, y también que la copia de
-            seguridad sea cosa tuya: descargala cada tanto y guardala donde
-            guardás lo que te importa. Es además la forma de pasar tu historial a
-            otro dispositivo.
-          </p>
-
-          <div className="mt-4 flex flex-col gap-2 sm:flex-row">
-            <Boton variante="secundario" className="flex-1" onClick={() => void descargarRespaldo()}>
-              Descargar copia
-            </Boton>
-            <Boton variante="secundario" className="flex-1" onClick={() => archivo.current?.click()}>
-              Restaurar copia
-            </Boton>
           </div>
-
-          <input
-            ref={archivo}
-            type="file"
-            accept="application/json,.json"
-            hidden
-            onChange={(e) => {
-              const elegido = e.target.files?.[0]
-              if (elegido) void cargarRespaldo(elegido)
-              e.target.value = ''
-            }}
-          />
-
-          {aviso && (
-            <p
-              className="mt-3 text-sm"
-              style={{
-                color: aviso.tono === 'ok' ? 'var(--color-exito)' : 'var(--color-error)',
-              }}
-              role="status"
-            >
-              {aviso.texto}
-            </p>
-          )}
+          <div>
+            <span className="canal">%</span>
+            <span className="min-w-0">
+              <span className="nombre block">La barra de 28 días</span>
+              <span className="rotulo mt-0.5 block">cómo preferís leerla</span>
+            </span>
+            <span className="flex gap-px">
+              {(['logrado', 'restante'] as const).map((e) => (
+                <button
+                  key={e}
+                  onClick={() => cambiar({ encuadre: e })}
+                  className="px-2.5 py-1.5 text-[0.625rem] uppercase tracking-wider"
+                  style={{
+                    border: '1px solid var(--color-regla)',
+                    backgroundColor:
+                      (preferencias.encuadre ?? 'logrado') === e ? 'var(--color-vega)' : 'transparent',
+                    color: (preferencias.encuadre ?? 'logrado') === e ? '#fff' : 'var(--color-glosa)',
+                  }}
+                >
+                  {e === 'logrado' ? 'llevás' : 'faltan'}
+                </button>
+              ))}
+            </span>
+          </div>
         </div>
       </section>
 
-      <section className="mb-12">
-        <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-[var(--color-texto-suave)]">
-          Empezar de cero
-        </h2>
-        {confirmandoBorrado ? (
-          <div className="tarjeta p-4">
-            <p className="text-sm leading-relaxed">
-              Esto borra todas tus sesiones y te devuelve al primer nivel de cada
-              cadena. No hay forma de deshacerlo. Si todavía no descargaste una
-              copia, este es el momento.
-            </p>
-            <div className="mt-4 flex gap-2">
-              <Boton
-                variante="secundario"
-                className="flex-1"
-                onClick={() => setConfirmandoBorrado(false)}
-              >
-                Mejor no
-              </Boton>
-              <Boton
-                variante="peligro"
-                className="flex-1"
-                onClick={() => {
-                  void borrarTodo()
-                  setConfirmandoBorrado(false)
-                  setAviso({ tono: 'ok', texto: 'Listo, quedó todo en cero.' })
-                }}
-              >
-                Borrar todo
-              </Boton>
+      <section className="mt-8">
+        <Rotulo>TUS DATOS</Rotulo>
+        {almacenamiento && (
+          <>
+            <div className="registro mt-3">
+              <div>
+                <span className="canal">{almacenamiento.persistente ? '◆' : '◇'}</span>
+                <span className="min-w-0">
+                  <span className="nombre block">Almacenamiento</span>
+                  <span className="rotulo mt-0.5 block">
+                    {almacenamiento.persistente ? 'PROTEGIDO' : 'SIN PROTEGER'}
+                  </span>
+                </span>
+                <span className="cifra-fila">
+                  {almacenamiento.usado ? Math.round(almacenamiento.usado / 1024) : '—'}
+                  <span className="unidad">kB</span>
+                </span>
+              </div>
+              <div>
+                <span className="canal">⟳</span>
+                <span className="min-w-0">
+                  <span className="nombre block">Copias automáticas</span>
+                  <span className="rotulo mt-0.5 block">al cerrar cada sesión</span>
+                </span>
+                <span className="cifra-fila">{almacenamiento.copias}</span>
+              </div>
             </div>
-          </div>
-        ) : (
-          <Boton variante="peligro" className="w-full" onClick={() => setConfirmandoBorrado(true)}>
-            Borrar todos mis datos
-          </Boton>
+
+            {!almacenamiento.persistente && !almacenamiento.instalada && (
+              <p className="mt-3 max-w-[42ch] text-xs leading-relaxed text-[var(--color-ambar)]">
+                No hay servidor: esta base no es una copia de tus datos, es la única. Sin instalar
+                la app, el navegador puede borrarla para liberar espacio, y Safari lo hace tras unos
+                días sin abrirla. Instalarla lo resuelve: compartir → agregar a inicio.
+              </p>
+            )}
+          </>
         )}
+
+        <div className="mt-4 -mx-4">
+          <AccionQuieta onClick={() => void descargar()}>Descargar una copia</AccionQuieta>
+          <AccionQuieta onClick={() => archivo.current?.click()}>Restaurar una copia</AccionQuieta>
+        </div>
+        <input
+          ref={archivo}
+          type="file"
+          accept="application/json,.json"
+          className="hidden"
+          onChange={(e) => {
+            const f = e.target.files?.[0]
+            if (f) void importar(f)
+            e.target.value = ''
+          }}
+        />
+        {aviso && <p className="mt-3 text-sm text-[var(--color-glosa)]">{aviso}</p>}
       </section>
 
-      <p className="pb-4 text-center text-xs text-[var(--color-texto-suave)]">
-        LyraFit · versión 0.1.0
-      </p>
+      <section className="mt-10 pb-4">
+        {!confirmando ? (
+          <button
+            onClick={() => setConfirmando(true)}
+            className="text-sm text-[var(--color-destructivo)] underline underline-offset-4"
+          >
+            Borrar todos mis datos
+          </button>
+        ) : (
+          <div>
+            <p className="max-w-[40ch] text-sm leading-relaxed">
+              Esto borra todo el historial y no se puede deshacer. Las copias automáticas también.
+            </p>
+            <div className="mt-4 -mx-4">
+              <Accion
+                onClick={() => {
+                  void borrarTodo()
+                  setConfirmando(false)
+                  setAviso('Listo. No quedó nada.')
+                }}
+              >
+                Sí, borrar todo
+              </Accion>
+              <AccionQuieta onClick={() => setConfirmando(false)}>Mejor no</AccionQuieta>
+            </div>
+          </div>
+        )}
+      </section>
     </>
+  )
+}
+
+function Interruptor({
+  titulo,
+  detalle,
+  activo,
+  onCambiar,
+}: {
+  titulo: string
+  detalle?: string
+  activo: boolean
+  onCambiar: (v: boolean) => void
+}) {
+  return (
+    <button onClick={() => onCambiar(!activo)} className="fila-pulsable">
+      <span className="canal">{activo ? '◆' : '◇'}</span>
+      <span className="min-w-0">
+        <span className="nombre block">{titulo}</span>
+        {detalle && (
+          <span className="mt-0.5 block text-xs leading-relaxed text-[var(--color-glosa)]">
+            {detalle}
+          </span>
+        )}
+      </span>
+      <span className="rotulo">{activo ? 'SÍ' : 'NO'}</span>
+    </button>
   )
 }

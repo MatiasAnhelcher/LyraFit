@@ -67,15 +67,17 @@ export async function guardarPreferencias(cambios: Partial<Preferencias>): Promi
  * hay algo real que guardar — la primera sesión, o un nivel fijado a mano.
  */
 export async function leerAvances(): Promise<Map<Patron, Avance>> {
-  const guardados = await db.avances.toArray()
-  const mapa = new Map<Patron, Avance>(guardados.map((a) => [a.patron, a]))
+  const guardados = new Map((await db.avances.toArray()).map((a) => [a.patron, a]))
+  const mapa = new Map<Patron, Avance>()
 
+  // Se arma en el orden de las cadenas y no en el que devuelve la base: el
+  // mapa se recorre para dibujar, y si el orden cambiara entre lecturas las
+  // cuatro constelaciones de la carta bailarían de lugar sin motivo.
   for (const cadena of CADENAS) {
-    if (!mapa.has(cadena.patron)) {
-      // Fecha 0 a propósito: es un avance que todavía no se guardó nunca, y un
-      // Date.now() acá haría que cada lectura devolviera un objeto distinto.
-      mapa.set(cadena.patron, avanceInicial(cadena, POR_ID, 0))
-    }
+    // Fecha 0 a propósito en el inicial: es un avance que todavía no se guardó
+    // nunca, y un Date.now() acá haría que cada lectura devolviera un objeto
+    // distinto.
+    mapa.set(cadena.patron, guardados.get(cadena.patron) ?? avanceInicial(cadena, POR_ID, 0))
   }
 
   return mapa
