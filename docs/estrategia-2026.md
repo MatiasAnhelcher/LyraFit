@@ -13,6 +13,20 @@ sostienen cada decisión.
 Todo lo que sigue está ordenado por una regla: **primero lo que está roto, después lo que
 falta, y último lo que sería lindo tener.**
 
+
+## Contenido
+
+1. [Diagnóstico sin anestesia](#1-diagnóstico-sin-anestesia) — qué está roto, verificado corriendo el motor
+2. [Lo que dice la evidencia](#2-lo-que-dice-la-evidencia-y-lo-que-hay-que-dejar-de-creer) — y lo que hay que dejar de creer
+3. [La arquitectura de adherencia](#3-la-arquitectura-de-adherencia-que-reemplaza-a-la-racha) — qué reemplaza a la racha
+4. [Motor v2](#4-motor-v2-la-reescritura-del-corazón) — la reescritura del corazón, con fórmulas
+5. [La capa de vitalidad](#5-la-capa-de-vitalidad-sueño-alimentación-y-cognición-sin-pseudociencia) — sueño, alimentación y cognición sin pseudociencia
+6. [Qué hacen los mejores del mundo](#6-qué-hacen-los-mejores-del-mundo) — 106 productos
+7. [Hacia dónde va el mercado](#7-hacia-dónde-va-el-mercado) — 2026-2030
+8. [El plan](#8-el-plan) — tres olas y los primeros 30 días
+9. [Lo que no hay que construir](#9-lo-que-no-hay-que-construir)
+10. [Los principios](#10-los-principios-que-no-habría-que-traicionar)
+
 ---
 
 ## 1. Diagnóstico sin anestesia
@@ -858,3 +872,495 @@ Wim Hof o cualquier hiperventilación autoadministrada (riesgo agudo real de sí
 HRV sin sensor, incluida la fotopletismografía por cámara; meditación guiada larga;
 ACWR; inmersión en frío como recomendación post-entrenamiento; PHQ-9, GAD-7 o cualquier
 instrumento de tamizaje clínico; y cualquier promesa fisiológica que la app no pueda medir.
+
+---
+
+## 6. Qué hacen los mejores del mundo
+
+Diez investigaciones sobre 106 productos: calistenia, fuerza, hábito, social, recuperación,
+alimentación, sueño, IA y visión, plataforma y negocio. Lo que sigue es lo que sobrevivió
+al filtro de *"¿esto se puede construir sobre LyraFit y cambia algo?"*.
+
+Un aviso sobre las cifras: buena parte de los números que circulan en este mercado —
+retención, churn, efecto del *streak freeze* — no tienen fuente primaria verificable. Están
+marcados como tales o directamente excluidos.
+
+### 6.1 Calistenia: LyraFit está en el paradigma correcto y le faltan dos reglas
+
+La *Recommended Routine* de r/bodyweightfitness es el estándar de facto del segmento y la
+única progresión escrita como un algoritmo cerrado. Es **el mismo motor que LyraFit ya
+tiene**. Le faltan exactamente dos reglas:
+
+1. **El escalón nuevo arranca con objetivo reducido, no con el del escalón viejo.** La RR
+   es explícita: lográs 3×8 y pasás a la variante más difícil **arrancando en 3×5**.
+   LyraFit, al retroceder, asigna el `objetivo` (tope) del ejercicio anterior — que es
+   justo lo que produce el yo-yo entre niveles.
+2. **El criterio de bajada es "no llego al mínimo del escalón nuevo"**, no "fallé dos
+   veces".
+
+Ambas son esfuerzo S y arreglan un defecto real. Y hay un detalle de UX que la propia RR
+sufre y LyraFit puede evitar: **el gráfico de repeticiones se desploma cada vez que subís
+de escalón** (8 → 5), o sea que el registro crudo muestra un retroceso justo en el momento
+de mayor progreso. Es exactamente el problema que resuelve el índice continuo de 2.5.
+
+Dónde se para LyraFit en el eje de exigencia es una decisión que hoy está tomada por
+accidente:
+
+| Sistema | Criterio para subir de flexión completa |
+|---|---|
+| Recommended Routine | 3×8 |
+| LyraFit hoy (efectivo) | 3×6, y sin exigir el tope |
+| LyraFit (tope declarado) | 3×15 |
+| Hybrid Calisthenics | 3×25 |
+
+La recomendación no es elegir un número, es **hacerlo configurable**: "ritmo rápido /
+conservador" en vez de una constante escondida.
+
+De **The Movement Athlete** —la app que más en serio se toma el diagnóstico— lo valioso es
+el encuadre: *"tu nivel no es una categoría, es una coordenada por patrón"*. Ubican al
+usuario en 1 de ~96 niveles con un test de tres minutos. Lo que **no** hay que copiar es el
+assessment obligatorio y largo: es la queja documentada más frecuente contra ellos.
+
+### 6.2 El registro durante la sesión: donde Hevy gana
+
+El patrón que explica la reputación de Hevy es aburrido y decisivo: **columna anterior
+prellenada, confirmación de un toque, temporizador automático.** Esfuerzo S.
+
+LyraFit ya tiene el valor por defecto correcto (`propuesto = objetivo.cantidad`), pero le
+falta lo de al lado: *"la última vez: 3×7"*. Un dato que ya está en la base y hoy no se
+muestra en el momento en que sirve.
+
+De **Renaissance Periodization** lo interesante no es el algoritmo completo sino su
+estructura: preguntas cortas post-serie que alimentan el volumen de la sesión siguiente. En
+calistenia el equivalente honesto es más modesto y más barato — y es, otra vez, el campo
+`esfuerzo` que ya está declarado y sin usar.
+
+**Cuatro agentes distintos, investigando dominios distintos, señalaron el mismo campo
+muerto.** Uno lo llamó *"el dato muerto más caro del proyecto"*.
+
+### 6.3 La racha: el mercado la está abandonando, y hay convergencia con la evidencia
+
+El patrón señalado con mayor impacto por cinco dominios independientes es el mismo:
+**cambiarle la unidad a la racha.** Semana cumplida en vez de día consecutivo. Y por encima
+de cualquier contador que pueda volver a cero, **acumuladores monotónicos**: sesiones de tu
+vida, volumen total, semanas cumplidas. Nunca bajan.
+
+Complementos, todos esfuerzo S:
+
+- **Comodín de semana** — el *streak freeze* sin economía de gemas y sin culpa.
+- **Rampa de regreso** — bajarle la vara al que vuelve, automáticamente y dentro del motor.
+  Señalado como el de mayor impacto del informe de hábito, y coincide exactamente con lo
+  que dice la evidencia (3.3).
+- **Techo explícito en vez de piso** — que la app te diga que pares. Es contraintuitivo y
+  es lo que diferencia una app de fuerza de una de idiomas.
+- **Modo descanso / pausa** — y racha de *entrenamiento*, nunca racha de *registro*.
+
+### 6.4 Social sin servidor: lo que sí se puede
+
+Sin backend y sin cuentas, casi todo el engagement social queda afuera. Lo que queda es
+más de lo que parece, y es **salida de datos, nunca entrada**:
+
+- **Resumen semanal como narrativa, no como dashboard** — el "Wrapped" semanal. Señalado
+  como la pieza de mayor impacto del dominio social, y se calcula entero en local.
+- **Tarjeta PNG generada en canvas + Web Share Level 2** — adquisición viral sin backend.
+- **Leyenda de constancia** — el *Local Legend* de Strava, pero contra uno mismo.
+- **Desafío mensual único derivado de los propios datos** — los premios de Apple Watch,
+  reimplementados como función pura sobre el historial.
+- **Insignias derivadas**, catálogo chico y visible: una función pura sobre las sesiones, no
+  un estado guardado que se pueda corromper.
+
+Y lo que **no** hay que construir: un feed. Funciona solo con masa crítica; sin ella es una
+pantalla vacía que grita que la app está muerta. Para una persona sola es una sección que
+nunca se llena.
+
+### 6.5 Readiness: cómo lo construyen Whoop y Oura, y qué es honesto copiar
+
+El consenso técnico entre los siete productos analizados es claro y coincide con la ciencia
+de la sección 5.3:
+
+- **Línea de base personal por z-score sobre ventana móvil, nunca umbral absoluto.**
+- **Cambio mínimo significativo**: 0,5 SD para notar, 1 SD para actuar.
+- **Guardar el desglose por componente**, no solo el compuesto. Es la decisión que después
+  permite explicar y corregir.
+- **Comunicar en oraciones y bandas, jamás en un número de dos dígitos.** El "73% de
+  readiness" es precisión falsa, y es lo que Whoop hace peor.
+- **No usar ACWR.** Coincide con lo que dice la literatura (2.4).
+
+Y el punto donde el mercado y la ciencia coinciden en contra de la intuición: **el
+readiness modula el objetivo, nunca vetea la sesión.**
+
+### 6.6 Una tensión real entre fuentes, que conviene no tapar
+
+Cuatro agentes distintos llegaron a posiciones incompatibles sobre el mismo tema:
+
+| Fuente | Posición sobre el RPE |
+|---|---|
+| Calistenia | RPE como **veto** |
+| Fuerza/hipertrofia | *"RIR como calibrador ocasional, jamás como entrada del motor"* |
+| IA y coaching | *"se muestra y se loguea pero **nunca** gatea la progresión"* |
+| Recuperación | *"modula el objetivo, **nunca** vetea"* |
+| Ciencia de adherencia | compuerta afectiva **dentro** del motor |
+
+La síntesis que las reconcilia, y que además es la que menos puede hacer daño:
+
+> **El esfuerzo y el afecto protegen el contador y modulan el objetivo. No promueven, no
+> vetean, y nunca son la entrada principal.**
+
+Es decir: pueden impedir que una sesión mala cuente como fallo, y pueden bajar el objetivo
+del día un 10%. No pueden hacer que alguien suba de nivel sin cumplir las repeticiones, ni
+cancelarle un entrenamiento que quiere hacer. Es exactamente la conclusión a la que llegó
+la revisión de medición subjetiva por un camino independiente: *"proteger el contador
+cuesta un `if` y elimina el modo de falla más frustrante de la app"*.
+
+### 6.7 Alimentación y sueño: dos números que hay que calcular bien
+
+De las doce apps de alimentación, lo único verdaderamente reutilizable es matemático:
+
+- **Nunca mostrar el peso crudo como número principal.** EWMA con decaimiento por huecos, o
+  un Kalman de velocidad constante si se quiere la versión buena.
+- **Pendiente robusta por Theil–Sen, con intervalo de confianza y la capacidad de decir
+  "todavía no sé".** Es lo que separa una app que informa de una que adivina.
+
+De las once de sueño, el entregable es uno solo: **una recomendación diaria, anclada a una
+hora de levantarse fija.** Y el hallazgo más aprovechable es que el **cronotipo se puede
+derivar del propio diario** (MSFsc de Roenneberg) sin cuestionarios y sin sensores.
+
+Con un detalle de método que vale para todo el documento: la correlación sueño-rendimiento
+hay que hacerla **contra el residuo**, nunca contra el resultado crudo. Si no, se está
+midiendo la progresión, no el sueño.
+
+### 6.8 IA y visión: lo que es viable y lo que es una trampa
+
+La corrección de técnica por cámara aparece en toda demo y en toda ronda de inversión.
+El veredicto de la investigación es duro y coincide con el sentido común: es cara de
+construir, frágil en el mundo real (luz, ángulo, encuadre, ropa), incómoda de usar —nadie
+quiere apuntarse la cámara para hacer flexiones en el living— y entra en zona gris
+regulatoria si se le adjudica prevención de lesiones. **Para una persona sola es una trampa
+que consume años.**
+
+Y hay una observación que vale más que todo el módulo:
+
+> El contenido de `erroresComunes[]` que LyraFit **ya tiene escrito** resuelve el 80% del
+> problema por el 0,1% del costo.
+
+Lo mismo con el "coach de IA": rompe el local-first, agrega costo marginal por usuario
+justo en el modelo que no lo tiene, e introduce el riesgo de que la app diga algo
+peligroso. Y es innecesario: **el motor de progresión ya es el coach**, y ya explica cada
+decisión en una frase determinista y auditable.
+
+Lo que sí vale, y es esfuerzo S:
+
+- **Explicabilidad**: que cada decisión guarde su evidencia y se pueda desplegar.
+- **Resumen semanal determinístico por plantillas** — el "feature de IA" con mejor relación
+  costo/retención, y sin una sola llamada de red.
+- **Detección explícita de meseta con tres acciones concretas.**
+- **Tempo y tiempo bajo tensión medidos sin cámara**, con el temporizador que ya existe.
+
+### 6.9 Plataforma: los límites reales de una PWA en 2026
+
+Esta sección es la que más cambia lo que es posible, y está verificada contra las
+posiciones oficiales de los navegadores.
+
+**Lo que no existe, por más que lo digan los tutoriales:**
+
+- **No hay notificación local programada en la web.** El service worker se mata a los
+  segundos. Cualquier tutorial que diga lo contrario habla de un *origin trial* de Chrome
+  que murió.
+- **Background Sync y Periodic Background Sync son solo Chromium.** Si el plan de
+  sincronización depende de ellos, en iOS no hay plan.
+- **`showSaveFilePicker` no va a existir en Safari**: WebKit tiene posición oficial de
+  oposición. El camino portable es `navigator.share` con archivos (Safari 14+) y
+  `<a download>` como fallback.
+- **En iOS no existe `beforeinstallprompt`** y no va a existir. Instalar se explica, no se
+  ofrece programáticamente.
+
+**Y una corrección importante al arreglo que ya está commiteado:** en Safari,
+`navigator.storage.persist()` **es una consulta, no un pedido** — devuelve `false` si el
+dominio no está ya en el conjunto exento que define el navegador. Hay que tratarlo como
+diagnóstico. Lo que de verdad protege los datos en iOS es que la app esté **instalada**.
+
+De ahí salen tres consecuencias que no son opcionales si LyraFit quiere prometer que no
+pierde datos:
+
+1. **El backup tiene que existir aunque el usuario no haga nada.** Snapshot automático al
+   cerrar cada sesión, a OPFS (Safari 26+, Chrome 86+) con fallback a una tabla de
+   respaldos con rotación de tres. *"Poner un botón Exportar en Ajustes y considerar
+   resuelto el backup"* está en la lista de anti-patrones: nadie lo toca.
+2. **Mostrar el estado real de persistencia en Ajustes**, y si es `false` en una pestaña de
+   iOS, explicar en una línea que instalar la app lo arregla, con las instrucciones exactas.
+3. **Salir de `usuario.github.io`.** La cuota, el desalojo y las exenciones son **por
+   origen**: hoy los datos de LyraFit comparten destino con cualquier otro Pages de la misma
+   cuenta.
+
+**Notificaciones**, si se quieren: la única vía es Web Push declarativo con un servidor
+mínimo. El payload para iOS tiene un formato exacto —`"web_push": 8030`, con `title` y
+`navigate` obligatorios o el parser tira `SyntaxError`—. Es un JSON de 200 bytes por usuario
+por día: entra holgado en el plan gratuito de cualquier plataforma serverless. Y se puede
+hacer sin traicionar nada: el endpoint recibe `{endpoint, keys, horaLocal, díasDeSemana}` y
+**cero datos de entrenamiento, cero identidad**.
+
+**Lo que no hay que hacer:** migrar a SQLite WASM (wasm grande, worker obligatorio, dilema
+COOP/COEP, a cambio de nada a esta escala), ni escribir un merge de sincronización a mano
+sobre la cola de `pendientes` con última-escritura-gana — *"vas a perder series sin que
+nadie se entere"*. Si algún día hay sync, va con un CRDT probado (Loro, Automerge, Yjs).
+Y varias opciones que siguen apareciendo en las listas ya no lo son: Triplit (sin publicar
+desde julio de 2025 y AGPL-3.0-only, que contamina todo lo que se construya encima),
+Replicache (propietaria y reemplazada por Zero), cr-sqlite (congelada desde 2023), Jazz y
+automerge-repo (en alfa declarada por sus propios autores).
+
+### 6.10 Negocio: el pago único no es un compromiso, es la arquitectura
+
+LyraFit no tiene servidor, así que **no tiene costo marginal por usuario**. Cobrar una
+suscripción sería cobrar una renta por nada, y el usuario que elige una app local-first es
+exactamente el que más lo va a notar.
+
+La pieza técnica que lo hace posible sin cuentas y sin backend:
+
+1. Un par de claves Ed25519 generado offline. La pública va embebida en el bundle; la
+   privada nunca toca internet.
+2. Checkout con un Stripe Payment Link — cero código de servidor, es una URL.
+3. Se firma un payload chico `{id, emitidoEn}` y se le manda al comprador una cadena
+   base64.
+4. En Ajustes, un campo "pegá tu licencia". Se verifica con
+   `crypto.subtle.verify('Ed25519', ...)`, con `@noble/ed25519` (~4 KB) como fallback.
+5. Verificación **100% offline y para siempre**. Sin cuenta, sin mail guardado, sin llamada
+   de red.
+
+Son 60-80 líneas y una función pura `verificarLicencia(cadena): boolean` que encaja en
+`src/dominio/` como cualquier otra.
+
+**Qué cobrar:** ni el motor de progresión ni el registro. Cortarlos mata la propuesta y el
+boca a boca. Temas, exportación avanzada, rutinas propias, y sobre todo **apoyo al
+proyecto**, al estilo Obsidian.
+
+Se comparte la licencia entre amigos: es inevitable y hay que aceptarlo como lo aceptó
+Sublime Text. Perseguirlo cuesta más de lo que recupera.
+
+El contexto regulatorio lo habilita: entre la DMA europea y *Epic v. Apple*, el *link-out* a
+checkout web dejó de ser el campo minado que era. Con un contrapeso honesto: **la PWA en
+iOS es políticamente frágil** —en 2024 Apple estuvo a punto de eliminar las web apps en la
+UE—, así que conviene tener un plan B de empaquetado.
+
+---
+
+## 7. Hacia dónde va el mercado
+
+Separando lo sólido de la moda, que es lo que se pidió.
+
+### 7.1 Las cuatro corrientes sólidas
+
+**La fuerza como medicina, no como estética.** La conversación pública y científica se
+movió de *entrenar para verse bien* a *entrenar para no depender de nadie a los ochenta*.
+Masa muscular, fuerza de prensión y VO2máx como predictores de mortalidad e independencia
+funcional. Está anclada en demografía y en literatura acumulada, no en una moda de redes:
+**es el viento de cola estructural de LyraFit y no se va a revertir.**
+
+**Longevidad y healthspan como categoría de consumo.** Attia la llevó al mainstream con un
+marco que es literalmente entrenamiento de fuerza y capacidad aeróbica. Lo sólido es la
+demanda de *"entreno hoy para mi capacidad de mañana"*. Lo frágil, y hay que evitarlo, es
+la **"edad biológica" como número**: los relojes epigenéticos tienen problemas serios de
+fiabilidad test-retest.
+
+**GLP-1 y la preservación de masa muscular.** Millones de personas bajando de peso rápido y
+perdiendo músculo en el camino, con indicación clínica creciente de sumar entrenamiento de
+resistencia y proteína.
+
+> **Es la oportunidad de mercado más grande, más concreta y peor atendida que aparece en
+> toda la investigación: un público que NECESITA entrenar fuerza, que NO va a ir a un
+> gimnasio, y que tiene que empezar desde muy abajo.**
+>
+> Que es, exactamente, para lo que sirve una cadena de progresión que arranca en flexiones
+> contra la pared.
+
+**La privacidad como diferenciador**, con un matiz que hay que tomar en serio: **retiene y
+convierte a quien ya llegó, pero no adquiere.** Casi nadie busca "app de fitness privada".
+Es un cierre de venta excelente y un motor de adquisición malo. La adquisición tiene que
+venir del producto.
+
+### 7.2 La amenaza
+
+**La convergencia en plataformas únicas y la consolidación por adquisición** —Strava
+comprando Runna es el patrón—. Para una persona sola esto es una amenaza, no una
+oportunidad: **no se puede competir por amplitud.** La respuesta correcta es profundidad
+radical en una cosa, más interoperabilidad de **lectura**: importar, nunca depender.
+
+### 7.3 Las modas que hay que dejar pasar
+
+- **Corrección de técnica por cámara.** Años de trabajo, frágil en el mundo real, zona gris
+  regulatoria.
+- **"Coach de IA" genérico.** Rompe el local-first, agrega costo marginal, y el motor ya es
+  el coach.
+- **El feed social.** Sin masa crítica es una pantalla vacía.
+- **Periodización por fase del ciclo menstrual.** La categoría de salud femenina es sólida y
+  grande; *esta* mecánica específica es la de peor respaldo de todo el informe —las
+  revisiones recientes la califican de evidencia baja y muy variable entre individuos—. Lo
+  defendible y barato es contexto, no prescripción: registrar cómo se sintió la sesión y
+  dejar que el motor autorregule con datos reales. Que es, otra vez, la compuerta afectiva.
+- **Integración con seguros y sistemas de salud.** La dirección existe, pero es lenta,
+  dependiente de jurisdicción y con un costo de cumplimiento inaccesible. No es una apuesta
+  para esta década.
+
+Y una advertencia sobre el propio posicionamiento: **el hartazgo de suscripciones es real,
+pero es un nicho, no un cambio de mercado.** La categoría sigue dominada por la suscripción
+y va a seguir estándolo en 2029. Elegí el pago único porque es coherente con no tener
+servidor, no porque el mercado se esté moviendo hacia ahí.
+
+---
+
+## 8. El plan
+
+Ordenado por retorno sobre esfuerzo, no por dificultad. Cada ola es enviable por separado:
+si el trabajo se corta después de la ola 1, LyraFit ya es una app sustancialmente mejor.
+
+### Posicionamiento
+
+> **La app que sabe qué te toca hoy — y que no te miente sobre por qué.**
+>
+> Progresiones de calistenia con reglas explícitas y auditables, que se adaptan a cómo
+> venís durmiendo, comiendo y sintiéndote. Sin cuenta, sin servidor, sin suscripción. Los
+> datos son tuyos y no salen de tu teléfono.
+
+Lo defendible no es "privada" —eso no adquiere— sino **"la progresión que decide por vos y
+te muestra la regla"**. La privacidad es el cierre de venta, no el anzuelo.
+
+### Ola 1 — Que la app funcione (0 a 6 semanas)
+
+Nada de esto es una feature nueva. Es hacer que lo que ya existe cumpla lo que promete.
+
+| # | Qué | Categoría | Esf. | Por qué |
+|---|---|---|---|---|
+| 1 | **Motor v2**: RRS continuo, señal EWMA sin resets, compuerta de dominio, incremento proporcional, recalibración de nivel por CCR | entrenamiento | L | Elimina el estado absorbente y el agotamiento en 5 semanas. Es *el* problema (§1.3) |
+| 2 | **Bajar los topes declarados** a ≤15 reps / ≤30 s y agregar micro-escalones donde el salto de CCR supere el 20% | entrenamiento | M | Sin esto, la compuerta de dominio vuelve la progresión desesperantemente lenta |
+| 3 | **Test de nivel al ingreso** (AMRAP de calibración, 4 pantallas) + revelación del plan con proyección honesta | hábito | M | El mercado lo señala como *la prioridad absoluta*. Ataca la fuga del día cero |
+| 4 | **Test de simulación en la suite**: N sesiones, usuario con capacidad fija, asertando que nadie se queda >K sesiones en el mismo objetivo | entrenamiento | S | Es el test que faltaba. Corre en 300 ms y habría atrapado todo lo de §1 |
+| 5 | **Borrar la racha diaria**; poner A28 + créditos de perdón + sesiones de tu vida | hábito | S | La evidencia y cinco dominios de mercado coinciden (§2.3, §6.3) |
+| 6 | **Usar el campo `esfuerzo`**: un toque post-serie, que *protege el contador* y modula el objetivo. Nunca promueve ni vetea | entrenamiento | S | Cuatro agentes independientes lo llamaron el dato muerto más caro del proyecto |
+| 7 | **Backup automático** a OPFS al cerrar sesión, rotación de 3 + estado real de persistencia en Ajustes | plataforma | S | "El backup que sirve es el que ocurre solo" |
+| 8 | **"La última vez: 3×7"** al lado de cada objetivo, y **regla de subida visible** ("te falta 1 sesión") | entrenamiento | S | Dato que ya está en la base y no se muestra cuando sirve |
+| 9 | **Sesión corta** de 6-8 min, siempre a un toque; cuenta para adherencia, no para progresión | hábito | S | Ataca a la vez la brecha intención-conducta y el afecto anticipado |
+| 10 | **Sesión de vuelta** con volumen al 70% tras una ausencia | hábito | S | De las intervenciones más eficaces conocidas para asistencia |
+| 11 | **Screen Wake Lock** + poder borrar una sesión mal cargada | plataforma | S | Dos huecos obvios; `borrarSesion` ya existe sin usar |
+| 12 | **Test de copy prohibido** en CI (lista negra: BDNF, cortisol, detox, parasimpático, optimizar…) | plataforma | S | La forma más barata de no traicionarse en un momento de entusiasmo |
+
+### Ola 2 — La capa que no tiene nadie (2 a 6 meses)
+
+| # | Qué | Categoría | Esf. | Por qué |
+|---|---|---|---|---|
+| 13 | **Delta de vitalidad**: un ítem antes y después, media móvil de 10 sesiones | vitalidad | S | Cumple la única promesa honesta sobre la mente (§2.2) con datos propios |
+| 14 | **Predicción de repeticiones → calibración interoceptiva** | vitalidad | S | El diferenciador competitivo real. No lo tiene nadie |
+| 15 | **Las tres preguntas diarias** + índice con línea de base personal y las reglas anti-ruido | vitalidad | M | Su mayor valor es proteger el contador del motor, no mostrar un score |
+| 16 | **Sueño**: diario de 3 campos, deuda sobre ventana de 14 días, una recomendación diaria | sueño | M | Mayor tamaño de efecto de toda la revisión, y cruzable con datos que ya existen |
+| 17 | **Alimentación**: los 7 hábitos, cero calorías, en dos tablas nuevas de Dexie | alimentación | M | La versión honesta. Contar calorías sería un MyFitnessPal mediocre |
+| 18 | **Serie de cierre** (pico-final) + ritual de respiración opcional de 45 s | vitalidad | S | Probablemente el mayor retorno por línea de código del documento |
+| 19 | **Resumen semanal como narrativa** + tarjeta PNG compartible por Web Share | hábito | M | Todo el beneficio del "Wrapped" sin una línea de backend |
+| 20 | **Detección de meseta** con tres salidas concretas, y **detección de señales de alarma** | entrenamiento | M | La meseta es el momento exacto de abandono; RED-S es el riesgo del segmento |
+| 21 | **Índice de carga continuo (CCR)** y el gráfico de progreso que no se corta al cambiar de nivel | entrenamiento | M | Resuelve el problema que la propia *Recommended Routine* sufre |
+| 22 | **Dominio propio** y salir de `usuario.github.io` | plataforma | S | La cuota y el desalojo son por origen. No es opcional si se promete no perder datos |
+
+### Ola 3 — Apuestas (6 meses en adelante)
+
+| # | Qué | Categoría | Esf. | Nota |
+|---|---|---|---|---|
+| 23 | **Web Push declarativo** con servidor mínimo (200 bytes/usuario/día, cero datos de entrenamiento) | plataforma | M | La única vía real. Solo tras un gesto y en modo instalado |
+| 24 | **Pago único con licencia Ed25519 offline** | negocio | M | Coherente con la arquitectura. No cortar nunca el motor ni el registro |
+| 25 | **Cadenas nuevas** (verticales, fondos) y **experimento N-of-1 aleatorizado** | entrenamiento / vitalidad | L | El N-of-1 requiere consentimiento explícito y tope duro de carga |
+| 26 | **Preservación de masa muscular** como recorrido explícito para usuarios de GLP-1 | negocio | M | La oportunidad más grande y peor atendida del mercado (§7.1) |
+
+### Los primeros 30 días
+
+Un plan que se puede empezar mañana a la mañana:
+
+1. **Días 1-2.** Escribir el test de simulación (ola 1, #4) contra el motor **actual**.
+   Debe fallar. Ese test es el contrato del motor v2.
+2. **Días 3-8.** Motor v2 (#1): RRS, señal EWMA, compuerta de dominio, incremento
+   proporcional. El test de #4 pasa a verde. Los 44 tests existentes que cambien de
+   comportamiento se reescriben a propósito, uno por uno.
+3. **Días 9-12.** Retunear la biblioteca (#2): topes a ≤15/≤30, CCR por ejercicio,
+   micro-escalones donde el salto supere el 20%. Volver a correr la simulación y mirar la
+   trayectoria de un principiante a 6 meses. Debe ser creíble.
+4. **Días 13-18.** Test de nivel + revelación del plan (#3). Es la primera cosa que un
+   usuario nuevo va a ver, y hoy no existe.
+5. **Días 19-22.** Borrar la racha, poner A28 + créditos + sesiones de tu vida (#5).
+   Un toque de esfuerzo post-serie (#6).
+6. **Días 23-26.** Backup automático y estado de persistencia (#7). Wake Lock y borrar
+   sesión (#11).
+7. **Días 27-30.** "La última vez" y regla de subida visible (#8). Sesión corta (#9) y
+   sesión de vuelta (#10). Test de copy prohibido (#12).
+
+Al día 30, LyraFit tiene un motor que no se cuelga, contenido que dura más de un año, un
+usuario nuevo que empieza donde corresponde, y datos que no se pierden.
+
+---
+
+## 9. Lo que no hay que construir
+
+Tan importante como la lista de arriba, y más barato de respetar que de descubrir.
+
+**Producto**
+- Racha de días consecutivos. Y jamás una racha sobre prácticas contemplativas.
+- Feed social. Sin masa crítica es una pantalla vacía.
+- Conteo de calorías.
+- Peso corporal en la v1 (y si entra, con todas las restricciones de §5.5 o ninguna).
+- Frases motivacionales: son la fuente más débil de autoeficacia y ocupan el lugar de un
+  dato sobre el desempeño propio.
+- Pantalla de "¿qué te impide entrenar?": la identificación de barreras se asoció a **menor**
+  autoeficacia.
+- Programas cerrados de 12 semanas.
+- PHQ-9, GAD-7 o cualquier instrumento de tamizaje clínico.
+
+**Técnica**
+- ACWR. Está demolido metodológicamente.
+- Visión por computadora para contar repeticiones o corregir técnica. `erroresComunes[]` ya
+  resuelve el 80% por el 0,1% del costo.
+- LLM en la nube como coach. El motor ya es el coach y ya explica sus decisiones.
+- HRV sin sensor, incluida la fotopletismografía por cámara.
+- Migrar a SQLite WASM.
+- Merge de sincronización a mano sobre `pendientes` con última-escritura-gana.
+- `setTimeout` o alarmas en el service worker para recordatorios: no existen timers
+  persistentes en la web.
+- Depender de Background Sync o Periodic Background Sync: son solo Chromium.
+- Triplit, Replicache, cr-sqlite, Jazz, automerge-repo: abandonados, propietarios, o en alfa
+  declarada.
+
+**Salud y ética**
+- Wim Hof o cualquier hiperventilación autoadministrada.
+- Inmersión en frío como recomendación post-entrenamiento: atenúa la hipertrofia.
+- Cualquier promesa cognitiva: memoria, foco, neuroplasticidad, BDNF, "claridad mental"
+  como efecto sostenido.
+- Periodización por fase del ciclo menstrual como prescripción.
+- Suplementos más allá de creatina.
+- Correlacionar entrenamiento y ánimo presentándolo como causa: la causalidad más probable
+  va al revés (uno entrena los días que ya está bien).
+- Mostrar cualquier correlación personal con menos de 30 observaciones. Con n=20 la
+  correlación mínima detectable es r=0,44: por debajo de eso es ruido con estética de señal.
+
+---
+
+## 10. Los principios que no habría que traicionar
+
+1. **La regla se muestra.** Si el motor decide algo, dice por qué en una frase. Es lo que
+   ya hace y es el activo más valioso del producto.
+2. **Los datos no salen del teléfono.** Si algo tiene que salir —push, licencia— sale sin
+   datos de entrenamiento y sin identidad.
+3. **El silencio es una respuesta válida.** El ~68% de los días no debe pasar nada.
+4. **Nunca castigar.** Ni por faltar, ni por un mal día, ni por romper nada. Bonificar el
+   regreso, no penalizar la ausencia.
+5. **No afirmar lo que no se puede medir o citar.** Verificable como test.
+6. **El dominio se mantiene puro.** Todo lo de este documento —RRS, índices, cronotipo,
+   licencia— es una función pura más en `src/dominio/`, testeable en milisegundos. Esa
+   disciplina es la razón por la que este plan es viable para una sola persona.
+
+---
+
+## Nota sobre el método
+
+Este documento salió de 16 investigaciones en paralelo (10 de mercado sobre 106 productos,
+6 de literatura científica), 654 búsquedas web y ~1,5 millones de tokens de análisis, más la
+lectura completa del código con simulaciones ejecutadas sobre el motor real.
+
+Los hallazgos de la sección 1 no son lecturas del código: son resultados de correr el motor.
+La sección 2 marca explícitamente la solidez de cada afirmación, y varias creencias muy
+difundidas quedaron descartadas por no resistir la verificación.
+
+Donde las fuentes se contradijeron —el rol del RPE en el motor— la contradicción está
+expuesta en §6.6 en vez de resuelta por decreto.
