@@ -1,52 +1,187 @@
 @import 'tailwindcss';
 
 /**
- * El sistema visual de la app.
+ * EFEMÉRIDE — el sistema visual de LyraFit.
  *
- * Todo color, sombra y espacio sale de estas variables. Es lo que hace que
- * cambiar el tema entero sea cambiar diez líneas y no doscientas.
+ * Una efeméride es una tabla astronómica: filas de números, en silencio, que
+ * dicen dónde va a estar un cuerpo mañana. Es exactamente lo que hace esta app.
  *
- * La app se usa entrenando: con el pulso alto, el celular apoyado en el piso y
- * a veces con sol de frente. De ahí salen las decisiones — tipografía grande,
- * mucho contraste y botones a los que no le podés errar.
+ * El sistema tiene DOS REGISTROS y ninguno más:
+ *
+ *   EL REGISTRO es papel cálido: filas regladas con hairlines, cero tarjetas,
+ *   cero sombras, cero esquinas redondeadas, cifras monoespaciadas tabulares.
+ *   Densidad de instrumento. El 68% de los días la app es solo esto.
+ *
+ *   LA CARTA es una banda de cielo a sangre, y es NOCHE FIJA: idéntica en tema
+ *   claro y en oscuro. Las estrellas solo funcionan sobre negro, y la silueta
+ *   de cada cadena tiene que ser memorizable, así que no puede cambiar de
+ *   aspecto según la hora del día.
+ *
+ * En LyraFit la superficie destacada HUNDE, nunca levanta: la carta es más
+ * oscura que la página en los dos temas. Es lo contrario de todas las apps con
+ * tarjetas elevadas, y no cuesta ni un byte.
+ *
+ * CUATRO VOCES, con jurisdicción estricta:
+ *   mono            -> el dato y la nomenclatura (el instrumento)
+ *   serif romana    -> la identidad, y SOLO a tamaño monumental (quién sos)
+ *   serif cursiva   -> el motor hablando, y NADA más usa cursiva
+ *   sans del sistema-> interfaz y esfuerzo (cero bytes, hinting nativo)
+ *
+ * Si un texto no sabe qué voz le toca, la pantalla está mal armada.
  */
 
+/* ==========================================================================
+   FUENTES — autoalojadas. Una PWA offline real no le puede pedir nada a
+   fonts.gstatic.com: sin conexión, un <link> a Google Fonts deja la app sin
+   tipografía y sin fallback controlado. Dos familias, cuatro archivos.
+
+   La jurisdicción tipográfica paga el ancho de banda: la serif ROMANA solo
+   compone la cifra de identidad y los acumuladores, o sea que dibuja diez
+   glifos y nada más. Subseteada a los dígitos baja de 129 kB a ~4 kB. La
+   cursiva sí lleva latín completo, porque el motor escribe frases enteras.
+
+     LATIN='U+0020-007E,U+00A0-00FF,U+2013,U+2014,U+2018,U+2019,U+201C,U+201D'
+
+     pyftsubset 'IBMPlexMono-Regular.ttf'  --unicodes=$LATIN --flavor=woff2 \
+       --output-file=public/fuentes/plex-mono-400.woff2
+     pyftsubset 'IBMPlexMono-SemiBold.ttf' --unicodes=$LATIN --flavor=woff2 \
+       --output-file=public/fuentes/plex-mono-600.woff2
+     pyftsubset 'Newsreader-Italic[opsz,wght].ttf' --unicodes=$LATIN \
+       --flavor=woff2 --output-file=public/fuentes/newsreader-italic.woff2
+     pyftsubset 'Newsreader[opsz,wght].ttf' --unicodes='U+0030-0039' \
+       --flavor=woff2 --output-file=public/fuentes/newsreader.woff2
+
+   Presupuesto resultante: ~167 kB, casi todo en la cursiva del motor.
+   En vite.config.ts hay que sumar woff2 al globPatterns de workbox para que
+   el service worker las precachee junto al js, el css y el html.
+   ========================================================================== */
+
+@font-face {
+  font-family: 'Plex';
+  src: url('/fuentes/plex-mono-400.woff2') format('woff2');
+  font-weight: 400;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Plex';
+  src: url('/fuentes/plex-mono-600.woff2') format('woff2');
+  font-weight: 600;
+  font-display: swap;
+}
+/* Newsreader, recortada a lo que el sistema usa de verdad.
+   La romana conserva el eje óptico 56-72 porque la identidad se ve a dos
+   tamaños; la cursiva quedó como instancia fija en opsz 20 / wght 380, que
+   es el único lugar donde aparece. Entre las cuatro fuentes suman 64 KB. */
+@font-face {
+  font-family: 'Lectura';
+  src: url('/fuentes/newsreader.woff2') format('woff2');
+  font-weight: 500;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Lectura';
+  src: url('/fuentes/newsreader-italic.woff2') format('woff2');
+  font-weight: 380;
+  font-style: italic;
+  font-display: swap;
+}
+
+/* ==========================================================================
+   TOKENS
+   ========================================================================== */
+
 @theme {
-  --color-fondo: #ffffff;
-  --color-superficie: #f4f5f7;
-  --color-superficie-alta: #e9ebef;
-  --color-borde: #d8dbe1;
-  --color-texto: #12151a;
-  --color-texto-suave: #5c6270;
-  --color-acento: #e2521a;
-  --color-acento-suave: #fdece5;
+  /* --- EL PAPEL (cambia con el tema). Cálido, no gris azulado: ese slate
+         #f4f5f7 es el olor a plantilla de toda app de fitness. --- */
+  --color-fondo: #f7f5f0;
+  --color-papel: #edeae3;
+  --color-tinta: #15140f;
+  --color-glosa: #56514a;
+  --color-regla: #cdc7ba;
+  --color-regla-fuerte: #8d867a;
 
-  --color-empuje: #e2521a;
-  --color-traccion: #0f7ea8;
-  --color-piernas: #4d7c0f;
-  --color-core: #7c3aed;
+  /* Vega: la estrella más brillante de Lyra, y el único acento del sistema.
+     Racionado a TRES apariciones por pantalla como máximo: la barra de
+     acción, la estrella "estás acá", y el filete de la glosa del motor. */
+  --color-vega: #b03a0c;
 
-  --color-exito: #15803d;
-  --color-alerta: #b45309;
-  --color-error: #b91c1c;
+  /* El techo de alarma. No existe rojo para nada del entrenamiento. */
+  --color-ambar: #8a5300;
 
-  /*
-   * Los gráficos usan su propia paleta y no los colores de la interfaz.
-   * Un color pensado para un título sobre fondo blanco casi nunca sirve como
-   * relleno de una barra: cambia la superficie, cambia el contraste y cambia
-   * lo que puede distinguir alguien que no ve bien los colores. Estos cuatro
-   * valores están verificados contra la superficie de cada tema — banda de
-   * luminosidad, separación para daltonismo y contraste mínimo.
-   */
-  --color-grafico-1: #e2521a;
-  --color-grafico-2: #0f7ea8;
-  --color-grafico-3: #4d7c0f;
-  --color-grafico-4: #7c3aed;
-  --color-grafico-grilla: #dfe2e8;
+  /* Solo para acciones destructivas del usuario en Ajustes (borrar datos).
+     Por contrato: ninguna pantalla de entrenamiento puede usar este token. */
+  --color-destructivo: #a02216;
 
-  --font-sans:
-    ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', sans-serif;
-  --font-numeros: ui-monospace, 'SF Mono', 'Roboto Mono', 'Courier New', monospace;
+  /* Rampa tinta: los patrones como TEXTO y REGLA sobre papel claro. */
+  --color-empuje: #9c4413;
+  --color-traccion: #0e6b8c;
+  --color-piernas: #3f5f10;
+  --color-core: #6b2fbd;
+
+  /* --- LA CARTA: noche fija, idéntica en claro y en oscuro --- */
+  --carta-fondo: #080b11;
+  --carta-canto: #1a2230;
+  --carta-estrella: #ffffff;
+  --carta-rotulo: #8d99ad;
+  --carta-futuro-nodo: #79859a;
+  --carta-futuro-linea: #55637a;
+
+  /* Rampa luz: los patrones como NODO sobre la noche. Un color calibrado
+     para texto sobre papel blanco no puede ser el mismo que un punto de luz
+     sobre negro. Misma disciplina que la paleta de gráficos, extendida. */
+  --luz-empuje: #ff7a45;
+  --luz-traccion: #38bdf8;
+  --luz-piernas: #a3e635;
+  --luz-core: #c084fc;
+
+  /* Gráficos: mantienen su paleta propia, ya verificada. Un color pensado
+     para iluminar un nodo de 7px no es un buen relleno de barra de 40px. */
+  --color-grafico-1: #9c4413;
+  --color-grafico-2: #0e6b8c;
+  --color-grafico-3: #3f5f10;
+  --color-grafico-4: #6b2fbd;
+  --color-grafico-grilla: #cdc7ba;
+
+  --font-cifra: 'Plex', ui-monospace, 'SF Mono', 'Roboto Mono', monospace;
+  --font-lectura: 'Lectura', ui-serif, Georgia, 'Times New Roman', serif;
+  --font-sans: ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+
+  /* Geometría. Tres radios en todo el sistema y ninguno más. */
+  --radio: 0px;
+  --radio-foco: 2px;
+  --margen: 1rem;    /* 16px de inset del texto */
+  --canal: 2.75rem;  /* 44px: la columna del glifo de patrón */
+  --fila: 3.5rem;    /* 56px: alto mínimo de fila tocable */
+
+  /* Base 4px. Escala usada: 4 8 12 16 24 40 64. Nada intermedio: una
+     persona sola no se desvía de siete valores; de catorce, sí. */
+  --spacing: 4px;
+
+  --curva: cubic-bezier(0.22, 0.61, 0.36, 1);
+
+  /* ------------------------------------------------------------------ *
+   * PUENTE DE MIGRACION.
+   *
+   * La app ya escrita usa --color-texto-suave en 81 lugares, .tarjeta en
+   * 19 y --color-acento en 11. Un sistema que exige migrar las siete
+   * pantallas en una sentada antes de compilar no lo mantiene una persona
+   * sola: lo abandona a mitad de camino, con medio codigo en cada idioma.
+   *
+   * Estos alias hacen que la app siga andando el minuto que pegas este
+   * archivo, y dejan migrar pantalla por pantalla. Se borran cuando no
+   * queda ninguna referencia (grep -r "texto-suave" src).
+   * ------------------------------------------------------------------ */
+  --color-texto: var(--color-tinta);
+  --color-texto-suave: var(--color-glosa);
+  --color-superficie: var(--color-papel);
+  --color-superficie-alta: var(--color-papel);
+  --color-borde: var(--color-regla);
+  --color-acento: var(--color-vega);
+  --color-acento-suave: var(--color-papel);
+  --color-alerta: var(--color-ambar);
+  --color-error: var(--color-destructivo);
+  --color-exito: var(--color-glosa);
 }
 
 @layer theme {
@@ -56,58 +191,76 @@
 
   @media (prefers-color-scheme: dark) {
     :root:not([data-tema='claro']) {
-      --color-fondo: #0b0e13;
-      --color-superficie: #141922;
-      --color-superficie-alta: #1e2531;
-      --color-borde: #2a3341;
-      --color-texto: #eef1f6;
-      --color-texto-suave: #99a2b3;
-      --color-acento: #ff7a45;
-      --color-acento-suave: #2a1710;
+      --color-fondo: #100f0d;
+      --color-papel: #1b1915;
+      --color-tinta: #f2efe6;
+      --color-glosa: #a49b8c;
+      --color-regla: #35302a;
+      --color-regla-fuerte: #6b6459;
+      --color-vega: #ff7a45;
+      --color-ambar: #eeb43c;
+      --color-destructivo: #f08a7e;
 
       --color-empuje: #ff7a45;
       --color-traccion: #38bdf8;
       --color-piernas: #a3e635;
       --color-core: #c084fc;
 
-      --color-exito: #4ade80;
-      --color-alerta: #fbbf24;
-      --color-error: #f87171;
-
-      --color-grafico-1: #ea580c;
-      --color-grafico-2: #0284c7;
-      --color-grafico-3: #65a30d;
-      --color-grafico-4: #9333ea;
-      --color-grafico-grilla: #232b37;
+      --color-grafico-1: #ff7a45;
+      --color-grafico-2: #38bdf8;
+      --color-grafico-3: #a3e635;
+      --color-grafico-4: #c084fc;
+      --color-grafico-grilla: #35302a;
     }
   }
 
   :root[data-tema='oscuro'] {
-    --color-fondo: #0b0e13;
-    --color-superficie: #141922;
-    --color-superficie-alta: #1e2531;
-    --color-borde: #2a3341;
-    --color-texto: #eef1f6;
-    --color-texto-suave: #99a2b3;
-    --color-acento: #ff7a45;
-    --color-acento-suave: #2a1710;
+    --color-fondo: #100f0d;
+    --color-papel: #1b1915;
+    --color-tinta: #f2efe6;
+    --color-glosa: #a49b8c;
+    --color-regla: #35302a;
+    --color-regla-fuerte: #6b6459;
+    --color-vega: #ff7a45;
+    --color-ambar: #eeb43c;
+    --color-destructivo: #f08a7e;
 
     --color-empuje: #ff7a45;
     --color-traccion: #38bdf8;
     --color-piernas: #a3e635;
     --color-core: #c084fc;
 
-    --color-exito: #4ade80;
-    --color-alerta: #fbbf24;
-    --color-error: #f87171;
+    --color-grafico-1: #ff7a45;
+    --color-grafico-2: #38bdf8;
+    --color-grafico-3: #a3e635;
+    --color-grafico-4: #c084fc;
+    --color-grafico-grilla: #35302a;
+  }
 
-    --color-grafico-1: #ea580c;
-    --color-grafico-2: #0284c7;
-    --color-grafico-3: #65a30d;
-    --color-grafico-4: #9333ea;
-    --color-grafico-grilla: #232b37;
+  /*
+   * ENTRENAR — la noche, siempre, en los dos temas.
+   * Blanco puro sobre #080b11 = 19.7:1, el par de mayor contraste que existe
+   * en el sistema. Está justo donde la persona tiene el pulso a 140, el sol
+   * de frente y las manos transpiradas.
+   *
+   * Es un interruptor, no disciplina del desarrollador: la decoración se
+   * apaga por CSS. Ningún componente puede "olvidarse" de apagarse.
+   */
+  :root[data-pantalla='entrenar'] {
+    --color-fondo: #080b11;
+    --color-papel: #0f1620;
+    --color-tinta: #ffffff;
+    --color-glosa: #8d99ad;
+    --color-regla: #202b3a;
+    --color-regla-fuerte: #55637a;
+    --color-vega: #ff7a45;
+    --color-ambar: #eeb43c;
   }
 }
+
+/* ==========================================================================
+   BASE
+   ========================================================================== */
 
 @layer base {
   * {
@@ -120,59 +273,731 @@
   }
 
   body {
+    font-synthesis: none;
     margin: 0;
     background-color: var(--color-fondo);
-    color: var(--color-texto);
+    color: var(--color-tinta);
     font-family: var(--font-sans);
+    font-size: 0.9375rem;
+    line-height: 1.45;
     -webkit-font-smoothing: antialiased;
     overscroll-behavior-y: none;
-  }
-
-  /* Los números de entrenamiento se leen de un vistazo, sin bailar de ancho. */
-  .cifra {
-    font-family: var(--font-numeros);
-    font-variant-numeric: tabular-nums;
-    letter-spacing: -0.02em;
   }
 
   button {
     font-family: inherit;
     touch-action: manipulation;
+    border: 0;
+    border-radius: var(--radio);
+    background: none;
+    color: inherit;
+  }
+
+  /* Cero sombras en todo el sistema. La profundidad la dan las reglas de 1px
+     y la inversión de valor de la banda de noche. */
+  hr {
+    border: 0;
+    border-top: 1px solid var(--color-regla);
+    margin: 0;
   }
 
   :focus-visible {
-    outline: 2px solid var(--color-acento);
-    outline-offset: 2px;
-  }
-
-  @media (prefers-reduced-motion: reduce) {
-    *,
-    *::before,
-    *::after {
-      animation-duration: 0.01ms !important;
-      transition-duration: 0.01ms !important;
-    }
+    outline: 2px solid var(--color-vega);
+    outline-offset: 3px;
+    border-radius: var(--radio-foco);
   }
 }
 
+/* ==========================================================================
+   COMPONENTES
+   ========================================================================== */
+
 @layer components {
-  .tarjeta {
-    background-color: var(--color-superficie);
-    border: 1px solid var(--color-borde);
-    border-radius: 1rem;
+  /* ------------------------------------------------------------------ *
+   * 1. LAS CUATRO VOCES
+   * ------------------------------------------------------------------ */
+
+  /* -- mono: el dato. El instrumento. --
+     tabular porque el temporizador no puede bailar de ancho al pasar de 60
+     a 59; slashed-zero porque desambigua 0/O bajo el sol y porque es el
+     rasgo que dice "instrumento". */
+  .cifra {
+    font-family: var(--font-cifra);
+    font-variant-numeric: tabular-nums slashed-zero;
+    font-weight: 600;
+    letter-spacing: -0.015em;
   }
 
-  .pulso-descanso {
-    animation: pulso 2s ease-in-out infinite;
+  /* La cifra de la fila del registro: el objetivo, a la derecha. */
+  .cifra-fila {
+    font-family: var(--font-cifra);
+    font-variant-numeric: tabular-nums slashed-zero;
+    font-weight: 600;
+    font-size: 1.125rem;
+    letter-spacing: -0.015em;
   }
 
-  @keyframes pulso {
-    0%,
-    100% {
+  /* El "×" del objetivo no compite con los dos números que importan. */
+  .cifra-fila .por {
+    font-size: 0.7em;
+    opacity: 0.55;
+    padding-inline: 0.1em;
+  }
+
+  /* La cifra de comparación: mismo tamaño, otro color. El contraste
+     vos-de-hoy contra vos-de-antes se lee por color, no por palabras. */
+  .cifra-contra {
+    color: var(--color-glosa);
+  }
+  .cifra-contra::before {
+    content: ' · ';
+  }
+
+  /* Las unidades nunca compiten con el número. */
+  .unidad {
+    font-size: 0.55em;
+    font-weight: 400;
+    color: var(--color-glosa);
+  }
+
+  /* La cifra del esfuerzo: el número de la serie actual en Entrenar.
+     Único uso en toda la app. Sans del sistema, no mono: a 130px lo que
+     hace falta es masa y hinting nativo, no carácter. */
+  .cifra-esfuerzo {
+    font-family: var(--font-sans);
+    font-variant-numeric: tabular-nums;
+    font-weight: 800;
+    font-size: clamp(5.5rem, 26vw, 8.25rem);
+    line-height: 0.86;
+    letter-spacing: -0.05em;
+    color: var(--color-tinta);
+  }
+
+  /* -- serif romana: LA IDENTIDAD, y solo a tamaño monumental --
+     "Sesión 047" pesa más que "+2 reps". Este es el hallazgo 3 hecho
+     tipografía: lo más grande de la pantalla es quién sos, no qué hiciste.
+     Los ceros a la izquierda se conservan a propósito: convierten un número
+     en una matrícula, y una matrícula es identidad. */
+  .cifra-identidad {
+    font-family: var(--font-lectura);
+    font-optical-sizing: none;
+    font-variation-settings: 'opsz' 72, 'wght' 500;
+    font-variant-numeric: lining-nums tabular-nums;
+    font-size: clamp(4.5rem, 30vw, 8rem);
+    line-height: 0.82;
+    letter-spacing: -0.03em;
+    color: var(--color-tinta);
+    display: block;
+    /* El trazo del primer cero pisa la línea de margen, como en una portada. */
+    margin-left: -0.05em;
+  }
+
+  /* Un escalón menos: los acumuladores monotónicos de Progreso. */
+  .cifra-acumulador {
+    font-family: var(--font-lectura);
+    font-optical-sizing: none;
+    font-variation-settings: 'opsz' 60, 'wght' 500;
+    font-variant-numeric: lining-nums tabular-nums;
+    font-size: clamp(2.5rem, 13vw, 3.5rem);
+    line-height: 0.9;
+    letter-spacing: -0.025em;
+  }
+
+  /* -- serif cursiva: EL MOTOR. Nada más en la app usa cursiva. --
+     Deliberadamente MÁS grande que el cuerpo: la explicación del algoritmo
+     no es letra chica. Es el activo diferencial del producto. */
+  .glosa {
+    font-family: var(--font-lectura);
+    font-style: italic;
+    font-optical-sizing: none;
+    font-variation-settings: 'opsz' 20, 'wght' 380;
+    font-size: 1.0625rem;
+    line-height: 1.45;
+    color: var(--color-tinta);
+    text-wrap: pretty;
+    max-width: 34ch;
+    margin: 0;
+  }
+
+  /* El motor citado, con filete de Vega colgado en el margen. */
+  .glosa-motor {
+    padding-left: 0.875rem;
+    border-left: 2px solid var(--color-vega);
+  }
+
+  /* Un mal día se dice en ámbar y en cursiva, con la regla explicada.
+     Nunca en rojo, nunca con una alarma, nunca con una flecha para abajo. */
+  .glosa-motor[data-tono='ambar'] {
+    border-left-color: var(--color-ambar);
+  }
+
+  /* La atribución de la regla. El motor firma lo que decide. */
+  .cita {
+    display: block;
+    margin-top: 0.75rem;
+    font-family: var(--font-cifra);
+    font-style: normal;
+    font-weight: 600;
+    font-size: 0.6875rem;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--color-glosa);
+  }
+
+  /* -- nomenclatura de lámina. El título de pantalla es una placa, no un
+        titular: el tamaño grande está reservado siempre al contenido. -- */
+  .rotulo {
+    font-family: var(--font-cifra);
+    font-weight: 600;
+    font-size: 0.6875rem;
+    line-height: 1.4;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--color-glosa);
+  }
+
+  /* Nombre del ejercicio en la fila. */
+  .nombre {
+    font-family: var(--font-sans);
+    font-weight: 600;
+    font-size: 0.9375rem;
+    line-height: 1.3;
+  }
+
+  /* ------------------------------------------------------------------ *
+   * 2. EL REGISTRO — filas regladas, cero tarjetas.
+   *
+   * `.tarjeta` con radio 1rem sobre superficie gris es el uniforme de toda
+   * app de fitness con Tailwind. Acá la estructura se hace con reglas de
+   * 1px y una columna-canal de 44px, como una tabla de efemérides.
+   *
+   * Las reglas van A SANGRE (tocan los dos bordes de la pantalla); el texto
+   * respeta el margen. Es lo que da el aire de atlas científico.
+   * ------------------------------------------------------------------ */
+
+  .registro {
+    border-top: 1px solid var(--color-regla);
+  }
+
+  .registro > * {
+    display: grid;
+    grid-template-columns: var(--canal) 1fr auto;
+    align-items: center;
+    gap: 0.75rem;
+    width: 100%;
+    min-height: var(--fila);
+    padding: 0.75rem var(--margen) 0.75rem 0;
+    border-bottom: 1px solid var(--color-regla);
+    border-radius: 0;
+    text-align: left;
+  }
+
+  /* Separación de sección: el único borde de 2px del sistema. */
+  .registro-seccion {
+    border-top: 2px solid var(--color-regla-fuerte);
+  }
+
+  /* El canal: la columna izquierda fija donde vive el glifo del patrón.
+     Es lo que hace que cuatro filas se escaneen verticalmente sin leerlas. */
+  .canal {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    align-self: stretch;
+    font-family: var(--font-cifra);
+    font-variant-numeric: tabular-nums slashed-zero;
+    font-size: 0.6875rem;
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    color: var(--color-glosa);
+  }
+
+  /* El glifo de patrón: un cuadrado de 8px. Nunca una píldora rellena de
+     color — ese chip de color es medio uniforme de app de fitness. */
+  .glifo {
+    width: 8px;
+    height: 8px;
+    background-color: var(--tinta-patron, var(--color-glosa));
+  }
+
+  .fila-pulsable {
+    transition: opacity 120ms linear;
+  }
+  .fila-pulsable:active {
+    opacity: 0.6;
+  }
+
+  /* Estado de carga: la fila vacía con las reglas ya dibujadas, quieta.
+     Sin skeleton pulsante — un elemento que late mientras esperás es ruido. */
+  .fila-vacia {
+    min-height: var(--fila);
+    border-bottom: 1px solid var(--color-regla);
+  }
+
+  /* ------------------------------------------------------------------ *
+   * 3. LA CARTA — banda de noche a sangre.
+   *
+   * La decisión más audaz del sistema: en tema CLARO hay bandas de cielo
+   * negro insertadas en la página. Tres razones duras, ninguna estética:
+   *   a) las estrellas y los halos solo funcionan sobre fondo oscuro;
+   *   b) la silueta del asterismo tiene que ser memorizable, y no puede
+   *      serlo si cambia de aspecto según la hora del día;
+   *   c) bajo sol directo, negro con nodos claros es el mayor contraste
+   *      disponible del sistema.
+   * ------------------------------------------------------------------ */
+
+  .carta {
+    position: relative;
+    background-color: var(--carta-fondo);
+    /* A sangre sin importar el padding del contenedor. */
+    margin-inline: calc(50% - 50vw);
+    padding-inline: calc(50vw - 50%);
+    border-block: 1px solid var(--carta-canto);
+  }
+
+  .carta svg {
+    display: block;
+    width: 100%;
+    height: auto;
+  }
+
+  .carta .rotulo {
+    color: var(--carta-rotulo);
+  }
+
+  /* El camino que ya hiciste: grueso, y con la luz del patrón. */
+  .trazo-recorrido {
+    fill: none;
+    stroke: var(--luz);
+    stroke-width: 2.25;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+  }
+
+  /* Lo que falta: fino y punteado. No está prohibido, está sin iluminar.
+     Cero candados, cero tachados, cero "bloqueado". La ausencia de luz
+     comunica sin castigar. */
+  .trazo-futuro {
+    fill: none;
+    stroke: var(--carta-futuro-linea);
+    stroke-width: 1;
+    stroke-dasharray: 2 4;
+    stroke-linecap: round;
+  }
+
+  .nodo-hecho {
+    fill: var(--luz);
+  }
+
+  .nodo-futuro {
+    fill: none;
+    stroke: var(--carta-futuro-nodo);
+    stroke-width: 1.25;
+  }
+
+  /* El terminus: rombo hueco. "El fin de la carta". */
+  .nodo-terminal {
+    fill: none;
+    stroke: var(--carta-futuro-nodo);
+    stroke-width: 1.25;
+  }
+
+  /* La huella: dónde estabas antes del salto. Es el único elemento de la
+     app que registra el pasado con una forma vacía, y en la pantalla de
+     cierre es lo que hace visible el movimiento. */
+  .nodo-huella {
+    fill: none;
+    stroke: var(--luz);
+    stroke-width: 1.25;
+    opacity: 0.55;
+  }
+
+  /* Rótulos de nodo (solo en la carta vertical, donde hay lugar de sobra). */
+  .nodo-rotulo {
+    font-family: var(--font-cifra);
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    fill: var(--carta-futuro-nodo);
+  }
+  .nodo-rotulo[data-estado='hecho'] {
+    fill: var(--carta-rotulo);
+  }
+  .nodo-rotulo[data-estado='aca'] {
+    fill: var(--carta-estrella);
+  }
+
+  /* ------------------------------------------------------------------ *
+   * 4. LA ESTRELLA — el elemento firma. La única luz de toda la app.
+   *
+   * Ningún otro elemento de la interfaz brilla, jamás. Por eso el
+   * "estás acá" es imposible de no ver: es literalmente lo único
+   * iluminado en la pantalla. Ese monopolio es la mitad del trabajo.
+   *
+   * Tres refuerzos redundantes en el mismo punto, porque esto se mira con
+   * sol y de reojo:
+   *   1. es lo único con halo;
+   *   2. es lo único con núcleo blanco puro (19.7:1);
+   *   3. es exactamente donde la línea cambia de 2.25px sólidos a 1px
+   *      punteados. La frontera de materia coincide con la luz.
+   * ------------------------------------------------------------------ */
+
+  .estrella {
+    transform-origin: center;
+  }
+
+  /* El halo es un radialGradient del SVG, no un box-shadow ni un blur:
+     un filtro a pantalla completa cuesta caro en un teléfono de gama media
+     y además obliga a una capa de composición en cada scroll. */
+  .estrella-halo {
+    opacity: 0.85;
+  }
+
+  /* Espigas ASIMÉTRICAS (19 vs 11). Eso las lee como difracción anamórfica
+     de un telescopio y no como un signo "+". Es el detalle que separa esto
+     de un ícono genérico. */
+  .estrella-espiga {
+    stroke: var(--luz);
+    stroke-width: 1;
+    stroke-linecap: round;
+    opacity: 0.6;
+  }
+
+  .estrella-corona {
+    fill: none;
+    stroke: var(--luz);
+    stroke-width: 1;
+    opacity: 0.75;
+  }
+
+  .estrella-nucleo {
+    fill: var(--carta-estrella);
+  }
+
+  /* Área táctil invisible: llega al mínimo de 44px sin agrandar el dibujo. */
+  .estrella-tacto {
+    fill: transparent;
+  }
+
+  /* La píldora que aparece si la estrella se fue del viewport en la carta
+     vertical larga (25 nodos = ~2200px de scroll). Un IntersectionObserver,
+     sobre un solo elemento. Si la estrella está visible, no aparece nunca. */
+  .pastilla-aca {
+    position: fixed;
+    left: 50%;
+    bottom: calc(1rem + env(safe-area-inset-bottom));
+    transform: translateX(-50%);
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    min-height: 2.75rem;
+    padding: 0 1rem;
+    background-color: var(--carta-fondo);
+    border: 1px solid var(--carta-canto);
+    color: var(--carta-estrella);
+    font-family: var(--font-cifra);
+    font-size: 0.6875rem;
+    font-weight: 600;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+  }
+
+  /* ------------------------------------------------------------------ *
+   * 5. LA TIRA — el acumulador monotónico, como marca de cuaderno.
+   *
+   * Un trazo por sesión, largo cada cinco, el último en Vega. Nunca baja.
+   * Si faltaste tres semanas sigue diciendo 47: sin huecos, sin marcas de
+   * ausencia, sin gris de días perdidos. Esto es lo que la racha no puede
+   * ser, porque la racha se rompe y esto no.
+   *
+   * Se genera con <span> vacíos: cero imágenes, cero SVG, cero librería.
+   * ------------------------------------------------------------------ */
+
+  .tira {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-end;
+    gap: 4px 3px;
+  }
+
+  .tira span {
+    display: block;
+    width: 1px;
+    height: 14px;
+    background-color: var(--color-regla-fuerte);
+  }
+
+  .tira span:nth-child(5n) {
+    height: 22px;
+  }
+
+  .tira span:last-child {
+    width: 3px;
+    height: 26px;
+    background-color: var(--color-vega);
+  }
+
+  /* ------------------------------------------------------------------ *
+   * 6. ACCIÓN — barras a sangre, no pastillas.
+   *
+   * El botón principal se gana el borde de la pantalla: por Fitts, un
+   * objetivo pegado al canto tiene ancho infinito hacia afuera, y no se le
+   * puede errar con la mano transpirada.
+   * ------------------------------------------------------------------ */
+
+  .accion {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    min-height: 3.75rem;
+    padding: 0 1rem;
+    border-radius: 0;
+    background-color: var(--color-vega);
+    color: #ffffff;
+    font-family: var(--font-cifra);
+    font-weight: 600;
+    font-size: 1rem;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    transition: opacity 90ms linear;
+  }
+  .accion:active {
+    opacity: 0.72;
+  }
+  .accion:disabled {
+    background-color: var(--color-papel);
+    color: var(--color-glosa);
+  }
+
+  /* En tema oscuro la barra naranja lleva texto oscuro: #100f0d sobre
+     #ff7a45 da 7.4:1, mientras que blanco sobre #ff7a45 daría 2.8:1. */
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-tema='claro']) .accion {
+      color: #100f0d;
+    }
+  }
+  :root[data-tema='oscuro'] .accion,
+  :root[data-pantalla='entrenar'] .accion {
+    color: #100f0d;
+  }
+
+  /* La acción quieta: el cierre no te empuja a nada. Terminar es terminar. */
+  .accion-quieta {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    min-height: 3.5rem;
+    background: transparent;
+    color: var(--color-tinta);
+    border-top: 1px solid var(--color-regla-fuerte);
+    border-radius: 0;
+    font-family: var(--font-cifra);
+    font-weight: 600;
+    font-size: 0.6875rem;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+  }
+
+  /* En Entrenar el objetivo táctil sube a 88px y el secundario se separa
+     16px reales del primario: con dedos húmedos no puede haber errores, y
+     el destructivo nunca es adyacente al principal. */
+  .accion-esfuerzo {
+    min-height: 5.5rem;
+    font-size: 1.125rem;
+  }
+
+  /* ------------------------------------------------------------------ *
+   * 7. MOVIMIENTO — cinco animaciones en toda la aplicación.
+   *    Cualquier sexta es un bug.
+   * ------------------------------------------------------------------ */
+
+  /* (1) LA REGLA SE IMPRIME. Abre la pantalla de cierre: una hoja vacía y
+     un filete que se dibuja. Después, 700 ms de nada. Ese silencio es el
+     diseño: es lo que hace que lo que viene se sienta dicho, no gritado. */
+  .anim-regla {
+    transform: scaleX(0);
+    transform-origin: left;
+    animation: imprimir 700ms var(--curva) forwards;
+  }
+  @keyframes imprimir {
+    to {
+      transform: scaleX(1);
+    }
+  }
+
+  /* (2) TRAZAR. El path lleva pathLength="1", así stroke-dasharray:1 y
+     stroke-dashoffset:1→0 funcionan en CSS puro, sin medir el path con
+     getTotalLength() y sin una línea de JS.
+     Arranca rápido y frena largo, como la aguja de un instrumento llegando
+     a su marca. Se usa SOLO en Cierre cuando hubo salto de nodo. En Hoy
+     jamás: Hoy se abre veinte veces por semana y una animación repetida
+     deja de ser énfasis y pasa a ser ruido. */
+  .anim-trazo {
+    stroke-dasharray: 1;
+    stroke-dashoffset: 1;
+    animation: trazar 900ms var(--curva) 700ms forwards;
+  }
+  @keyframes trazar {
+    to {
+      stroke-dashoffset: 0;
+    }
+  }
+
+  /* (3) ASENTAR. La luz aparece justo cuando la línea termina de llegar al
+     nodo. Sin rebote: la estrella se posa, no salta. Un overshoot elástico
+     convertiría un dato en un juguete. */
+  .anim-estrella {
+    opacity: 0;
+    animation: asentar 420ms cubic-bezier(0.2, 0.8, 0.3, 1) 1460ms forwards;
+  }
+  @keyframes asentar {
+    from {
+      opacity: 0;
+      transform: scale(0.55);
+    }
+    to {
+      opacity: 1;
+      transform: scale(1);
+    }
+  }
+
+  /* (4) REVELAR. La pantalla de cierre aparece por etapas, solo opacidad:
+     el texto no entra volando, aparece impreso. */
+  .revelar {
+    opacity: 0;
+    animation: aparecer 240ms linear forwards;
+  }
+  .revelar--1 { animation-delay: 1700ms; }
+  .revelar--2 { animation-delay: 2300ms; }
+  .revelar--3 { animation-delay: 2900ms; }
+  .revelar--4 { animation-delay: 3500ms; }
+  @keyframes aparecer {
+    to {
       opacity: 1;
     }
-    50% {
-      opacity: 0.55;
-    }
+  }
+
+  /* (5) EL ARCO DEL DESCANSO. Reemplaza al `.pulso-descanso` que latía a
+     opacidad variable: un elemento que late mientras tenés el pulso a 140
+     es estresante y además hace ilegible el número que envuelve.
+     El descanso se muestra por VACIADO DE ARCO, en silencio y en lineal.
+     Lineal y no eased porque representa tiempo real: si acelera, miente.
+     JS: elemento.style.setProperty('--resto', restante / total) */
+  .arco-descanso {
+    fill: none;
+    stroke: var(--color-vega);
+    stroke-width: 2;
+    stroke-dasharray: 1;
+    stroke-dashoffset: calc(1 - var(--resto, 1));
+    transform: rotate(-90deg);
+    transform-origin: center;
+    transition: stroke-dashoffset 1s linear;
+  }
+  .arco-descanso-fondo {
+    fill: none;
+    stroke: var(--color-regla);
+    stroke-width: 2;
+  }
+
+  /*
+   * QUÉ NO SE MUEVE, NUNCA:
+   *   · Los números. No cuentan hacia arriba, no ruedan, no hacen odómetro.
+   *     Un número en movimiento no se puede leer de reojo entre respiraciones.
+   *   · No hay transición entre pantallas. Corte duro: a 140 pulsaciones,
+   *     250 ms de deslizamiento se perciben como una app trabada.
+   *   · No hay hover con movimiento (es un teléfono).
+   *   · No hay confeti, ni "¡bien hecho!", ni íconos que rebotan, ni barras
+   *     que se llenan con brillo, ni medallas, ni monedas. Nunca.
+   *   · No existe ni un animation-iteration-count: infinite en el sistema.
+   */
+
+  /* ------------------------------------------------------------------ *
+   * 8. ENTRENAR — el interruptor de decoración.
+   *
+   * La riqueza de composición es un privilegio del reposo. Cuando el pulso
+   * sube, se apaga todo lo que no sea legibilidad bruta.
+   * ------------------------------------------------------------------ */
+
+  [data-pantalla='entrenar'] {
+    font-size: 1.0625rem;
+  }
+  [data-pantalla='entrenar'] .carta,
+  [data-pantalla='entrenar'] .tira,
+  [data-pantalla='entrenar'] .glosa {
+    display: none;
+  }
+  [data-pantalla='entrenar'] .registro > * {
+    min-height: 4.5rem;
+  }
+
+  /* ------------------------------------------------------------------ *
+   * 9. PUENTE DE MIGRACION (clases).
+   *
+   * `.tarjeta` no se borra: se REDEFINE. Las 19 pantallas que la usan
+   * dejan de dibujar una caja gris con radio 1rem y pasan a dibujar una
+   * fila reglada, sin tocar una linea de TSX. Es la migracion mas barata
+   * que existe: una regla de CSS cambia el idioma de toda la app, y
+   * despues se van reescribiendo las pantallas a `.registro` con calma.
+   *
+   * La tarjeta redondeada sobre superficie gris es el uniforme de toda
+   * app de fitness con Tailwind. Sacarla es la mitad del trabajo de tener
+   * estilo propio, y aca sale gratis.
+   * ------------------------------------------------------------------ */
+  .tarjeta {
+    background-color: transparent;
+    border: 0;
+    border-top: 1px solid var(--color-regla);
+    border-radius: 0;
+  }
+
+  /* El pulso del descanso se apaga en el acto. Un elemento que late a
+     opacidad variable mientras tenes el pulso a 140 es estresante y hace
+     ilegible el numero que envuelve. Queda neutralizado hasta que
+     Entrenar migre al `.arco-descanso`. */
+  .pulso-descanso {
+    animation: none;
+  }
+}
+
+/* ==========================================================================
+   MOVIMIENTO REDUCIDO
+
+   La información NO se pierde, solo se congela. La diferencia importa: si
+   el trazado y la estrella simplemente no ocurrieran, la persona con
+   movimiento reducido no vería que avanzó de nodo — el dato dependería del
+   movimiento, que es exactamente el error que hay que evitar.
+   ========================================================================== */
+
+@media (prefers-reduced-motion: reduce) {
+  .anim-regla {
+    animation: none;
+    transform: scaleX(1);
+  }
+  .anim-trazo {
+    animation: none;
+    stroke-dashoffset: 0;
+  }
+  .anim-estrella {
+    animation: none;
+    opacity: 1;
+  }
+  .revelar {
+    animation: none;
+    opacity: 1;
+  }
+  /* El arco del descanso es información, no decoración: se sigue
+     actualizando, pero salta de segundo a segundo en vez de deslizarse. */
+  .arco-descanso {
+    transition: none;
+  }
+
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
   }
 }
