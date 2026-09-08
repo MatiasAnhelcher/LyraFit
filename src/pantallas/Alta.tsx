@@ -21,6 +21,23 @@
  *
  * Tope duro: ocho pantallas. Un alta que crece "ya que estamos" es un alta que
  * deja de cumplir su función.
+ *
+ * ## Los toques que costaba
+ *
+ * Cada respuesta se cargaba con un más y un menos de a uno. Veinticinco
+ * sentadillas eran veinticinco toques, y eso pasaba en la primera pantalla que
+ * ve alguien que todavía no le debe nada a la app. Ahora hay una regleta de
+ * valores por prueba —números redondos elegidos a mano, no una escala
+ * derivada— y el más y el menos quedan para ajustar. La respuesta típica pasó
+ * de veinticinco toques a uno.
+ *
+ * ## Y por qué está en el mismo sistema que el resto
+ *
+ * Era la única pantalla que había quedado con el lenguaje viejo: tarjetas con
+ * borde redondeado, botones flotantes, un color distinto por patrón usado como
+ * relleno. O sea que lo primero que veía cualquiera era una app y lo segundo
+ * era otra. Ahora usa el mismo registro reglado, el mismo glifo de patrón y la
+ * misma barra de acción contra el canto que las otras seis pantallas.
  */
 
 import { useState } from 'react'
@@ -30,7 +47,7 @@ import { proximoHitoDeCadena, proyectar, ubicarEnCadena } from '@/dominio/progre
 import { RUTINAS } from '@/dominio/rutinas'
 import type { Patron } from '@/dominio/tipos'
 import { guardarPreferencias, ubicarDesdePrueba } from '@/datos/repositorio'
-import { Boton, COLOR_PATRON, unidad } from '@/componentes/ui'
+import { Accion, AccionQuieta, Glifo, Rotulo, unidad } from '@/componentes/ui'
 
 interface Prueba {
   patron: Patron
@@ -40,6 +57,20 @@ interface Prueba {
   ayuda: string
   /** Ejercicio alternativo para quien no tiene barra. */
   sinBarra?: string
+  /**
+   * La regleta: los valores que se ofrecen de un toque.
+   *
+   * Están escritos a mano y no derivados de la ventana del ejercicio, a
+   * propósito. Son las respuestas reales que da la gente, y su forma es
+   * distinta en cada prueba: casi nadie hace dominadas y mucha gente hace
+   * cuarenta sentadillas. Una escala derivada sería más elegante y peor.
+   *
+   * El cero está siempre primero porque es una respuesta digna y frecuente, y
+   * porque es la que más necesita que no cueste nada darla.
+   */
+  regleta: number[]
+  /** El de la variante sin barra, que tiene otra escala. */
+  regletaSinBarra?: number[]
 }
 
 const PRUEBAS: Prueba[] = [
@@ -48,6 +79,7 @@ const PRUEBAS: Prueba[] = [
     ejercicioId: 'flexion-completa',
     pregunta: '¿Cuántas flexiones completas hacés seguidas?',
     ayuda: 'Con el cuerpo derecho y bajando hasta que el pecho casi toque el piso. Si no llegás a ninguna, poné cero.',
+    regleta: [0, 1, 3, 5, 8, 12, 20, 30],
   },
   {
     patron: 'traccion',
@@ -55,18 +87,22 @@ const PRUEBAS: Prueba[] = [
     sinBarra: 'remo-australiano-bajo',
     pregunta: '¿Cuántas dominadas hacés seguidas?',
     ayuda: 'Desde los brazos estirados hasta pasar la pera. Sin impulso de piernas.',
+    regleta: [0, 1, 2, 3, 5, 8, 12],
+    regletaSinBarra: [0, 3, 5, 8, 12, 20],
   },
   {
     patron: 'piernas',
     ejercicioId: 'sentadilla-completa',
     pregunta: '¿Cuántas sentadillas hacés seguidas?',
     ayuda: 'Bajando hasta que los muslos queden paralelos al piso, con los talones apoyados.',
+    regleta: [0, 5, 10, 15, 25, 40, 60],
   },
   {
     patron: 'core',
     ejercicioId: 'plancha',
     pregunta: '¿Cuántos segundos aguantás la plancha?',
     ayuda: 'Apoyado en los antebrazos, con el cuerpo en una línea. Se corta cuando la cadera se hunde.',
+    regleta: [0, 10, 20, 30, 45, 60, 90, 120],
   },
 ]
 
@@ -132,7 +168,7 @@ export function Alta() {
   }
 
   return (
-    <div className="mx-auto flex min-h-dvh w-full max-w-lg flex-col px-5 py-10">
+    <div className="mx-auto flex min-h-dvh w-full max-w-lg flex-col px-4 pt-10">
       {paso === 'propuesta' && (
         <Propuesta onSeguir={() => setPaso('equipo')} onSaltear={() => void saltear()} />
       )}
@@ -177,32 +213,23 @@ function Propuesta({ onSeguir, onSaltear }: { onSeguir: () => void; onSaltear: (
   return (
     <>
       <div className="flex flex-1 flex-col justify-center">
-        <p className="text-sm font-semibold uppercase tracking-[0.2em] text-[var(--color-acento)]">
-          LyraFit
-        </p>
+        <Rotulo>LYRAFIT</Rotulo>
         <h1 className="mt-4 text-4xl font-bold leading-[1.1] tracking-tight">
           La app decide qué te toca. Vos anotás lo que hiciste.
         </h1>
-        <p className="mt-5 text-[var(--color-texto-suave)]">
+        <p className="mt-5 leading-relaxed text-[var(--color-glosa)]">
           Cuatro cadenas de progresión, de la flexión en la pared a la flexión a una mano.
           Cada vez que entrenás, la regla que decide el próximo objetivo se te muestra
           escrita.
         </p>
-        <p className="mt-4 text-[var(--color-texto-suave)]">
+        <p className="mt-4 leading-relaxed text-[var(--color-glosa)]">
           Sin cuenta, sin suscripción y sin servidor: tus datos no salen de este teléfono.
         </p>
       </div>
 
-      <div className="space-y-3">
-        <Boton className="w-full py-4 text-base" onClick={onSeguir}>
-          Empezar
-        </Boton>
-        <button
-          onClick={onSaltear}
-          className="w-full py-2 text-sm text-[var(--color-texto-suave)] underline underline-offset-4"
-        >
-          Prefiero arrancar desde cero
-        </button>
+      <div className="mt-10 -mx-4">
+        <Accion onClick={onSeguir}>Empezar</Accion>
+        <AccionQuieta onClick={onSaltear}>Prefiero arrancar desde cero</AccionQuieta>
       </div>
     </>
   )
@@ -215,23 +242,15 @@ function Equipo({ onElegir }: { onElegir: (tieneBarra: boolean) => void }) {
         <h1 className="text-3xl font-bold leading-tight tracking-tight">
           ¿Tenés dónde colgarte?
         </h1>
-        <p className="mt-3 text-[var(--color-texto-suave)]">
+        <p className="mt-3 leading-relaxed text-[var(--color-glosa)]">
           Una barra de dominadas, unas anillas, o una rama firme. Es lo único que cambia
           de verdad el plan: sin eso, la cadena de tracción arranca con remo bajo una mesa.
         </p>
       </div>
 
-      <div className="space-y-3">
-        <Boton className="w-full py-4 text-base" onClick={() => onElegir(true)}>
-          Sí, tengo barra
-        </Boton>
-        <Boton
-          variante="secundario"
-          className="w-full py-4 text-base"
-          onClick={() => onElegir(false)}
-        >
-          No, por ahora no
-        </Boton>
+      <div className="mt-10 -mx-4">
+        <Accion onClick={() => onElegir(true)}>Sí, tengo barra</Accion>
+        <AccionQuieta onClick={() => onElegir(false)}>No, por ahora no</AccionQuieta>
       </div>
     </>
   )
@@ -257,69 +276,101 @@ function Pruebas({
   onVolver: () => void
 }) {
   const ejercicio = POR_ID.get(ejercicioId)!
-  const color = COLOR_PATRON[prueba.patron]
   const paso = ejercicio.medida === 'segundos' ? 5 : 1
+  const regleta =
+    prueba.sinBarra && ejercicioId === prueba.sinBarra && prueba.regletaSinBarra
+      ? prueba.regletaSinBarra
+      : prueba.regleta
 
   return (
     <>
-      <div className="flex gap-1.5">
+      <div className="flex gap-px">
         {Array.from({ length: total }).map((_, i) => (
           <div
             key={i}
-            className="h-1 flex-1 rounded-full transition-colors"
+            className="h-0.5 flex-1"
             style={{
-              backgroundColor: i < numero ? color : 'var(--color-superficie-alta)',
-              opacity: i < numero - 1 ? 0.45 : 1,
+              backgroundColor: i < numero ? 'var(--color-vega)' : 'var(--color-regla)',
+              opacity: i < numero - 1 ? 0.5 : 1,
             }}
           />
         ))}
       </div>
 
       <div className="flex flex-1 flex-col justify-center">
-        <p className="text-xs font-semibold uppercase tracking-wide" style={{ color }}>
-          {NOMBRE_PATRON[prueba.patron]}
-        </p>
+        <Rotulo>{NOMBRE_PATRON[prueba.patron].toUpperCase()}</Rotulo>
         <h1 className="mt-3 text-3xl font-bold leading-tight tracking-tight">
           {prueba.sinBarra && ejercicioId === prueba.sinBarra
             ? `¿Cuántos ${ejercicio.nombre.toLowerCase()} hacés seguidos?`
             : prueba.pregunta}
         </h1>
-        <p className="mt-3 text-sm text-[var(--color-texto-suave)]">{prueba.ayuda}</p>
+        <p className="mt-3 text-sm leading-relaxed text-[var(--color-glosa)]">{prueba.ayuda}</p>
 
-        <div className="mt-10 flex items-center justify-center gap-6">
+        <p className="cifra mt-8 text-center text-6xl font-bold tabular-nums">
+          {valor}
+          {ejercicio.medida === 'segundos' && <span className="unidad">s</span>}
+        </p>
+        <p className="rotulo mt-2 text-center">
+          {ejercicio.medida === 'segundos' ? 'segundos' : 'repeticiones'}
+        </p>
+
+        {/* La regleta.
+            Antes esto era solo un más y un menos de a uno, y veinticinco
+            sentadillas costaban veinticinco toques en la primera pantalla que
+            alguien ve. Los valores están escritos a mano por prueba porque la
+            forma de las respuestas es distinta en cada una: casi nadie hace
+            dominadas y mucha gente hace cuarenta sentadillas.
+
+            El más y el menos siguen estando, para el que hace veintitrés. */}
+        <div
+          className="mt-6 grid gap-px"
+          style={{
+            // Dos filas parejas, siempre. Con `flex-wrap` los que sobraban
+            // quedaban centrados abajo como huérfanos y la regleta se leía
+            // como un accidente en vez de como un teclado.
+            gridTemplateColumns: `repeat(${Math.ceil(regleta.length / 2)}, minmax(0, 1fr))`,
+          }}
+        >
+          {regleta.map((n) => (
+            <button
+              key={n}
+              onClick={() => onCambiar(n)}
+              className="cifra h-12 text-base tabular-nums"
+              style={{
+                border: '1px solid var(--color-regla)',
+                backgroundColor: valor === n ? 'var(--color-vega)' : 'transparent',
+                color: valor === n ? '#fff' : 'var(--color-glosa)',
+              }}
+              aria-pressed={valor === n}
+            >
+              {n}
+            </button>
+          ))}
+        </div>
+
+        <div className="mt-4 flex items-center justify-center gap-3">
           <button
             onClick={() => onCambiar(valor - paso)}
-            className="flex h-16 w-16 items-center justify-center rounded-full bg-[var(--color-superficie-alta)] text-2xl font-bold"
+            className="cifra flex h-12 w-12 items-center justify-center text-xl"
+            style={{ border: '1px solid var(--color-regla)' }}
             aria-label="Restar"
           >
             −
           </button>
-          <p className="cifra w-28 text-center text-6xl font-bold tabular-nums" style={{ color }}>
-            {valor}
-          </p>
           <button
             onClick={() => onCambiar(valor + paso)}
-            className="flex h-16 w-16 items-center justify-center rounded-full bg-[var(--color-superficie-alta)] text-2xl font-bold"
+            className="cifra flex h-12 w-12 items-center justify-center text-xl"
+            style={{ border: '1px solid var(--color-regla)' }}
             aria-label="Sumar"
           >
             +
           </button>
         </div>
-        <p className="mt-3 text-center text-xs uppercase tracking-wide text-[var(--color-texto-suave)]">
-          {ejercicio.medida === 'segundos' ? 'segundos' : 'repeticiones'}
-        </p>
       </div>
 
-      <div className="space-y-3">
-        <Boton className="w-full py-4 text-base" onClick={onSeguir}>
-          {numero === total ? 'Ver mi plan' : 'Siguiente'}
-        </Boton>
-        <button
-          onClick={onVolver}
-          className="w-full py-2 text-sm text-[var(--color-texto-suave)] underline underline-offset-4"
-        >
-          Volver
-        </button>
+      <div className="mt-10 -mx-4">
+        <Accion onClick={onSeguir}>{numero === total ? 'Ver mi plan' : 'Siguiente'}</Accion>
+        <AccionQuieta onClick={onVolver}>Volver</AccionQuieta>
       </div>
     </>
   )
@@ -352,52 +403,55 @@ function Plan({
     <>
       <div className="flex-1">
         <h1 className="text-3xl font-bold leading-tight tracking-tight">Tu punto de partida</h1>
-        <p className="mt-3 text-sm text-[var(--color-texto-suave)]">
+        <p className="mt-3 max-w-[42ch] text-sm leading-relaxed text-[var(--color-glosa)]">
           Sale de lo que acabás de responder. Si algo quedó fácil o difícil, la app lo
           corrige sola en dos sesiones.
         </p>
 
-        <ul className="mt-6 space-y-3">
+        {/* La misma fila reglada que se va a ver en Hoy todos los días. Es a
+            propósito: el plan que sale del alta no es una vista previa de otra
+            cosa, es literalmente la pantalla de mañana. */}
+        <div className="registro mt-6">
           {ubicaciones.map(({ patron, avance }) => {
             const ejercicio = POR_ID.get(avance.ejercicioId)!
             const cadenaPatron = cadenaDe(patron)
             const posicion = cadenaPatron.ejercicios.indexOf(ejercicio.id) + 1
-            const color = COLOR_PATRON[patron]
 
             return (
-              <li key={patron} className="tarjeta flex items-center justify-between gap-3 p-4">
-                <div className="min-w-0">
-                  <p className="text-xs font-semibold uppercase tracking-wide" style={{ color }}>
-                    {NOMBRE_PATRON[patron]}
-                  </p>
-                  <p className="mt-1.5 font-semibold leading-tight">{ejercicio.nombre}</p>
-                  <p className="mt-0.5 text-xs text-[var(--color-texto-suave)]">
-                    Eslabón {posicion} de {cadenaPatron.ejercicios.length}
-                  </p>
-                </div>
-                <p className="cifra shrink-0 text-xl font-bold" style={{ color }}>
-                  {avance.objetivoActual.series}×
+              <div key={patron}>
+                <span className="canal">
+                  <Glifo patron={patron} />
+                </span>
+                <span className="min-w-0">
+                  <span className="nombre block truncate">{ejercicio.nombre}</span>
+                  <span className="rotulo mt-0.5 block">
+                    {NOMBRE_PATRON[patron]} · {posicion}/{cadenaPatron.ejercicios.length}
+                  </span>
+                </span>
+                <span className="cifra-fila">
+                  {avance.objetivoActual.series}
+                  <span className="por">×</span>
                   {unidad(ejercicio.medida, avance.objetivoActual.cantidad)}
-                </p>
-              </li>
+                </span>
+              </div>
             )
           })}
-        </ul>
+        </div>
 
         {sesiones !== null && siguiente && (
-          <p className="mt-6 max-w-[42ch] text-sm leading-relaxed text-[var(--color-texto-suave)]">
+          <p className="mt-6 max-w-[42ch] text-sm leading-relaxed text-[var(--color-glosa)]">
             Tu próximo eslabón de empuje es{' '}
-            <span className="font-semibold text-[var(--color-texto)]">{siguiente.nombre}</span>: unas{' '}
-            <span className="cifra font-semibold text-[var(--color-texto)]">{sesiones}</span>{' '}
+            <span className="font-semibold text-[var(--color-tinta)]">{siguiente.nombre}</span>: unas{' '}
+            <span className="cifra font-semibold text-[var(--color-tinta)]">{sesiones}</span>{' '}
             sesiones si sale todo bien. Al final de esa cadena está {meta.nombre.toLowerCase()},
             y eso lleva años. La app no te va a apurar para llegar.
           </p>
         )}
       </div>
 
-      <Boton className="mt-8 w-full py-4 text-base" onClick={onSeguir}>
-        Seguir
-      </Boton>
+      <div className="mt-10 -mx-4">
+        <Accion onClick={onSeguir}>Seguir</Accion>
+      </div>
     </>
   )
 }
@@ -415,34 +469,32 @@ function Dias({
         <h1 className="text-3xl font-bold leading-tight tracking-tight">
           ¿Cuántos días por semana?
         </h1>
-        <p className="mt-3 text-sm text-[var(--color-texto-suave)]">
+        <p className="mt-3 max-w-[42ch] text-sm leading-relaxed text-[var(--color-glosa)]">
           Elegí lo que vas a poder sostener en una semana mala, no en una buena. Se cambia
           cuando quieras.
         </p>
 
-        <ul className="mt-6 space-y-3">
+        <div className="registro mt-6">
           {[...RUTINAS]
             .sort((a, b) => a.dias.length - b.dias.length)
             .map((rutina) => (
-              <li key={rutina.id}>
-                <button
-                  onClick={() => onElegir(rutina.id)}
-                  disabled={guardando}
-                  className="tarjeta w-full p-4 text-left transition-colors hover:border-[var(--color-acento)] disabled:opacity-60"
-                >
-                  <div className="flex items-baseline justify-between gap-3">
-                    <span className="font-semibold">{rutina.nombre}</span>
-                    <span className="cifra shrink-0 text-sm text-[var(--color-texto-suave)]">
-                      {rutina.dias.length} días
-                    </span>
-                  </div>
-                  <p className="mt-1.5 text-sm leading-relaxed text-[var(--color-texto-suave)]">
+              <button
+                key={rutina.id}
+                onClick={() => onElegir(rutina.id)}
+                disabled={guardando}
+                className="fila-pulsable disabled:opacity-60"
+              >
+                <span className="canal">◇</span>
+                <span className="min-w-0">
+                  <span className="nombre block">{rutina.nombre}</span>
+                  <span className="mt-0.5 block text-xs leading-relaxed text-[var(--color-glosa)]">
                     {rutina.descripcion}
-                  </p>
-                </button>
-              </li>
+                  </span>
+                </span>
+                <span className="cifra-fila">{rutina.dias.length}</span>
+              </button>
             ))}
-        </ul>
+        </div>
       </div>
     </>
   )

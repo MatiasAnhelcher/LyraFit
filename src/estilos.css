@@ -162,28 +162,6 @@
 
   --curva: cubic-bezier(0.22, 0.61, 0.36, 1);
 
-  /* ------------------------------------------------------------------ *
-   * PUENTE DE MIGRACION.
-   *
-   * La app ya escrita usa --color-texto-suave en 81 lugares, .tarjeta en
-   * 19 y --color-acento en 11. Un sistema que exige migrar las siete
-   * pantallas en una sentada antes de compilar no lo mantiene una persona
-   * sola: lo abandona a mitad de camino, con medio codigo en cada idioma.
-   *
-   * Estos alias hacen que la app siga andando el minuto que pegas este
-   * archivo, y dejan migrar pantalla por pantalla. Se borran cuando no
-   * queda ninguna referencia (grep -r "texto-suave" src).
-   * ------------------------------------------------------------------ */
-  --color-texto: var(--color-tinta);
-  --color-texto-suave: var(--color-glosa);
-  --color-superficie: var(--color-papel);
-  --color-superficie-alta: var(--color-papel);
-  --color-borde: var(--color-regla);
-  --color-acento: var(--color-vega);
-  --color-acento-suave: var(--color-papel);
-  --color-alerta: var(--color-ambar);
-  --color-error: var(--color-destructivo);
-  --color-exito: var(--color-glosa);
 }
 
 @layer theme {
@@ -907,9 +885,9 @@
     }
   }
 
-  /* (5) EL ARCO DEL DESCANSO. Reemplaza al `.pulso-descanso` que latía a
-     opacidad variable: un elemento que late mientras tenés el pulso a 140
-     es estresante y además hace ilegible el número que envuelve.
+  /* (5) EL ARCO DEL DESCANSO. Lo que había antes latía a opacidad variable:
+     un elemento que late mientras tenés el pulso a 140 es estresante y
+     además hace ilegible el número que envuelve.
      El descanso se muestra por VACIADO DE ARCO, en silencio y en lineal.
      Lineal y no eased porque representa tiempo real: si acelera, miente.
      JS: elemento.style.setProperty('--resto', restante / total) */
@@ -970,33 +948,6 @@
     min-height: 4.5rem;
   }
 
-  /* ------------------------------------------------------------------ *
-   * 9. PUENTE DE MIGRACION (clases).
-   *
-   * `.tarjeta` no se borra: se REDEFINE. Las 19 pantallas que la usan
-   * dejan de dibujar una caja gris con radio 1rem y pasan a dibujar una
-   * fila reglada, sin tocar una linea de TSX. Es la migracion mas barata
-   * que existe: una regla de CSS cambia el idioma de toda la app, y
-   * despues se van reescribiendo las pantallas a `.registro` con calma.
-   *
-   * La tarjeta redondeada sobre superficie gris es el uniforme de toda
-   * app de fitness con Tailwind. Sacarla es la mitad del trabajo de tener
-   * estilo propio, y aca sale gratis.
-   * ------------------------------------------------------------------ */
-  .tarjeta {
-    background-color: transparent;
-    border: 0;
-    border-top: 1px solid var(--color-regla);
-    border-radius: 0;
-  }
-
-  /* El pulso del descanso se apaga en el acto. Un elemento que late a
-     opacidad variable mientras tenes el pulso a 140 es estresante y hace
-     ilegible el numero que envuelve. Queda neutralizado hasta que
-     Entrenar migre al `.arco-descanso`. */
-  .pulso-descanso {
-    animation: none;
-  }
 }
 
 /* ==========================================================================

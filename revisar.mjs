@@ -103,8 +103,18 @@ async function main() {
 
     await pagina.getByRole('button', { name: 'Empezar', exact: true }).click()
     await pagina.getByRole('button', { name: 'Sí, tengo barra' }).click()
-    // Cuatro pruebas de nivel: se suben unas repeticiones y se sigue.
-    for (let i = 0; i < 4; i++) {
+    await pagina.waitForTimeout(300)
+    await capturar(pagina, `0a-prueba-${tema}`)
+    await revisarDesborde(pagina, `Prueba de nivel (${tema})`)
+
+    // Cuatro pruebas de nivel. La primera se contesta con la regleta —de un
+    // toque, que es para lo que existe— y el resto con el más, para que el
+    // recorrido pase por los dos caminos.
+    await pagina.getByRole('button', { name: '12', exact: true }).click()
+    await pagina.getByRole('button', { name: 'Siguiente', exact: true }).click()
+    await pagina.waitForTimeout(120)
+
+    for (let i = 0; i < 3; i++) {
       for (let n = 0; n < 6; n++) {
         await pagina.getByRole('button', { name: 'Sumar' }).click()
       }

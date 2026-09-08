@@ -186,24 +186,3 @@ export function Objetivo({ series, cantidad, medida }: { series: number; cantida
     </span>
   )
 }
-
-// ─── Compatibilidad ──────────────────────────────────────────────────────
-// El sistema viejo tenía `Boton`, `Titulo`, `Etiqueta`, `Barra` y `Dato`. Se
-// mantienen mientras queden pantallas sin migrar, y se borran cuando no queden.
-
-export const Boton = ({
-  children,
-  onClick,
-  deshabilitado,
-  className = '',
-}: {
-  children: ReactNode
-  onClick?: () => void
-  variante?: string
-  deshabilitado?: boolean
-  className?: string
-}) => (
-  <Accion onClick={onClick} deshabilitado={deshabilitado} className={className}>
-    {children}
-  </Accion>
-)
