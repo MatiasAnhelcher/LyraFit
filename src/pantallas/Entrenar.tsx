@@ -24,13 +24,14 @@
  *   tenés el pulso alto es estresante y encima hace ilegible el número.
  */
 
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { NOMBRE_PATRON, buscarEjercicio } from '@/dominio/biblioteca'
 import { RUTINA_POR_DEFECTO, RUTINA_POR_ID } from '@/dominio/rutinas'
 import { ajusteDelDia, bandaSostenida } from '@/dominio/estado'
 import { esVuelta, RECORTE_DE_VUELTA } from '@/dominio/adherencia'
+import { esRecord } from '@/dominio/anticipacion'
 import type { RegistroEjercicio, Serie, TipoSesion } from '@/dominio/tipos'
 import {
   cerrarSesion,
@@ -44,40 +45,9 @@ import {
 import { respaldarEnSilencio } from '@/datos/respaldo'
 import { comoReloj, useCronometro, useTemporizador } from '@/hooks/useTemporizador'
 import { useModoDePantalla, usePantallaDespierta } from '@/hooks/usePantalla'
+import { configurarHaptica, configurarSonido, despertarAudio, sonar, tocar } from '@/respuesta'
 import { Accion, AccionQuieta, Rotulo, nombreUnidad } from '@/componentes/ui'
 import { Cierre } from './Cierre'
-
-/** Un pitido corto al terminar el descanso, sin archivos de audio. */
-function pitar() {
-  try {
-    const Contexto =
-      window.AudioContext ??
-      (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext
-    if (!Contexto) return
-    const ctx = new Contexto()
-    const osc = ctx.createOscillator()
-    const gan = ctx.createGain()
-    osc.connect(gan)
-    gan.connect(ctx.destination)
-    osc.frequency.value = 880
-    gan.gain.setValueAtTime(0.001, ctx.currentTime)
-    gan.gain.exponentialRampToValueAtTime(0.2, ctx.currentTime + 0.02)
-    gan.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.4)
-    osc.start()
-    osc.stop(ctx.currentTime + 0.42)
-    setTimeout(() => void ctx.close(), 600)
-  } catch {
-    /* Si el navegador no deja sonar sin un gesto previo, el descanso igual termina. */
-  }
-}
-
-function vibrar(patron: number | number[]) {
-  try {
-    navigator.vibrate?.(patron)
-  } catch {
-    /* En iOS no existe. No es motivo para romper nada. */
-  }
-}
 
 type Etapa = 'series' | 'cierre-serie' | 'preguntas'
 
@@ -115,9 +85,46 @@ export function Entrenar() {
 
   const duracion = useCronometro(resumen === null)
   const descanso = useTemporizador(() => {
-    if (preferencias?.sonidoDescanso !== false) pitar()
-    vibrar([120, 80, 120])
+    sonar('descanso')
+    tocar('descanso')
   })
+
+  useEffect(() => {
+    configurarSonido(preferencias?.sonidoDescanso !== false)
+    configurarHaptica(preferencias?.haptica !== false)
+  }, [preferencias?.sonidoDescanso, preferencias?.haptica])
+
+  /**
+   * Los tres últimos segundos del descanso, en la piel.
+   *
+   * El arco no puede acelerar —representa tiempo real, si acelera miente— pero
+   * el tacto sí puede contar la entrada, como un músico. Sabés cuándo arranca
+   * sin mirar la pantalla, así que te ponés en posición durante el conteo en
+   * vez de reaccionar después del aviso.
+   *
+   * El ref hace falta porque el temporizador consulta cuatro veces por
+   * segundo: sin él serían doce tics en lugar de tres.
+   */
+  /**
+   * Los ejercicios que ya sonaron a récord en esta sesión.
+   *
+   * Sin esto, tres series por encima de la marca vieja sonarían tres veces:
+   * el historial no se actualiza hasta que la sesión se cierra. La marca se
+   * dice una vez, cuando se rompe.
+   */
+  const yaSonoRecord = useRef<Set<string>>(new Set())
+  const ultimoTic = useRef(0)
+  useEffect(() => {
+    if (!descanso.activo) {
+      ultimoTic.current = 0
+      return
+    }
+    const faltan = descanso.restante
+    if (faltan > 0 && faltan <= 3 && faltan !== ultimoTic.current) {
+      ultimoTic.current = faltan
+      tocar('antes')
+    }
+  }, [descanso.activo, descanso.restante])
 
   useModoDePantalla(resumen ? 'cierre' : 'entrenar')
   usePantallaDespierta(resumen === null)
@@ -182,13 +189,26 @@ export function Entrenar() {
       ],
     }))
     setPrediccion(null)
-    vibrar(40)
   }
 
   function anotar() {
+    // Idempotente y casi gratis si el audio ya está andando. Está acá como
+    // red: si alguien entra a /entrenar por la URL, el gesto de Hoy no ocurrió.
+    despertarAudio()
+
     const logrado = Math.max(0, propuesto)
     registrarSerie(ejercicio.id, logrado, preferencias?.prediccionActiva ? propuesto : undefined)
-    if (series.length + 1 < objetivo.series) descanso.arrancar(ejercicio.descansoSegundos)
+
+    // El récord se dice cuando pasa, no diez minutos después en un resumen.
+    if (!yaSonoRecord.current.has(ejercicio.id) && esRecord(historial ?? [], ejercicio.id, logrado)) {
+      yaSonoRecord.current.add(ejercicio.id)
+      sonar('record')
+    }
+
+    const quedan = objetivo.series - (series.length + 1)
+    tocar(quedan === 0 ? 'ejercicio' : quedan === 1 ? 'quedaUna' : 'serie')
+
+    if (quedan > 0) descanso.arrancar(ejercicio.descansoSegundos)
   }
 
   function deshacer() {
@@ -197,6 +217,8 @@ export function Entrenar() {
       [ejercicio.id]: (previas[ejercicio.id] ?? []).slice(0, -1),
     }))
     descanso.detener()
+    tocar('deshacer')
+    sonar('deshacer')
   }
 
   function avanzar() {
@@ -261,6 +283,7 @@ export function Entrenar() {
         medida={cierre.ejercicio.medida}
         onHecho={() => {
           registrarSerie(cierre.ejercicio.id, objetivoCierre)
+          tocar('ejercicio')
           setEtapa('preguntas')
         }}
         onSaltear={() => setEtapa('preguntas')}

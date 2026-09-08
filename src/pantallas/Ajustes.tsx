@@ -12,6 +12,7 @@ import {
   validarRespaldo,
 } from '@/datos/repositorio'
 import { estadoDeAlmacenamiento, type EstadoDeAlmacenamiento } from '@/datos/respaldo'
+import { HAY_HAPTICA } from '@/respuesta'
 import { Accion, AccionQuieta, Cargando, Rotulo } from '@/componentes/ui'
 
 export function Ajustes() {
@@ -118,10 +119,21 @@ export function Ajustes() {
             onCambiar={(v) => cambiar({ prediccionActiva: v })}
           />
           <Interruptor
-            titulo="Sonido al terminar el descanso"
+            titulo="Sonido"
+            detalle="El fin del descanso, los récords y el cambio de nivel. Nada más suena."
             activo={preferencias.sonidoDescanso}
             onCambiar={(v) => cambiar({ sonidoDescanso: v })}
           />
+          {/* En iOS no existe la API de vibración: la fila ni se muestra.
+              Un interruptor muerto es peor que ninguno. */}
+          {HAY_HAPTICA && (
+            <Interruptor
+              titulo="Vibración"
+              detalle="Un patrón distinto por cada cosa que pasa. Sirve para no tener que mirar."
+              activo={preferencias.haptica !== false}
+              onCambiar={(v) => cambiar({ haptica: v })}
+            />
+          )}
           <div>
             <span className="canal">◐</span>
             <span className="nombre">Tema</span>

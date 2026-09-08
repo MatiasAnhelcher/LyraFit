@@ -216,8 +216,17 @@ export interface Rutina {
 export interface Preferencias {
   id: 'unico'
   rutinaActivaId: string
-  /** Sonido al terminar el descanso. */
+  /**
+   * Sonido. El fin del descanso, los récords y el cambio de nivel: nada más
+   * suena. Se llama así por historia — antes era solo el aviso del descanso—
+   * y se conserva el nombre para no migrar la base por un rótulo.
+   */
   sonidoDescanso: boolean
+  /**
+   * Vibración. En iOS la API no existe, así que la fila ni se muestra: un
+   * interruptor muerto es peor que ninguno.
+   */
+  haptica?: boolean
   tema: 'claro' | 'oscuro' | 'sistema'
   /** Cuándo se terminó de configurar la app. Si no está, se muestra el alta. */
   altaCompletadaEn?: number

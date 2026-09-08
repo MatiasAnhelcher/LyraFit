@@ -40,6 +40,7 @@ import {
   leerPreferencias,
   leerSesiones,
 } from '@/datos/repositorio'
+import { despertarAudio } from '@/respuesta'
 import { Carta } from '@/componentes/carta'
 import { Accion, Cargando, Glifo, Glosa, Objetivo, Rotulo, Tira } from '@/componentes/ui'
 
@@ -225,11 +226,23 @@ export function Hoy() {
       </section>
 
       <div className="mt-10 -mx-4">
-        <Accion onClick={() => navegar('/entrenar')}>
+        <Accion
+          onClick={() => {
+            // El audio se despierta acá y no cuando el descanso termina: en
+            // iOS un contexto creado fuera de un gesto nace suspendido y se
+            // queda así, y un temporizador no es un gesto. Sin esta línea el
+            // aviso del descanso no suena nunca en iPhone.
+            despertarAudio()
+            navegar('/entrenar')
+          }}
+        >
           {entrenoHoy ? 'Entrenar otra vez' : vuelve ? 'Volver a empezar' : 'Empezar'}
         </Accion>
         <button
-          onClick={() => navegar('/entrenar?corta=1')}
+          onClick={() => {
+            despertarAudio()
+            navegar('/entrenar?corta=1')
+          }}
           className="accion-quieta"
         >
           Solo tengo 7 minutos
