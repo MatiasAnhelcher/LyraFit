@@ -37,6 +37,13 @@ async function revisarDesborde(pagina, donde) {
  * un recorrido automático: aparece en una de cada cinco sesiones reales y nunca
  * en una instalación nueva, así que sin esto ninguna revisión la miraría jamás.
  * Se hace al final de todo, porque deja la base en un estado inventado.
+ *
+ * Ojo con lo que viene después: esta escritura va por IndexedDB crudo, o sea
+ * por atrás de Dexie, así que NO dispara la invalidación de `liveQuery`. Una
+ * navegación de hash vuelve a montar el componente pero puede seguir sirviendo
+ * el avance viejo desde la caché del observable. Hay que recargar la página de
+ * verdad. Fallar en esto hacía que la revisión pasara o fallara al azar, con
+ * la app funcionando perfecto: el falso rojo más caro que tuvo este archivo.
  */
 async function forzarVispera(pagina, patron) {
   return pagina.evaluate(async (patron) => {
@@ -206,8 +213,70 @@ async function main() {
     await revisarDesborde(pagina, `Biblioteca (${tema})`)
 
     await pagina.goto(`${BASE}/#/biblioteca/flexion-completa`, { waitUntil: 'networkidle' })
+    await pagina.waitForTimeout(400)
     await capturar(pagina, `7-ficha-${tema}`)
     await revisarDesborde(pagina, `Ficha de ejercicio (${tema})`)
+
+    // La distancia se dice de tres formas y las tres tienen que salir: en
+    // sesiones solo para el eslabón que viene, en eslabones para todo lo que
+    // está más lejos, y "ya pasaste por acá" para lo que quedó atrás. La
+    // primera versión de esto contaba sesiones hasta cualquier ejercicio y
+    // prometía la flexión a una mano en dieciséis sesiones.
+    for (const [id, esperado] of [
+      ['flexion-pared', /Ya pasaste por acá/i],
+      ['flexion-una-mano', /eslabones más adelante/i],
+    ]) {
+      await pagina.goto(`${BASE}/#/biblioteca/${id}`, { waitUntil: 'networkidle' })
+      await pagina.waitForTimeout(400)
+      const dice = await pagina
+        .locator('main p, p')
+        .filter({ hasText: esperado })
+        .first()
+        .isVisible()
+        .catch(() => false)
+      if (!dice) problemas.push(`La ficha de ${id} no dice a qué distancia está (${tema})`)
+    }
+    await capturar(pagina, `7b-ficha-lejos-${tema}`)
+    await revisarDesborde(pagina, `Ficha de un ejercicio lejano (${tema})`)
+
+    // Y la tercera redacción, la única que cuenta sesiones: el eslabón que
+    // viene. Se deriva del avance real en vez de escribirlo a mano, porque
+    // dónde cae la persona depende de lo que contestó en el alta.
+    const proximo = await pagina.evaluate(async () => {
+      const base = await new Promise((res, rej) => {
+        const r = indexedDB.open('lyrafit')
+        r.onsuccess = () => res(r.result)
+        r.onerror = () => rej(r.error)
+      })
+      const avance = await new Promise((res, rej) => {
+        const q = base.transaction('avances').objectStore('avances').get('empuje')
+        q.onsuccess = () => res(q.result)
+        q.onerror = () => rej(q.error)
+      })
+      return avance?.ejercicioId ?? null
+    })
+    if (proximo) {
+      await pagina.goto(`${BASE}/#/biblioteca/${proximo}`, { waitUntil: 'networkidle' })
+      await pagina.waitForTimeout(400)
+      const siguienteId = await pagina
+        .locator('a[href*="/biblioteca/"]')
+        .last()
+        .getAttribute('href')
+      const idDespues = siguienteId?.split('/').pop()
+      if (idDespues) {
+        await pagina.goto(`${BASE}/#/biblioteca/${idDespues}`, { waitUntil: 'networkidle' })
+        await pagina.waitForTimeout(400)
+        const cuenta = await pagina
+          .locator('p')
+          .filter({ hasText: /Estás a .* de acá, si sale todo bien/i })
+          .first()
+          .isVisible()
+          .catch(() => false)
+        if (!cuenta) {
+          problemas.push(`El eslabón siguiente no dice a cuántas sesiones está (${tema})`)
+        }
+      }
+    }
 
     await pagina.goto(`${BASE}/#/progreso`, { waitUntil: 'networkidle' })
     await pagina.waitForTimeout(900)
@@ -227,8 +296,10 @@ async function main() {
     const forzado = await forzarVispera(pagina, 'traccion')
     if (!forzado) problemas.push(`No se pudo forzar la víspera (${tema})`)
 
+    // Recarga de verdad, no navegación de hash: ver la nota de `forzarVispera`.
     await pagina.goto(`${BASE}/#/`, { waitUntil: 'networkidle' })
-    await pagina.waitForTimeout(800)
+    await pagina.reload({ waitUntil: 'networkidle' })
+    await pagina.waitForTimeout(900)
     await capturar(pagina, `11-vispera-hoy-${tema}`)
     await revisarDesborde(pagina, `Hoy con víspera (${tema})`)
     if (!(await pagina.getByText(/pasás a/).first().isVisible().catch(() => false))) {
@@ -236,7 +307,8 @@ async function main() {
     }
 
     await pagina.goto(`${BASE}/#/entrenar`, { waitUntil: 'networkidle' })
-    await pagina.waitForTimeout(800)
+    await pagina.reload({ waitUntil: 'networkidle' })
+    await pagina.waitForTimeout(900)
     // El bloque de tracción es el segundo del plan: hay que saltear el primero.
     await pagina.getByRole('button', { name: 'Saltear este ejercicio', exact: true }).click()
     await pagina.waitForTimeout(600)
