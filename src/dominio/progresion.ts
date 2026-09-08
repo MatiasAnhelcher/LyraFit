@@ -434,10 +434,12 @@ export function siguienteAvance(
       // la forma más segura de perderla: se consolida en su lugar.
       //
       // El freno vive acá adentro y no antes, a propósito. Cambiar de eslabón
-      // es neutro en carga por construcción —`recalibrar` conserva el índice
-      // exacto a los dos lados del salto—, así que frenarlo no baja ninguna
-      // exigencia: solo posterga lo único que la app prometió, y encima el día
-      // en que la persona ya se lo ganó.
+      // es casi siempre neutro en carga —`recalibrar` conserva el índice a los
+      // dos lados del salto— así que frenarlo no bajaría ninguna exigencia:
+      // solo postergaría lo único que la app prometió, y encima el día en que
+      // la persona ya se lo ganó. El "casi" importa y está resuelto más abajo:
+      // en los bordes de la ventana el salto sí puede pedir más, y ahí el freno
+      // vuelve a aplicar.
       if (evaluacion.animo !== undefined && evaluacion.animo < 0) {
         return sostener(
           'Venís cumpliendo, pero las últimas sesiones se te hicieron cuesta arriba. Nos quedamos acá para consolidar.',
@@ -471,6 +473,34 @@ export function siguienteAvance(
     const siguiente = vecino(ctx, actual.id, 1)
     if (siguiente) {
       const nueva = recalibrar(actual, cantidad, siguiente)
+
+      // El freno por ánimo, también acá, pero solo cuando el salto de verdad
+      // sube la carga.
+      //
+      // La versión anterior de este archivo dejaba pasar todos los cambios de
+      // eslabón con el argumento de que son neutros en carga por construcción.
+      // Es falso en los bordes: `recalibrar` acota contra la ventana del
+      // ejercicio destino, y cuando la cuenta cae por debajo del piso —que es
+      // lo que pasa en la base de las cadenas, donde los eslabones están más
+      // juntos— el salto termina pidiendo MÁS carga, no la misma. Medido: de
+      // plancha de rodillas a plancha son casi nueve puntos porcentuales
+      // arriba. O sea que a un principiante que viene pasándola mal el freno no
+      // lo estaba frenando justo donde más falta hacía.
+      //
+      // Comparar los dos índices lo resuelve sin tocar el caso bueno: cuando el
+      // salto es neutro o baja la carga —que es lo normal, y es lo que hace que
+      // la curva de progreso no se corte— sigue pasando aunque la persona la
+      // esté pasando mal, porque postergarlo ahí no le baja ninguna exigencia.
+      if (
+        evaluacion.animo !== undefined &&
+        evaluacion.animo < 0 &&
+        indiceDeCarga(siguiente, nueva) > indiceDeCarga(actual, cantidad)
+      ) {
+        return sostener(
+          `Llegaste al techo de ${actual.nombre}, pero las últimas sesiones se te hicieron cuesta arriba y el paso a ${siguiente.nombre} pide más. Lo dejamos listo para cuando estés mejor.`,
+        )
+      }
+
       return cambiarDeNivel(
         siguiente,
         nueva,

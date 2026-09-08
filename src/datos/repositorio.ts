@@ -236,6 +236,17 @@ export async function cerrarSesion(entrada: CierreDeSesion): Promise<ResumenSesi
     // flexión suelta un domingo no debería mover el plan.
     if (!avance || avance.ejercicioId !== ejercicio.id) continue
 
+    // Un registro que solo tiene la serie de cierre no es una sesión de ese
+    // ejercicio: es el saludo del final, que cae sobre el ejercicio más fácil
+    // del plan aunque lo hayas salteado. Sin esto, saltear piernas te BAJA de
+    // eslabón en piernas: la serie de cierre no cuenta para el rendimiento
+    // —eso es correcto y deliberado— así que el registro queda con cero series
+    // válidas contra un objetivo de tres, o sea rendimiento exactamente 0, que
+    // el motor lee como el peor fracaso posible. Saltear un ejercicio tiene que
+    // ser neutro, nunca un castigo: castigar por haber hecho algo es la peor
+    // lección que puede dar esta app.
+    if (!registro.series.some((serie) => !serie.cierre && serie.logrado > 0)) continue
+
     // Qué tipos de sesión mueven el plan lo decide el motor, no esta capa:
     // está en `mueveElPlan`, con las razones y con un test que las cubre.
     const neutra =

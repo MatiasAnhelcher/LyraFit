@@ -505,6 +505,31 @@ describe('el freno por ánimo, y hasta dónde llega', () => {
     expect(d.movimiento).toBe('sostiene')
   })
 
+  it('pero sí frena el salto que pide más carga, que en la base de las cadenas existe', () => {
+    // El argumento de "el salto es neutro en carga" es falso en los bordes:
+    // `recalibrar` acota contra la ventana del destino y en los primeros
+    // eslabones el resultado cae por debajo del piso, así que el salto termina
+    // pidiendo más. Justo a un principiante que la está pasando mal.
+    const e = ejercicio('flexion-pared')
+    const avance: Avance = {
+      patron: 'empuje',
+      ejercicioId: 'flexion-pared',
+      objetivoActual: { series: e.series, cantidad: e.ventana.max },
+      senal: 1,
+      sesionesEnObjetivo: CONSOLIDACION,
+      graciaRestante: 0,
+      actualizadoEn: 0,
+    }
+    const siguiente = ejercicio('flexion-inclinada-alta')
+    const nueva = recalibrar(e, e.ventana.max, siguiente)
+    // Primero se comprueba la premisa: este salto SUBE la carga.
+    expect(indiceDeCarga(siguiente, nueva)).toBeGreaterThan(indiceDeCarga(e, e.ventana.max))
+
+    const d = siguienteAvance(avance, { rendimiento: 1, tipico: e.ventana.max, ...mal }, ctx, 0)
+    expect(d.cambioDeNivel).toBe(false)
+    expect(d.explicacion).toContain('cuesta arriba')
+  })
+
   it('en el techo y con el eslabón dominado, cambia de nivel igual', () => {
     const e = ejercicio('flexion-completa')
     const avance = avanceEn('flexion-completa', e.ventana.max, {

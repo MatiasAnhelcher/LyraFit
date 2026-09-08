@@ -75,7 +75,18 @@ type Etapa = 'series' | 'cierre-serie' | 'preguntas'
 export function Entrenar() {
   const navegar = useNavigate()
   const [parametros] = useSearchParams()
-  const esCorta = parametros.get('corta') === '1'
+  /**
+   * Si es una sesión corta.
+   *
+   * Sale de la URL o del borrador, y lo segundo importa tanto como lo primero:
+   * la URL se pierde cuando el navegador recicla la pestaña, y al retomar
+   * `/entrenar` sin el parámetro la sesión de siete minutos se cerraba como
+   * sesión de plan. Una serie por ejercicio contra un objetivo de tres da un
+   * rendimiento de 0,33, así que el motor le bajaba el objetivo a las cuatro
+   * cadenas por series que nadie falló: nunca se las pidió.
+   */
+  const [cortaRetomada, setCortaRetomada] = useState(false)
+  const esCorta = parametros.get('corta') === '1' || cortaRetomada
 
   const avances = useLiveQuery(leerAvances, [])
   const preferencias = useLiveQuery(leerPreferencias, [])
@@ -159,7 +170,11 @@ export function Entrenar() {
           setIndice(borrador.indice)
           setHechas(borrador.hechas)
           setEtapa(borrador.etapa)
-          setArrancadaEn(borrador.arrancadaEn)
+          // Se re-ancla el arranque a lo que se llevaba entrenado, no a la
+          // hora original: el hueco entre que te fuiste y volviste no es
+          // tiempo de entrenamiento.
+          setArrancadaEn(Date.now() - (borrador.duracionAcumulada ?? 0) * 1000)
+          if (borrador.corta) setCortaRetomada(true)
           setRetomada(true)
         } else {
           // El arranque es ahora, no la primera serie anotada: entre abrir la
@@ -190,8 +205,12 @@ export function Entrenar() {
     if (!listo || resumen) return
     const algo = Object.values(hechas).some((series) => series.length > 0)
     if (!algo) return
+    const desde = arrancadaEn ?? Date.now()
     void guardarSesionEnCurso({
-      arrancadaEn: arrancadaEn ?? Date.now(),
+      arrancadaEn: desde,
+      // Se recalcula acá y no se toma del cronómetro para no meter `duracion`
+      // como dependencia del efecto: escribiría en la base una vez por segundo.
+      duracionAcumulada: Math.max(0, Math.round((Date.now() - desde) / 1000)),
       corta: esCorta,
       indice,
       etapa,
@@ -384,6 +403,7 @@ export function Entrenar() {
     setPrediccion(null)
     setPredicho(null)
     setArrancadaEn(Date.now())
+    setCortaRetomada(false)
     setRetomada(false)
     descanso.detener()
   }

@@ -10,6 +10,7 @@
  */
 
 import { chromium } from 'playwright'
+import { readFile } from 'node:fs/promises'
 import { mkdir } from 'node:fs/promises'
 
 const BASE = 'http://localhost:4173'
@@ -79,7 +80,35 @@ async function forzarVispera(pagina, patron) {
   }, patron)
 }
 
+/**
+ * Que lo que se está revisando sea lo que está en disco.
+ *
+ * `vite preview` se deja abierto entre corridas y puede quedar sirviendo un
+ * build viejo. Pasó, y produjo el peor resultado posible: una revisión en verde
+ * sobre código que no era el compilado — incluida una prueba por mutación que
+ * "pasó" con la mutación puesta—. Un guion que puede revisar el archivo
+ * equivocado sin decirlo es peor que no tener guion.
+ *
+ * Cotejar el hash del bundle contra `dist/index.html` cuesta una línea.
+ */
+async function revisarQueSirvaLoCompilado(base) {
+  const enDisco = (await readFile('dist/index.html', 'utf8')).match(/assets\/index-[^"']+\.js/)?.[0]
+  const servido = (await (await fetch(`${base}/`)).text()).match(/assets\/index-[^"']+\.js/)?.[0]
+  if (!enDisco || !servido) {
+    console.log('No se pudo comparar el build servido con el de disco.')
+    process.exit(2)
+  }
+  if (enDisco !== servido) {
+    console.log('EL SERVIDOR ESTÁ SIRVIENDO UN BUILD VIEJO.')
+    console.log(`  en disco:  ${enDisco}`)
+    console.log(`  sirviendo: ${servido}`)
+    console.log('Reiniciá `npm run preview` después de compilar; si no, esto revisa otro código.')
+    process.exit(2)
+  }
+}
+
 async function main() {
+  await revisarQueSirvaLoCompilado(BASE)
   await mkdir(SALIDA, { recursive: true })
 
   // El contenedor trae su propio Chromium; se lo señalamos en vez de bajar otro.

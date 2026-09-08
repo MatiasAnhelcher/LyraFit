@@ -324,6 +324,17 @@ export interface SesionEnCurso {
   id: 'actual'
   /** Cuándo arrancó de verdad, para que el cronómetro no se reinicie al volver. */
   arrancadaEn: number
+  /**
+   * Segundos de sesión efectivamente transcurridos hasta este guardado.
+   *
+   * Es lo que se restaura, y no `arrancadaEn` a secas, porque las dos cosas no
+   * son lo mismo cuando hubo un hueco: quien empieza a las ocho, se va, y
+   * vuelve a las doce y media entrenó veinticinco minutos, no cuatro horas y
+   * media. Sin esto la sesión quedaba escrita en el historial —para siempre—
+   * con el tiempo muerto adentro, y contaminaba también la carga interna, que
+   * se calcula sobre la duración.
+   */
+  duracionAcumulada: number
   actualizadoEn: number
   /** Si era una sesión corta. Se guarda porque venía en la URL y la URL se pierde. */
   corta: boolean

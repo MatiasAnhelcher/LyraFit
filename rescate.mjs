@@ -30,13 +30,58 @@
  * vuelve solo si alguien simplifica `anotar()`, y que no se ve mirando la app:
  * hay que abrir la base y comparar los dos campos.
  *
+ * ## 3. ¿La sesión que se retoma es la MISMA sesión?
+ *
+ * Un borrador que se restaura mal es peor que un borrador que no existe,
+ * porque el error queda escrito en el historial y en el motor. Dos formas de
+ * restaurar mal, las dos encontradas revisando antes de publicar:
+ *
+ * - El tipo de sesión venía en la URL (`/entrenar?corta=1`) y la URL se pierde
+ *   cuando el navegador recicla la pestaña. Una sesión de siete minutos se
+ *   retomaba como sesión de plan y se cerraba con un rendimiento de 0,33
+ *   —una serie contra un objetivo de tres— así que el motor le bajaba el
+ *   objetivo a las cuatro cadenas por series que nunca se le pidieron.
+ * - El cronómetro contaba desde la hora original, así que el hueco entre que
+ *   te fuiste y volviste quedaba adentro. Empezar a las ocho y volver a las
+ *   doce y media escribía una sesión de cuatro horas y media.
+ *
  * Uso: node rescate.mjs   (con `npm run preview` andando en el 4173)
  */
 
 import { chromium } from 'playwright'
+import { readFile } from 'node:fs/promises'
 
 const BASE = 'http://localhost:4173'
 const fallos = []
+
+/**
+ * Que lo que se está revisando sea lo que está en disco.
+ *
+ * `vite preview` se deja abierto entre corridas y puede quedar sirviendo un
+ * build viejo. Pasó, y produjo el peor resultado posible: una revisión en verde
+ * sobre código que no era el compilado — incluida una prueba por mutación que
+ * "pasó" con la mutación puesta—. Un guion que puede revisar el archivo
+ * equivocado sin decirlo es peor que no tener guion.
+ *
+ * Cotejar el hash del bundle contra `dist/index.html` cuesta una línea.
+ */
+async function revisarQueSirvaLoCompilado(base) {
+  const enDisco = (await readFile('dist/index.html', 'utf8')).match(/assets\/index-[^"']+\.js/)?.[0]
+  const servido = (await (await fetch(`${base}/`)).text()).match(/assets\/index-[^"']+\.js/)?.[0]
+  if (!enDisco || !servido) {
+    console.log('No se pudo comparar el build servido con el de disco.')
+    process.exit(2)
+  }
+  if (enDisco !== servido) {
+    console.log('EL SERVIDOR ESTÁ SIRVIENDO UN BUILD VIEJO.')
+    console.log(`  en disco:  ${enDisco}`)
+    console.log(`  sirviendo: ${servido}`)
+    console.log('Reiniciá `npm run preview` después de compilar; si no, esto revisa otro código.')
+    process.exit(2)
+  }
+}
+
+await revisarQueSirvaLoCompilado(BASE)
 
 const navegador = await chromium.launch({
   executablePath: process.env.CHROMIUM_PATH ?? '/opt/pw-browsers/chromium',
@@ -181,6 +226,117 @@ if (conPrediccion.length === 0) {
   )
 }
 
+// ─── 3. La sesión retomada es la misma sesión ────────────────────────────
+//
+// Regla de oro de esta sección: NUNCA tocar la base con Entrenar montado. Esa
+// pantalla reescribe el borrador cada vez que cambia algo, así que una
+// escritura hecha desde ahí se pisa sola y la prueba mide cualquier cosa. Todo
+// lo que manipula la base se hace parado en Hoy.
+
+const enHoy = async () => {
+  await p.goto(`${BASE}/#/`, { waitUntil: 'networkidle' })
+  await p.reload({ waitUntil: 'networkidle' })
+  await p.waitForTimeout(700)
+}
+
+const conLaBase = (fn, arg) => p.evaluate(async ([codigo, arg]) => {
+  const base = await new Promise((res, rej) => {
+    const r = indexedDB.open('lyrafit')
+    r.onsuccess = () => res(r.result)
+    r.onerror = () => rej(r.error)
+  })
+  const leer = () => new Promise((res, rej) => {
+    const q = base.transaction('curso').objectStore('curso').get('actual')
+    q.onsuccess = () => res(q.result ?? null)
+    q.onerror = () => rej(q.error)
+  })
+  const escribir = (b) => new Promise((res, rej) => {
+    const tx = base.transaction('curso', 'readwrite')
+    if (b === null) tx.objectStore('curso').delete('actual')
+    else tx.objectStore('curso').put(b)
+    tx.oncomplete = () => res()
+    tx.onerror = () => rej(tx.error)
+  })
+  // eslint-disable-next-line no-new-func
+  const salida = await new Function('leer', 'escribir', 'arg', `return (${codigo})(leer, escribir, arg)`)(leer, escribir, arg)
+  base.close()
+  return salida
+}, [fn.toString(), arg])
+
+// (a) Una sesión corta tiene que seguir siendo corta después de morir la pestaña.
+await enHoy()
+await conLaBase(async (leer, escribir) => escribir(null))
+
+await p.goto(`${BASE}/#/entrenar?corta=1`, { waitUntil: 'networkidle' })
+await p.reload({ waitUntil: 'networkidle' })
+await p.waitForTimeout(1000)
+
+const casillasCorta = await p.locator('ul[aria-label="Series de este ejercicio"] li').count()
+if (casillasCorta !== 1) fallos.push(`Una sesión corta debería pedir una serie y pide ${casillasCorta}.`)
+
+await salteaDescanso()
+await p.waitForTimeout(300)
+const voyCorta = p.getByRole('button', { name: 'Voy', exact: true })
+if (await voyCorta.isVisible().catch(() => false)) { await voyCorta.click(); await p.waitForTimeout(400) }
+const anotarCorta = p.getByRole('button', { name: 'Anotar serie', exact: true })
+if (!(await anotarCorta.isVisible().catch(() => false))) {
+  const botones = (await p.locator('button').allInnerTexts()).map((t) => t.replace(/\s+/g, ' ').trim())
+  fallos.push(`No se pudo anotar la serie de la sesión corta. Botones en pantalla: ${botones.join(' · ')}`)
+} else {
+  await anotarCorta.click()
+  await p.waitForTimeout(700)
+}
+
+// La pestaña muere y se vuelve SIN el parámetro, que es lo que pasa de verdad:
+// la URL se pierde y la PWA reabre en su start_url.
+//
+// El paso por `about:blank` no es cosmético. Ir directo de `#/entrenar?corta=1`
+// a `#/entrenar` es un cambio de hash: NO recarga el documento, así que la
+// página viva se queda un instante con esCorta=false y reescribe el borrador
+// con corta:false antes de que uno alcance a recargar. Eso no le pasa a nadie
+// —la app nunca linkea a /entrenar sin el parámetro— pero arruinaba la prueba y
+// hacía parecer roto algo que no lo estaba.
+await p.goto('about:blank')
+await p.goto(`${BASE}/#/entrenar`, { waitUntil: 'networkidle' })
+await p.waitForTimeout(1500)
+
+const casillasTrasRetomar = await p.locator('ul[aria-label="Series de este ejercicio"] li').count()
+await enHoy()
+const borradorCorta = await conLaBase(async (leer) => leer())
+
+if (borradorCorta?.corta !== true) {
+  fallos.push('El borrador no recuerda que la sesión era corta.')
+} else if (casillasTrasRetomar !== 1) {
+  fallos.push(
+    `La sesión corta se retomó como sesión de plan: pide ${casillasTrasRetomar} series en vez de 1. ` +
+      'Al cerrarla, el motor le baja el objetivo a las cuatro cadenas por series que nunca se pidieron.',
+  )
+}
+
+// (b) El hueco entre que te fuiste y volviste no es tiempo entrenado.
+const CUATRO_HORAS = 4 * 60 * 60 * 1000
+const acumulado = borradorCorta?.duracionAcumulada ?? 0
+await conLaBase(async (leer, escribir, hueco) => {
+  const b = await leer()
+  if (!b) return
+  // Como si te hubieras ido hace cuatro horas: el arranque queda viejo, pero
+  // lo efectivamente entrenado sigue siendo lo mismo.
+  b.arrancadaEn -= hueco
+  b.actualizadoEn = Date.now()
+  await escribir(b)
+}, CUATRO_HORAS)
+
+await p.goto(`${BASE}/#/entrenar`, { waitUntil: 'networkidle' })
+await p.reload({ waitUntil: 'networkidle' })
+await p.waitForTimeout(1500)
+const relojRetomado = await reloj()
+if (enSegundos(relojRetomado) > acumulado + 120) {
+  fallos.push(
+    `Al retomar cuatro horas después, el cronómetro marca ${relojRetomado} en vez de los ~${acumulado}s ` +
+      'realmente entrenados: el hueco quedaría escrito en el historial.',
+  )
+}
+
 await navegador.close()
 
 if (fallos.length > 0) {
@@ -190,3 +346,4 @@ if (fallos.length > 0) {
 }
 console.log(`La sesión sobrevive a que muera la pestaña (${relojAntes} → ${relojDespues}).`)
 console.log(`Predicho y logrado se guardan por separado (dije ${dijo}, hice ${hizo}).`)
+console.log(`Una sesión corta se retoma corta, y el hueco no cuenta (${relojRetomado}).`)

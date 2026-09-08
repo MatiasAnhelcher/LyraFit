@@ -151,3 +151,63 @@ describe('consistencia horaria', () => {
     expect(hora > 22 || hora < 2).toBe(true)
   })
 })
+
+/**
+ * La vuelta y el fin de semana.
+ *
+ * Medido contra la mediana de los intervalos, la rutina por defecto —lunes,
+ * miércoles y viernes— daba "vuelta" TODOS los lunes: mediana 2, umbral 3, y
+ * el hueco del fin de semana es exactamente 3. El objetivo se recortaba al 70%
+ * un día de cada tres y, desde que las vueltas dejaron de mover la progresión,
+ * un tercio de las sesiones de alguien impecable no contaba para nada.
+ */
+describe('una vuelta es faltar, no es el fin de semana', () => {
+  const comoFecha = (d: Date) =>
+    `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+
+  /** Seis semanas impecables de una rutina, por día de la semana. */
+  function impecable(diasDeLaSemana: number[]): Sesion[] {
+    const lunes = new Date(2026, 0, 5)
+    const fechas: string[] = []
+    for (let semana = 0; semana < 6; semana++) {
+      for (const dia of diasDeLaSemana) {
+        const d = new Date(lunes)
+        d.setDate(lunes.getDate() + semana * 7 + dia)
+        fechas.push(comoFecha(d))
+      }
+    }
+    return fechas.map((fecha, i) => ({
+      id: `s${i}`, fecha, finalizadaEn: i, duracionSegundos: 1800, tipo: 'plan', registros: [],
+    }))
+  }
+
+  const masTarde = (fecha: string, dias: number) => {
+    const d = new Date(`${fecha}T12:00:00`)
+    d.setDate(d.getDate() + dias)
+    return comoFecha(d)
+  }
+
+  const RUTINAS: [string, number[], number, number][] = [
+    // nombre, días, hueco normal más largo, primer hueco que SÍ es una vuelta
+    ['cuerpo completo (L-M-V)', [0, 2, 4], 3, 5],
+    ['la mínima (Ma-V)', [1, 4], 4, 7],
+    ['empuje y tracción (L-Ma-J-V)', [0, 1, 3, 4], 3, 5],
+  ]
+
+  for (const [nombre, dias, normal, vuelta] of RUTINAS) {
+    it(`en ${nombre}, ${normal} días es su ritmo y ${vuelta} es haber faltado`, () => {
+      const sesiones = impecable(dias)
+      const ultima = sesiones[sesiones.length - 1]!.fecha
+      expect(esVuelta(sesiones, masTarde(ultima, normal)), `${normal} días`).toBe(false)
+      expect(esVuelta(sesiones, masTarde(ultima, vuelta)), `${vuelta} días`).toBe(true)
+    })
+  }
+
+  it('y una ausencia real no le sube el umbral para siempre', () => {
+    // Quien faltó una semana entera no puede quedar con un "hueco normal" de
+    // siete días: dejaría de detectarse cualquier vuelta durante dos semanas.
+    const sesiones = impecable([0, 2, 4]).filter((s) => !s.fecha.startsWith('2026-01-19'))
+    const ultima = sesiones[sesiones.length - 1]!.fecha
+    expect(esVuelta(sesiones, masTarde(ultima, 5))).toBe(true)
+  })
+})
