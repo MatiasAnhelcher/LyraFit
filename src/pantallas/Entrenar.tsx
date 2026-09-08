@@ -33,7 +33,11 @@
  *
  * - **El descanso se muestra vaciando un arco**, en silencio y en lineal. Lo
  *   que había antes latía a opacidad variable: un elemento que late mientras
- *   tenés el pulso alto es estresante y encima hace ilegible el número.
+ *   tenés el pulso alto es estresante y encima hace ilegible el número. Y
+ *   debajo del arco va una indicación de técnica, que rota: veinte minutos de
+ *   sesión mirando un arco vaciarse eran el bloque de tiempo más grande de la
+ *   app y estaba muerto, mientras la técnica de los treinta y nueve ejercicios
+ *   vivía en una ficha a la que nadie entra a mitad de una serie.
  */
 
 import { useEffect, useMemo, useRef, useState } from 'react'
@@ -556,6 +560,7 @@ export function Entrenar() {
           <Descanso
             restante={descanso.restante}
             total={ejercicio.descansoSegundos}
+            clave={{ tecnica: ejercicio.tecnica, hechas: series.length }}
             onSumar={() => descanso.sumar(30)}
             onSaltear={descanso.detener}
           />
@@ -652,14 +657,40 @@ export function Entrenar() {
 function Descanso({
   restante,
   total,
+  clave,
   onSumar,
   onSaltear,
 }: {
   restante: number
   total: number
+  /**
+   * La técnica del ejercicio y cuántas series van hechas, para elegir la
+   * indicación. Es lo único que cambia entre un descanso y el siguiente.
+   */
+  clave: { tecnica: string[]; hechas: number }
   onSumar: () => void
   onSaltear: () => void
 }) {
+  // Una indicación por descanso, rotando. Sesenta o noventa segundos por
+  // serie son unos veinte minutos de sesión mirando un arco vaciarse: es el
+  // bloque de tiempo más grande de la app y estaba muerto. La técnica ya
+  // estaba escrita para cada uno de los treinta y nueve ejercicios y no la
+  // veía nadie, porque para leerla hay que salir de la sesión y entrar a la
+  // ficha, que es exactamente lo que nadie hace con el pulso a ciento
+  // cuarenta. Acá llega sola, en el único momento en que sirve: justo antes
+  // de volver a hacer el movimiento.
+  //
+  // Rota para que tres descansos den tres indicaciones distintas y no la
+  // misma tres veces, que se leería una sola vez y después sería mobiliario.
+  //
+  // Los errores comunes no van acá y sí en la ficha: un "no hagas esto"
+  // leído de reojo y a medias se puede entender al revés, y la ficha tiene
+  // lugar para enmarcarlo.
+  const indicacion =
+    clave.tecnica.length > 0
+      ? clave.tecnica[clave.hechas % clave.tecnica.length]
+      : null
+
   return (
     <section className="flex flex-1 flex-col items-center justify-center pb-8">
       <div className="relative flex h-44 w-44 items-center justify-center">
@@ -676,6 +707,12 @@ function Descanso({
         </svg>
         <p className="cifra text-5xl">{comoReloj(restante)}</p>
       </div>
+      {indicacion && (
+        <p className="mt-8 max-w-[32ch] text-center text-sm leading-relaxed text-[var(--color-glosa)]">
+          {indicacion}
+        </p>
+      )}
+
       <div className="mt-8 flex gap-3">
         <button onClick={onSumar} className="rotulo px-4 py-3" style={{ border: '1px solid var(--color-regla)' }}>
           +30 s
