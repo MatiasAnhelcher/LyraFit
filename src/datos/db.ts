@@ -18,7 +18,7 @@
  */
 
 import Dexie, { type Table } from 'dexie'
-import type { Avance, Estado, Patron, Preferencias, Sesion } from '@/dominio/tipos'
+import type { Avance, Estado, Patron, Preferencias, Sesion, SesionEnCurso } from '@/dominio/tipos'
 import { RUTINA_POR_DEFECTO } from '@/dominio/rutinas'
 
 /** Una escritura a la espera de viajar al servidor, cuando exista un servidor. */
@@ -36,6 +36,7 @@ export class BaseLyraFit extends Dexie {
   preferencias!: Table<Preferencias, string>
   pendientes!: Table<Pendiente, number>
   estados!: Table<Estado, string>
+  curso!: Table<SesionEnCurso, string>
 
   constructor() {
     super('lyrafit')
@@ -89,6 +90,18 @@ export class BaseLyraFit extends Dexie {
             sesion.tipo ??= 'plan'
           })
       })
+
+    // v3 — la sesión a medio hacer sobrevive a que el navegador recicle la
+    // pestaña. Es una tabla nueva y nada vieja cambia de forma, así que no
+    // hace falta migrar nada: `upgrade` sobra y por eso no está.
+    this.version(3).stores({
+      sesiones: 'id, fecha, finalizadaEn',
+      avances: 'patron, actualizadoEn',
+      preferencias: 'id',
+      pendientes: '++id, creadoEn',
+      estados: 'fecha, actualizadoEn',
+      curso: 'id',
+    })
   }
 }
 

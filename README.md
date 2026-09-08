@@ -55,6 +55,7 @@ preview` corriendo en otra terminal:
 
 ```bash
 node revisar.mjs   # recorre el alta y una sesión entera, y guarda capturas
+node rescate.mjs   # mata la pestaña a media sesión y revisa que no se pierda nada
 ```
 
 ## Cómo está armado

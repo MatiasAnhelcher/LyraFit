@@ -15,6 +15,7 @@ import type {
   Preferencias,
   RegistroEjercicio,
   Sesion,
+  SesionEnCurso,
   TipoSesion,
 } from '@/dominio/tipos'
 import { CADENAS, POR_ID, cadenaDe } from '@/dominio/biblioteca'
@@ -104,6 +105,39 @@ export async function leerEstados(): Promise<Estado[]> {
 
 export async function leerEstadoDeHoy(): Promise<Estado | undefined> {
   return db.estados.get(fechaISO())
+}
+
+// ─── La sesión a medio hacer ─────────────────────────────────────────────
+
+/**
+ * Cuánto vale un borrador antes de considerarlo abandonado.
+ *
+ * Seis horas cubre cualquier sesión real con sus interrupciones. Más que eso y
+ * lo que se restaura ya no es "la sesión de la que me sacó un llamado": es la
+ * de ayer, y retomarla en silencio sería peor que perderla.
+ */
+export const VIGENCIA_DEL_BORRADOR = 6 * 60 * 60 * 1000
+
+/** El borrador vigente, o null. Uno vencido se borra de paso. */
+export async function leerSesionEnCurso(): Promise<SesionEnCurso | null> {
+  const borrador = await db.curso.get('actual')
+  if (!borrador) return null
+
+  if (Date.now() - borrador.actualizadoEn > VIGENCIA_DEL_BORRADOR) {
+    await db.curso.delete('actual')
+    return null
+  }
+  return borrador
+}
+
+export async function guardarSesionEnCurso(
+  datos: Omit<SesionEnCurso, 'id' | 'actualizadoEn'>,
+): Promise<void> {
+  await db.curso.put({ ...datos, id: 'actual', actualizadoEn: Date.now() })
+}
+
+export async function descartarSesionEnCurso(): Promise<void> {
+  await db.curso.delete('actual')
 }
 
 export async function guardarEstado(
@@ -351,17 +385,16 @@ export function validarRespaldo(dato: unknown): Respaldo {
 export async function importarTodo(respaldo: Respaldo): Promise<void> {
   await db.transaction(
     'rw',
-    db.sesiones,
-    db.avances,
-    db.estados,
-    db.preferencias,
-    db.pendientes,
+    [db.sesiones, db.avances, db.estados, db.preferencias, db.pendientes, db.curso],
     async () => {
       await Promise.all([
         db.sesiones.clear(),
         db.avances.clear(),
         db.estados.clear(),
         db.preferencias.clear(),
+        // Y el borrador: viene de un plan que la copia que se está restaurando
+        // no conoce, así que retomarlo sería anotar contra otro historial.
+        db.curso.clear(),
       ])
       await db.sesiones.bulkPut(respaldo.sesiones)
       await db.avances.bulkPut(respaldo.avances)
@@ -374,11 +407,7 @@ export async function importarTodo(respaldo: Respaldo): Promise<void> {
 export async function borrarTodo(): Promise<void> {
   await db.transaction(
     'rw',
-    db.sesiones,
-    db.avances,
-    db.estados,
-    db.preferencias,
-    db.pendientes,
+    [db.sesiones, db.avances, db.estados, db.preferencias, db.pendientes, db.curso],
     async () => {
       await Promise.all([
         db.sesiones.clear(),
@@ -386,6 +415,7 @@ export async function borrarTodo(): Promise<void> {
         db.estados.clear(),
         db.preferencias.clear(),
         db.pendientes.clear(),
+        db.curso.clear(),
       ])
     },
   )

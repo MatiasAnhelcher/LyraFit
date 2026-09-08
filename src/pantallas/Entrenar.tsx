@@ -35,7 +35,10 @@ import { haceCuanto, laVezPasada } from '@/dominio/estadisticas'
 import type { RegistroEjercicio, Serie, TipoSesion } from '@/dominio/tipos'
 import {
   cerrarSesion,
+  descartarSesionEnCurso,
   fechaISO,
+  guardarSesionEnCurso,
+  leerSesionEnCurso,
   leerAvances,
   leerEstados,
   leerPreferencias,
@@ -68,6 +71,18 @@ export function Entrenar() {
   const [guardando, setGuardando] = useState(false)
   const [prediccion, setPrediccion] = useState<number | null>(null)
   /**
+   * La red de contención de la sesión.
+   *
+   * `arrancadaEn` es de cuándo empezó de verdad, no de cuándo montó el
+   * componente: si el navegador recicló la pestaña, esos dos momentos son
+   * distintos y el que vale es el primero. `retomada` es solo para decírselo a
+   * la persona, y `listo` bloquea el primer render hasta saber si hay algo que
+   * restaurar — si no, se vería un parpadeo de "serie 1 de 3" antes del salto.
+   */
+  const [arrancadaEn, setArrancadaEn] = useState<number | undefined>()
+  const [retomada, setRetomada] = useState(false)
+  const [listo, setListo] = useState(false)
+  /**
    * La energía de antes no se pregunta: ya la contestaste.
    *
    * Si hoy hiciste el chequeo diario, el ítem de energía ES la medición previa.
@@ -83,7 +98,7 @@ export function Entrenar() {
     [estados],
   )
 
-  const duracion = useCronometro(resumen === null)
+  const duracion = useCronometro(resumen === null, arrancadaEn)
   const descanso = useTemporizador(() => {
     sonar('descanso')
     tocar('descanso')
@@ -93,6 +108,63 @@ export function Entrenar() {
     configurarSonido(preferencias?.sonidoDescanso !== false)
     configurarHaptica(preferencias?.haptica !== false)
   }, [preferencias?.sonidoDescanso, preferencias?.haptica])
+
+  /**
+   * Retomar lo que había quedado a medio hacer.
+   *
+   * Corre una sola vez, antes de dibujar nada. Si hay un borrador vigente se
+   * entra directamente donde se había quedado y en silencio: la persona no
+   * eligió perder la sesión, así que tampoco tiene que elegir recuperarla. El
+   * único aviso es el renglón de abajo, que además ofrece la salida.
+   */
+  useEffect(() => {
+    let vivo = true
+    void leerSesionEnCurso()
+      .then((borrador) => {
+        if (!vivo) return
+        if (borrador) {
+          setIndice(borrador.indice)
+          setHechas(borrador.hechas)
+          setEtapa(borrador.etapa)
+          setArrancadaEn(borrador.arrancadaEn)
+          setRetomada(true)
+        } else {
+          // El arranque es ahora, no la primera serie anotada: entre abrir la
+          // pantalla y anotar hay una entrada en calor que también es la sesión.
+          setArrancadaEn(Date.now())
+        }
+      })
+      .finally(() => {
+        if (vivo) setListo(true)
+      })
+    return () => {
+      vivo = false
+    }
+  }, [])
+
+  /**
+   * Y guardarlo, después de cada cambio.
+   *
+   * Se escribe en IndexedDB y no en `sessionStorage` a propósito: iOS descarta
+   * el sessionStorage de una pestaña reciclada, que es justamente el caso que
+   * esto tiene que sobrevivir.
+   *
+   * No se guarda una sesión vacía. Un borrador sin una sola serie anotada no
+   * tiene nada que restaurar, y dejarlo escrito haría que abrir la pantalla y
+   * salir cuente como "sesión a medio hacer" para siempre.
+   */
+  useEffect(() => {
+    if (!listo || resumen) return
+    const algo = Object.values(hechas).some((series) => series.length > 0)
+    if (!algo) return
+    void guardarSesionEnCurso({
+      arrancadaEn: arrancadaEn ?? Date.now(),
+      corta: esCorta,
+      indice,
+      etapa,
+      hechas,
+    })
+  }, [listo, resumen, hechas, indice, etapa, arrancadaEn, esCorta])
 
   /**
    * Los tres últimos segundos del descanso, en la piel.
@@ -155,7 +227,7 @@ export function Entrenar() {
     })
   }, [rutina, avances, esCorta, factor, historial])
 
-  if (!avances || !preferencias || !historial || plan.length === 0) {
+  if (!avances || !preferencias || !historial || !listo || plan.length === 0) {
     return (
       <div className="flex min-h-dvh items-center justify-center">
         <Rotulo>PREPARANDO LA SESIÓN…</Rotulo>
@@ -167,11 +239,15 @@ export function Entrenar() {
     return <Cierre resumen={resumen} duracion={duracion} alSalir={() => navegar('/')} />
   }
 
-  const paso = plan[indice]!
+  // El índice viene de un borrador que se escribió con otro plan en la mano.
+  // Hoy el plan puede ser más corto —cambió la rutina, cambió un eslabón— así
+  // que se acota: entrar por un índice que no existe rompe la pantalla entera.
+  const enCurso = Math.min(Math.max(indice, 0), plan.length - 1)
+  const paso = plan[enCurso]!
   const { ejercicio, objetivo, antes } = paso
   const series = hechas[ejercicio.id] ?? []
   const completo = series.length >= objetivo.series
-  const esUltimo = indice === plan.length - 1
+  const esUltimo = enCurso === plan.length - 1
   const propuesto = prediccion ?? objetivo.cantidad
   const salto = ejercicio.medida === 'segundos' ? 5 : 1
 
@@ -225,6 +301,25 @@ export function Entrenar() {
     tocar('deshacer')
   }
 
+  /**
+   * Empezar de cero: la salida de la sesión retomada.
+   *
+   * Existe porque restaurar en silencio es lo correcto para el caso común —te
+   * sacó un llamado— pero deja sin salida al otro: el que se fue a propósito y
+   * quiere arrancar limpio. Un toque, sin confirmación: no borra nada que esté
+   * guardado, solo un borrador.
+   */
+  function empezarDeCero() {
+    void descartarSesionEnCurso()
+    setHechas({})
+    setIndice(0)
+    setEtapa('series')
+    setPrediccion(null)
+    setArrancadaEn(Date.now())
+    setRetomada(false)
+    descanso.detener()
+  }
+
   function avanzar() {
     descanso.detener()
     setPrediccion(null)
@@ -261,6 +356,8 @@ export function Entrenar() {
         ...datos,
       })
       setResumen(cerrada)
+      // La sesión ya está guardada de verdad: el borrador dejó de hacer falta.
+      await descartarSesionEnCurso()
       // El respaldo ocurre solo, sin avisar y sin poder romper nada.
       void respaldarEnSilencio()
     } finally {
@@ -310,12 +407,25 @@ export function Entrenar() {
             key={p.ejercicio.id}
             className="h-0.5 flex-1"
             style={{
-              backgroundColor: i <= indice ? 'var(--color-vega)' : 'var(--color-regla)',
-              opacity: i < indice ? 0.5 : 1,
+              backgroundColor: i <= enCurso ? 'var(--color-vega)' : 'var(--color-regla)',
+              opacity: i < enCurso ? 0.5 : 1,
             }}
           />
         ))}
       </div>
+
+      {/* El único aviso de que esto se retomó. Va acá y no en un cartel: lo
+          que hay que comunicar es "no perdiste nada", y para eso alcanza con
+          que las series ya anotadas estén en su lugar. El botón es para el
+          otro caso, el que salió a propósito y quiere arrancar limpio. */}
+      {retomada && (
+        <p className="rotulo mt-3 flex items-center justify-between gap-3 px-4">
+          <span>sesión retomada donde la dejaste</span>
+          <button onClick={empezarDeCero} className="underline underline-offset-4">
+            empezar de cero
+          </button>
+        </p>
+      )}
 
       <main className="mx-auto flex w-full max-w-lg flex-1 flex-col px-4 pt-8">
         <Rotulo>

@@ -283,3 +283,31 @@ export interface Estado {
   posterior?: boolean
   actualizadoEn: number
 }
+
+/**
+ * Una sesión a medio hacer.
+ *
+ * No hay servidor, y hasta acá tampoco había red de contención: los cuarenta
+ * minutos de una sesión vivían enteros en la memoria de la pestaña. Un
+ * navegador que recicla la pestaña —que es exactamente lo que hace iOS cuando
+ * atendés un llamado, cambiás de app o el teléfono queda corto de memoria—
+ * borraba la sesión entera. Perder cuarenta minutos de trabajo es peor que
+ * cualquier función que la app pueda no tener.
+ *
+ * Es una fila sola, con clave fija: no tiene sentido tener dos sesiones a
+ * medio hacer al mismo tiempo.
+ */
+export interface SesionEnCurso {
+  id: 'actual'
+  /** Cuándo arrancó de verdad, para que el cronómetro no se reinicie al volver. */
+  arrancadaEn: number
+  actualizadoEn: number
+  /** Si era una sesión corta. Se guarda porque venía en la URL y la URL se pierde. */
+  corta: boolean
+  /** En qué ejercicio del plan iba. */
+  indice: number
+  /** En qué etapa: las series, la de cierre o las preguntas del final. */
+  etapa: 'series' | 'cierre-serie' | 'preguntas'
+  /** Lo anotado hasta ahora, por ejercicio. */
+  hechas: Record<string, Serie[]>
+}

@@ -66,14 +66,20 @@ export function useTemporizador(alTerminar?: () => void): Temporizador {
 /**
  * Un cronómetro que cuenta hacia arriba, para medir cuánto duró la sesión.
  * Mismo criterio: se guarda el momento de inicio y se calcula la diferencia.
+ *
+ * `desde` existe para las sesiones que se retoman: si el navegador recicló la
+ * pestaña a los veinte minutos, la sesión duró veinte minutos y algo, no cero.
+ * Llega tarde —hay que leerlo de la base— así que el arranque propio es el
+ * valor por defecto y el efecto se recalcula cuando aparece el verdadero.
  */
-export function useCronometro(activo: boolean): number {
-  const [inicio] = useState(() => Date.now())
+export function useCronometro(activo: boolean, desde?: number): number {
+  const [propio] = useState(() => Date.now())
+  const inicio = desde ?? propio
   const [transcurrido, setTranscurrido] = useState(0)
 
   useEffect(() => {
     if (!activo) return
-    const tic = () => setTranscurrido(Math.floor((Date.now() - inicio) / 1000))
+    const tic = () => setTranscurrido(Math.max(0, Math.floor((Date.now() - inicio) / 1000)))
     tic()
     const id = window.setInterval(tic, 1000)
     return () => window.clearInterval(id)
