@@ -140,8 +140,10 @@ export interface Sesion {
    */
   esfuerzo?: number
   /**
-   * Energía sentida antes y después, del 1 al 7. Adaptado de la Subjective
-   * Vitality Scale de Ryan y Frederick; no es la escala completa.
+   * Energía sentida antes y después, del 1 al 5, en la misma escala que el
+   * ítem de energía del chequeo diario —que es de donde sale la medición
+   * previa, sin pedir un toque extra—. Adaptado de la Subjective Vitality
+   * Scale de Ryan y Frederick; no es la escala completa.
    *
    * La diferencia entre las dos es el único número honesto que puede dar una
    * app de entrenamiento sobre lo que entrenar le hace a la cabeza: es propio

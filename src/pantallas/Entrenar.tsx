@@ -97,7 +97,21 @@ export function Entrenar() {
   const [resumen, setResumen] = useState<ResumenSesion | null>(null)
   const [guardando, setGuardando] = useState(false)
   const [prediccion, setPrediccion] = useState<number | null>(null)
-  const [vitalidadPre] = useState<number | undefined>(undefined)
+  /**
+   * La energía de antes no se pregunta: ya la contestaste.
+   *
+   * Si hoy hiciste el chequeo diario, el ítem de energía ES la medición previa.
+   * Preguntarla otra vez al empezar la sesión sería cobrar dos veces por el
+   * mismo dato, y el delta de vitalidad no vale un toque extra: vale reusar
+   * uno que ya diste.
+   *
+   * Sin chequeo diario no hay delta, y está bien que no lo haya. Media
+   * medición no es media respuesta, es una respuesta inventada.
+   */
+  const vitalidadPre = useMemo(
+    () => estados?.find((e) => e.fecha === fechaISO())?.energia,
+    [estados],
+  )
 
   const duracion = useCronometro(resumen === null)
   const descanso = useTemporizador(() => {
@@ -508,12 +522,15 @@ function Preguntas({
 
         <Pregunta
           titulo="¿Cuánta energía tenés ahora?"
+          // La misma escala de cinco puntos y las mismas etiquetas que el
+          // chequeo diario. Si las dos puntas del delta no se miden con la
+          // misma vara, el delta no significa nada.
           opciones={[
-            [1, 'Nada'],
-            [3, 'Poca'],
-            [5, 'Normal'],
-            [6, 'Bastante'],
-            [7, 'Mucha'],
+            [1, 'En el piso'],
+            [2, 'Cansado'],
+            [3, 'Normal'],
+            [4, 'Con energía'],
+            [5, 'A pleno'],
           ]}
           valor={energia}
           onElegir={setEnergia}
