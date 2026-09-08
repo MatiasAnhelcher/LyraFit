@@ -21,10 +21,31 @@
  *   reemplaza vive en `adherencia.ts`.
  */
 
-import type { Patron, Sesion } from './tipos'
+import type { Objetivo, Patron, Serie, Sesion } from './tipos'
 import { POR_ID } from './biblioteca'
 import { indiceDeCarga } from './progresion'
-import { lunesDe } from './adherencia'
+import { diasEntre, lunesDe } from './adherencia'
+
+/**
+ * Las series sin la de cierre.
+ *
+ * La serie de cierre se hace al final, al sesenta por ciento y sobre el
+ * ejercicio más fácil de la sesión, y la app la anota con el número propuesto
+ * sin preguntar: nunca se midió. Contarla como capacidad es inventar un dato.
+ *
+ * El caso que lo vuelve grave no es raro, es el peor: alguien que pidió quince
+ * y logró 4-3-3 recibe una serie de cierre de 9, y sin este filtro esa persona
+ * ve "tu mejor serie: 9" y, la sesión siguiente, un "antes 9" en Hoy. Se le
+ * pone como vara un número que nunca hizo, justo el día que la está pasando
+ * mal.
+ *
+ * La regla que ordena todo esto: **el volumen la cuenta, la capacidad no.**
+ * Cuántas series hiciste hoy la incluye, porque es trabajo real y por eso se
+ * guarda. Cuánto podés hacer, no.
+ */
+function sinCierre(series: Serie[]): Serie[] {
+  return series.filter((s) => !s.cierre)
+}
 
 /** Cuántas series se completaron en una sesión. Es la unidad comparable. */
 export function seriesDeSesion(sesion: Sesion): number {
@@ -105,7 +126,7 @@ export function historicoDeEjercicio(
   for (const sesion of [...sesiones].sort((a, b) => a.fecha.localeCompare(b.fecha))) {
     for (const registro of sesion.registros) {
       if (registro.ejercicioId !== ejercicioId) continue
-      const logros = registro.series.map((s) => s.logrado)
+      const logros = sinCierre(registro.series).map((s) => s.logrado)
       if (logros.length === 0) continue
       puntos.push({
         fecha: sesion.fecha,
@@ -116,6 +137,79 @@ export function historicoDeEjercicio(
   }
 
   return puntos
+}
+
+
+/**
+ * La vez pasada: qué hiciste la última vez que te tocó este ejercicio.
+ *
+ * Es el dato más barato de la app y el que más se usa. Sin él, la segunda
+ * sesión se siente idéntica a la primera: los mismos ejercicios, los mismos
+ * casilleros vacíos, la misma pantalla. Con él, cada casillero tiene una vara
+ * al lado, y la vara la puso la persona.
+ *
+ * Vale la pena decir por qué esto no es una recompensa. No hay nada que ganar
+ * ni ninguna insignia: es información sobre la propia competencia, que es
+ * justo la clase de feedback que construye motivación intrínseca en vez de
+ * erosionarla. Y sirve incluso cuando la comparación sale mal, porque el
+ * número de al lado explica por qué hoy costó más.
+ *
+ * Devuelve null cuando no hay con qué comparar, que es el caso más importante:
+ * la primera vez la app no inventa una vara.
+ */
+export interface VezPasada {
+  fecha: string
+  /** Días desde entonces. Cero significa hoy mismo. */
+  hace: number
+  /** Lo logrado en cada serie, en orden y tal como quedó registrado. */
+  logros: number[]
+  /** El objetivo que tenía ese día, para saber si lo cumplió o no. */
+  objetivo: Objetivo
+  /** La mejor serie de ese día. */
+  mejor: number
+}
+
+export function laVezPasada(
+  sesiones: Sesion[],
+  ejercicioId: string,
+  hoy: string,
+): VezPasada | null {
+  // De la más nueva a la más vieja: la primera que tenga el ejercicio gana.
+  const ordenadas = [...sesiones].sort((a, b) => b.fecha.localeCompare(a.fecha))
+
+  for (const sesion of ordenadas) {
+    for (const registro of sesion.registros) {
+      if (registro.ejercicioId !== ejercicioId) continue
+      const logros = sinCierre(registro.series)
+        .map((s) => s.logrado)
+        .filter((n) => n > 0)
+      if (logros.length === 0) continue
+      return {
+        fecha: sesion.fecha,
+        hace: diasEntre(sesion.fecha, hoy),
+        logros,
+        objetivo: registro.objetivo,
+        mejor: Math.max(...logros),
+      }
+    }
+  }
+
+  return null
+}
+
+/**
+ * Cómo se lee "hace tanto" en el idioma de alguien que entrena tres veces por
+ * semana. Nadie dice "hace 1 día": dice "ayer". Y arriba de un mes el número
+ * exacto de días deja de significar algo.
+ */
+export function haceCuanto(dias: number): string {
+  if (dias <= 0) return 'hoy'
+  if (dias === 1) return 'ayer'
+  if (dias < 7) return `hace ${dias} días`
+  if (dias < 14) return 'hace una semana'
+  if (dias < 31) return `hace ${Math.round(dias / 7)} semanas`
+  if (dias < 60) return 'hace un mes'
+  return `hace ${Math.round(dias / 30)} meses`
 }
 
 /** El récord personal de un ejercicio: la mejor serie que registraste. */
@@ -151,7 +245,7 @@ export function curvaDeFuerza(sesiones: Sesion[], patron: Patron): PuntoDeFuerza
       const ejercicio = POR_ID.get(registro.ejercicioId)
       if (!ejercicio || ejercicio.patron !== patron) continue
 
-      const mejor = Math.max(0, ...registro.series.map((s) => s.logrado))
+      const mejor = Math.max(0, ...sinCierre(registro.series).map((s) => s.logrado))
       if (mejor <= 0) continue
 
       const carga = indiceDeCarga(ejercicio, mejor)

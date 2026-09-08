@@ -15,12 +15,14 @@ import type {
   Preferencias,
   RegistroEjercicio,
   Sesion,
+  SesionEnCurso,
   TipoSesion,
 } from '@/dominio/tipos'
 import { CADENAS, POR_ID, cadenaDe } from '@/dominio/biblioteca'
 import {
   avanceInicial,
   logradoTipico,
+  mueveElPlan,
   rendimientoDeSesion,
   siguienteAvance,
   ubicarEnCadena,
@@ -103,6 +105,39 @@ export async function leerEstados(): Promise<Estado[]> {
 
 export async function leerEstadoDeHoy(): Promise<Estado | undefined> {
   return db.estados.get(fechaISO())
+}
+
+// ─── La sesión a medio hacer ─────────────────────────────────────────────
+
+/**
+ * Cuánto vale un borrador antes de considerarlo abandonado.
+ *
+ * Seis horas cubre cualquier sesión real con sus interrupciones. Más que eso y
+ * lo que se restaura ya no es "la sesión de la que me sacó un llamado": es la
+ * de ayer, y retomarla en silencio sería peor que perderla.
+ */
+export const VIGENCIA_DEL_BORRADOR = 6 * 60 * 60 * 1000
+
+/** El borrador vigente, o null. Uno vencido se borra de paso. */
+export async function leerSesionEnCurso(): Promise<SesionEnCurso | null> {
+  const borrador = await db.curso.get('actual')
+  if (!borrador) return null
+
+  if (Date.now() - borrador.actualizadoEn > VIGENCIA_DEL_BORRADOR) {
+    await db.curso.delete('actual')
+    return null
+  }
+  return borrador
+}
+
+export async function guardarSesionEnCurso(
+  datos: Omit<SesionEnCurso, 'id' | 'actualizadoEn'>,
+): Promise<void> {
+  await db.curso.put({ ...datos, id: 'actual', actualizadoEn: Date.now() })
+}
+
+export async function descartarSesionEnCurso(): Promise<void> {
+  await db.curso.delete('actual')
 }
 
 export async function guardarEstado(
@@ -201,10 +236,21 @@ export async function cerrarSesion(entrada: CierreDeSesion): Promise<ResumenSesi
     // flexión suelta un domingo no debería mover el plan.
     if (!avance || avance.ejercicioId !== ejercicio.id) continue
 
-    // Una sesión corta cuenta para la adherencia y no para la progresión: seis
-    // minutos no dicen nada sobre si alguien está listo para el eslabón que
-    // sigue, y castigar por haber hecho algo es la peor lección posible.
-    const neutra = tipo === 'corta' || ajuste.neutra || congeladas.has(ejercicio.patron)
+    // Un registro que solo tiene la serie de cierre no es una sesión de ese
+    // ejercicio: es el saludo del final, que cae sobre el ejercicio más fácil
+    // del plan aunque lo hayas salteado. Sin esto, saltear piernas te BAJA de
+    // eslabón en piernas: la serie de cierre no cuenta para el rendimiento
+    // —eso es correcto y deliberado— así que el registro queda con cero series
+    // válidas contra un objetivo de tres, o sea rendimiento exactamente 0, que
+    // el motor lee como el peor fracaso posible. Saltear un ejercicio tiene que
+    // ser neutro, nunca un castigo: castigar por haber hecho algo es la peor
+    // lección que puede dar esta app.
+    if (!registro.series.some((serie) => !serie.cierre && serie.logrado > 0)) continue
+
+    // Qué tipos de sesión mueven el plan lo decide el motor, no esta capa:
+    // está en `mueveElPlan`, con las razones y con un test que las cubre.
+    const neutra =
+      !mueveElPlan(tipo) || ajuste.neutra || congeladas.has(ejercicio.patron)
 
     const decision = siguienteAvance(
       avance,
@@ -219,6 +265,19 @@ export async function cerrarSesion(entrada: CierreDeSesion): Promise<ResumenSesi
     )
 
     decisiones.push({ patron: ejercicio.patron, decision })
+  }
+
+  // Lo que el motor acaba de decidir se guarda con la sesión, no solo se
+  // devuelve para pintar el cierre. Se copia el texto y no una referencia: si
+  // mañana cambian las reglas, el historial tiene que seguir diciendo lo que la
+  // app dijo esa noche.
+  if (decisiones.length > 0) {
+    sesion.decisiones = decisiones.map(({ patron, decision }) => ({
+      patron,
+      movimiento: decision.movimiento,
+      explicacion: decision.explicacion,
+      cambioDeNivel: decision.cambioDeNivel,
+    }))
   }
 
   await db.transaction('rw', db.sesiones, db.avances, db.pendientes, async () => {
@@ -260,6 +319,12 @@ export async function fijarNivel(patron: Patron, ejercicioId: string): Promise<A
   }
 
   await guardarAvance(avance)
+  // Y se tira el borrador, si había uno. Las series a medio anotar están
+  // indexadas por id de ejercicio, y `cerrarSesion` solo mira los ejercicios
+  // del plan de hoy: cambiar de eslabón deja huérfanas las que ya se hicieron y
+  // desaparecen sin que nadie avise. Perder trabajo en silencio es peor que
+  // perderlo con un cartel, así que se descarta acá, que es donde se sabe.
+  await descartarSesionEnCurso()
   return avance
 }
 
@@ -350,17 +415,16 @@ export function validarRespaldo(dato: unknown): Respaldo {
 export async function importarTodo(respaldo: Respaldo): Promise<void> {
   await db.transaction(
     'rw',
-    db.sesiones,
-    db.avances,
-    db.estados,
-    db.preferencias,
-    db.pendientes,
+    [db.sesiones, db.avances, db.estados, db.preferencias, db.pendientes, db.curso],
     async () => {
       await Promise.all([
         db.sesiones.clear(),
         db.avances.clear(),
         db.estados.clear(),
         db.preferencias.clear(),
+        // Y el borrador: viene de un plan que la copia que se está restaurando
+        // no conoce, así que retomarlo sería anotar contra otro historial.
+        db.curso.clear(),
       ])
       await db.sesiones.bulkPut(respaldo.sesiones)
       await db.avances.bulkPut(respaldo.avances)
@@ -373,11 +437,7 @@ export async function importarTodo(respaldo: Respaldo): Promise<void> {
 export async function borrarTodo(): Promise<void> {
   await db.transaction(
     'rw',
-    db.sesiones,
-    db.avances,
-    db.estados,
-    db.preferencias,
-    db.pendientes,
+    [db.sesiones, db.avances, db.estados, db.preferencias, db.pendientes, db.curso],
     async () => {
       await Promise.all([
         db.sesiones.clear(),
@@ -385,6 +445,7 @@ export async function borrarTodo(): Promise<void> {
         db.estados.clear(),
         db.preferencias.clear(),
         db.pendientes.clear(),
+        db.curso.clear(),
       ])
     },
   )

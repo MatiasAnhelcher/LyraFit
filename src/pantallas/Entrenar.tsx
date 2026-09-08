@@ -8,10 +8,22 @@
  *
  * Tres cosas nuevas, y ninguna es decorativa:
  *
- * - **La predicción antes de cada serie.** Cuesta cero toques si aceptás el
- *   número que ya está puesto, y convierte datos que la app igual iba a
- *   guardar en una medida de qué tan bien te conocés el cuerpo. No da puntos
- *   a propósito: si diera puntos, se podría hacer trampa prediciendo bajo.
+ * - **La predicción antes de la primera serie de cada ejercicio.** Son dos
+ *   pantallas y no una: primero "¿cuántas te salen ahora?" y después, hecha la
+ *   serie, "¿cuántas hiciste?". Tienen que ser dos porque medir requiere dos
+ *   momentos — la versión anterior guardaba el mismo número como predicho y
+ *   como logrado, así que el error daba cero por construcción y la pantalla de
+ *   progreso mostraba un 0 fijo que no medía nada—. Solo la primera serie: las
+ *   dieciocho de una sesión serían dieciocho toques extra, y predecir la
+ *   tercera no mide interocepción sino aritmética.
+ *
+ *   El resultado viene precargado con lo que predijiste, así que acertar
+ *   cuesta cero toques. Eso ancla un poco la respuesta hacia la predicción y
+ *   por lo tanto achica el error medido; el sesgo se acepta a ojos abiertos,
+ *   porque la alternativa —precargar el objetivo— le cobra toques al que
+ *   acertó, y nadie declara que hizo nueve cuando hizo siete por lo que diga
+ *   una casilla. No da puntos a propósito: si diera puntos, se podría hacer
+ *   trampa prediciendo bajo.
  *
  * - **La serie de cierre.** Después de la última serie prescrita se agrega una
  *   serie fácil, al sesenta por ciento, que nunca cuenta para fallo. Sale de
@@ -21,20 +33,30 @@
  *
  * - **El descanso se muestra vaciando un arco**, en silencio y en lineal. Lo
  *   que había antes latía a opacidad variable: un elemento que late mientras
- *   tenés el pulso alto es estresante y encima hace ilegible el número.
+ *   tenés el pulso alto es estresante y encima hace ilegible el número. Y
+ *   debajo del arco va una indicación de técnica, que rota: veinte minutos de
+ *   sesión mirando un arco vaciarse eran el bloque de tiempo más grande de la
+ *   app y estaba muerto, mientras la técnica de los treinta y nueve ejercicios
+ *   vivía en una ficha a la que nadie entra a mitad de una serie.
  */
 
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { useLiveQuery } from 'dexie-react-hooks'
-import { NOMBRE_PATRON, buscarEjercicio } from '@/dominio/biblioteca'
+import { NOMBRE_PATRON, POR_ID, buscarEjercicio, cadenaDe } from '@/dominio/biblioteca'
 import { RUTINA_POR_DEFECTO, RUTINA_POR_ID } from '@/dominio/rutinas'
-import { ajusteDelDia, bandaSostenida } from '@/dominio/estado'
+import { ajusteDelDia, bandaSostenida, cadenasCongeladas } from '@/dominio/estado'
+import { seAbreHoy } from '@/dominio/anticipacion'
+import { mueveElPlan } from '@/dominio/progresion'
 import { esVuelta, RECORTE_DE_VUELTA } from '@/dominio/adherencia'
+import { haceCuanto, laVezPasada } from '@/dominio/estadisticas'
 import type { RegistroEjercicio, Serie, TipoSesion } from '@/dominio/tipos'
 import {
   cerrarSesion,
+  descartarSesionEnCurso,
   fechaISO,
+  guardarSesionEnCurso,
+  leerSesionEnCurso,
   leerAvances,
   leerEstados,
   leerPreferencias,
@@ -44,47 +66,27 @@ import {
 import { respaldarEnSilencio } from '@/datos/respaldo'
 import { comoReloj, useCronometro, useTemporizador } from '@/hooks/useTemporizador'
 import { useModoDePantalla, usePantallaDespierta } from '@/hooks/usePantalla'
+import { configurarHaptica, configurarSonido, despertarAudio, sonar, tocar } from '@/respuesta'
 import { Accion, AccionQuieta, Rotulo, nombreUnidad } from '@/componentes/ui'
 import { Cierre } from './Cierre'
-
-/** Un pitido corto al terminar el descanso, sin archivos de audio. */
-function pitar() {
-  try {
-    const Contexto =
-      window.AudioContext ??
-      (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext
-    if (!Contexto) return
-    const ctx = new Contexto()
-    const osc = ctx.createOscillator()
-    const gan = ctx.createGain()
-    osc.connect(gan)
-    gan.connect(ctx.destination)
-    osc.frequency.value = 880
-    gan.gain.setValueAtTime(0.001, ctx.currentTime)
-    gan.gain.exponentialRampToValueAtTime(0.2, ctx.currentTime + 0.02)
-    gan.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.4)
-    osc.start()
-    osc.stop(ctx.currentTime + 0.42)
-    setTimeout(() => void ctx.close(), 600)
-  } catch {
-    /* Si el navegador no deja sonar sin un gesto previo, el descanso igual termina. */
-  }
-}
-
-function vibrar(patron: number | number[]) {
-  try {
-    navigator.vibrate?.(patron)
-  } catch {
-    /* En iOS no existe. No es motivo para romper nada. */
-  }
-}
 
 type Etapa = 'series' | 'cierre-serie' | 'preguntas'
 
 export function Entrenar() {
   const navegar = useNavigate()
   const [parametros] = useSearchParams()
-  const esCorta = parametros.get('corta') === '1'
+  /**
+   * Si es una sesión corta.
+   *
+   * Sale de la URL o del borrador, y lo segundo importa tanto como lo primero:
+   * la URL se pierde cuando el navegador recicla la pestaña, y al retomar
+   * `/entrenar` sin el parámetro la sesión de siete minutos se cerraba como
+   * sesión de plan. Una serie por ejercicio contra un objetivo de tres da un
+   * rendimiento de 0,33, así que el motor le bajaba el objetivo a las cuatro
+   * cadenas por series que nadie falló: nunca se las pidió.
+   */
+  const [cortaRetomada, setCortaRetomada] = useState(false)
+  const esCorta = parametros.get('corta') === '1' || cortaRetomada
 
   const avances = useLiveQuery(leerAvances, [])
   const preferencias = useLiveQuery(leerPreferencias, [])
@@ -97,13 +99,151 @@ export function Entrenar() {
   const [resumen, setResumen] = useState<ResumenSesion | null>(null)
   const [guardando, setGuardando] = useState(false)
   const [prediccion, setPrediccion] = useState<number | null>(null)
-  const [vitalidadPre] = useState<number | undefined>(undefined)
+  /**
+   * La predicción de la serie que está por hacerse, ya cerrada.
+   *
+   * Existe porque sin ella la medición era una mentira aritmética: se guardaba
+   * el mismo número como predicho y como logrado, así que el error era cero por
+   * construcción y "qué tan bien te conocés" mostraba un 0 fijo para siempre.
+   * Medir requiere dos momentos separados, y no hay forma de evitarlo.
+   *
+   * `null` quiere decir que la serie en curso no tiene predicción: o porque la
+   * función está apagada, o porque no es la primera serie del ejercicio, o
+   * porque la pestaña murió entre predecir y anotar. En ese último caso la
+   * serie se guarda sin predicción a propósito: un dato inventado después de
+   * saber el resultado sería peor que ningún dato.
+   */
+  const [predicho, setPredicho] = useState<number | null>(null)
+  /**
+   * La red de contención de la sesión.
+   *
+   * `arrancadaEn` es de cuándo empezó de verdad, no de cuándo montó el
+   * componente: si el navegador recicló la pestaña, esos dos momentos son
+   * distintos y el que vale es el primero. `retomada` es solo para decírselo a
+   * la persona, y `listo` bloquea el primer render hasta saber si hay algo que
+   * restaurar — si no, se vería un parpadeo de "serie 1 de 3" antes del salto.
+   */
+  const [arrancadaEn, setArrancadaEn] = useState<number | undefined>()
+  const [retomada, setRetomada] = useState(false)
+  const [listo, setListo] = useState(false)
+  /**
+   * La energía de antes no se pregunta: ya la contestaste.
+   *
+   * Si hoy hiciste el chequeo diario, el ítem de energía ES la medición previa.
+   * Preguntarla otra vez al empezar la sesión sería cobrar dos veces por el
+   * mismo dato, y el delta de vitalidad no vale un toque extra: vale reusar
+   * uno que ya diste.
+   *
+   * Sin chequeo diario no hay delta, y está bien que no lo haya. Media
+   * medición no es media respuesta, es una respuesta inventada.
+   */
+  const vitalidadPre = useMemo(
+    () => estados?.find((e) => e.fecha === fechaISO())?.energia,
+    [estados],
+  )
 
-  const duracion = useCronometro(resumen === null)
+  const duracion = useCronometro(resumen === null, arrancadaEn)
   const descanso = useTemporizador(() => {
-    if (preferencias?.sonidoDescanso !== false) pitar()
-    vibrar([120, 80, 120])
+    sonar('descanso')
+    tocar('descanso')
   })
+
+  useEffect(() => {
+    configurarSonido(preferencias?.sonidoDescanso !== false)
+    configurarHaptica(preferencias?.haptica !== false)
+  }, [preferencias?.sonidoDescanso, preferencias?.haptica])
+
+  /**
+   * Retomar lo que había quedado a medio hacer.
+   *
+   * Corre una sola vez, antes de dibujar nada. Si hay un borrador vigente se
+   * entra directamente donde se había quedado y en silencio: la persona no
+   * eligió perder la sesión, así que tampoco tiene que elegir recuperarla. El
+   * único aviso es el renglón de abajo, que además ofrece la salida.
+   */
+  useEffect(() => {
+    let vivo = true
+    void leerSesionEnCurso()
+      .then((borrador) => {
+        if (!vivo) return
+        if (borrador) {
+          setIndice(borrador.indice)
+          setHechas(borrador.hechas)
+          setEtapa(borrador.etapa)
+          // Se re-ancla el arranque a lo que se llevaba entrenado, no a la
+          // hora original: el hueco entre que te fuiste y volviste no es
+          // tiempo de entrenamiento.
+          setArrancadaEn(Date.now() - (borrador.duracionAcumulada ?? 0) * 1000)
+          if (borrador.corta) setCortaRetomada(true)
+          setRetomada(true)
+        } else {
+          // El arranque es ahora, no la primera serie anotada: entre abrir la
+          // pantalla y anotar hay una entrada en calor que también es la sesión.
+          setArrancadaEn(Date.now())
+        }
+      })
+      .finally(() => {
+        if (vivo) setListo(true)
+      })
+    return () => {
+      vivo = false
+    }
+  }, [])
+
+  /**
+   * Y guardarlo, después de cada cambio.
+   *
+   * Se escribe en IndexedDB y no en `sessionStorage` a propósito: iOS descarta
+   * el sessionStorage de una pestaña reciclada, que es justamente el caso que
+   * esto tiene que sobrevivir.
+   *
+   * No se guarda una sesión vacía. Un borrador sin una sola serie anotada no
+   * tiene nada que restaurar, y dejarlo escrito haría que abrir la pantalla y
+   * salir cuente como "sesión a medio hacer" para siempre.
+   */
+  useEffect(() => {
+    if (!listo || resumen) return
+    const algo = Object.values(hechas).some((series) => series.length > 0)
+    if (!algo) return
+    const desde = arrancadaEn ?? Date.now()
+    void guardarSesionEnCurso({
+      arrancadaEn: desde,
+      // Se recalcula acá y no se toma del cronómetro para no meter `duracion`
+      // como dependencia del efecto: escribiría en la base una vez por segundo.
+      duracionAcumulada: Math.max(0, Math.round((Date.now() - desde) / 1000)),
+      corta: esCorta,
+      indice,
+      etapa,
+      hechas,
+    })
+  }, [listo, resumen, hechas, indice, etapa, arrancadaEn, esCorta])
+
+  /**
+   * Los tres últimos segundos del descanso, en la piel.
+   *
+   * El arco no puede acelerar —representa tiempo real, si acelera miente— pero
+   * el tacto sí puede contar la entrada, como un músico. Sabés cuándo arranca
+   * sin mirar la pantalla, así que te ponés en posición durante el conteo en
+   * vez de reaccionar después del aviso.
+   *
+   * El ref hace falta porque el temporizador consulta cuatro veces por
+   * segundo: sin él serían doce tics en lugar de tres.
+   */
+  const ultimoTic = useRef(0)
+  useEffect(() => {
+    if (!descanso.activo) {
+      ultimoTic.current = 0
+      return
+    }
+    const faltan = descanso.restante
+    if (faltan > 0 && faltan <= 3 && faltan !== ultimoTic.current) {
+      ultimoTic.current = faltan
+      tocar('antes')
+      // La nota grave solo al entrar en la cuenta: tres notas seguidas serían
+      // insoportables a la octava repetición de la sesión.
+      if (faltan === 3) sonar('aviso')
+    }
+  }, [descanso.activo, descanso.restante])
 
   useModoDePantalla(resumen ? 'cierre' : 'entrenar')
   usePantallaDespierta(resumen === null)
@@ -111,6 +251,12 @@ export function Entrenar() {
   const rutina = preferencias
     ? (RUTINA_POR_ID.get(preferencias.rutinaActivaId) ?? RUTINA_POR_ID.get(RUTINA_POR_DEFECTO)!)
     : null
+
+  /** Qué clase de sesión es. Lo necesitan el factor, la anticipación y el cierre. */
+  const tipo: TipoSesion = useMemo(
+    () => (esCorta ? 'corta' : esVuelta(historial ?? [], fechaISO()) ? 'vuelta' : 'plan'),
+    [esCorta, historial],
+  )
 
   /** El factor del día: estado sostenido y sesión de vuelta se multiplican. */
   const factor = useMemo(() => {
@@ -131,11 +277,23 @@ export function Entrenar() {
       // La sesión corta es un ejercicio por cadena y una serie de cada uno.
       const series = esCorta ? 1 : avance.objetivoActual.series
       const cantidad = Math.max(1, Math.round(avance.objetivoActual.cantidad * factor))
-      return [{ ejercicio, objetivo: { series, cantidad } }]
+      // La vez pasada de ESTE ejercicio, para poner una vara adentro de cada
+      // casillero. Es lo que hace que la segunda sesión no se sienta idéntica
+      // a la primera: los casilleros vacíos ya no están vacíos.
+      const antes = historial ? laVezPasada(historial, ejercicio.id, fechaISO()) : null
+      // Y si esta sesión, cumplida, abre el eslabón siguiente. Solo cuando la
+      // sesión de verdad mueve la progresión: en una corta, una de vuelta o una
+      // cadena congelada el dato sigue siendo correcto y la promesa sería falsa.
+      const cuenta =
+        mueveElPlan(tipo) &&
+        !ajusteDelDia(bandaSostenida(estados ?? [], fechaISO())).neutra &&
+        !cadenasCongeladas(estados ?? [], fechaISO()).has(bloque.patron)
+      const abre = seAbreHoy(avance, cadenaDe(bloque.patron), POR_ID, cuenta)
+      return [{ ejercicio, objetivo: { series, cantidad }, antes, abre }]
     })
-  }, [rutina, avances, esCorta, factor])
+  }, [rutina, avances, esCorta, factor, historial, estados, tipo])
 
-  if (!avances || !preferencias || !historial || plan.length === 0) {
+  if (!avances || !preferencias || !historial || !listo || plan.length === 0) {
     return (
       <div className="flex min-h-dvh items-center justify-center">
         <Rotulo>PREPARANDO LA SESIÓN…</Rotulo>
@@ -147,34 +305,73 @@ export function Entrenar() {
     return <Cierre resumen={resumen} duracion={duracion} alSalir={() => navegar('/')} />
   }
 
-  const paso = plan[indice]!
-  const { ejercicio, objetivo } = paso
+  // El índice viene de un borrador que se escribió con otro plan en la mano.
+  // Hoy el plan puede ser más corto —cambió la rutina, cambió un eslabón— así
+  // que se acota: entrar por un índice que no existe rompe la pantalla entera.
+  const enCurso = Math.min(Math.max(indice, 0), plan.length - 1)
+  const paso = plan[enCurso]!
+  const { ejercicio, objetivo, antes, abre } = paso
   const series = hechas[ejercicio.id] ?? []
   const completo = series.length >= objetivo.series
-  const esUltimo = indice === plan.length - 1
+  const esUltimo = enCurso === plan.length - 1
   const propuesto = prediccion ?? objetivo.cantidad
   const salto = ejercicio.medida === 'segundos' ? 5 : 1
+
+  /**
+   * ¿Toca predecir antes de esta serie?
+   *
+   * Solo en la primera de cada ejercicio, y por dos razones. Una es el costo:
+   * predecir las dieciocho series de una sesión son dieciocho toques extra, y
+   * esta app no le cobra a nadie dieciocho toques por una métrica secundaria.
+   * La otra es que predecir la tercera serie no mide interocepción, mide
+   * aritmética — ya hiciste dos y sabés cómo viene la mano—. La primera serie
+   * es el único momento en que la pregunta es sobre el cuerpo y no sobre el
+   * historial de los últimos cuatro minutos.
+   *
+   * Cuatro predicciones por sesión llegan a las treinta series que pide la
+   * calibración en unas ocho sesiones. Es más lento que antes y, a diferencia
+   * de antes, mide algo.
+   */
+  const tocaPredecir =
+    preferencias.prediccionActiva !== false && series.length === 0 && predicho === null
 
   // La serie de cierre: el ejercicio más fácil de la sesión, al 60%.
   const cierre = plan.reduce((facil, p) => (p.ejercicio.ccr < facil.ejercicio.ccr ? p : facil), plan[0]!)
   const objetivoCierre = Math.max(1, Math.round(cierre.objetivo.cantidad * 0.6))
 
-  function registrarSerie(idEjercicio: string, logrado: number, predicho?: number) {
+  function registrarSerie(
+    idEjercicio: string,
+    logrado: number,
+    predicho?: number,
+    esCierre?: boolean,
+  ) {
     setHechas((previas) => ({
       ...previas,
       [idEjercicio]: [
         ...(previas[idEjercicio] ?? []),
-        { logrado, ...(predicho !== undefined ? { predicho } : {}) },
+        {
+          logrado,
+          ...(predicho !== undefined ? { predicho } : {}),
+          ...(esCierre ? { cierre: true as const } : {}),
+        },
       ],
     }))
     setPrediccion(null)
-    vibrar(40)
   }
 
   function anotar() {
+    // Idempotente y casi gratis si el audio ya está andando. Está acá como
+    // red: si alguien entra a /entrenar por la URL, el gesto de Hoy no ocurrió.
+    despertarAudio()
+
     const logrado = Math.max(0, propuesto)
-    registrarSerie(ejercicio.id, logrado, preferencias?.prediccionActiva ? propuesto : undefined)
-    if (series.length + 1 < objetivo.series) descanso.arrancar(ejercicio.descansoSegundos)
+    registrarSerie(ejercicio.id, logrado, predicho ?? undefined)
+    setPredicho(null)
+
+    const quedan = objetivo.series - (series.length + 1)
+    tocar(quedan === 0 ? 'ejercicio' : quedan === 1 ? 'quedaUna' : 'serie')
+
+    if (quedan > 0) descanso.arrancar(ejercicio.descansoSegundos)
   }
 
   function deshacer() {
@@ -183,11 +380,38 @@ export function Entrenar() {
       [ejercicio.id]: (previas[ejercicio.id] ?? []).slice(0, -1),
     }))
     descanso.detener()
+    setPredicho(null)
+    // El tacto sí: es el único patrón de la app que baja, y confirma que la
+    // corrección entró sin tener que mirar. El sonido no, porque deshacer es
+    // una corrección y no un evento.
+    tocar('deshacer')
+  }
+
+  /**
+   * Empezar de cero: la salida de la sesión retomada.
+   *
+   * Existe porque restaurar en silencio es lo correcto para el caso común —te
+   * sacó un llamado— pero deja sin salida al otro: el que se fue a propósito y
+   * quiere arrancar limpio. Un toque, sin confirmación: no borra nada que esté
+   * guardado, solo un borrador.
+   */
+  function empezarDeCero() {
+    void descartarSesionEnCurso()
+    setHechas({})
+    setIndice(0)
+    setEtapa('series')
+    setPrediccion(null)
+    setPredicho(null)
+    setArrancadaEn(Date.now())
+    setCortaRetomada(false)
+    setRetomada(false)
+    descanso.detener()
   }
 
   function avanzar() {
     descanso.detener()
     setPrediccion(null)
+    setPredicho(null)
     if (!esUltimo) setIndice((i) => i + 1)
     else setEtapa('cierre-serie')
   }
@@ -206,12 +430,6 @@ export function Entrenar() {
       series: hechas[e.id] ?? [],
     }))
 
-    const tipo: TipoSesion = esCorta
-      ? 'corta'
-      : esVuelta(historial ?? [], fechaISO())
-        ? 'vuelta'
-        : 'plan'
-
     try {
       const cerrada = await cerrarSesion({
         registros,
@@ -221,6 +439,8 @@ export function Entrenar() {
         ...datos,
       })
       setResumen(cerrada)
+      // La sesión ya está guardada de verdad: el borrador dejó de hacer falta.
+      await descartarSesionEnCurso()
       // El respaldo ocurre solo, sin avisar y sin poder romper nada.
       void respaldarEnSilencio()
     } finally {
@@ -246,7 +466,8 @@ export function Entrenar() {
         cantidad={objetivoCierre}
         medida={cierre.ejercicio.medida}
         onHecho={() => {
-          registrarSerie(cierre.ejercicio.id, objetivoCierre)
+          registrarSerie(cierre.ejercicio.id, objetivoCierre, undefined, true)
+          tocar('ejercicio')
           setEtapa('preguntas')
         }}
         onSaltear={() => setEtapa('preguntas')}
@@ -269,12 +490,25 @@ export function Entrenar() {
             key={p.ejercicio.id}
             className="h-0.5 flex-1"
             style={{
-              backgroundColor: i <= indice ? 'var(--color-vega)' : 'var(--color-regla)',
-              opacity: i < indice ? 0.5 : 1,
+              backgroundColor: i <= enCurso ? 'var(--color-vega)' : 'var(--color-regla)',
+              opacity: i < enCurso ? 0.5 : 1,
             }}
           />
         ))}
       </div>
+
+      {/* El único aviso de que esto se retomó. Va acá y no en un cartel: lo
+          que hay que comunicar es "no perdiste nada", y para eso alcanza con
+          que las series ya anotadas estén en su lugar. El botón es para el
+          otro caso, el que salió a propósito y quiere arrancar limpio. */}
+      {retomada && (
+        <p className="rotulo mt-3 flex items-center justify-between gap-3 px-4">
+          <span>sesión retomada donde la dejaste</span>
+          <button onClick={empezarDeCero} className="underline underline-offset-4">
+            empezar de cero
+          </button>
+        </p>
+      )}
 
       <main className="mx-auto flex w-full max-w-lg flex-1 flex-col px-4 pt-8">
         <Rotulo>
@@ -283,31 +517,70 @@ export function Entrenar() {
         </Rotulo>
         <h1 className="mt-2 text-3xl font-bold leading-tight tracking-tight">{ejercicio.nombre}</h1>
 
+        {/* La víspera, adentro de la sesión: lo que está en juego hoy en esta
+            cadena. Es una sola línea y aparece muy poco —solo cuando falta
+            exactamente una sesión— porque una anticipación permanente deja de
+            ser una anticipación. Y no dice "esta serie": el motor decide al
+            cerrar la sesión, no al anotar una serie, y decirlo de otra forma
+            sería prometer algo que la app no controla.
+
+            Va en texto normal y no en rótulo: un rótulo en versalitas espaciadas
+            es para dos palabras, y una frase entera ahí se lee como un segundo
+            título gritándole al nombre del ejercicio. Tampoco va en `.glosa`:
+            esta pantalla apaga la voz del motor a propósito, y eso es una
+            decisión de diseño, no un descuido que haya que esquivar. */}
+        {abre && (
+          <p className="mt-2 max-w-[34ch] text-sm leading-relaxed text-[var(--color-glosa)]">
+            Si cerrás esta sesión, pasás a{' '}
+            <span className="text-[var(--color-tinta)]">{abre.nombre.toLowerCase()}</span>.
+          </p>
+        )}
+
+        {/* Los casilleros, con la vara adentro.
+            Un casillero vacío no dice nada; un casillero con el número de la
+            vez pasada dice exactamente qué hay que hacer, y lo dice con un dato
+            que puso la propia persona. Cuando la serie se anota, el número de
+            hoy lo tapa: la comparación importa antes, no después. */}
         <ul className="mt-6 flex gap-2" aria-label="Series de este ejercicio">
           {Array.from({ length: objetivo.series }).map((_, i) => {
             const serie = series[i]
             const activa = i === series.length
+            const vara = antes?.logros[i]
             return (
               <li
                 key={i}
-                className="cifra flex h-14 flex-1 items-center justify-center text-lg"
+                className="cifra relative flex h-14 flex-1 items-center justify-center text-lg"
                 style={{
                   border: `1px ${activa && !serie ? 'dashed' : 'solid'} ${
                     serie || activa ? 'var(--color-vega)' : 'var(--color-regla)'
                   }`,
                   color: serie ? 'var(--color-tinta)' : 'var(--color-glosa)',
                 }}
+                aria-label={
+                  serie
+                    ? `Serie ${i + 1}: ${serie.logrado}`
+                    : vara !== undefined
+                      ? `Serie ${i + 1}, sin hacer. La vez pasada: ${vara}`
+                      : `Serie ${i + 1}, sin hacer`
+                }
               >
-                {serie ? serie.logrado : '·'}
+                {serie ? serie.logrado : vara !== undefined ? <span className="vara">{vara}</span> : '·'}
               </li>
             )
           })}
         </ul>
 
+        {antes && (
+          <p className="rotulo mt-2 text-right">
+            {antes.hace === 0 ? 'hoy, más temprano' : `la vez pasada, ${haceCuanto(antes.hace)}`}
+          </p>
+        )}
+
         {descanso.activo ? (
           <Descanso
             restante={descanso.restante}
             total={ejercicio.descansoSegundos}
+            clave={{ tecnica: ejercicio.tecnica, hechas: series.length }}
             onSumar={() => descanso.sumar(30)}
             onSaltear={descanso.detener}
           />
@@ -320,10 +593,18 @@ export function Entrenar() {
           </section>
         ) : (
           <section className="flex flex-1 flex-col justify-center pb-8">
+            {/* La pregunta dice en qué momento estás.
+                Antes decía "¿Cuántas te salen ahora?" y abajo el botón decía
+                "Anotar serie": la misma pantalla preguntaba por lo que iba a
+                pasar y guardaba lo que había pasado. De ahí salía el cero
+                eterno de la calibración. Ahora son dos preguntas distintas
+                porque son dos momentos distintos. */}
             <p className="text-center text-sm text-[var(--color-glosa)]">
-              {preferencias.prediccionActiva
+              {tocaPredecir
                 ? '¿Cuántas te salen ahora?'
-                : `${nombreUnidad(ejercicio.medida)} de esta serie`}
+                : predicho !== null
+                  ? '¿Cuántas hiciste?'
+                  : `${nombreUnidad(ejercicio.medida)} de esta serie`}
             </p>
 
             <div className="mt-4 flex items-center justify-center gap-6">
@@ -360,8 +641,20 @@ export function Entrenar() {
 
       <div className="mt-auto">
         {!completo && !descanso.activo && (
-          <Accion esfuerzo onClick={anotar}>
-            Anotar serie
+          <Accion
+            esfuerzo
+            onClick={
+              tocaPredecir
+                ? () => {
+                    // Se cierra la predicción y se deja el mismo número puesto:
+                    // si acertaste, anotar cuesta un toque y nada más.
+                    despertarAudio()
+                    setPredicho(propuesto)
+                  }
+                : anotar
+            }
+          >
+            {tocaPredecir ? 'Voy' : 'Anotar serie'}
           </Accion>
         )}
         {completo && (
@@ -384,14 +677,40 @@ export function Entrenar() {
 function Descanso({
   restante,
   total,
+  clave,
   onSumar,
   onSaltear,
 }: {
   restante: number
   total: number
+  /**
+   * La técnica del ejercicio y cuántas series van hechas, para elegir la
+   * indicación. Es lo único que cambia entre un descanso y el siguiente.
+   */
+  clave: { tecnica: string[]; hechas: number }
   onSumar: () => void
   onSaltear: () => void
 }) {
+  // Una indicación por descanso, rotando. Sesenta o noventa segundos por
+  // serie son unos veinte minutos de sesión mirando un arco vaciarse: es el
+  // bloque de tiempo más grande de la app y estaba muerto. La técnica ya
+  // estaba escrita para cada uno de los treinta y nueve ejercicios y no la
+  // veía nadie, porque para leerla hay que salir de la sesión y entrar a la
+  // ficha, que es exactamente lo que nadie hace con el pulso a ciento
+  // cuarenta. Acá llega sola, en el único momento en que sirve: justo antes
+  // de volver a hacer el movimiento.
+  //
+  // Rota para que tres descansos den tres indicaciones distintas y no la
+  // misma tres veces, que se leería una sola vez y después sería mobiliario.
+  //
+  // Los errores comunes no van acá y sí en la ficha: un "no hagas esto"
+  // leído de reojo y a medias se puede entender al revés, y la ficha tiene
+  // lugar para enmarcarlo.
+  const indicacion =
+    clave.tecnica.length > 0
+      ? clave.tecnica[clave.hechas % clave.tecnica.length]
+      : null
+
   return (
     <section className="flex flex-1 flex-col items-center justify-center pb-8">
       <div className="relative flex h-44 w-44 items-center justify-center">
@@ -408,6 +727,12 @@ function Descanso({
         </svg>
         <p className="cifra text-5xl">{comoReloj(restante)}</p>
       </div>
+      {indicacion && (
+        <p className="mt-8 max-w-[32ch] text-center text-sm leading-relaxed text-[var(--color-glosa)]">
+          {indicacion}
+        </p>
+      )}
+
       <div className="mt-8 flex gap-3">
         <button onClick={onSumar} className="rotulo px-4 py-3" style={{ border: '1px solid var(--color-regla)' }}>
           +30 s
@@ -508,12 +833,15 @@ function Preguntas({
 
         <Pregunta
           titulo="¿Cuánta energía tenés ahora?"
+          // La misma escala de cinco puntos y las mismas etiquetas que el
+          // chequeo diario. Si las dos puntas del delta no se miden con la
+          // misma vara, el delta no significa nada.
           opciones={[
-            [1, 'Nada'],
-            [3, 'Poca'],
-            [5, 'Normal'],
-            [6, 'Bastante'],
-            [7, 'Mucha'],
+            [1, 'En el piso'],
+            [2, 'Cansado'],
+            [3, 'Normal'],
+            [4, 'Con energía'],
+            [5, 'A pleno'],
           ]}
           valor={energia}
           onElegir={setEnergia}

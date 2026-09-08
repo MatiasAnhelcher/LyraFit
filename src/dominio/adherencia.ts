@@ -135,11 +135,47 @@ export function intervaloHabitual(sesiones: Sesion[]): number | null {
 }
 
 /**
+ * El hueco más largo que esta persona hace de forma NORMAL.
+ *
+ * No es la mediana: es el percentil alto. La diferencia decide si el fin de
+ * semana cuenta como una ausencia, y con la rutina por defecto la mediana da
+ * la respuesta equivocada — lunes, miércoles y viernes tiene huecos de 2, 2 y
+ * 3 días, mediana 2, así que el hueco del fin de semana parecía una falta.
+ *
+ * El percentil se eligió midiendo las tres rutinas de la app, no a ojo. Tiene
+ * que quedar por encima del hueco largo de cada una y por debajo de una
+ * ausencia de verdad:
+ *
+ *     L-M-V        intervalos 2,2,3…   p50→3,0   p85→4,5   p90→4,5
+ *     Ma-V         intervalos 3,4…     p50→6,0   p85→6,0   p90→6,0
+ *     L-Ma-J-V     intervalos 1,2,1,3… p50→3,0   p85→4,5   p90→4,5
+ *     L-M-V con una semana entera sin entrenar   p85→4,5   p90→15,0
+ *
+ * La mediana deja afuera el hueco del fin de semana en dos de las tres. El
+ * percentil 90 se traga la ausencia real y deja de detectar vueltas durante
+ * dos semanas. El 85 es el único que acierta en las cuatro filas.
+ */
+export const PERCENTIL_DEL_HUECO = 0.85
+
+function huecoNormal(intervalos: number[]): number {
+  const ordenados = [...intervalos].sort((a, b) => a - b)
+  const i = Math.min(ordenados.length - 1, Math.floor(ordenados.length * PERCENTIL_DEL_HUECO))
+  return ordenados[i] ?? 0
+}
+
+/**
  * ¿Esta sesión es una vuelta después de faltar?
  *
  * El umbral es relativo al hábito de cada uno: faltar cuatro días es una
  * eternidad para quien entrena cinco veces por semana y es normal para quien
  * entrena dos.
+ *
+ * Y se compara contra el hueco más largo que la persona hace normalmente, no
+ * contra su mediana. Medido contra la mediana, la rutina por defecto —lunes,
+ * miércoles y viernes— daba "vuelta" TODOS los lunes: mediana 2, umbral 3, y
+ * el hueco del fin de semana es exactamente 3. Eso recortaba el objetivo al
+ * 70% un día de cada tres y, peor, dejaba de mover la progresión ese día. Un
+ * tercio de las sesiones de alguien impecable no contaba para nada.
  */
 export function esVuelta(sesiones: Sesion[], hoy: string): boolean {
   const ultima = sesiones.reduce<string | null>(
@@ -148,10 +184,13 @@ export function esVuelta(sesiones: Sesion[], hoy: string): boolean {
   )
   if (ultima === null) return false
 
-  const habitual = intervaloHabitual(sesiones)
-  if (habitual === null) return false
+  const dias = [...new Set(sesiones.map((s) => s.fecha))].sort().reverse().slice(0, 11)
+  if (dias.length < 3) return false
 
-  return diasEntre(ultima, hoy) >= 1.5 * habitual
+  const intervalos: number[] = []
+  for (let i = 1; i < dias.length; i++) intervalos.push(diasEntre(dias[i]!, dias[i - 1]!))
+
+  return diasEntre(ultima, hoy) >= 1.5 * huecoNormal(intervalos)
 }
 
 /** Cuánto se recorta el objetivo en una sesión de vuelta. */

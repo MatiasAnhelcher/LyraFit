@@ -21,7 +21,7 @@
 
 import { useNavigate } from 'react-router-dom'
 import { useLiveQuery } from 'dexie-react-hooks'
-import { NOMBRE_PATRON, buscarEjercicio, cadenaDe } from '@/dominio/biblioteca'
+import { NOMBRE_PATRON, POR_ID, buscarEjercicio, cadenaDe } from '@/dominio/biblioteca'
 import {
   NOMBRE_DIA,
   RUTINA_POR_DEFECTO,
@@ -31,7 +31,10 @@ import {
   tocaEntrenar,
 } from '@/dominio/rutinas'
 import { adherencia, esVuelta, proximoHito, sesionesDeVida } from '@/dominio/adherencia'
-import { bandaSostenida, ajusteDelDia } from '@/dominio/estado'
+import { laVezPasada } from '@/dominio/estadisticas'
+import { bandaSostenida, ajusteDelDia, cadenasCongeladas } from '@/dominio/estado'
+import { seAbreHoy } from '@/dominio/anticipacion'
+import { mueveElPlan } from '@/dominio/progresion'
 import {
   fechaISO,
   leerAvances,
@@ -40,6 +43,7 @@ import {
   leerPreferencias,
   leerSesiones,
 } from '@/datos/repositorio'
+import { despertarAudio } from '@/respuesta'
 import { Carta } from '@/componentes/carta'
 import { Accion, Cargando, Glifo, Glosa, Objetivo, Rotulo, Tira } from '@/componentes/ui'
 
@@ -83,11 +87,46 @@ export function Hoy() {
   const ajuste = ajusteDelDia(banda)
   const vuelve = esVuelta(sesiones, fecha)
 
+  const congeladas = cadenasCongeladas(estados, fecha)
+
   const bloques = rutina.bloques.flatMap((bloque) => {
     const avance = avances.get(bloque.patron)
     const ejercicio = avance ? buscarEjercicio(avance.ejercicioId) : undefined
-    return avance && ejercicio ? [{ patron: bloque.patron, avance, ejercicio }] : []
+    if (!avance || !ejercicio) return []
+
+    // Si la sesión de hoy no mueve la progresión, no hay nada que anticipar:
+    // el dato sería correcto y la promesa igual sería falsa.
+    const cuenta =
+      mueveElPlan(vuelve ? 'vuelta' : 'plan') && !ajuste.neutra && !congeladas.has(bloque.patron)
+
+    return [
+      {
+        patron: bloque.patron,
+        avance,
+        ejercicio,
+        // Lo que hiciste la última vez que te tocó ESTE ejercicio. Si cambiaste
+        // de eslabón la semana pasada no hay con qué comparar, y no se inventa.
+        antes: laVezPasada(sesiones, ejercicio.id, fecha),
+        abre: seAbreHoy(avance, cadenaDe(bloque.patron), POR_ID, cuenta),
+      },
+    ]
   })
+
+  /**
+   * La víspera: el eslabón que se abre hoy si esta sesión se cumple.
+   *
+   * Es lo único que la app anticipa, y lo dice porque es literalmente cierto —
+   * el motor es determinista y `proyectar` lo corre en seco—. La señal
+   * dopaminérgica no responde a la recompensa sino al error de predicción de
+   * recompensa: un premio perfectamente predecible deja de producir señal, y
+   * estar a una sesión de algo que todavía no pasó es exactamente la forma que
+   * tiene la anticipación. Acá no hay que fabricarla: ya estaba en el motor y
+   * no se mostraba en ningún lado.
+   *
+   * Sale una sola vez, la del primero que esté a punto. Cuatro cadenas a punto
+   * el mismo día es una lista, y una lista no anticipa nada.
+   */
+  const vispera = bloques.find((b) => b.abre)
 
   const filasDeCarta = [...avances.values()].map((avance) => ({
     patron: avance.patron,
@@ -154,7 +193,7 @@ export function Hoy() {
         </Rotulo>
 
         <div className="registro mt-3">
-          {bloques.map(({ patron, avance, ejercicio }) => {
+          {bloques.map(({ patron, avance, ejercicio, antes }) => {
             const cadena = cadenaDe(patron)
             const posicion = cadena.ejercicios.indexOf(ejercicio.id) + 1
             return (
@@ -164,8 +203,27 @@ export function Hoy() {
                 </span>
                 <span className="min-w-0">
                   <span className="nombre block truncate">{ejercicio.nombre}</span>
-                  <span className="rotulo mt-0.5 block">
+                  {/* La vara que puso la persona la última vez, en el renglón
+                      chico y no al lado del objetivo: ahí le comía el ancho al
+                      nombre del ejercicio, que es lo único que no se puede
+                      truncar. Acá sobra lugar y el número es lo único de la
+                      línea que va en tinta, o sea lo único que se ve.
+
+                      No es una recompensa ni una insignia: es información sobre
+                      la propia competencia, que es la clase de feedback que
+                      construye motivación en vez de erosionarla. Y sin ella la
+                      segunda sesión se siente idéntica a la primera. */}
+                  <span className="rotulo mt-0.5 block truncate">
                     {NOMBRE_PATRON[patron]} · {posicion}/{cadena.ejercicios.length}
+                    {antes && (
+                      <>
+                        {' · antes '}
+                        <span className="cifra text-[var(--color-tinta)]">
+                          {antes.mejor}
+                          {ejercicio.medida === 'segundos' && <span className="lowercase">s</span>}
+                        </span>
+                      </>
+                    )}
                   </span>
                 </span>
                 <Objetivo
@@ -178,6 +236,28 @@ export function Hoy() {
           })}
         </div>
 
+        {vispera?.abre && (
+          <p className="mt-4 max-w-[40ch] text-sm leading-relaxed text-[var(--color-glosa)]">
+            {/* Dos redacciones, y las dos son ciertas. Con la sesión de hoy por
+                delante habla de hoy; ya entrenada, o en un día de descanso,
+                habla de la próxima — que es cuando esto más sirve, porque es
+                justo el momento en que la persona cierra la app.
+
+                "Pasás a X" y no "se abre X": los nombres de los ejercicios
+                cambian de número —"dominadas completas" contra "plancha
+                lateral"— y cualquier verbo que concuerde con ellos queda mal la
+                mitad de las veces. Es además el verbo que usa el motor cuando
+                explica la decisión al cerrar la sesión. */}
+            {esDiaDeEntrenar && !entrenoHoy
+              ? 'Si cerrás esta sesión cumpliendo, '
+              : 'Si cumplís la próxima sesión, '}
+            <span className="text-[var(--color-tinta)]">
+              pasás a {vispera.abre.nombre.toLowerCase()}
+            </span>
+            .
+          </p>
+        )}
+
         {!esDiaDeEntrenar && siguiente && (
           <p className="mt-4 text-sm leading-relaxed text-[var(--color-glosa)]">
             El próximo es el {NOMBRE_DIA[diaDeLaSemana(siguiente)]?.toLowerCase()}. Descansar no
@@ -185,6 +265,38 @@ export function Hoy() {
           </p>
         )}
       </section>
+
+      {/* La acción va acá y no al final, que es donde estaba.
+          Medido en tres teléfonos: al final quedaba entre 160 y 367 píxeles por
+          debajo del pliegue, o sea que en la pantalla que se abre veinte veces
+          por semana había que scrollear para llegar a lo único que la pantalla
+          existe para hacer. Y lo que la tapaba —la carta y la barra de 28
+          días— es contexto: se mira cuando uno quiere mirarlo, no antes de
+          poder empezar. El orden ahora es quién sos, qué toca hoy, empezar, y
+          después dónde estás parado. */}
+      <div className="mt-10 -mx-4">
+        <Accion
+          onClick={() => {
+            // El audio se despierta acá y no cuando el descanso termina: en
+            // iOS un contexto creado fuera de un gesto nace suspendido y se
+            // queda así, y un temporizador no es un gesto. Sin esta línea el
+            // aviso del descanso no suena nunca en iPhone.
+            despertarAudio()
+            navegar('/entrenar')
+          }}
+        >
+          {entrenoHoy ? 'Entrenar otra vez' : vuelve ? 'Volver a empezar' : 'Empezar'}
+        </Accion>
+        <button
+          onClick={() => {
+            despertarAudio()
+            navegar('/entrenar?corta=1')
+          }}
+          className="accion-quieta"
+        >
+          Solo tengo 7 minutos
+        </button>
+      </div>
 
       <section className="mt-8">
         <Rotulo className="mb-3">DÓNDE ESTÁS</Rotulo>
@@ -224,17 +336,6 @@ export function Hoy() {
         )}
       </section>
 
-      <div className="mt-10 -mx-4">
-        <Accion onClick={() => navegar('/entrenar')}>
-          {entrenoHoy ? 'Entrenar otra vez' : vuelve ? 'Volver a empezar' : 'Empezar'}
-        </Accion>
-        <button
-          onClick={() => navegar('/entrenar?corta=1')}
-          className="accion-quieta"
-        >
-          Solo tengo 7 minutos
-        </button>
-      </div>
     </>
   )
 }

@@ -100,6 +100,17 @@ export interface Serie {
    * última serie del ejercicio, y nunca es obligatorio.
    */
   reservas?: number
+  /**
+   * La serie de cierre: la fácil que se agrega al final para que la sesión no
+   * termine en el punto más duro.
+   *
+   * Se guarda porque es trabajo real y cuenta para el volumen y el historial,
+   * pero **no opina sobre la progresión**. Está declarada "no se puede
+   * fallar", y una serie que no se puede fallar tampoco puede empujar un
+   * cambio de eslabón: al entrar en el promedio subía el rendimiento de 1,00
+   * a 1,04 y podía disparar un salto que no se ganó.
+   */
+  cierre?: true
 }
 
 /** El registro de un ejercicio dentro de una sesión de entrenamiento. */
@@ -122,6 +133,27 @@ export interface RegistroEjercicio {
 export type TipoSesion = 'plan' | 'corta' | 'vuelta'
 
 /** Una sesión de entrenamiento completa. */
+/**
+ * Lo que el motor decidió esa noche, guardado para poder releerlo.
+ *
+ * La explicación del motor es el activo diferencial del producto —ninguna otra
+ * app te muestra la regla que decidió tu próximo objetivo— y vivía diez
+ * segundos: se mostraba en el cierre y se perdía para siempre. Guardarla
+ * cuesta un par de cientos de bytes por sesión y convierte el historial en
+ * algo que se puede leer en vez de una lista de fechas.
+ *
+ * Es una copia y no una referencia a propósito: si mañana cambian las reglas
+ * del motor, lo que dice el historial tiene que seguir siendo lo que la app
+ * dijo esa noche, no lo que diría hoy.
+ */
+export interface DecisionGuardada {
+  patron: Patron
+  /** El mismo `Movimiento` del motor, guardado como texto. */
+  movimiento: string
+  explicacion: string
+  cambioDeNivel: boolean
+}
+
 export interface Sesion {
   id: string
   /** Fecha en formato ISO (AAAA-MM-DD), para poder ordenar y agrupar. */
@@ -133,6 +165,8 @@ export interface Sesion {
   registros: RegistroEjercicio[]
   nota?: string
   tipo: TipoSesion
+  /** Lo que el motor decidió al cerrarla. Ausente en las sesiones viejas. */
+  decisiones?: DecisionGuardada[]
   /**
    * Esfuerzo de la sesión entera, del 1 al 10. Es el session-RPE de Foster,
    * que es la forma más barata y mejor validada de estimar carga interna sin
@@ -140,8 +174,10 @@ export interface Sesion {
    */
   esfuerzo?: number
   /**
-   * Energía sentida antes y después, del 1 al 7. Adaptado de la Subjective
-   * Vitality Scale de Ryan y Frederick; no es la escala completa.
+   * Energía sentida antes y después, del 1 al 5, en la misma escala que el
+   * ítem de energía del chequeo diario —que es de donde sale la medición
+   * previa, sin pedir un toque extra—. Adaptado de la Subjective Vitality
+   * Scale de Ryan y Frederick; no es la escala completa.
    *
    * La diferencia entre las dos es el único número honesto que puede dar una
    * app de entrenamiento sobre lo que entrenar le hace a la cabeza: es propio
@@ -214,8 +250,17 @@ export interface Rutina {
 export interface Preferencias {
   id: 'unico'
   rutinaActivaId: string
-  /** Sonido al terminar el descanso. */
+  /**
+   * Sonido. El fin del descanso, los récords y el cambio de nivel: nada más
+   * suena. Se llama así por historia — antes era solo el aviso del descanso—
+   * y se conserva el nombre para no migrar la base por un rótulo.
+   */
   sonidoDescanso: boolean
+  /**
+   * Vibración. En iOS la API no existe, así que la fila ni se muestra: un
+   * interruptor muerto es peor que ninguno.
+   */
+  haptica?: boolean
   tema: 'claro' | 'oscuro' | 'sistema'
   /** Cuándo se terminó de configurar la app. Si no está, se muestra el alta. */
   altaCompletadaEn?: number
@@ -260,4 +305,43 @@ export interface Estado {
   /** True si se contestó después de entrenar, cuando el dolor ya está contaminado. */
   posterior?: boolean
   actualizadoEn: number
+}
+
+/**
+ * Una sesión a medio hacer.
+ *
+ * No hay servidor, y hasta acá tampoco había red de contención: los cuarenta
+ * minutos de una sesión vivían enteros en la memoria de la pestaña. Un
+ * navegador que recicla la pestaña —que es exactamente lo que hace iOS cuando
+ * atendés un llamado, cambiás de app o el teléfono queda corto de memoria—
+ * borraba la sesión entera. Perder cuarenta minutos de trabajo es peor que
+ * cualquier función que la app pueda no tener.
+ *
+ * Es una fila sola, con clave fija: no tiene sentido tener dos sesiones a
+ * medio hacer al mismo tiempo.
+ */
+export interface SesionEnCurso {
+  id: 'actual'
+  /** Cuándo arrancó de verdad, para que el cronómetro no se reinicie al volver. */
+  arrancadaEn: number
+  /**
+   * Segundos de sesión efectivamente transcurridos hasta este guardado.
+   *
+   * Es lo que se restaura, y no `arrancadaEn` a secas, porque las dos cosas no
+   * son lo mismo cuando hubo un hueco: quien empieza a las ocho, se va, y
+   * vuelve a las doce y media entrenó veinticinco minutos, no cuatro horas y
+   * media. Sin esto la sesión quedaba escrita en el historial —para siempre—
+   * con el tiempo muerto adentro, y contaminaba también la carga interna, que
+   * se calcula sobre la duración.
+   */
+  duracionAcumulada: number
+  actualizadoEn: number
+  /** Si era una sesión corta. Se guarda porque venía en la URL y la URL se pierde. */
+  corta: boolean
+  /** En qué ejercicio del plan iba. */
+  indice: number
+  /** En qué etapa: las series, la de cierre o las preguntas del final. */
+  etapa: 'series' | 'cierre-serie' | 'preguntas'
+  /** Lo anotado hasta ahora, por ejercicio. */
+  hechas: Record<string, Serie[]>
 }

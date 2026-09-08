@@ -1,7 +1,9 @@
 import { describe, expect, it } from 'vitest'
 import {
   curvaDeFuerza,
+  haceCuanto,
   historicoDeEjercicio,
+  laVezPasada,
   lunesDe,
   porSemana,
   recordDe,
@@ -163,5 +165,143 @@ describe('totales', () => {
     expect(t.repeticiones).toBe(20)
     expect(t.segundos).toBe(30)
     expect(t.minutos).toBe(60)
+  })
+})
+
+describe('la vez pasada', () => {
+  const conEjercicio = (fecha: string, id: string, logros: number[], cantidad = 10): Sesion => ({
+    id: fecha + id,
+    fecha,
+    finalizadaEn: 0,
+    duracionSegundos: 600,
+    tipo: 'plan',
+    registros: [
+      {
+        ejercicioId: id,
+        objetivo: { series: logros.length, cantidad },
+        series: logros.map((logrado) => ({ logrado })),
+      },
+    ],
+  })
+
+  it('encuentra la última vez, no la primera', () => {
+    const historial = [
+      conEjercicio('2026-01-05', 'flexion-completa', [5, 5, 4]),
+      conEjercicio('2026-01-12', 'flexion-completa', [8, 8, 7]),
+      conEjercicio('2026-01-09', 'flexion-completa', [6, 6, 6]),
+    ]
+    const vez = laVezPasada(historial, 'flexion-completa', '2026-01-15')
+    expect(vez?.fecha).toBe('2026-01-12')
+    expect(vez?.logros).toEqual([8, 8, 7])
+    expect(vez?.mejor).toBe(8)
+    expect(vez?.hace).toBe(3)
+  })
+
+  it('la primera vez no inventa una vara', () => {
+    expect(laVezPasada([], 'flexion-completa', '2026-01-15')).toBeNull()
+    expect(
+      laVezPasada(
+        [conEjercicio('2026-01-05', 'dominada-australiana', [5, 5])],
+        'flexion-completa',
+        '2026-01-15',
+      ),
+    ).toBeNull()
+  })
+
+  it('ignora las series en cero: no son una vara, son una sesión abandonada', () => {
+    const historial = [
+      conEjercicio('2026-01-05', 'flexion-completa', [7, 7, 7]),
+      conEjercicio('2026-01-12', 'flexion-completa', [0, 0, 0]),
+    ]
+    const vez = laVezPasada(historial, 'flexion-completa', '2026-01-15')
+    expect(vez?.fecha).toBe('2026-01-05')
+  })
+
+  it('conserva el objetivo de ese día, para saber si lo cumplió', () => {
+    const vez = laVezPasada(
+      [conEjercicio('2026-01-12', 'flexion-completa', [8, 8, 7], 8)],
+      'flexion-completa',
+      '2026-01-15',
+    )
+    expect(vez?.objetivo).toEqual({ series: 3, cantidad: 8 })
+  })
+})
+
+describe('haceCuanto', () => {
+  it('habla como habla alguien, no como un reloj', () => {
+    expect(haceCuanto(0)).toBe('hoy')
+    expect(haceCuanto(1)).toBe('ayer')
+    expect(haceCuanto(3)).toBe('hace 3 días')
+    expect(haceCuanto(8)).toBe('hace una semana')
+    expect(haceCuanto(21)).toBe('hace 3 semanas')
+    expect(haceCuanto(45)).toBe('hace un mes')
+    expect(haceCuanto(90)).toBe('hace 3 meses')
+  })
+})
+
+/**
+ * La serie de cierre y las estadísticas.
+ *
+ * Se hace al final, al sesenta por ciento del ejercicio más fácil, y la app la
+ * anota con el número propuesto sin preguntar: nunca se midió. El motor ya la
+ * ignoraba para decidir; faltaba que la ignoraran las estadísticas que dicen
+ * cuánto podés hacer.
+ *
+ * El caso de abajo es el peor y no es raro: alguien pidió quince y logró
+ * 4-3-3. La serie de cierre le pide 9. Sin filtrar, esa persona ve "tu mejor
+ * serie: 9" y a la sesión siguiente un "antes 9" en Hoy — una vara que nunca
+ * hizo, puesta justo el día que la está pasando mal.
+ */
+describe('la serie de cierre no cuenta como capacidad, pero sí como trabajo', () => {
+  const malDia: Sesion = {
+    id: 'mal',
+    fecha: '2026-09-01',
+    finalizadaEn: 1,
+    duracionSegundos: 600,
+    tipo: 'plan',
+    registros: [
+      {
+        ejercicioId: 'flexion-inclinada-alta',
+        objetivo: { series: 3, cantidad: 15 },
+        series: [{ logrado: 4 }, { logrado: 3 }, { logrado: 3 }, { logrado: 9, cierre: true }],
+      },
+    ],
+  }
+
+  it('no inventa un récord', () => {
+    expect(recordDe([malDia], 'flexion-inclinada-alta')).toBe(4)
+  })
+
+  it('no se convierte en la vara de la vez pasada', () => {
+    const vez = laVezPasada([malDia], 'flexion-inclinada-alta', '2026-09-03')
+    expect(vez?.mejor).toBe(4)
+    expect(vez?.logros).toEqual([4, 3, 3])
+  })
+
+  it('no infla el histórico del ejercicio', () => {
+    const [punto] = historicoDeEjercicio([malDia], 'flexion-inclinada-alta')
+    expect(punto?.mejor).toBe(4)
+    expect(punto?.series).toBe(3)
+  })
+
+  it('no infla la curva de fuerza', () => {
+    const conCierre = curvaDeFuerza([malDia], 'empuje')[0]
+    const sinCierre = curvaDeFuerza(
+      [
+        {
+          ...malDia,
+          registros: [{ ...malDia.registros[0]!, series: [{ logrado: 4 }, { logrado: 3 }, { logrado: 3 }] }],
+        },
+      ],
+      'empuje',
+    )[0]
+    expect(conCierre?.carga).toBeCloseTo(sinCierre!.carga, 10)
+  })
+
+  it('pero sigue contando como trabajo hecho: cuatro series son cuatro series', () => {
+    // Es la otra mitad de la regla, y es la que evita pasarse de largo: la
+    // serie de cierre se guarda justamente porque es trabajo real.
+    expect(seriesDeSesion(malDia)).toBe(4)
+    expect(repeticionesDeSesion(malDia)).toBe(19)
   })
 })

@@ -48,13 +48,46 @@ al trabajo, no el actual:
 | §3 Arquitectura de adherencia | **Hecho.** A28, créditos, sesión de vuelta, sesión corta, identidad |
 | §4 Motor v2 completo | **Hecho**, salvo los micro-escalones dinámicos de §4.8 |
 | §5.1 Delta de vitalidad | **Hecho.** |
-| §5.2 Calibración interoceptiva | **Hecho.** |
+| §5.2 Calibración interoceptiva | **Hecho**, y después arreglada: medía cero por construcción porque la pantalla guardaba un solo número como predicho y como logrado. Ahora son dos momentos, en la primera serie de cada ejercicio |
 | §5.3–5.4 Chequeo diario e índice | **Hecho.** |
 | §5.5 Módulo de alimentación | Pendiente |
 | §5.7 Ritual de respiración | Pendiente |
 | §6.9 Backup automático | **Hecho.** OPFS con rotación de tres |
 | §6.9 Web Push | Pendiente |
 | §8 Ola 1 | 11 de 12 |
+
+Y lo que salió después, del trabajo sobre el gancho y el recorrido del usuario.
+Casi todo era material que la app **ya tenía guardado y no mostraba**, que
+resultó ser la veta más rica de todas:
+
+| Qué | Estado |
+|---|---|
+| La sesión sobrevive a que el navegador recicle la pestaña | **Hecho.** Borrador en IndexedDB, vigencia de seis horas, `rescate.mjs` lo verifica matando la pestaña a media sesión |
+| La vez pasada, en Hoy y adentro de cada casillero | **Hecho.** El dato estaba desde el día uno y no se mostraba en ningún lado |
+| La víspera: "si cerrás esta sesión, pasás a X" | **Hecho.** `anticipacion.ts` estaba escrito, testeado y conectado a nada. Frecuencia medida (19-30% de las sesiones) y atada con un test |
+| La voz del motor, relegible en el historial | **Hecho.** Se guarda con la sesión; en pantalla solo los cambios de eslabón |
+| El descanso con la técnica del ejercicio | **Hecho.** Veinte minutos por sesión que estaban muertos |
+| La distancia a cada ejercicio en su ficha | **Hecho.** Sesiones solo para el eslabón que viene; más lejos, eslabones |
+| La acción de Hoy arriba del pliegue | **Hecho.** Estaba entre 160 y 367 px abajo, medido en tres teléfonos |
+| El alta: 53 toques a 8, y migrada al sistema visual | **Hecho.** Con eso no queda ninguna pantalla en el lenguaje viejo, y se borraron los dos puentes de compatibilidad |
+| Tres mentiras del motor (serie de cierre, freno por ánimo, sesión de vuelta) | **Hecho.** Las tres inflaban el rendimiento o frenaban lo que no debían |
+| El sonido, de cinco earcons a tres | **Hecho.** El del récord disparaba en más de la mitad de los pares ejercicio-sesión |
+
+Dos lecciones de método que valen más que cualquiera de esas filas, porque las
+dos aparecieron al equivocarme:
+
+**Medir la frecuencia antes de creerle a una intuición.** El earcon del récord
+se escribió creyendo que sonaba unas pocas veces por mes; sonaba en más de la
+mitad de los pares ejercicio-sesión. Se descubrió corriendo el motor, no
+leyéndolo. Desde entonces cualquier señal que se justifique por ser rara lleva
+su medición y su test: la víspera dice 19-30% en `simulacion.test.ts`.
+
+**Una cuenta exacta puede ser una frase mentirosa.** `proyectar` da el número
+correcto de sesiones hasta cualquier eslabón, pero "flexión a una mano en
+dieciséis sesiones" no se lo cree nadie, y una promesa que no se cree hace más
+daño que no dar ninguna. El alta ya lo había resuelto proyectando solo al
+eslabón siguiente; la ficha de ejercicio volvió a romperlo y lo agarró la
+revisión automática, no una lectura.
 
 El sistema visual **Efeméride** no estaba en este documento: salió de una
 exploración posterior de tres direcciones independientes con un jurado que las

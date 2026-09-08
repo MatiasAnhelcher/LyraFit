@@ -25,12 +25,14 @@
  * competencia la construye. Si esto celebra, celebra con un dato.
  */
 
+import { useEffect } from 'react'
 import { NOMBRE_PATRON, buscarEjercicio } from '@/dominio/biblioteca'
 import { seriesDeSesion } from '@/dominio/estadisticas'
 import { esHito } from '@/dominio/adherencia'
 import type { ResumenSesion } from '@/datos/repositorio'
 import { comoReloj } from '@/hooks/useTemporizador'
 import { Carta } from '@/componentes/carta'
+import { sonar, tocar } from '@/respuesta'
 import { AccionQuieta, Glosa, Rotulo } from '@/componentes/ui'
 
 /** La regla que aplicó el motor, para firmar la decisión. */
@@ -55,6 +57,30 @@ export function Cierre({
   const { sesion, decisiones, numeroDeSesion } = resumen
   const series = seriesDeSesion(sesion)
   const huboSalto = decisiones.some((d) => d.decision.cambioDeNivel)
+  const hito = esHito(numeroDeSesion)
+
+  /**
+   * Suena una sola cosa, y casi nunca.
+   *
+   * El salto de eslabón manda sobre el hito porque es lo que la app promete.
+   * Ojo con la frecuencia, que es contraintuitiva: medido sobre el motor real,
+   * el salto cae en el 35-40% de los cierres —las cuatro cadenas arrancan
+   * juntas y se agrupan—, no una vez cada seis semanas. Un día común no suena
+   * nada, y eso es lo que hace que estos dos se escuchen.
+   *
+   * El retardo alinea el sonido con el momento en que la línea llega al nodo y
+   * la estrella se enciende: los tres canales convergen en un solo instante.
+   */
+  useEffect(() => {
+    if (!huboSalto && !hito) return
+    const cual = huboSalto ? 'nivel' : 'hito'
+    const espera = huboSalto ? 1460 : 1700
+    const id = window.setTimeout(() => {
+      sonar(cual)
+      tocar(cual)
+    }, espera)
+    return () => window.clearTimeout(id)
+  }, [huboSalto, hito])
 
   /** Dónde estaba cada patrón antes de esta sesión, para dibujar la huella. */
   const huellas = new Map(
@@ -79,7 +105,7 @@ export function Cierre({
         <div className="anim-regla h-px w-full bg-[var(--color-regla-fuerte)]" />
 
         <div className="revelar revelar--1 mt-8">
-          <Rotulo>{esHito(numeroDeSesion) ? 'SESIÓN REDONDA' : 'SESIÓN'}</Rotulo>
+          <Rotulo>{hito ? 'SESIÓN REDONDA' : 'SESIÓN'}</Rotulo>
           <p className="cifra-identidad mt-2">{String(numeroDeSesion).padStart(3, '0')}</p>
           <p className="mt-2 text-sm text-[var(--color-glosa)]">
             {comoReloj(duracion)} · {series} {series === 1 ? 'serie' : 'series'}
@@ -117,7 +143,7 @@ export function Cierre({
           )}
         </div>
 
-        {esHito(numeroDeSesion) && (
+        {hito && (
           <p className="revelar revelar--3 mt-8 max-w-[36ch] text-sm leading-relaxed text-[var(--color-glosa)]">
             Sesión {numeroDeSesion}. Ese número no baja nunca, aunque falten semanas: es lo único
             de la app que solo puede subir.

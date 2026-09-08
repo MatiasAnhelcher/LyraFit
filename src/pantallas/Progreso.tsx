@@ -159,37 +159,66 @@ export function Progreso() {
         </div>
       </section>
 
+      {/* El historial, con la voz del motor adentro.
+          Antes era una lista de fechas con nombres de ejercicios: cierta y
+          muerta. Lo que le faltaba estaba a mano y se tiraba — la explicación
+          del motor se mostraba diez segundos en el cierre y se perdía. Es el
+          activo diferencial del producto, ninguna otra app te muestra la regla
+          que decidió tu próximo objetivo, y duraba menos que un cartel.
+
+          Solo se muestran los cambios de eslabón, que son los días que valen
+          la pena releer. Poner las cuatro decisiones de las veinte sesiones
+          serían ochenta renglones en cursiva y el historial dejaría de ser
+          legible para decir lo mismo.
+
+          Y en el canal va el número de sesión y no la fecha: "047" dice quién
+          sos, "12 sep" dice cuándo. La fecha baja al renglón chico. */}
       <section className="mt-10 pb-4">
         <Rotulo>HISTORIAL</Rotulo>
         <div className="registro mt-3">
-          {sesiones.slice(0, 20).map((sesion) => (
-            <div key={sesion.id}>
-              <span className="canal">
-                {new Date(`${sesion.fecha}T12:00:00`).toLocaleDateString('es-AR', {
-                  day: 'numeric',
-                  month: 'short',
-                })}
-              </span>
-              <span className="min-w-0">
-                <span className="nombre block truncate">
-                  {sesion.registros
-                    .map((r) => buscarEjercicio(r.ejercicioId)?.nombre)
-                    .filter(Boolean)
-                    .join(' · ') || 'Sesión sin registros'}
+          {sesiones.slice(0, 20).map((sesion, i) => {
+            const numero = total - i
+            const saltos = (sesion.decisiones ?? []).filter((d) => d.cambioDeNivel)
+            return (
+              <div key={sesion.id}>
+                {/* Arriba y no al medio: en una fila de tres renglones el
+                    número centrado queda flotando lejos del nombre al que
+                    pertenece. */}
+                <span className="canal" style={{ alignItems: 'flex-start' }}>
+                  {String(numero).padStart(3, '0')}
                 </span>
-                <span className="mt-1 flex gap-1">
-                  {sesion.registros.map((r) => {
-                    const e = buscarEjercicio(r.ejercicioId)
-                    return e ? <Glifo key={r.ejercicioId} patron={e.patron} /> : null
-                  })}
+                <span className="min-w-0">
+                  <span className="nombre block truncate">
+                    {sesion.registros
+                      .map((r) => buscarEjercicio(r.ejercicioId)?.nombre)
+                      .filter(Boolean)
+                      .join(' · ') || 'Sesión sin registros'}
+                  </span>
+                  <span className="rotulo mt-0.5 flex items-center gap-2">
+                    {new Date(`${sesion.fecha}T12:00:00`).toLocaleDateString('es-AR', {
+                      day: 'numeric',
+                      month: 'short',
+                    })}
+                    <span className="flex gap-1">
+                      {sesion.registros.map((r) => {
+                        const e = buscarEjercicio(r.ejercicioId)
+                        return e ? <Glifo key={r.ejercicioId} patron={e.patron} /> : null
+                      })}
+                    </span>
+                  </span>
+                  {saltos.map((d) => (
+                    <span key={d.patron} className="glosa mt-2 block text-[0.9375rem]">
+                      {d.explicacion}
+                    </span>
+                  ))}
                 </span>
-              </span>
-              <span className="cifra-fila">
-                {Math.round(sesion.duracionSegundos / 60)}
-                <span className="unidad">min</span>
-              </span>
-            </div>
-          ))}
+                <span className="cifra-fila self-start">
+                  {Math.round(sesion.duracionSegundos / 60)}
+                  <span className="unidad">min</span>
+                </span>
+              </div>
+            )
+          })}
         </div>
       </section>
     </>

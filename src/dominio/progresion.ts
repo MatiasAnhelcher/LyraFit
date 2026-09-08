@@ -37,6 +37,7 @@ import type {
   Medida,
   Objetivo,
   Serie,
+  TipoSesion,
 } from './tipos'
 
 // ─── Las constantes del motor ────────────────────────────────────────────
@@ -126,7 +127,9 @@ export function rendimientoDeSesion(objetivo: Objetivo, series: Serie[]): number
   const propuesto = objetivo.series * objetivo.cantidad
   if (propuesto <= 0 || objetivo.cantidad <= 0) return 0
 
-  const logrados = series.map((s) => Math.max(0, s.logrado))
+  // La serie de cierre no opina. Se filtra acá y no en la pantalla para que
+  // proteja a todos los que llaman, incluida la proyección del alta.
+  const logrados = series.filter((s) => !s.cierre).map((s) => Math.max(0, s.logrado))
   const volumen = logrados.reduce((suma, n) => suma + n, 0)
 
   // Las series que faltaron cuentan como cero, así que abandonar a la mitad
@@ -143,11 +146,38 @@ export function rendimientoDeSesion(objetivo: Objetivo, series: Serie[]): number
 
 /** La cantidad típica que se logró, para saber a qué bajar cuando hay meseta. */
 export function logradoTipico(series: Serie[]): number {
-  const logrados = series.map((s) => Math.max(0, s.logrado)).sort((a, b) => a - b)
+  const logrados = series
+    .filter((s) => !s.cierre)
+    .map((s) => Math.max(0, s.logrado))
+    .sort((a, b) => a - b)
   if (logrados.length === 0) return 0
   const medio = Math.floor(logrados.length / 2)
   if (logrados.length % 2 === 1) return logrados[medio]!
   return Math.round(((logrados[medio - 1] ?? 0) + (logrados[medio] ?? 0)) / 2)
+}
+
+/**
+ * Si una sesión de este tipo mueve la progresión o no.
+ *
+ * Vivía adentro de `cerrarSesion`, o sea en la capa de datos y fuera del
+ * alcance de cualquier test. Está acá porque es una regla del motor, y porque
+ * las dos excepciones tienen la misma forma —una vara más baja— y llegaron por
+ * caminos distintos:
+ *
+ * - La **corta** cuenta para la adherencia y no para la progresión: seis
+ *   minutos no dicen nada sobre si alguien está listo para el eslabón que
+ *   sigue, y castigar a alguien por haber hecho algo es la peor lección
+ *   posible.
+ * - La **de vuelta** trae el objetivo ya recortado al 70%. Cumplirlo da
+ *   rendimiento 1,00 contra esa vara más baja, así que si contara podría
+ *   disparar un salto de eslabón que no se ganó. La vara se baja para que
+ *   volver sea fácil, no para regalar un nivel.
+ *
+ * Es exhaustiva a propósito: un tipo de sesión nuevo no hereda el permiso de
+ * mover el plan, hay que dárselo acá.
+ */
+export function mueveElPlan(tipo: TipoSesion): boolean {
+  return tipo === 'plan'
 }
 
 // ─── Carga relativa: lo que hace comparables dos ejercicios distintos ────
@@ -399,15 +429,23 @@ export function siguienteAvance(
 
   // ── Sube ───────────────────────────────────────────────────────────────
   if (senal >= SUBE) {
-    // Viene cumpliendo, pero la está pasando mal. Subirle la exigencia ahora
-    // es la forma más segura de perderla: se consolida en su lugar.
-    if (evaluacion.animo !== undefined && evaluacion.animo < 0) {
-      return sostener(
-        'Venís cumpliendo, pero las últimas sesiones se te hicieron cuesta arriba. Nos quedamos acá para consolidar.',
-      )
-    }
-
     if (cantidad < ventana.max) {
+      // Viene cumpliendo, pero la está pasando mal. Subirle la carga ahora es
+      // la forma más segura de perderla: se consolida en su lugar.
+      //
+      // El freno vive acá adentro y no antes, a propósito. Cambiar de eslabón
+      // es casi siempre neutro en carga —`recalibrar` conserva el índice a los
+      // dos lados del salto— así que frenarlo no bajaría ninguna exigencia:
+      // solo postergaría lo único que la app prometió, y encima el día en que
+      // la persona ya se lo ganó. El "casi" importa y está resuelto más abajo:
+      // en los bordes de la ventana el salto sí puede pedir más, y ahí el freno
+      // vuelve a aplicar.
+      if (evaluacion.animo !== undefined && evaluacion.animo < 0) {
+        return sostener(
+          'Venís cumpliendo, pero las últimas sesiones se te hicieron cuesta arriba. Nos quedamos acá para consolidar.',
+        )
+      }
+
       const nueva = Math.min(cantidad + incremento(medida, cantidad), ventana.max)
       const faltaPoco = nueva >= ventana.max
       return ajustar(
@@ -435,6 +473,34 @@ export function siguienteAvance(
     const siguiente = vecino(ctx, actual.id, 1)
     if (siguiente) {
       const nueva = recalibrar(actual, cantidad, siguiente)
+
+      // El freno por ánimo, también acá, pero solo cuando el salto de verdad
+      // sube la carga.
+      //
+      // La versión anterior de este archivo dejaba pasar todos los cambios de
+      // eslabón con el argumento de que son neutros en carga por construcción.
+      // Es falso en los bordes: `recalibrar` acota contra la ventana del
+      // ejercicio destino, y cuando la cuenta cae por debajo del piso —que es
+      // lo que pasa en la base de las cadenas, donde los eslabones están más
+      // juntos— el salto termina pidiendo MÁS carga, no la misma. Medido: de
+      // plancha de rodillas a plancha son casi nueve puntos porcentuales
+      // arriba. O sea que a un principiante que viene pasándola mal el freno no
+      // lo estaba frenando justo donde más falta hacía.
+      //
+      // Comparar los dos índices lo resuelve sin tocar el caso bueno: cuando el
+      // salto es neutro o baja la carga —que es lo normal, y es lo que hace que
+      // la curva de progreso no se corte— sigue pasando aunque la persona la
+      // esté pasando mal, porque postergarlo ahí no le baja ninguna exigencia.
+      if (
+        evaluacion.animo !== undefined &&
+        evaluacion.animo < 0 &&
+        indiceDeCarga(siguiente, nueva) > indiceDeCarga(actual, cantidad)
+      ) {
+        return sostener(
+          `Llegaste al techo de ${actual.nombre}, pero las últimas sesiones se te hicieron cuesta arriba y el paso a ${siguiente.nombre} pide más. Lo dejamos listo para cuando estés mejor.`,
+        )
+      }
+
       return cambiarDeNivel(
         siguiente,
         nueva,

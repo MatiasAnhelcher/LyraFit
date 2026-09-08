@@ -55,7 +55,24 @@ preview` corriendo en otra terminal:
 
 ```bash
 node revisar.mjs   # recorre el alta y una sesión entera, y guarda capturas
+node rescate.mjs   # revisa los datos: que no se pierda una sesión y que se midan dos números
 ```
+
+Y antes de publicar, la que mira lo que las otras no pueden mirar: qué le pasa
+a alguien que **ya tiene** la app instalada. Las dos de arriba arrancan de cero,
+así que nunca ven una migración ni una actualización.
+
+```bash
+node actualizacion.mjs             # contra origin/main
+node actualizacion.mjs v1.2.0      # o contra la versión que esté publicada
+```
+
+Compila la versión publicada, la que se va a publicar y una posterior, y las
+sirve desde el mismo origen —si el origen cambia, cambia la base de IndexedDB y
+no se prueba nada—. Verifica dos cosas: que la migración del esquema no pierda
+ni altere una sola fila y que las pantallas nuevas sepan leer filas viejas, y
+que una pestaña abierta durante un deploy se recargue sola en vez de quedar con
+código viejo pidiendo trozos que el cache nuevo ya borró.
 
 ## Cómo está armado
 

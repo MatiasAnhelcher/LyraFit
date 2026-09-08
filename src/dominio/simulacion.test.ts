@@ -19,6 +19,7 @@
 
 import { describe, expect, it } from 'vitest'
 import { CADENAS, POR_ID, cadenaDe } from './biblioteca'
+import { seAbreHoy } from './anticipacion'
 import {
   MESETA,
   avanceInicial,
@@ -213,5 +214,70 @@ describe('el registro de una trayectoria real', () => {
     for (const id of visitadas) {
       expect(capacidad[id] ?? 0).toBeGreaterThan(0)
     }
+  })
+})
+
+/**
+ * Cada cuánto habla la anticipación.
+ *
+ * Este archivo existe justamente para las propiedades que solo se ven corriendo
+ * el motor, y la frecuencia de la víspera es una de ellas. Importa porque ya
+ * hubo un error igual en la otra punta: el earcon del récord se escribió
+ * creyendo que iba a sonar unas pocas veces por mes y sonaba en más de la mitad
+ * de los pares ejercicio-sesión. Se descubrió midiendo, no leyendo.
+ *
+ * El aviso solo vale si es raro. Si la app dice "hoy se abre el eslabón
+ * siguiente" en una de cada dos sesiones, deja de anticipar nada y se convierte
+ * en decoración; peor todavía, se convierte en una promesa que se rompe seguido.
+ * Medido hoy da entre 19% y 30% de las sesiones según cómo le vaya a la
+ * persona: alrededor de una vez por semana entrenando tres veces. El tope de 40%
+ * es el punto donde eso dejaría de ser cierto.
+ */
+describe('la víspera es rara, y tiene que seguir siéndolo', () => {
+  function frecuencia(capacidad: (e: Ejercicio) => number, sesiones = 150): number {
+    const avances = new Map<Patron, Avance>(
+      CADENAS.map((c) => [c.patron, avanceInicial(c, POR_ID, 0)]),
+    )
+    let conVispera = 0
+
+    for (let s = 1; s <= sesiones; s++) {
+      const anuncia = [...avances.values()].some(
+        (a) => seAbreHoy(a, cadenaDe(a.patron), POR_ID, true) !== null,
+      )
+      if (anuncia) conVispera++
+
+      for (const [patron, avance] of avances) {
+        const ejercicio = POR_ID.get(avance.ejercicioId)!
+        const objetivo = avance.objetivoActual
+        const logrado = Math.max(0, Math.min(capacidad(ejercicio), objetivo.cantidad))
+        const series: Serie[] = Array.from({ length: objetivo.series }, () => ({ logrado }))
+        avances.set(
+          patron,
+          siguienteAvance(
+            avance,
+            { rendimiento: rendimientoDeSesion(objetivo, series), tipico: logradoTipico(series) },
+            { cadena: cadenaDe(patron), ejercicios: POR_ID },
+            s,
+          ).avance,
+        )
+      }
+    }
+    return conVispera / sesiones
+  }
+
+  const CASOS: [string, (e: Ejercicio) => number][] = [
+    ['alguien que cumple siempre', () => Infinity],
+    ['alguien que se queda sin nafta en lo difícil', (e) => (e.ccr > 0.6 ? 4 : Infinity)],
+    ['alguien que siempre queda una corta', (e) => Math.max(1, e.ventana.max - 1)],
+  ]
+
+  for (const [quien, capacidad] of CASOS) {
+    it(`no le habla a ${quien} más de una vez cada tres sesiones`, () => {
+      expect(frecuencia(capacidad)).toBeLessThan(0.4)
+    })
+  }
+
+  it('pero tampoco se calla del todo: si nunca hablara, no serviría de nada', () => {
+    expect(frecuencia(() => Infinity)).toBeGreaterThan(0.05)
   })
 })
