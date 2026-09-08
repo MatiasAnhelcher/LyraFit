@@ -256,6 +256,19 @@ export async function cerrarSesion(entrada: CierreDeSesion): Promise<ResumenSesi
     decisiones.push({ patron: ejercicio.patron, decision })
   }
 
+  // Lo que el motor acaba de decidir se guarda con la sesión, no solo se
+  // devuelve para pintar el cierre. Se copia el texto y no una referencia: si
+  // mañana cambian las reglas, el historial tiene que seguir diciendo lo que la
+  // app dijo esa noche.
+  if (decisiones.length > 0) {
+    sesion.decisiones = decisiones.map(({ patron, decision }) => ({
+      patron,
+      movimiento: decision.movimiento,
+      explicacion: decision.explicacion,
+      cambioDeNivel: decision.cambioDeNivel,
+    }))
+  }
+
   await db.transaction('rw', db.sesiones, db.avances, db.pendientes, async () => {
     await db.sesiones.put(sesion)
     await marcarPendiente('sesiones', sesion.id)

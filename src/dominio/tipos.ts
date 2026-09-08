@@ -133,6 +133,27 @@ export interface RegistroEjercicio {
 export type TipoSesion = 'plan' | 'corta' | 'vuelta'
 
 /** Una sesión de entrenamiento completa. */
+/**
+ * Lo que el motor decidió esa noche, guardado para poder releerlo.
+ *
+ * La explicación del motor es el activo diferencial del producto —ninguna otra
+ * app te muestra la regla que decidió tu próximo objetivo— y vivía diez
+ * segundos: se mostraba en el cierre y se perdía para siempre. Guardarla
+ * cuesta un par de cientos de bytes por sesión y convierte el historial en
+ * algo que se puede leer en vez de una lista de fechas.
+ *
+ * Es una copia y no una referencia a propósito: si mañana cambian las reglas
+ * del motor, lo que dice el historial tiene que seguir siendo lo que la app
+ * dijo esa noche, no lo que diría hoy.
+ */
+export interface DecisionGuardada {
+  patron: Patron
+  /** El mismo `Movimiento` del motor, guardado como texto. */
+  movimiento: string
+  explicacion: string
+  cambioDeNivel: boolean
+}
+
 export interface Sesion {
   id: string
   /** Fecha en formato ISO (AAAA-MM-DD), para poder ordenar y agrupar. */
@@ -144,6 +165,8 @@ export interface Sesion {
   registros: RegistroEjercicio[]
   nota?: string
   tipo: TipoSesion
+  /** Lo que el motor decidió al cerrarla. Ausente en las sesiones viejas. */
+  decisiones?: DecisionGuardada[]
   /**
    * Esfuerzo de la sesión entera, del 1 al 10. Es el session-RPE de Foster,
    * que es la forma más barata y mejor validada de estimar carga interna sin
