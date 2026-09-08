@@ -10,6 +10,7 @@ import { Estado } from './pantallas/Estado'
 import { Biblioteca } from './pantallas/Biblioteca'
 import { FichaEjercicio } from './pantallas/FichaEjercicio'
 import { Ajustes } from './pantallas/Ajustes'
+import { HojaDeFiguras } from './pantallas/HojaDeFiguras'
 import { leerPreferencias } from './datos/repositorio'
 import { useTema } from './hooks/useTema'
 
@@ -60,6 +61,13 @@ export function App() {
           <Route path="/" element={<Hoy />} />
           <Route path="/estado" element={<Estado />} />
           <Route path="/biblioteca" element={<Biblioteca />} />
+          {/* La hoja de contacto de los dibujos, solo en desarrollo: es una
+              herramienta de taller y no tiene por qué viajar al teléfono de
+              nadie. `import.meta.env.DEV` lo resuelve en tiempo de compilación,
+              así que en producción la ruta ni siquiera existe. */}
+          {import.meta.env.DEV && (
+            <Route path="/figuras" element={<HojaDeFiguras />} />
+          )}
           <Route path="/biblioteca/:id" element={<FichaEjercicio />} />
           <Route
             path="/progreso"
