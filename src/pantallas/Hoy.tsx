@@ -266,6 +266,38 @@ export function Hoy() {
         )}
       </section>
 
+      {/* La acción va acá y no al final, que es donde estaba.
+          Medido en tres teléfonos: al final quedaba entre 160 y 367 píxeles por
+          debajo del pliegue, o sea que en la pantalla que se abre veinte veces
+          por semana había que scrollear para llegar a lo único que la pantalla
+          existe para hacer. Y lo que la tapaba —la carta y la barra de 28
+          días— es contexto: se mira cuando uno quiere mirarlo, no antes de
+          poder empezar. El orden ahora es quién sos, qué toca hoy, empezar, y
+          después dónde estás parado. */}
+      <div className="mt-10 -mx-4">
+        <Accion
+          onClick={() => {
+            // El audio se despierta acá y no cuando el descanso termina: en
+            // iOS un contexto creado fuera de un gesto nace suspendido y se
+            // queda así, y un temporizador no es un gesto. Sin esta línea el
+            // aviso del descanso no suena nunca en iPhone.
+            despertarAudio()
+            navegar('/entrenar')
+          }}
+        >
+          {entrenoHoy ? 'Entrenar otra vez' : vuelve ? 'Volver a empezar' : 'Empezar'}
+        </Accion>
+        <button
+          onClick={() => {
+            despertarAudio()
+            navegar('/entrenar?corta=1')
+          }}
+          className="accion-quieta"
+        >
+          Solo tengo 7 minutos
+        </button>
+      </div>
+
       <section className="mt-8">
         <Rotulo className="mb-3">DÓNDE ESTÁS</Rotulo>
         <Carta filas={filasDeCarta} />
@@ -304,29 +336,6 @@ export function Hoy() {
         )}
       </section>
 
-      <div className="mt-10 -mx-4">
-        <Accion
-          onClick={() => {
-            // El audio se despierta acá y no cuando el descanso termina: en
-            // iOS un contexto creado fuera de un gesto nace suspendido y se
-            // queda así, y un temporizador no es un gesto. Sin esta línea el
-            // aviso del descanso no suena nunca en iPhone.
-            despertarAudio()
-            navegar('/entrenar')
-          }}
-        >
-          {entrenoHoy ? 'Entrenar otra vez' : vuelve ? 'Volver a empezar' : 'Empezar'}
-        </Accion>
-        <button
-          onClick={() => {
-            despertarAudio()
-            navegar('/entrenar?corta=1')
-          }}
-          className="accion-quieta"
-        >
-          Solo tengo 7 minutos
-        </button>
-      </div>
     </>
   )
 }

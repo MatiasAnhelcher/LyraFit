@@ -57,10 +57,16 @@ async function forzarVispera(pagina, patron) {
     avance.senal = 1
     avance.sesionesEnObjetivo = 5
     avance.graciaRestante = 0
+    // Se espera el `oncomplete` de la transacción y no el `onsuccess` del
+    // pedido: son dos momentos distintos, y entre uno y otro la escritura
+    // todavía no está confirmada. Esperar el pedido hacía que la revisión
+    // fallara una de cada dos corridas, sin que hubiera nada roto en la app.
     await new Promise((res, rej) => {
-      const q = base.transaction('avances', 'readwrite').objectStore('avances').put(avance)
-      q.onsuccess = res
-      q.onerror = () => rej(q.error)
+      const tx = base.transaction('avances', 'readwrite')
+      tx.objectStore('avances').put(avance)
+      tx.oncomplete = () => res()
+      tx.onerror = () => rej(tx.error)
+      tx.onabort = () => rej(tx.error)
     })
     return avance.ejercicioId
   }, patron)
