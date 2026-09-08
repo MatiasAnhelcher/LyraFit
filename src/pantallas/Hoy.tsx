@@ -31,6 +31,7 @@ import {
   tocaEntrenar,
 } from '@/dominio/rutinas'
 import { adherencia, esVuelta, proximoHito, sesionesDeVida } from '@/dominio/adherencia'
+import { laVezPasada } from '@/dominio/estadisticas'
 import { bandaSostenida, ajusteDelDia } from '@/dominio/estado'
 import {
   fechaISO,
@@ -87,7 +88,10 @@ export function Hoy() {
   const bloques = rutina.bloques.flatMap((bloque) => {
     const avance = avances.get(bloque.patron)
     const ejercicio = avance ? buscarEjercicio(avance.ejercicioId) : undefined
-    return avance && ejercicio ? [{ patron: bloque.patron, avance, ejercicio }] : []
+    if (!avance || !ejercicio) return []
+    // Lo que hiciste la última vez que te tocó ESTE ejercicio. Si cambiaste de
+    // eslabón la semana pasada no hay con qué comparar, y la app no lo inventa.
+    return [{ patron: bloque.patron, avance, ejercicio, antes: laVezPasada(sesiones, ejercicio.id, fecha) }]
   })
 
   const filasDeCarta = [...avances.values()].map((avance) => ({
@@ -155,7 +159,7 @@ export function Hoy() {
         </Rotulo>
 
         <div className="registro mt-3">
-          {bloques.map(({ patron, avance, ejercicio }) => {
+          {bloques.map(({ patron, avance, ejercicio, antes }) => {
             const cadena = cadenaDe(patron)
             const posicion = cadena.ejercicios.indexOf(ejercicio.id) + 1
             return (
@@ -165,8 +169,27 @@ export function Hoy() {
                 </span>
                 <span className="min-w-0">
                   <span className="nombre block truncate">{ejercicio.nombre}</span>
-                  <span className="rotulo mt-0.5 block">
+                  {/* La vara que puso la persona la última vez, en el renglón
+                      chico y no al lado del objetivo: ahí le comía el ancho al
+                      nombre del ejercicio, que es lo único que no se puede
+                      truncar. Acá sobra lugar y el número es lo único de la
+                      línea que va en tinta, o sea lo único que se ve.
+
+                      No es una recompensa ni una insignia: es información sobre
+                      la propia competencia, que es la clase de feedback que
+                      construye motivación en vez de erosionarla. Y sin ella la
+                      segunda sesión se siente idéntica a la primera. */}
+                  <span className="rotulo mt-0.5 block truncate">
                     {NOMBRE_PATRON[patron]} · {posicion}/{cadena.ejercicios.length}
+                    {antes && (
+                      <>
+                        {' · antes '}
+                        <span className="cifra text-[var(--color-tinta)]">
+                          {antes.mejor}
+                          {ejercicio.medida === 'segundos' && <span className="lowercase">s</span>}
+                        </span>
+                      </>
+                    )}
                   </span>
                 </span>
                 <Objetivo

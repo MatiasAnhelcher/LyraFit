@@ -120,7 +120,9 @@ async function main() {
     await pagina.waitForTimeout(400)
     await capturar(pagina, `4-preguntas-${tema}`)
     await revisarDesborde(pagina, `Preguntas del final (${tema})`)
-    for (const respuesta of ['Exigente', 'Bien', 'Bastante']) {
+    // Las tres respuestas del final: esfuerzo, ánimo y energía. La tercera usa
+    // la escala de cinco puntos del chequeo diario, no la de antes.
+    for (const respuesta of ['Exigente', 'Bien', 'Con energía']) {
       await pagina.getByRole('button', { name: respuesta, exact: true }).click()
     }
     await pagina.getByRole('button', { name: 'Cerrar la sesión' }).click()
@@ -129,6 +131,19 @@ async function main() {
     await pagina.waitForTimeout(4200)
     await capturar(pagina, `5-cierre-${tema}`)
     await revisarDesborde(pagina, `Cierre (${tema})`)
+
+    // La segunda visita, que es la que importa: ya hay historial, así que acá
+    // es donde aparece la vara de la vez pasada. Sin este paso el recorrido
+    // solo veía la app vacía, que es el único estado en que esa capa no existe.
+    await pagina.goto(`${BASE}/#/`, { waitUntil: 'networkidle' })
+    await pagina.waitForTimeout(700)
+    await capturar(pagina, `5b-hoy-con-historial-${tema}`)
+    await revisarDesborde(pagina, `Hoy con historial (${tema})`)
+
+    await pagina.goto(`${BASE}/#/entrenar`, { waitUntil: 'networkidle' })
+    await pagina.waitForTimeout(700)
+    await capturar(pagina, `5c-entrenar-con-vara-${tema}`)
+    await revisarDesborde(pagina, `Entrenar con vara (${tema})`)
 
     await pagina.goto(`${BASE}/#/biblioteca`, { waitUntil: 'networkidle' })
     await capturar(pagina, `6-biblioteca-${tema}`)

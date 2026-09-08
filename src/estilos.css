@@ -361,6 +361,17 @@
     content: ' · ';
   }
 
+  /* La vara: el número que dejaste la vez pasada, adentro del casillero que
+     todavía no llenaste. Es un fantasma a propósito —más chico y en glosa— y
+     nunca en Vega: no es un objetivo que puso la app, es un dato que pusiste
+     vos, y en cuanto anotás la serie de hoy el número de hoy lo tapa. La
+     comparación importa antes de la serie, no después. */
+  .vara {
+    font-size: 0.8em;
+    color: var(--color-glosa);
+    opacity: 0.65;
+  }
+
   /* Las unidades nunca compiten con el número. */
   .unidad {
     font-size: 0.55em;

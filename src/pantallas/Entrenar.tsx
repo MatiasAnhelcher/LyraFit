@@ -31,6 +31,7 @@ import { NOMBRE_PATRON, buscarEjercicio } from '@/dominio/biblioteca'
 import { RUTINA_POR_DEFECTO, RUTINA_POR_ID } from '@/dominio/rutinas'
 import { ajusteDelDia, bandaSostenida } from '@/dominio/estado'
 import { esVuelta, RECORTE_DE_VUELTA } from '@/dominio/adherencia'
+import { haceCuanto, laVezPasada } from '@/dominio/estadisticas'
 import type { RegistroEjercicio, Serie, TipoSesion } from '@/dominio/tipos'
 import {
   cerrarSesion,
@@ -146,9 +147,13 @@ export function Entrenar() {
       // La sesión corta es un ejercicio por cadena y una serie de cada uno.
       const series = esCorta ? 1 : avance.objetivoActual.series
       const cantidad = Math.max(1, Math.round(avance.objetivoActual.cantidad * factor))
-      return [{ ejercicio, objetivo: { series, cantidad } }]
+      // La vez pasada de ESTE ejercicio, para poner una vara adentro de cada
+      // casillero. Es lo que hace que la segunda sesión no se sienta idéntica
+      // a la primera: los casilleros vacíos ya no están vacíos.
+      const antes = historial ? laVezPasada(historial, ejercicio.id, fechaISO()) : null
+      return [{ ejercicio, objetivo: { series, cantidad }, antes }]
     })
-  }, [rutina, avances, esCorta, factor])
+  }, [rutina, avances, esCorta, factor, historial])
 
   if (!avances || !preferencias || !historial || plan.length === 0) {
     return (
@@ -163,7 +168,7 @@ export function Entrenar() {
   }
 
   const paso = plan[indice]!
-  const { ejercicio, objetivo } = paso
+  const { ejercicio, objetivo, antes } = paso
   const series = hechas[ejercicio.id] ?? []
   const completo = series.length >= objetivo.series
   const esUltimo = indice === plan.length - 1
@@ -319,26 +324,45 @@ export function Entrenar() {
         </Rotulo>
         <h1 className="mt-2 text-3xl font-bold leading-tight tracking-tight">{ejercicio.nombre}</h1>
 
+        {/* Los casilleros, con la vara adentro.
+            Un casillero vacío no dice nada; un casillero con el número de la
+            vez pasada dice exactamente qué hay que hacer, y lo dice con un dato
+            que puso la propia persona. Cuando la serie se anota, el número de
+            hoy lo tapa: la comparación importa antes, no después. */}
         <ul className="mt-6 flex gap-2" aria-label="Series de este ejercicio">
           {Array.from({ length: objetivo.series }).map((_, i) => {
             const serie = series[i]
             const activa = i === series.length
+            const vara = antes?.logros[i]
             return (
               <li
                 key={i}
-                className="cifra flex h-14 flex-1 items-center justify-center text-lg"
+                className="cifra relative flex h-14 flex-1 items-center justify-center text-lg"
                 style={{
                   border: `1px ${activa && !serie ? 'dashed' : 'solid'} ${
                     serie || activa ? 'var(--color-vega)' : 'var(--color-regla)'
                   }`,
                   color: serie ? 'var(--color-tinta)' : 'var(--color-glosa)',
                 }}
+                aria-label={
+                  serie
+                    ? `Serie ${i + 1}: ${serie.logrado}`
+                    : vara !== undefined
+                      ? `Serie ${i + 1}, sin hacer. La vez pasada: ${vara}`
+                      : `Serie ${i + 1}, sin hacer`
+                }
               >
-                {serie ? serie.logrado : '·'}
+                {serie ? serie.logrado : vara !== undefined ? <span className="vara">{vara}</span> : '·'}
               </li>
             )
           })}
         </ul>
+
+        {antes && (
+          <p className="rotulo mt-2 text-right">
+            {antes.hace === 0 ? 'hoy, más temprano' : `la vez pasada, ${haceCuanto(antes.hace)}`}
+          </p>
+        )}
 
         {descanso.activo ? (
           <Descanso
