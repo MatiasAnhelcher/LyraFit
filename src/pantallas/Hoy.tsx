@@ -21,7 +21,7 @@
 
 import { useNavigate } from 'react-router-dom'
 import { useLiveQuery } from 'dexie-react-hooks'
-import { NOMBRE_PATRON, buscarEjercicio, cadenaDe } from '@/dominio/biblioteca'
+import { NOMBRE_PATRON, POR_ID, buscarEjercicio, cadenaDe } from '@/dominio/biblioteca'
 import {
   NOMBRE_DIA,
   RUTINA_POR_DEFECTO,
@@ -32,7 +32,9 @@ import {
 } from '@/dominio/rutinas'
 import { adherencia, esVuelta, proximoHito, sesionesDeVida } from '@/dominio/adherencia'
 import { laVezPasada } from '@/dominio/estadisticas'
-import { bandaSostenida, ajusteDelDia } from '@/dominio/estado'
+import { bandaSostenida, ajusteDelDia, cadenasCongeladas } from '@/dominio/estado'
+import { seAbreHoy } from '@/dominio/anticipacion'
+import { mueveElPlan } from '@/dominio/progresion'
 import {
   fechaISO,
   leerAvances,
@@ -85,14 +87,46 @@ export function Hoy() {
   const ajuste = ajusteDelDia(banda)
   const vuelve = esVuelta(sesiones, fecha)
 
+  const congeladas = cadenasCongeladas(estados, fecha)
+
   const bloques = rutina.bloques.flatMap((bloque) => {
     const avance = avances.get(bloque.patron)
     const ejercicio = avance ? buscarEjercicio(avance.ejercicioId) : undefined
     if (!avance || !ejercicio) return []
-    // Lo que hiciste la última vez que te tocó ESTE ejercicio. Si cambiaste de
-    // eslabón la semana pasada no hay con qué comparar, y la app no lo inventa.
-    return [{ patron: bloque.patron, avance, ejercicio, antes: laVezPasada(sesiones, ejercicio.id, fecha) }]
+
+    // Si la sesión de hoy no mueve la progresión, no hay nada que anticipar:
+    // el dato sería correcto y la promesa igual sería falsa.
+    const cuenta =
+      mueveElPlan(vuelve ? 'vuelta' : 'plan') && !ajuste.neutra && !congeladas.has(bloque.patron)
+
+    return [
+      {
+        patron: bloque.patron,
+        avance,
+        ejercicio,
+        // Lo que hiciste la última vez que te tocó ESTE ejercicio. Si cambiaste
+        // de eslabón la semana pasada no hay con qué comparar, y no se inventa.
+        antes: laVezPasada(sesiones, ejercicio.id, fecha),
+        abre: seAbreHoy(avance, cadenaDe(bloque.patron), POR_ID, cuenta),
+      },
+    ]
   })
+
+  /**
+   * La víspera: el eslabón que se abre hoy si esta sesión se cumple.
+   *
+   * Es lo único que la app anticipa, y lo dice porque es literalmente cierto —
+   * el motor es determinista y `proyectar` lo corre en seco—. La señal
+   * dopaminérgica no responde a la recompensa sino al error de predicción de
+   * recompensa: un premio perfectamente predecible deja de producir señal, y
+   * estar a una sesión de algo que todavía no pasó es exactamente la forma que
+   * tiene la anticipación. Acá no hay que fabricarla: ya estaba en el motor y
+   * no se mostraba en ningún lado.
+   *
+   * Sale una sola vez, la del primero que esté a punto. Cuatro cadenas a punto
+   * el mismo día es una lista, y una lista no anticipa nada.
+   */
+  const vispera = bloques.find((b) => b.abre)
 
   const filasDeCarta = [...avances.values()].map((avance) => ({
     patron: avance.patron,
@@ -201,6 +235,28 @@ export function Hoy() {
             )
           })}
         </div>
+
+        {vispera?.abre && (
+          <p className="mt-4 max-w-[40ch] text-sm leading-relaxed text-[var(--color-glosa)]">
+            {/* Dos redacciones, y las dos son ciertas. Con la sesión de hoy por
+                delante habla de hoy; ya entrenada, o en un día de descanso,
+                habla de la próxima — que es cuando esto más sirve, porque es
+                justo el momento en que la persona cierra la app.
+
+                "Pasás a X" y no "se abre X": los nombres de los ejercicios
+                cambian de número —"dominadas completas" contra "plancha
+                lateral"— y cualquier verbo que concuerde con ellos queda mal la
+                mitad de las veces. Es además el verbo que usa el motor cuando
+                explica la decisión al cerrar la sesión. */}
+            {esDiaDeEntrenar && !entrenoHoy
+              ? 'Si cerrás esta sesión cumpliendo, '
+              : 'Si cumplís la próxima sesión, '}
+            <span className="text-[var(--color-tinta)]">
+              pasás a {vispera.abre.nombre.toLowerCase()}
+            </span>
+            .
+          </p>
+        )}
 
         {!esDiaDeEntrenar && siguiente && (
           <p className="mt-4 text-sm leading-relaxed text-[var(--color-glosa)]">

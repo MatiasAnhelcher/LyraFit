@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { POR_ID, cadenaDe } from './biblioteca'
-import { CERCA, anticipacion, esRecord } from './anticipacion'
+import { CERCA, anticipacion, esRecord, seAbreHoy } from './anticipacion'
 import { CONSOLIDACION, avanceInicial } from './progresion'
 import type { Avance, Sesion } from './tipos'
 
@@ -133,5 +133,38 @@ describe('récord personal', () => {
   it('cero nunca es récord', () => {
     expect(esRecord(historial, 'flexion-completa', 0)).toBe(false)
     expect(esRecord([], 'flexion-completa', 0)).toBe(false)
+  })
+})
+
+describe('seAbreHoy', () => {
+  /** Alguien parado en el techo del eslabón, con la consolidación ya hecha. */
+  function aPuntoDeSaltar(): Avance {
+    const e = POR_ID.get('flexion-completa')!
+    return {
+      patron: 'empuje',
+      ejercicioId: 'flexion-completa',
+      objetivoActual: { series: e.series, cantidad: e.ventana.max },
+      senal: 1,
+      sesionesEnObjetivo: CONSOLIDACION,
+      graciaRestante: 0,
+      actualizadoEn: 0,
+    }
+  }
+
+  it('nombra el eslabón que se abre si la sesión se cumple', () => {
+    const abre = seAbreHoy(aPuntoDeSaltar(), empuje, POR_ID, true)
+    expect(abre?.id).toBe('flexion-diamante')
+  })
+
+  it('se calla cuando faltan más sesiones', () => {
+    const e = POR_ID.get('flexion-completa')!
+    const lejos: Avance = { ...aPuntoDeSaltar(), objetivoActual: { series: e.series, cantidad: e.ventana.min } }
+    expect(seAbreHoy(lejos, empuje, POR_ID, true)).toBeNull()
+  })
+
+  it('y se calla en un día que no mueve la progresión, aunque el dato sea correcto', () => {
+    // Una sesión de vuelta, una cadena congelada o un estado rojo sostenido.
+    // Prometer un cambio de eslabón esos días es mentir con un dato cierto.
+    expect(seAbreHoy(aPuntoDeSaltar(), empuje, POR_ID, false)).toBeNull()
   })
 })

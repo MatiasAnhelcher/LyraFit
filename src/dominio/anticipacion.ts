@@ -75,6 +75,36 @@ export function anticipacion(
 }
 
 /**
+ * El eslabón que se abre HOY si esta sesión se cumple, o null.
+ *
+ * Es la única forma de anticipación que la app se permite decir, y la dice
+ * porque es verdad: `proyectar` corre el motor en seco contra alguien que
+ * cumple, así que "una sesión" quiere decir exactamente una sesión.
+ *
+ * `cuenta` es lo que la hace honesta. Hay días en que la sesión no mueve la
+ * progresión —una de vuelta, una cadena congelada por molestia, un estado rojo
+ * sostenido— y en esos días prometer un cambio de eslabón sería mentir con un
+ * dato correcto. Cuando la sesión no cuenta, no hay nada que anticipar.
+ *
+ * Frecuencia medida, no supuesta: habla en el 19-30% de las sesiones según cómo
+ * le vaya a la persona, o sea alrededor de una vez por semana entrenando tres.
+ * El número está atado con un test en `simulacion.test.ts`, porque el error de
+ * suponerlo ya se cometió una vez —el earcon del récord se escribió creyendo
+ * que sonaba unas pocas veces por mes y sonaba en más de la mitad de los pares
+ * ejercicio-sesión— y se descubrió midiendo, no leyendo.
+ */
+export function seAbreHoy(
+  avance: Avance,
+  cadena: Cadena,
+  ejercicios: Map<string, Ejercicio>,
+  cuenta: boolean,
+): Ejercicio | null {
+  if (!cuenta) return null
+  const previsto = anticipacion(avance, cadena, ejercicios)
+  return previsto.aUnaSesion ? previsto.siguiente : null
+}
+
+/**
  * ¿La serie que está por anotar es un récord personal en este ejercicio?
  *
  * Se calcula antes de anotarla, así el momento se puede marcar cuando ocurre y

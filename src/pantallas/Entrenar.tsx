@@ -27,9 +27,11 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { useLiveQuery } from 'dexie-react-hooks'
-import { NOMBRE_PATRON, buscarEjercicio } from '@/dominio/biblioteca'
+import { NOMBRE_PATRON, POR_ID, buscarEjercicio, cadenaDe } from '@/dominio/biblioteca'
 import { RUTINA_POR_DEFECTO, RUTINA_POR_ID } from '@/dominio/rutinas'
-import { ajusteDelDia, bandaSostenida } from '@/dominio/estado'
+import { ajusteDelDia, bandaSostenida, cadenasCongeladas } from '@/dominio/estado'
+import { seAbreHoy } from '@/dominio/anticipacion'
+import { mueveElPlan } from '@/dominio/progresion'
 import { esVuelta, RECORTE_DE_VUELTA } from '@/dominio/adherencia'
 import { haceCuanto, laVezPasada } from '@/dominio/estadisticas'
 import type { RegistroEjercicio, Serie, TipoSesion } from '@/dominio/tipos'
@@ -200,6 +202,12 @@ export function Entrenar() {
     ? (RUTINA_POR_ID.get(preferencias.rutinaActivaId) ?? RUTINA_POR_ID.get(RUTINA_POR_DEFECTO)!)
     : null
 
+  /** Qué clase de sesión es. Lo necesitan el factor, la anticipación y el cierre. */
+  const tipo: TipoSesion = useMemo(
+    () => (esCorta ? 'corta' : esVuelta(historial ?? [], fechaISO()) ? 'vuelta' : 'plan'),
+    [esCorta, historial],
+  )
+
   /** El factor del día: estado sostenido y sesión de vuelta se multiplican. */
   const factor = useMemo(() => {
     if (!estados || !historial) return 1
@@ -223,9 +231,17 @@ export function Entrenar() {
       // casillero. Es lo que hace que la segunda sesión no se sienta idéntica
       // a la primera: los casilleros vacíos ya no están vacíos.
       const antes = historial ? laVezPasada(historial, ejercicio.id, fechaISO()) : null
-      return [{ ejercicio, objetivo: { series, cantidad }, antes }]
+      // Y si esta sesión, cumplida, abre el eslabón siguiente. Solo cuando la
+      // sesión de verdad mueve la progresión: en una corta, una de vuelta o una
+      // cadena congelada el dato sigue siendo correcto y la promesa sería falsa.
+      const cuenta =
+        mueveElPlan(tipo) &&
+        !ajusteDelDia(bandaSostenida(estados ?? [], fechaISO())).neutra &&
+        !cadenasCongeladas(estados ?? [], fechaISO()).has(bloque.patron)
+      const abre = seAbreHoy(avance, cadenaDe(bloque.patron), POR_ID, cuenta)
+      return [{ ejercicio, objetivo: { series, cantidad }, antes, abre }]
     })
-  }, [rutina, avances, esCorta, factor, historial])
+  }, [rutina, avances, esCorta, factor, historial, estados, tipo])
 
   if (!avances || !preferencias || !historial || !listo || plan.length === 0) {
     return (
@@ -244,7 +260,7 @@ export function Entrenar() {
   // que se acota: entrar por un índice que no existe rompe la pantalla entera.
   const enCurso = Math.min(Math.max(indice, 0), plan.length - 1)
   const paso = plan[enCurso]!
-  const { ejercicio, objetivo, antes } = paso
+  const { ejercicio, objetivo, antes, abre } = paso
   const series = hechas[ejercicio.id] ?? []
   const completo = series.length >= objetivo.series
   const esUltimo = enCurso === plan.length - 1
@@ -341,12 +357,6 @@ export function Entrenar() {
       series: hechas[e.id] ?? [],
     }))
 
-    const tipo: TipoSesion = esCorta
-      ? 'corta'
-      : esVuelta(historial ?? [], fechaISO())
-        ? 'vuelta'
-        : 'plan'
-
     try {
       const cerrada = await cerrarSesion({
         registros,
@@ -433,6 +443,25 @@ export function Entrenar() {
           {objetivo.series}
         </Rotulo>
         <h1 className="mt-2 text-3xl font-bold leading-tight tracking-tight">{ejercicio.nombre}</h1>
+
+        {/* La víspera, adentro de la sesión: lo que está en juego hoy en esta
+            cadena. Es una sola línea y aparece muy poco —solo cuando falta
+            exactamente una sesión— porque una anticipación permanente deja de
+            ser una anticipación. Y no dice "esta serie": el motor decide al
+            cerrar la sesión, no al anotar una serie, y decirlo de otra forma
+            sería prometer algo que la app no controla.
+
+            Va en texto normal y no en rótulo: un rótulo en versalitas espaciadas
+            es para dos palabras, y una frase entera ahí se lee como un segundo
+            título gritándole al nombre del ejercicio. Tampoco va en `.glosa`:
+            esta pantalla apaga la voz del motor a propósito, y eso es una
+            decisión de diseño, no un descuido que haya que esquivar. */}
+        {abre && (
+          <p className="mt-2 max-w-[34ch] text-sm leading-relaxed text-[var(--color-glosa)]">
+            Si cerrás esta sesión, pasás a{' '}
+            <span className="text-[var(--color-tinta)]">{abre.nombre.toLowerCase()}</span>.
+          </p>
+        )}
 
         {/* Los casilleros, con la vara adentro.
             Un casillero vacío no dice nada; un casillero con el número de la

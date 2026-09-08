@@ -30,6 +30,42 @@ async function revisarDesborde(pagina, donde) {
   if (desborda) problemas.push(`Desborde horizontal en ${donde}`)
 }
 
+/**
+ * Fuerza una cadena al techo de su ventana, ya consolidada.
+ *
+ * Es la única forma de ver la víspera —"si cerrás esta sesión, pasás a X"— en
+ * un recorrido automático: aparece en una de cada cinco sesiones reales y nunca
+ * en una instalación nueva, así que sin esto ninguna revisión la miraría jamás.
+ * Se hace al final de todo, porque deja la base en un estado inventado.
+ */
+async function forzarVispera(pagina, patron) {
+  return pagina.evaluate(async (patron) => {
+    const base = await new Promise((res, rej) => {
+      const r = indexedDB.open('lyrafit')
+      r.onsuccess = () => res(r.result)
+      r.onerror = () => rej(r.error)
+    })
+    const avance = await new Promise((res, rej) => {
+      const q = base.transaction('avances').objectStore('avances').get(patron)
+      q.onsuccess = () => res(q.result)
+      q.onerror = () => rej(q.error)
+    })
+    if (!avance) return null
+    // Muy por encima del techo de cualquier ventana, con la señal a favor y la
+    // consolidación cumplida: el motor cambia de eslabón en la próxima sesión.
+    avance.objetivoActual = { ...avance.objetivoActual, cantidad: 999 }
+    avance.senal = 1
+    avance.sesionesEnObjetivo = 5
+    avance.graciaRestante = 0
+    await new Promise((res, rej) => {
+      const q = base.transaction('avances', 'readwrite').objectStore('avances').put(avance)
+      q.onsuccess = res
+      q.onerror = () => rej(q.error)
+    })
+    return avance.ejercicioId
+  }, patron)
+}
+
 async function main() {
   await mkdir(SALIDA, { recursive: true })
 
@@ -161,6 +197,40 @@ async function main() {
     await pagina.goto(`${BASE}/#/ajustes`, { waitUntil: 'networkidle' })
     await capturar(pagina, `9-ajustes-${tema}`)
     await revisarDesborde(pagina, `Ajustes (${tema})`)
+
+    // Y la víspera, que va última porque deja la base en un estado inventado.
+    // Se fuerza la rutina de cuatro días para que hoy toque entrenar sea cual
+    // sea el día en que se corra la revisión.
+    await pagina.goto(`${BASE}/#/ajustes`, { waitUntil: 'networkidle' })
+    await pagina.getByRole('button', { name: /Empuje y tracción/ }).click()
+    await pagina.waitForTimeout(300)
+    const forzado = await forzarVispera(pagina, 'traccion')
+    if (!forzado) problemas.push(`No se pudo forzar la víspera (${tema})`)
+
+    await pagina.goto(`${BASE}/#/`, { waitUntil: 'networkidle' })
+    await pagina.waitForTimeout(800)
+    await capturar(pagina, `11-vispera-hoy-${tema}`)
+    await revisarDesborde(pagina, `Hoy con víspera (${tema})`)
+    if (!(await pagina.getByText(/pasás a/).first().isVisible().catch(() => false))) {
+      problemas.push(`La víspera no aparece en Hoy (${tema})`)
+    }
+
+    await pagina.goto(`${BASE}/#/entrenar`, { waitUntil: 'networkidle' })
+    await pagina.waitForTimeout(800)
+    // El bloque de tracción es el segundo del plan: hay que saltear el primero.
+    await pagina.getByRole('button', { name: 'Saltear este ejercicio', exact: true }).click()
+    await pagina.waitForTimeout(600)
+    await capturar(pagina, `12-vispera-entrenar-${tema}`)
+    await revisarDesborde(pagina, `Entrenar con víspera (${tema})`)
+    if (
+      !(await pagina
+        .getByText(/Si cerrás esta sesión/)
+        .first()
+        .isVisible()
+        .catch(() => false))
+    ) {
+      problemas.push(`La víspera no aparece en Entrenar (${tema})`)
+    }
 
     await contexto.close()
   }
