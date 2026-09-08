@@ -4,12 +4,17 @@
  * Dos canales con jurisdicción estricta —tacto y sonido— y una regla que los
  * ordena a los dos: **el énfasis se gasta**. Si cada serie anotada sonara,
  * dieciocho sonidos por sesión convertirían el sonido en ruido y no quedaría
- * con qué marcar el cambio de nivel, que pasa seis veces por año.
+ * con qué marcar nada.
  *
  * Por eso el presupuesto de una sesión típica es: los avisos del descanso
  * —que son funcionales, porque en ese momento no estás mirando la pantalla— y
- * nada más. El récord suena unas pocas veces por mes. El nivel y el hito, casi
- * nunca.
+ * nada más.
+ *
+ * La frecuencia del resto se midió sobre el motor real, y salió al revés de lo
+ * que se creía al escribir esto: el cambio de eslabón cae en el 35-40% de los
+ * cierres, no seis veces por año. Las cuatro cadenas arrancan juntas y se
+ * agrupan. Eso no lo vuelve ruido —un día común sigue sin sonar— pero sí
+ * explica por qué el récord se fue: disparaba todavía más seguido.
  *
  * ## Sobre iOS, sin vueltas
  *
@@ -94,7 +99,11 @@ const TOQUE = {
   ejercicio: [25, 80, 25, 80, 110],
   /** El mismo dibujo que "queda una", al doble de peso. No es logro: es "ahora". */
   descanso: [45, 80, 45],
-  /** El único que EMPIEZA pesado. Pasa seis veces por año. */
+  /**
+   * El único que EMPIEZA pesado. Medido sobre el motor real: el salto de
+   * eslabón cae cada dos o tres sesiones, no seis veces por año como se creía
+   * al escribir esto — las cuatro cadenas arrancan juntas y se agrupan.
+   */
   nivel: [110, 110, 25, 80, 25, 80, 25],
   /** Cinco iguales: es un conteo, no una fanfarria. */
   hito: [25, 80, 25, 80, 25, 80, 25, 80, 25],
@@ -161,10 +170,22 @@ const CORTA = 0.1
 const LARGA = 0.44
 
 /**
- * Cinco earcons de una sola voz, con una gramática de intervalos que se
- * entiende sin que nadie la explique: el cambio de nivel es literalmente la
- * melodía del récord, completada y una octava más arriba. Se escucha que es
- * lo mismo, pero un piso más arriba.
+ * Tres sonidos en toda la app, y son tres a propósito.
+ *
+ * Hubo un cuarto —el récord— y se fue después de medirlo: `esRecord` dispara
+ * en más de la mitad de los pares ejercicio-sesión, porque al entrar a un
+ * eslabón nuevo el máximo de ese ejercicio es cero y después cada peldaño de
+ * la ventana es un máximo nuevo. No mide un récord: mide "estás subiendo", que
+ * es lo que la app hace todo el tiempo. En este producto no existe un récord
+ * raro, y un sonido frecuente disfrazado de raro devalúa a los otros dos.
+ *
+ * También se fue el de deshacer: una corrección no necesita banda de sonido, y
+ * ya se ve en la pantalla.
+ *
+ * Los tres que quedan comparten una nota. El aviso es un D5, el cero es el A5
+ * que está una cuarta más arriba, y el cambio de nivel arranca en ese mismo A5
+ * y sube una octava. No es un idioma nuevo: es el idioma que escuchás ocho
+ * veces por sesión, un piso más arriba, que es literalmente lo que pasó.
  */
 const EARCON = {
   /** Sube una cuarta: "se terminó, arrancá". */
@@ -172,10 +193,13 @@ const EARCON = {
     nota(660, 0, CORTA, 0.2)
     nota(880, 0.11, CORTA, 0.2)
   },
-  /** Quinta ascendente sobre la nota alta. Nada más en la app llega a 1320. */
-  record: () => {
-    nota(880, 0, CORTA, 0.16)
-    nota(1320, 0.09, CORTA, 0.16)
+  /**
+   * La entrada del descanso, tres segundos antes del cero. Un D5, una cuarta
+   * justa por debajo del A5 que suena al final, y a la mitad del volumen: se
+   * lee como "ya… ahora", no como dos alarmas.
+   */
+  aviso: () => {
+    nota(587.33, 0, CORTA, 0.1)
   },
   /** El motivo del récord, completado con la octava, largo y lento. */
   nivel: () => {
@@ -186,11 +210,6 @@ const EARCON = {
   /** El mismo tono cinco veces: es un conteo, no una melodía. */
   hito: () => {
     for (let i = 0; i < 5; i++) nota(440, i * 0.15, CORTA, 0.14)
-  },
-  /** Lo único que baja, y lo más flojo de la app. */
-  deshacer: () => {
-    nota(392, 0, CORTA, 0.1)
-    nota(294, 0.08, CORTA, 0.1)
   },
 } as const
 
@@ -214,6 +233,8 @@ export function sonar(cual: Earcon): void {
 export const NO_SUENAN = [
   'serie anotada',
   'ejercicio completo',
+  'récord personal',
+  'deshacer',
   'saltear',
   'avanzar de ejercicio',
   'abrir la app',

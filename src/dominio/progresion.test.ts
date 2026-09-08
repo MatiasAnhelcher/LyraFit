@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { POR_ID, cadenaDe } from './biblioteca'
+import { RECORTE_DE_VUELTA } from './adherencia'
 import {
   BAJA,
   CONSOLIDACION,
@@ -12,6 +13,7 @@ import {
   incremento,
   indiceDeCarga,
   logradoTipico,
+  mueveElPlan,
   porcentajeDeCadena,
   recalibrar,
   rendimientoDeSesion,
@@ -19,7 +21,7 @@ import {
   siguienteAvance,
   ubicarEnCadena,
 } from './progresion'
-import type { Avance, Objetivo, Serie } from './tipos'
+import type { Avance, Objetivo, Serie, TipoSesion } from './tipos'
 
 const empuje = cadenaDe('empuje')
 const ctx = { cadena: empuje, ejercicios: POR_ID }
@@ -441,5 +443,121 @@ describe('proyectar', () => {
     const avance = avanceEn('flexion-diamante', 8)
     expect(proyectar(avance, ctx, 'flexion-completa')).toBeNull()
     expect(proyectar(avance, ctx, 'flexion-diamante')).toBeNull()
+  })
+})
+
+describe('la serie de cierre no opina', () => {
+  const objetivo: Objetivo = { series: 3, cantidad: 12 }
+
+  // La serie de cierre es trabajo real y se guarda, pero se hace hasta donde
+  // dé después de haber cumplido: si entrara al promedio, cumplir el objetivo
+  // y encima dejar algo más en el tanque daría MÁS de 1,00 y podría disparar
+  // un salto de eslabón que no se ganó.
+  it('cumplir exacto sigue valiendo exactamente uno, con cierre o sin él', () => {
+    const conCierre: Serie[] = [...series(12, 12, 12), { logrado: 7, cierre: true }]
+    expect(rendimientoDeSesion(objetivo, conCierre)).toBeCloseTo(1, 10)
+  })
+
+  it('y si contara, no valdría uno —que es de dónde vino el defecto', () => {
+    const comoSiContara = series(12, 12, 12, 7)
+    expect(rendimientoDeSesion(objetivo, comoSiContara)).toBeGreaterThan(1)
+  })
+
+  it('tampoco arrastra la mediana para abajo', () => {
+    const conCierre: Serie[] = [...series(12, 12, 12), { logrado: 4, cierre: true }]
+    expect(logradoTipico(conCierre)).toBe(12)
+  })
+
+  it('así que una sesión cumplida con cierre no cambia de eslabón sola', () => {
+    // Mismo caso, ahora contra el motor entero: en el techo y recién llegado,
+    // el cierre no puede ser lo que empuje el salto.
+    const e = ejercicio('flexion-completa')
+    const avance = avanceEn('flexion-completa', e.ventana.max)
+    const conCierre: Serie[] = [
+      ...series(...Array(e.series).fill(e.ventana.max)),
+      { logrado: Math.round(e.ventana.max / 2), cierre: true },
+    ]
+    const d = siguienteAvance(
+      avance,
+      {
+        rendimiento: rendimientoDeSesion(avance.objetivoActual, conCierre),
+        tipico: logradoTipico(conCierre),
+      },
+      ctx,
+      0,
+    )
+    expect(d.cambioDeNivel).toBe(false)
+  })
+})
+
+describe('el freno por ánimo, y hasta dónde llega', () => {
+  // El freno existe para no apretar el acelerador cuando alguien viene
+  // cumpliendo pero pasándola mal. Lo que NO puede hacer es frenar el cambio
+  // de eslabón: cambiar de eslabón es neutro en carga por construcción
+  // —`recalibrar` conserva el índice a los dos lados del salto—, así que
+  // frenarlo no le baja la exigencia a nadie: solo le posterga lo único que la
+  // app le prometió, y justo el día en que se lo ganó.
+  const mal = { animo: -1.5 }
+
+  it('por debajo del techo, sostiene', () => {
+    const avance = avanceEn('flexion-completa', 8, { senal: 1 })
+    const d = siguienteAvance(avance, { rendimiento: 1, tipico: 8, ...mal }, ctx, 0)
+    expect(d.movimiento).toBe('sostiene')
+  })
+
+  it('en el techo y con el eslabón dominado, cambia de nivel igual', () => {
+    const e = ejercicio('flexion-completa')
+    const avance = avanceEn('flexion-completa', e.ventana.max, {
+      senal: 1,
+      sesionesEnObjetivo: CONSOLIDACION,
+    })
+    const d = siguienteAvance(
+      avance,
+      { rendimiento: 1, tipico: e.ventana.max, ...mal },
+      ctx,
+      0,
+    )
+    expect(d.movimiento).toBe('nivel-arriba')
+    expect(d.cambioDeNivel).toBe(true)
+    expect(d.avance.ejercicioId).toBe('flexion-diamante')
+  })
+})
+
+describe('qué sesiones mueven el plan', () => {
+  it('solo las del plan', () => {
+    expect(mueveElPlan('plan')).toBe(true)
+    expect(mueveElPlan('corta')).toBe(false)
+    // La de vuelta trae el objetivo recortado al 70%: cumplirlo es cumplir una
+    // vara más baja, no ganarse un eslabón.
+    expect(mueveElPlan('vuelta')).toBe(false)
+  })
+
+  it('un tipo nuevo tiene que decidirse acá, no heredar el permiso', () => {
+    const TIPOS: TipoSesion[] = ['plan', 'corta', 'vuelta']
+    expect(TIPOS.filter(mueveElPlan)).toEqual(['plan'])
+  })
+
+  it('y por eso una vuelta cumplida no empuja el eslabón', () => {
+    // El objetivo real de la sesión ya viene recortado; contra esa vara la
+    // persona da 1,00 y la señal se iría para arriba si la sesión contara.
+    const e = ejercicio('flexion-completa')
+    const avance = avanceEn('flexion-completa', e.ventana.max, {
+      senal: 1,
+      sesionesEnObjetivo: CONSOLIDACION,
+    })
+    const recortado = Math.round(e.ventana.max * RECORTE_DE_VUELTA)
+    const hechas = series(...Array(e.series).fill(recortado))
+    const evaluacion = {
+      rendimiento: rendimientoDeSesion({ series: e.series, cantidad: recortado }, hechas),
+      tipico: recortado,
+    }
+
+    // Sin la marca, cumplir la vara recortada alcanza para saltar.
+    expect(siguienteAvance(avance, evaluacion, ctx, 0).cambioDeNivel).toBe(true)
+
+    // Con ella —que es lo que pone `cerrarSesion` vía `mueveElPlan`—, no.
+    const d = siguienteAvance(avance, { ...evaluacion, neutra: true }, ctx, 0)
+    expect(d.cambioDeNivel).toBe(false)
+    expect(d.avance.senal).toBe(avance.senal)
   })
 })

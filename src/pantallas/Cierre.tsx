@@ -62,10 +62,11 @@ export function Cierre({
   /**
    * Suena una sola cosa, y casi nunca.
    *
-   * El salto de eslabón manda sobre el hito porque es más raro —seis veces al
-   * año por cadena contra ocho veces en toda la vida de la app— y porque es lo
-   * que la app promete. Un día común no suena nada, que es lo que hace que
-   * estos dos se escuchen.
+   * El salto de eslabón manda sobre el hito porque es lo que la app promete.
+   * Ojo con la frecuencia, que es contraintuitiva: medido sobre el motor real,
+   * el salto cae en el 35-40% de los cierres —las cuatro cadenas arrancan
+   * juntas y se agrupan—, no una vez cada seis semanas. Un día común no suena
+   * nada, y eso es lo que hace que estos dos se escuchen.
    *
    * El retardo alinea el sonido con el momento en que la línea llega al nodo y
    * la estrella se enciende: los tres canales convergen en un solo instante.

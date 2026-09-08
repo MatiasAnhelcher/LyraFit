@@ -100,6 +100,17 @@ export interface Serie {
    * última serie del ejercicio, y nunca es obligatorio.
    */
   reservas?: number
+  /**
+   * La serie de cierre: la fácil que se agrega al final para que la sesión no
+   * termine en el punto más duro.
+   *
+   * Se guarda porque es trabajo real y cuenta para el volumen y el historial,
+   * pero **no opina sobre la progresión**. Está declarada "no se puede
+   * fallar", y una serie que no se puede fallar tampoco puede empujar un
+   * cambio de eslabón: al entrar en el promedio subía el rendimiento de 1,00
+   * a 1,04 y podía disparar un salto que no se ganó.
+   */
+  cierre?: true
 }
 
 /** El registro de un ejercicio dentro de una sesión de entrenamiento. */

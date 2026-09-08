@@ -31,7 +31,6 @@ import { NOMBRE_PATRON, buscarEjercicio } from '@/dominio/biblioteca'
 import { RUTINA_POR_DEFECTO, RUTINA_POR_ID } from '@/dominio/rutinas'
 import { ajusteDelDia, bandaSostenida } from '@/dominio/estado'
 import { esVuelta, RECORTE_DE_VUELTA } from '@/dominio/adherencia'
-import { esRecord } from '@/dominio/anticipacion'
 import type { RegistroEjercicio, Serie, TipoSesion } from '@/dominio/tipos'
 import {
   cerrarSesion,
@@ -105,14 +104,6 @@ export function Entrenar() {
    * El ref hace falta porque el temporizador consulta cuatro veces por
    * segundo: sin él serían doce tics en lugar de tres.
    */
-  /**
-   * Los ejercicios que ya sonaron a récord en esta sesión.
-   *
-   * Sin esto, tres series por encima de la marca vieja sonarían tres veces:
-   * el historial no se actualiza hasta que la sesión se cierra. La marca se
-   * dice una vez, cuando se rompe.
-   */
-  const yaSonoRecord = useRef<Set<string>>(new Set())
   const ultimoTic = useRef(0)
   useEffect(() => {
     if (!descanso.activo) {
@@ -123,6 +114,9 @@ export function Entrenar() {
     if (faltan > 0 && faltan <= 3 && faltan !== ultimoTic.current) {
       ultimoTic.current = faltan
       tocar('antes')
+      // La nota grave solo al entrar en la cuenta: tres notas seguidas serían
+      // insoportables a la octava repetición de la sesión.
+      if (faltan === 3) sonar('aviso')
     }
   }, [descanso.activo, descanso.restante])
 
@@ -180,12 +174,21 @@ export function Entrenar() {
   const cierre = plan.reduce((facil, p) => (p.ejercicio.ccr < facil.ejercicio.ccr ? p : facil), plan[0]!)
   const objetivoCierre = Math.max(1, Math.round(cierre.objetivo.cantidad * 0.6))
 
-  function registrarSerie(idEjercicio: string, logrado: number, predicho?: number) {
+  function registrarSerie(
+    idEjercicio: string,
+    logrado: number,
+    predicho?: number,
+    esCierre?: boolean,
+  ) {
     setHechas((previas) => ({
       ...previas,
       [idEjercicio]: [
         ...(previas[idEjercicio] ?? []),
-        { logrado, ...(predicho !== undefined ? { predicho } : {}) },
+        {
+          logrado,
+          ...(predicho !== undefined ? { predicho } : {}),
+          ...(esCierre ? { cierre: true as const } : {}),
+        },
       ],
     }))
     setPrediccion(null)
@@ -199,12 +202,6 @@ export function Entrenar() {
     const logrado = Math.max(0, propuesto)
     registrarSerie(ejercicio.id, logrado, preferencias?.prediccionActiva ? propuesto : undefined)
 
-    // El récord se dice cuando pasa, no diez minutos después en un resumen.
-    if (!yaSonoRecord.current.has(ejercicio.id) && esRecord(historial ?? [], ejercicio.id, logrado)) {
-      yaSonoRecord.current.add(ejercicio.id)
-      sonar('record')
-    }
-
     const quedan = objetivo.series - (series.length + 1)
     tocar(quedan === 0 ? 'ejercicio' : quedan === 1 ? 'quedaUna' : 'serie')
 
@@ -217,8 +214,10 @@ export function Entrenar() {
       [ejercicio.id]: (previas[ejercicio.id] ?? []).slice(0, -1),
     }))
     descanso.detener()
+    // El tacto sí: es el único patrón de la app que baja, y confirma que la
+    // corrección entró sin tener que mirar. El sonido no, porque deshacer es
+    // una corrección y no un evento.
     tocar('deshacer')
-    sonar('deshacer')
   }
 
   function avanzar() {
@@ -282,7 +281,7 @@ export function Entrenar() {
         cantidad={objetivoCierre}
         medida={cierre.ejercicio.medida}
         onHecho={() => {
-          registrarSerie(cierre.ejercicio.id, objetivoCierre)
+          registrarSerie(cierre.ejercicio.id, objetivoCierre, undefined, true)
           tocar('ejercicio')
           setEtapa('preguntas')
         }}

@@ -21,6 +21,7 @@ import { CADENAS, POR_ID, cadenaDe } from '@/dominio/biblioteca'
 import {
   avanceInicial,
   logradoTipico,
+  mueveElPlan,
   rendimientoDeSesion,
   siguienteAvance,
   ubicarEnCadena,
@@ -201,10 +202,10 @@ export async function cerrarSesion(entrada: CierreDeSesion): Promise<ResumenSesi
     // flexión suelta un domingo no debería mover el plan.
     if (!avance || avance.ejercicioId !== ejercicio.id) continue
 
-    // Una sesión corta cuenta para la adherencia y no para la progresión: seis
-    // minutos no dicen nada sobre si alguien está listo para el eslabón que
-    // sigue, y castigar por haber hecho algo es la peor lección posible.
-    const neutra = tipo === 'corta' || ajuste.neutra || congeladas.has(ejercicio.patron)
+    // Qué tipos de sesión mueven el plan lo decide el motor, no esta capa:
+    // está en `mueveElPlan`, con las razones y con un test que las cubre.
+    const neutra =
+      !mueveElPlan(tipo) || ajuste.neutra || congeladas.has(ejercicio.patron)
 
     const decision = siguienteAvance(
       avance,

@@ -120,7 +120,7 @@ export function Ajustes() {
           />
           <Interruptor
             titulo="Sonido"
-            detalle="El fin del descanso, los récords y el cambio de nivel. Nada más suena."
+            detalle="El descanso, el cambio de nivel y las sesiones redondas. Nada más suena."
             activo={preferencias.sonidoDescanso}
             onCambiar={(v) => cambiar({ sonidoDescanso: v })}
           />

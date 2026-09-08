@@ -37,6 +37,7 @@ import type {
   Medida,
   Objetivo,
   Serie,
+  TipoSesion,
 } from './tipos'
 
 // ─── Las constantes del motor ────────────────────────────────────────────
@@ -126,7 +127,9 @@ export function rendimientoDeSesion(objetivo: Objetivo, series: Serie[]): number
   const propuesto = objetivo.series * objetivo.cantidad
   if (propuesto <= 0 || objetivo.cantidad <= 0) return 0
 
-  const logrados = series.map((s) => Math.max(0, s.logrado))
+  // La serie de cierre no opina. Se filtra acá y no en la pantalla para que
+  // proteja a todos los que llaman, incluida la proyección del alta.
+  const logrados = series.filter((s) => !s.cierre).map((s) => Math.max(0, s.logrado))
   const volumen = logrados.reduce((suma, n) => suma + n, 0)
 
   // Las series que faltaron cuentan como cero, así que abandonar a la mitad
@@ -143,11 +146,38 @@ export function rendimientoDeSesion(objetivo: Objetivo, series: Serie[]): number
 
 /** La cantidad típica que se logró, para saber a qué bajar cuando hay meseta. */
 export function logradoTipico(series: Serie[]): number {
-  const logrados = series.map((s) => Math.max(0, s.logrado)).sort((a, b) => a - b)
+  const logrados = series
+    .filter((s) => !s.cierre)
+    .map((s) => Math.max(0, s.logrado))
+    .sort((a, b) => a - b)
   if (logrados.length === 0) return 0
   const medio = Math.floor(logrados.length / 2)
   if (logrados.length % 2 === 1) return logrados[medio]!
   return Math.round(((logrados[medio - 1] ?? 0) + (logrados[medio] ?? 0)) / 2)
+}
+
+/**
+ * Si una sesión de este tipo mueve la progresión o no.
+ *
+ * Vivía adentro de `cerrarSesion`, o sea en la capa de datos y fuera del
+ * alcance de cualquier test. Está acá porque es una regla del motor, y porque
+ * las dos excepciones tienen la misma forma —una vara más baja— y llegaron por
+ * caminos distintos:
+ *
+ * - La **corta** cuenta para la adherencia y no para la progresión: seis
+ *   minutos no dicen nada sobre si alguien está listo para el eslabón que
+ *   sigue, y castigar a alguien por haber hecho algo es la peor lección
+ *   posible.
+ * - La **de vuelta** trae el objetivo ya recortado al 70%. Cumplirlo da
+ *   rendimiento 1,00 contra esa vara más baja, así que si contara podría
+ *   disparar un salto de eslabón que no se ganó. La vara se baja para que
+ *   volver sea fácil, no para regalar un nivel.
+ *
+ * Es exhaustiva a propósito: un tipo de sesión nuevo no hereda el permiso de
+ * mover el plan, hay que dárselo acá.
+ */
+export function mueveElPlan(tipo: TipoSesion): boolean {
+  return tipo === 'plan'
 }
 
 // ─── Carga relativa: lo que hace comparables dos ejercicios distintos ────
@@ -399,15 +429,21 @@ export function siguienteAvance(
 
   // ── Sube ───────────────────────────────────────────────────────────────
   if (senal >= SUBE) {
-    // Viene cumpliendo, pero la está pasando mal. Subirle la exigencia ahora
-    // es la forma más segura de perderla: se consolida en su lugar.
-    if (evaluacion.animo !== undefined && evaluacion.animo < 0) {
-      return sostener(
-        'Venís cumpliendo, pero las últimas sesiones se te hicieron cuesta arriba. Nos quedamos acá para consolidar.',
-      )
-    }
-
     if (cantidad < ventana.max) {
+      // Viene cumpliendo, pero la está pasando mal. Subirle la carga ahora es
+      // la forma más segura de perderla: se consolida en su lugar.
+      //
+      // El freno vive acá adentro y no antes, a propósito. Cambiar de eslabón
+      // es neutro en carga por construcción —`recalibrar` conserva el índice
+      // exacto a los dos lados del salto—, así que frenarlo no baja ninguna
+      // exigencia: solo posterga lo único que la app prometió, y encima el día
+      // en que la persona ya se lo ganó.
+      if (evaluacion.animo !== undefined && evaluacion.animo < 0) {
+        return sostener(
+          'Venís cumpliendo, pero las últimas sesiones se te hicieron cuesta arriba. Nos quedamos acá para consolidar.',
+        )
+      }
+
       const nueva = Math.min(cantidad + incremento(medida, cantidad), ventana.max)
       const faltaPoco = nueva >= ventana.max
       return ajustar(
