@@ -1,5 +1,11 @@
 /**
- * ¿Sobrevive una sesión a que el navegador recicle la pestaña?
+ * Lo que la app guarda, ¿es cierto y sigue estando?
+ *
+ * Dos preguntas sobre los datos, no sobre el dibujo — de eso se ocupa
+ * `revisar.mjs`—. Las dos fallaron alguna vez en silencio y ninguna se ve en
+ * una captura de pantalla.
+ *
+ * ## 1. ¿Sobrevive una sesión a que el navegador recicle la pestaña?
  *
  * Es la pregunta más cara de toda la app. No hay servidor: los cuarenta
  * minutos de una sesión viven en el dispositivo, y hasta la versión 3 de la
@@ -13,6 +19,16 @@
  * llegó a IndexedDB— y revisa tres cosas: que las series anotadas sigan ahí,
  * que el cronómetro no se haya reiniciado, y que "empezar de cero" limpie de
  * verdad el borrador en vez de dejarlo para la próxima.
+ *
+ * ## 2. ¿Predicho y logrado son de verdad dos números?
+ *
+ * La app pregunta "¿cuántas te salen ahora?" antes de la primera serie de cada
+ * ejercicio y "¿cuántas hiciste?" después. Durante un tiempo fueron la misma
+ * pantalla y el mismo número: se guardaba el propuesto como predicho y como
+ * logrado, así que el error de calibración daba cero por construcción y la
+ * pantalla de progreso mostraba un 0 fijo que no medía nada. Es un defecto que
+ * vuelve solo si alguien simplifica `anotar()`, y que no se ve mirando la app:
+ * hay que abrir la base y comparar los dos campos.
  *
  * Uso: node rescate.mjs   (con `npm run preview` andando en el 4173)
  */
@@ -59,6 +75,12 @@ const salteaDescanso = async () => {
 }
 for (let i = 0; i < 3; i++) {
   await salteaDescanso()
+  // La primera serie de cada ejercicio pide primero la predicción.
+  const voy = p.getByRole('button', { name: 'Voy', exact: true })
+  if (await voy.isVisible().catch(() => false)) {
+    await voy.click()
+    await p.waitForTimeout(150)
+  }
   await p.getByRole('button', { name: 'Anotar serie', exact: true }).click()
   await p.waitForTimeout(200)
 }
@@ -108,6 +130,57 @@ if (await p.getByText('sesión retomada donde la dejaste').isVisible().catch(() 
   fallos.push('Empezar de cero no borró el borrador: la sesión volvió a retomarse.')
 }
 
+// ─── 2. Predicho y logrado tienen que poder ser distintos ────────────────
+
+// Se predice dos por encima de lo propuesto y después se anota tres menos que
+// eso: si los dos campos salen iguales, la medición volvió a ser una mentira.
+await p.getByRole('button', { name: 'Sumar' }).click()
+await p.getByRole('button', { name: 'Sumar' }).click()
+const dijo = Number(await p.locator('main p.cifra.w-32').innerText())
+await p.getByRole('button', { name: 'Voy', exact: true }).click()
+await p.waitForTimeout(300)
+
+const pregunta = await p.locator('main section p').first().innerText()
+if (!/hiciste/i.test(pregunta)) {
+  fallos.push(`Después de predecir, la app no pregunta qué hiciste: "${pregunta}"`)
+}
+
+for (let i = 0; i < 3; i++) await p.getByRole('button', { name: 'Restar' }).click()
+const hizo = Number(await p.locator('main p.cifra.w-32').innerText())
+await p.getByRole('button', { name: 'Anotar serie', exact: true }).click()
+await p.waitForTimeout(400)
+
+// Y la segunda serie del mismo ejercicio no vuelve a preguntar.
+const saltea = p.getByRole('button', { name: 'Saltear', exact: true })
+if (await saltea.isVisible().catch(() => false)) await saltea.click()
+await p.waitForTimeout(300)
+if (await p.getByRole('button', { name: 'Voy', exact: true }).isVisible().catch(() => false)) {
+  fallos.push('La app pide predicción en la segunda serie: son cuatro por sesión, no dieciocho.')
+}
+
+const anotadas = await p.evaluate(async () => {
+  const base = await new Promise((res, rej) => {
+    const r = indexedDB.open('lyrafit')
+    r.onsuccess = () => res(r.result)
+    r.onerror = () => rej(r.error)
+  })
+  const borrador = await new Promise((res, rej) => {
+    const q = base.transaction('curso').objectStore('curso').get('actual')
+    q.onsuccess = () => res(q.result)
+    q.onerror = () => rej(q.error)
+  })
+  return Object.values(borrador?.hechas ?? {}).flat()
+})
+const conPrediccion = anotadas.filter((s) => s.predicho !== undefined)
+if (conPrediccion.length === 0) {
+  fallos.push('No se guardó ninguna predicción.')
+} else if (conPrediccion.every((s) => s.predicho === s.logrado)) {
+  fallos.push(
+    `Predicho y logrado se guardaron iguales (dije ${dijo}, hice ${hizo}): ` +
+      'la calibración vuelve a medir cero por construcción.',
+  )
+}
+
 await navegador.close()
 
 if (fallos.length > 0) {
@@ -116,3 +189,4 @@ if (fallos.length > 0) {
   process.exit(1)
 }
 console.log(`La sesión sobrevive a que muera la pestaña (${relojAntes} → ${relojDespues}).`)
+console.log(`Predicho y logrado se guardan por separado (dije ${dijo}, hice ${hizo}).`)

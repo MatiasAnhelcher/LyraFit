@@ -126,16 +126,20 @@ async function main() {
     await capturar(pagina, `2-entrenar-${tema}`)
     await revisarDesborde(pagina, `Entrenar (${tema})`)
 
-    for (let vuelta = 0; vuelta < 60; vuelta++) {
+    for (let vuelta = 0; vuelta < 80; vuelta++) {
       // Nombres exactos: sin `exact`, "Saltear" también engancha "Saltear este
       // ejercicio" y la revisión se saltea media sesión sin avisar.
       const anotar = pagina.getByRole('button', { name: 'Anotar serie', exact: true })
+      // "Voy" cierra la predicción de la primera serie de cada ejercicio.
+      const voy = pagina.getByRole('button', { name: 'Voy', exact: true })
       const saltear = pagina.getByRole('button', { name: 'Saltear', exact: true })
       const siguiente = pagina.getByRole('button', { name: 'Siguiente ejercicio', exact: true })
       const terminar = pagina.getByRole('button', { name: 'Terminar', exact: true })
 
       if (await saltear.isVisible().catch(() => false)) {
         await saltear.click() // saltea el descanso
+      } else if (await voy.isVisible().catch(() => false)) {
+        await voy.click()
       } else if (await anotar.isVisible().catch(() => false)) {
         await anotar.click()
       } else if (await siguiente.isVisible().catch(() => false)) {

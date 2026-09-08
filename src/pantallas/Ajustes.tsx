@@ -113,8 +113,8 @@ export function Ajustes() {
             onCambiar={(v) => cambiar({ estadoActivo: v })}
           />
           <Interruptor
-            titulo="Predecir cada serie"
-            detalle="Cuesta cero toques si aceptás el número. Mide qué tan bien te conocés el cuerpo."
+            titulo="Predecir la primera serie"
+            detalle="Antes de arrancar cada ejercicio: cuántas te salen. Mide qué tan bien te conocés el cuerpo."
             activo={preferencias.prediccionActiva !== false}
             onCambiar={(v) => cambiar({ prediccionActiva: v })}
           />

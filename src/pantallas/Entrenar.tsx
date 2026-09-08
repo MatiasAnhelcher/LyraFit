@@ -8,10 +8,22 @@
  *
  * Tres cosas nuevas, y ninguna es decorativa:
  *
- * - **La predicción antes de cada serie.** Cuesta cero toques si aceptás el
- *   número que ya está puesto, y convierte datos que la app igual iba a
- *   guardar en una medida de qué tan bien te conocés el cuerpo. No da puntos
- *   a propósito: si diera puntos, se podría hacer trampa prediciendo bajo.
+ * - **La predicción antes de la primera serie de cada ejercicio.** Son dos
+ *   pantallas y no una: primero "¿cuántas te salen ahora?" y después, hecha la
+ *   serie, "¿cuántas hiciste?". Tienen que ser dos porque medir requiere dos
+ *   momentos — la versión anterior guardaba el mismo número como predicho y
+ *   como logrado, así que el error daba cero por construcción y la pantalla de
+ *   progreso mostraba un 0 fijo que no medía nada—. Solo la primera serie: las
+ *   dieciocho de una sesión serían dieciocho toques extra, y predecir la
+ *   tercera no mide interocepción sino aritmética.
+ *
+ *   El resultado viene precargado con lo que predijiste, así que acertar
+ *   cuesta cero toques. Eso ancla un poco la respuesta hacia la predicción y
+ *   por lo tanto achica el error medido; el sesgo se acepta a ojos abiertos,
+ *   porque la alternativa —precargar el objetivo— le cobra toques al que
+ *   acertó, y nadie declara que hizo nueve cuando hizo siete por lo que diga
+ *   una casilla. No da puntos a propósito: si diera puntos, se podría hacer
+ *   trampa prediciendo bajo.
  *
  * - **La serie de cierre.** Después de la última serie prescrita se agrega una
  *   serie fácil, al sesenta por ciento, que nunca cuenta para fallo. Sale de
@@ -72,6 +84,21 @@ export function Entrenar() {
   const [resumen, setResumen] = useState<ResumenSesion | null>(null)
   const [guardando, setGuardando] = useState(false)
   const [prediccion, setPrediccion] = useState<number | null>(null)
+  /**
+   * La predicción de la serie que está por hacerse, ya cerrada.
+   *
+   * Existe porque sin ella la medición era una mentira aritmética: se guardaba
+   * el mismo número como predicho y como logrado, así que el error era cero por
+   * construcción y "qué tan bien te conocés" mostraba un 0 fijo para siempre.
+   * Medir requiere dos momentos separados, y no hay forma de evitarlo.
+   *
+   * `null` quiere decir que la serie en curso no tiene predicción: o porque la
+   * función está apagada, o porque no es la primera serie del ejercicio, o
+   * porque la pestaña murió entre predecir y anotar. En ese último caso la
+   * serie se guarda sin predicción a propósito: un dato inventado después de
+   * saber el resultado sería peor que ningún dato.
+   */
+  const [predicho, setPredicho] = useState<number | null>(null)
   /**
    * La red de contención de la sesión.
    *
@@ -267,6 +294,24 @@ export function Entrenar() {
   const propuesto = prediccion ?? objetivo.cantidad
   const salto = ejercicio.medida === 'segundos' ? 5 : 1
 
+  /**
+   * ¿Toca predecir antes de esta serie?
+   *
+   * Solo en la primera de cada ejercicio, y por dos razones. Una es el costo:
+   * predecir las dieciocho series de una sesión son dieciocho toques extra, y
+   * esta app no le cobra a nadie dieciocho toques por una métrica secundaria.
+   * La otra es que predecir la tercera serie no mide interocepción, mide
+   * aritmética — ya hiciste dos y sabés cómo viene la mano—. La primera serie
+   * es el único momento en que la pregunta es sobre el cuerpo y no sobre el
+   * historial de los últimos cuatro minutos.
+   *
+   * Cuatro predicciones por sesión llegan a las treinta series que pide la
+   * calibración en unas ocho sesiones. Es más lento que antes y, a diferencia
+   * de antes, mide algo.
+   */
+  const tocaPredecir =
+    preferencias.prediccionActiva !== false && series.length === 0 && predicho === null
+
   // La serie de cierre: el ejercicio más fácil de la sesión, al 60%.
   const cierre = plan.reduce((facil, p) => (p.ejercicio.ccr < facil.ejercicio.ccr ? p : facil), plan[0]!)
   const objetivoCierre = Math.max(1, Math.round(cierre.objetivo.cantidad * 0.6))
@@ -297,7 +342,8 @@ export function Entrenar() {
     despertarAudio()
 
     const logrado = Math.max(0, propuesto)
-    registrarSerie(ejercicio.id, logrado, preferencias?.prediccionActiva ? propuesto : undefined)
+    registrarSerie(ejercicio.id, logrado, predicho ?? undefined)
+    setPredicho(null)
 
     const quedan = objetivo.series - (series.length + 1)
     tocar(quedan === 0 ? 'ejercicio' : quedan === 1 ? 'quedaUna' : 'serie')
@@ -311,6 +357,7 @@ export function Entrenar() {
       [ejercicio.id]: (previas[ejercicio.id] ?? []).slice(0, -1),
     }))
     descanso.detener()
+    setPredicho(null)
     // El tacto sí: es el único patrón de la app que baja, y confirma que la
     // corrección entró sin tener que mirar. El sonido no, porque deshacer es
     // una corrección y no un evento.
@@ -331,6 +378,7 @@ export function Entrenar() {
     setIndice(0)
     setEtapa('series')
     setPrediccion(null)
+    setPredicho(null)
     setArrancadaEn(Date.now())
     setRetomada(false)
     descanso.detener()
@@ -339,6 +387,7 @@ export function Entrenar() {
   function avanzar() {
     descanso.detener()
     setPrediccion(null)
+    setPredicho(null)
     if (!esUltimo) setIndice((i) => i + 1)
     else setEtapa('cierre-serie')
   }
@@ -519,10 +568,18 @@ export function Entrenar() {
           </section>
         ) : (
           <section className="flex flex-1 flex-col justify-center pb-8">
+            {/* La pregunta dice en qué momento estás.
+                Antes decía "¿Cuántas te salen ahora?" y abajo el botón decía
+                "Anotar serie": la misma pantalla preguntaba por lo que iba a
+                pasar y guardaba lo que había pasado. De ahí salía el cero
+                eterno de la calibración. Ahora son dos preguntas distintas
+                porque son dos momentos distintos. */}
             <p className="text-center text-sm text-[var(--color-glosa)]">
-              {preferencias.prediccionActiva
+              {tocaPredecir
                 ? '¿Cuántas te salen ahora?'
-                : `${nombreUnidad(ejercicio.medida)} de esta serie`}
+                : predicho !== null
+                  ? '¿Cuántas hiciste?'
+                  : `${nombreUnidad(ejercicio.medida)} de esta serie`}
             </p>
 
             <div className="mt-4 flex items-center justify-center gap-6">
@@ -559,8 +616,20 @@ export function Entrenar() {
 
       <div className="mt-auto">
         {!completo && !descanso.activo && (
-          <Accion esfuerzo onClick={anotar}>
-            Anotar serie
+          <Accion
+            esfuerzo
+            onClick={
+              tocaPredecir
+                ? () => {
+                    // Se cierra la predicción y se deja el mismo número puesto:
+                    // si acertaste, anotar cuesta un toque y nada más.
+                    despertarAudio()
+                    setPredicho(propuesto)
+                  }
+                : anotar
+            }
+          >
+            {tocaPredecir ? 'Voy' : 'Anotar serie'}
           </Accion>
         )}
         {completo && (
