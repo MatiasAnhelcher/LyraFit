@@ -319,6 +319,12 @@ export async function fijarNivel(patron: Patron, ejercicioId: string): Promise<A
   }
 
   await guardarAvance(avance)
+  // Y se tira el borrador, si había uno. Las series a medio anotar están
+  // indexadas por id de ejercicio, y `cerrarSesion` solo mira los ejercicios
+  // del plan de hoy: cambiar de eslabón deja huérfanas las que ya se hicieron y
+  // desaparecen sin que nadie avise. Perder trabajo en silencio es peor que
+  // perderlo con un cartel, así que se descarta acá, que es donde se sabe.
+  await descartarSesionEnCurso()
   return avance
 }
 
