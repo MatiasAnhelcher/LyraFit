@@ -238,3 +238,70 @@ describe('haceCuanto', () => {
     expect(haceCuanto(90)).toBe('hace 3 meses')
   })
 })
+
+/**
+ * La serie de cierre y las estadísticas.
+ *
+ * Se hace al final, al sesenta por ciento del ejercicio más fácil, y la app la
+ * anota con el número propuesto sin preguntar: nunca se midió. El motor ya la
+ * ignoraba para decidir; faltaba que la ignoraran las estadísticas que dicen
+ * cuánto podés hacer.
+ *
+ * El caso de abajo es el peor y no es raro: alguien pidió quince y logró
+ * 4-3-3. La serie de cierre le pide 9. Sin filtrar, esa persona ve "tu mejor
+ * serie: 9" y a la sesión siguiente un "antes 9" en Hoy — una vara que nunca
+ * hizo, puesta justo el día que la está pasando mal.
+ */
+describe('la serie de cierre no cuenta como capacidad, pero sí como trabajo', () => {
+  const malDia: Sesion = {
+    id: 'mal',
+    fecha: '2026-09-01',
+    finalizadaEn: 1,
+    duracionSegundos: 600,
+    tipo: 'plan',
+    registros: [
+      {
+        ejercicioId: 'flexion-inclinada-alta',
+        objetivo: { series: 3, cantidad: 15 },
+        series: [{ logrado: 4 }, { logrado: 3 }, { logrado: 3 }, { logrado: 9, cierre: true }],
+      },
+    ],
+  }
+
+  it('no inventa un récord', () => {
+    expect(recordDe([malDia], 'flexion-inclinada-alta')).toBe(4)
+  })
+
+  it('no se convierte en la vara de la vez pasada', () => {
+    const vez = laVezPasada([malDia], 'flexion-inclinada-alta', '2026-09-03')
+    expect(vez?.mejor).toBe(4)
+    expect(vez?.logros).toEqual([4, 3, 3])
+  })
+
+  it('no infla el histórico del ejercicio', () => {
+    const [punto] = historicoDeEjercicio([malDia], 'flexion-inclinada-alta')
+    expect(punto?.mejor).toBe(4)
+    expect(punto?.series).toBe(3)
+  })
+
+  it('no infla la curva de fuerza', () => {
+    const conCierre = curvaDeFuerza([malDia], 'empuje')[0]
+    const sinCierre = curvaDeFuerza(
+      [
+        {
+          ...malDia,
+          registros: [{ ...malDia.registros[0]!, series: [{ logrado: 4 }, { logrado: 3 }, { logrado: 3 }] }],
+        },
+      ],
+      'empuje',
+    )[0]
+    expect(conCierre?.carga).toBeCloseTo(sinCierre!.carga, 10)
+  })
+
+  it('pero sigue contando como trabajo hecho: cuatro series son cuatro series', () => {
+    // Es la otra mitad de la regla, y es la que evita pasarse de largo: la
+    // serie de cierre se guarda justamente porque es trabajo real.
+    expect(seriesDeSesion(malDia)).toBe(4)
+    expect(repeticionesDeSesion(malDia)).toBe(19)
+  })
+})

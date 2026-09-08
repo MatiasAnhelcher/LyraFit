@@ -21,10 +21,31 @@
  *   reemplaza vive en `adherencia.ts`.
  */
 
-import type { Objetivo, Patron, Sesion } from './tipos'
+import type { Objetivo, Patron, Serie, Sesion } from './tipos'
 import { POR_ID } from './biblioteca'
 import { indiceDeCarga } from './progresion'
 import { diasEntre, lunesDe } from './adherencia'
+
+/**
+ * Las series sin la de cierre.
+ *
+ * La serie de cierre se hace al final, al sesenta por ciento y sobre el
+ * ejercicio más fácil de la sesión, y la app la anota con el número propuesto
+ * sin preguntar: nunca se midió. Contarla como capacidad es inventar un dato.
+ *
+ * El caso que lo vuelve grave no es raro, es el peor: alguien que pidió quince
+ * y logró 4-3-3 recibe una serie de cierre de 9, y sin este filtro esa persona
+ * ve "tu mejor serie: 9" y, la sesión siguiente, un "antes 9" en Hoy. Se le
+ * pone como vara un número que nunca hizo, justo el día que la está pasando
+ * mal.
+ *
+ * La regla que ordena todo esto: **el volumen la cuenta, la capacidad no.**
+ * Cuántas series hiciste hoy la incluye, porque es trabajo real y por eso se
+ * guarda. Cuánto podés hacer, no.
+ */
+function sinCierre(series: Serie[]): Serie[] {
+  return series.filter((s) => !s.cierre)
+}
 
 /** Cuántas series se completaron en una sesión. Es la unidad comparable. */
 export function seriesDeSesion(sesion: Sesion): number {
@@ -105,7 +126,7 @@ export function historicoDeEjercicio(
   for (const sesion of [...sesiones].sort((a, b) => a.fecha.localeCompare(b.fecha))) {
     for (const registro of sesion.registros) {
       if (registro.ejercicioId !== ejercicioId) continue
-      const logros = registro.series.map((s) => s.logrado)
+      const logros = sinCierre(registro.series).map((s) => s.logrado)
       if (logros.length === 0) continue
       puntos.push({
         fecha: sesion.fecha,
@@ -159,7 +180,9 @@ export function laVezPasada(
   for (const sesion of ordenadas) {
     for (const registro of sesion.registros) {
       if (registro.ejercicioId !== ejercicioId) continue
-      const logros = registro.series.map((s) => s.logrado).filter((n) => n > 0)
+      const logros = sinCierre(registro.series)
+        .map((s) => s.logrado)
+        .filter((n) => n > 0)
       if (logros.length === 0) continue
       return {
         fecha: sesion.fecha,
@@ -222,7 +245,7 @@ export function curvaDeFuerza(sesiones: Sesion[], patron: Patron): PuntoDeFuerza
       const ejercicio = POR_ID.get(registro.ejercicioId)
       if (!ejercicio || ejercicio.patron !== patron) continue
 
-      const mejor = Math.max(0, ...registro.series.map((s) => s.logrado))
+      const mejor = Math.max(0, ...sinCierre(registro.series).map((s) => s.logrado))
       if (mejor <= 0) continue
 
       const carga = indiceDeCarga(ejercicio, mejor)
