@@ -47,43 +47,7 @@ const cada = (f: Figura): [string, Postura][] => [
  * Es deuda declarada, que es distinto de deuda escondida: el test verde no dice
  * "está todo dibujado", dice "está dibujado todo lo que dijimos que iba a estar".
  */
-const SIN_DIBUJO_TODAVIA = new Set([
-  'flexion-pared',
-  'flexion-inclinada-alta',
-  'flexion-inclinada',
-  'flexion-inclinada-baja',
-  'flexion-rodillas',
-  'flexion-diamante',
-  'flexion-declinada',
-  'flexion-pseudoplancha',
-  'flexion-arquera',
-  'flexion-una-mano',
-  'remo-australiano-alto',
-  'remo-australiano-medio',
-  'remo-australiano-bajo',
-  'remo-australiano-pies-elevados',
-  'dominada-negativa',
-  'dominada-asistida',
-  'dominada-asistida-leve',
-  'dominada-arquera',
-  'dominada-un-brazo-asistida',
-  'sentadilla-banco',
-  'sentadilla-asistida',
-  'zancada',
-  'sentadilla-bulgara',
-  'sentadilla-a-banco-una-pierna',
-  'sentadilla-una-pierna-asistida',
-  'pistol-squat',
-  'pistol-con-pausa',
-  'plancha-rodillas',
-  'plancha-brazo-alternado',
-  'elevacion-rodillas-suelo',
-  'elevacion-piernas-suelo',
-  'elevacion-rodillas-colgado',
-  'elevacion-piernas-colgado',
-  'palanca-frontal-negativa',
-  'palanca-frontal-agrupada',
-])
+const SIN_DIBUJO_TODAVIA = new Set<string>([])
 
 describe('las figuras de los ejercicios', () => {
   it('no falta ningún dibujo sin que esté declarado', () => {
@@ -174,6 +138,22 @@ describe('las figuras de los ejercicios', () => {
           const enFin = figura.fin[lado[0]] !== undefined
           expect(enInicio, `${lado[0]} tiene que estar en las dos posturas o en ninguna`)
             .toBe(enFin)
+        }
+      })
+
+      it('la escena y el apoyo no se contradicen', () => {
+        // Si la escena levanta las manos sobre un cajón, lo que toca el piso
+        // son los pies, y al revés. Declararlo cruzado es el error que hundió
+        // media figura bajo el piso, y es una contradicción que se puede
+        // comprobar sola en vez de descubrirla mirando.
+        if (figura.escena === 'apoyo-manos') {
+          expect(figura.apoyo, 'con las manos en alto, lo que apoya son los pies').toBe('pies')
+        }
+        if (figura.escena === 'apoyo-pies') {
+          expect(figura.apoyo, 'con los pies en alto, lo que apoya son las manos').toBe('manos')
+        }
+        if (figura.escena === 'barra') {
+          expect(figura.apoyo, 'de una barra alta se cuelga').toBe('colgado')
         }
       })
 

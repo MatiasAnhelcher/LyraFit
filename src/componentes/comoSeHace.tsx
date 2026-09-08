@@ -85,7 +85,15 @@ export function ComoSeHace({ ejercicio, alCerrar }: { ejercicio: Ejercicio; alCe
         </ul>
       </div>
 
-      <div className="fixed inset-x-0 bottom-0">
+      {/* Fondo sólido y una regla arriba: la barra es fija, así que sin esto el
+          texto se ve pasar por detrás y parece un error de dibujo. */}
+      <div
+        className="fixed inset-x-0 bottom-0"
+        style={{
+          backgroundColor: 'var(--color-fondo)',
+          borderTop: '1px solid var(--color-regla)',
+        }}
+      >
         <AccionQuieta onClick={alCerrar}>Volver a la serie</AccionQuieta>
       </div>
     </div>

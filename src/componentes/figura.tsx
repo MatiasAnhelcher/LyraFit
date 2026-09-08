@@ -24,10 +24,11 @@
 
 import { useEffect, useRef, useState } from 'react'
 import {
-  ALTO,
   ALTO_CUERPO,
+  ALTURA_BARRA,
   ANCHO,
   PISO,
+  todos,
   entre,
   ubicar,
   type Escena,
@@ -180,6 +181,38 @@ export function FiguraEjercicio({
   return <Lienzo figura={figura} postura={postura} className={className} />
 }
 
+/**
+ * El encuadre: la caja que de verdad ocupa este ejercicio.
+ *
+ * El lienzo es de ciento veinte por cien, pero casi ningún ejercicio lo llena:
+ * una flexión vive en la franja de abajo y deja media lámina en blanco arriba.
+ * Recortar a lo que se usa hace que cada dibujo llegue al ancho de la columna
+ * en vez de flotar chiquito en el medio de un vacío.
+ *
+ * Se calcula sobre las DOS posturas juntas, no sobre la que se está dibujando:
+ * si cambiara cuadro a cuadro, la figura haría zoom mientras se mueve.
+ */
+function encuadre(figura: Figura): string {
+  const puntos = [figura.inicio, figura.fin].flatMap((p) =>
+    todos(ubicar(p, figura.apoyo, figura.inicio)),
+  )
+  const xs = puntos.map((p) => p.x)
+  const ys = puntos.map((p) => p.y)
+
+  // El piso y la barra son parte del dibujo: si quedan afuera, el cuerpo
+  // aparece apoyado en nada.
+  const y0 = Math.min(...ys, figura.apoyo === 'colgado' ? ALTURA_BARRA - 6 : PISO)
+  const y1 = Math.max(...ys, PISO)
+  const margen = 8
+
+  return [
+    Math.min(...xs) - margen,
+    y0 - margen,
+    Math.max(...xs) - Math.min(...xs) + margen * 2,
+    y1 - y0 + margen * 2,
+  ].join(' ')
+}
+
 function Lienzo({
   figura,
   postura,
@@ -192,15 +225,15 @@ function Lienzo({
   const e = ubicar(postura, figura.apoyo, figura.inicio)
   return (
     <svg
-      viewBox={`0 0 ${ANCHO} ${ALTO}`}
+      viewBox={encuadre(figura)}
       className={`w-full ${className}`}
       role="img"
       aria-label={figura.gesto}
     >
       <line
-        x1={8}
+        x1={-ANCHO}
         y1={PISO}
-        x2={ANCHO - 8}
+        x2={ANCHO * 2}
         y2={PISO}
         stroke="var(--color-regla)"
         strokeWidth={1.4}
