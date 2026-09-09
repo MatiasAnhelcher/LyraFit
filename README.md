@@ -58,6 +58,15 @@ node revisar.mjs   # recorre el alta y una sesión entera, y guarda capturas
 node rescate.mjs   # revisa los datos: que no se pierda una sesión y que se midan dos números
 ```
 
+Los dibujos de los ejercicios se revisan aparte, porque los tests comprueban que
+la geometría cierre pero no que la postura se parezca al ejercicio. Eso hay que
+mirarlo, y todo junto:
+
+```bash
+npm run dev &      # la hoja de contacto solo existe en desarrollo
+node figuras.mjs   # los 39 dibujos en una grilla → capturas/figuras.png
+```
+
 Y antes de publicar, la que mira lo que las otras no pueden mirar: qué le pasa
 a alguien que **ya tiene** la app instalada. Las dos de arriba arrancan de cero,
 así que nunca ven una migración ni una actualización.

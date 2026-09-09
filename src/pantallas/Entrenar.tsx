@@ -68,6 +68,7 @@ import { comoReloj, useCronometro, useTemporizador } from '@/hooks/useTemporizad
 import { useModoDePantalla, usePantallaDespierta } from '@/hooks/usePantalla'
 import { configurarHaptica, configurarSonido, despertarAudio, sonar, tocar } from '@/respuesta'
 import { Accion, AccionQuieta, Rotulo, nombreUnidad } from '@/componentes/ui'
+import { ComoSeHace } from '@/componentes/comoSeHace'
 import { Cierre } from './Cierre'
 
 type Etapa = 'series' | 'cierre-serie' | 'preguntas'
@@ -125,6 +126,15 @@ export function Entrenar() {
    */
   const [arrancadaEn, setArrancadaEn] = useState<number | undefined>()
   const [retomada, setRetomada] = useState(false)
+  /**
+   * El panel de "cómo se hace", abierto encima de la sesión.
+   *
+   * Es estado local y no una ruta a propósito: navegar a la ficha desmontaría
+   * la sesión, y aunque ahora el borrador la recupera, la persona igual perdería
+   * el hilo de dónde estaba. Esto se abre adelante y se cierra, y abajo la
+   * sesión nunca se movió.
+   */
+  const [explicando, setExplicando] = useState(false)
   const [listo, setListo] = useState(false)
   /**
    * La energía de antes no se pregunta: ya la contestaste.
@@ -477,6 +487,7 @@ export function Entrenar() {
 
   return (
     <div className="flex min-h-dvh flex-col">
+      {explicando && <ComoSeHace ejercicio={ejercicio} alCerrar={() => setExplicando(false)} />}
       <header className="flex items-center justify-between px-4 py-3">
         <button onClick={() => navegar('/')} className="rotulo">
           Salir
@@ -515,7 +526,18 @@ export function Entrenar() {
           {NOMBRE_PATRON[ejercicio.patron].toUpperCase()} · SERIE {Math.min(series.length + 1, objetivo.series)} DE{' '}
           {objetivo.series}
         </Rotulo>
-        <h1 className="mt-2 text-3xl font-bold leading-tight tracking-tight">{ejercicio.nombre}</h1>
+        <div className="mt-2 flex items-start justify-between gap-3">
+          <h1 className="text-3xl font-bold leading-tight tracking-tight">{ejercicio.nombre}</h1>
+          {/* El acceso a la explicación, en la sesión y no afuera. Va al lado
+              del nombre porque la pregunta "¿cómo era esto?" aparece mirando el
+              nombre, no buscándola en un menú. */}
+          <button
+            onClick={() => setExplicando(true)}
+            className="rotulo shrink-0 whitespace-nowrap underline underline-offset-4"
+          >
+            cómo se hace
+          </button>
+        </div>
 
         {/* La víspera, adentro de la sesión: lo que está en juego hoy en esta
             cadena. Es una sola línea y aparece muy poco —solo cuando falta

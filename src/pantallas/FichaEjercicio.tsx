@@ -3,6 +3,8 @@ import { useLiveQuery } from 'dexie-react-hooks'
 import { NOMBRE_PATRON, POR_ID, buscarEjercicio, cadenaDe } from '@/dominio/biblioteca'
 import { historicoDeEjercicio, recordDe } from '@/dominio/estadisticas'
 import { proyectar } from '@/dominio/progresion'
+import { POSTURAS } from '@/dominio/posturas'
+import { FiguraEjercicio } from '@/componentes/figura'
 import { fijarNivel, leerAvances, leerSesiones } from '@/datos/repositorio'
 import { Accion, AccionQuieta, Cargando, Glifo, Objetivo, Rotulo, nombreUnidad } from '@/componentes/ui'
 
@@ -81,9 +83,22 @@ export function FichaEjercicio() {
         </Rotulo>
       </div>
       <h1 className="mt-3 text-3xl font-bold leading-tight tracking-tight">{ejercicio.nombre}</h1>
+      {/* El dibujo va arriba de todo el texto, y no ilustrando la técnica más
+          abajo. Es lo primero que contesta la pregunta con la que alguien entra
+          acá —"¿qué forma tiene esto?"— y contestarla primero hace que los
+          cuatro pasos de abajo se lean sobre algo, en vez de en el aire. */}
+      {POSTURAS[ejercicio.id] && (
+        <FiguraEjercicio figura={POSTURAS[ejercicio.id]!} className="mt-4" />
+      )}
+
       <p className="mt-3 max-w-[42ch] text-sm leading-relaxed text-[var(--color-glosa)]">
         {ejercicio.resumen}
       </p>
+      {POSTURAS[ejercicio.id] && (
+        <p className="mt-2 max-w-[42ch] text-sm leading-relaxed text-[var(--color-tinta)]">
+          {POSTURAS[ejercicio.id]!.gesto}
+        </p>
+      )}
 
       {eslabonesDeDistancia !== null && !esActual && (
         <p className="mt-3 max-w-[42ch] text-sm leading-relaxed text-[var(--color-glosa)]">
