@@ -40,6 +40,10 @@ await p.waitForTimeout(700)
 await p.goto('http://localhost:5173/#/figuras', { waitUntil: 'networkidle' })
 await p.waitForTimeout(1200)
 await p.screenshot({ path: 'capturas/figuras.png', fullPage: true })
+// Una lámina por cadena, para poder mirarlas de cerca sin abrir la de 2800px.
+for (const [i, nombre] of [[0,'empuje'],[1,'traccion'],[2,'piernas'],[3,'core']]) {
+  await p.locator('section').nth(i).screenshot({ path: `capturas/${nombre}.png` }).catch(() => {})
+}
 console.log('url:', p.url())
 console.log('svgs:', await p.locator('svg').count())
 console.log('texto:', (await p.locator('body').innerText()).replace(/\s+/g,' ').slice(0,200))

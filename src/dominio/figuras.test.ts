@@ -157,6 +157,27 @@ describe('las figuras de los ejercicios', () => {
         }
       })
 
+      it('mira para el lado que tiene que mirar', () => {
+        // El error que se me escapó en los cuatro remos, y que dije que ningún
+        // test podía cazar. Me equivoqué: sí se puede, y así.
+        //
+        // La persona siempre mira a la derecha, así que el hombro no puede
+        // quedar francamente detrás de la cadera. Un torso de 132 grados lo
+        // pone arriba y a la IZQUIERDA: es la figura espejada, y una figura
+        // espejada apoya igual de bien en el piso, no atraviesa nada y no
+        // patina, así que todas las demás comprobaciones la dejaban pasar.
+        //
+        // El límite no es noventa sino ciento quince, y la diferencia importa:
+        // colgado de una barra subiendo las piernas uno SÍ se recuesta un poco
+        // hacia atrás, y noventa y seis grados es eso. Ciento treinta ya no es
+        // recostarse, es estar dado vuelta.
+        for (const [cual, postura] of cada(figura)) {
+          const grados = ((postura.torso % 360) + 360) % 360
+          const pasado = grados > 115 && grados < 245
+          expect(pasado, `${cual}: torso ${postura.torso}° — la figura está espejada`).toBe(false)
+        }
+      })
+
       it('el gesto dice algo', () => {
         expect(figura.gesto.length).toBeGreaterThan(20)
         expect(figura.gesto.trim().endsWith('.')).toBe(true)

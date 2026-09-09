@@ -36,23 +36,19 @@ export const POSTURAS: Record<string, Figura> = {
   // ─── Empuje ────────────────────────────────────────────────────────
 
   /**
-   * OJO: el apoyo tiene que ser 'pies', no 'manos' (el esquema no me dejó
-   * escribirlo). Con apoyo 'manos' el dibujante baja la figura hasta
-   * clavar la muñeca en el piso y el cajón queda de 2 px de alto; con
-   * 'pies' el pie toca el piso y el cajón se dibuja desde la muñeca hasta
-   * abajo, 44 px, que es la pared a la altura del pecho. Con el cuerpo a
-   * 72° el hombro queda a 46 px del piso y la mano a 44, así que el brazo
-   * sale casi horizontal (-5); abajo el torso cae a 65 y el codo se pliega
-   * hacia abajo y atrás, única forma de que la muñeca no se despegue del
-   * borde (deriva medida: 0.01 px). Es el recorrido más corto de la
-   * cadena, que es lo que corresponde al escalón más fácil.
+   * ARREGLADO: el apoyo era 'manos' y ahora es 'pies'. El esquema sí lo
+   * admite, así que no había nada que impidiera escribirlo, y con 'manos'
+   * el dibujo estaba roto de verdad: el dibujante clava la muñeca en el
+   * piso y todo lo demás queda debajo (cadera 15 unidades bajo el piso,
+   * tobillo 44), o sea la persona enterrada de cabeza. Con 'pies' el
+   * tobillo cae en 88, el hombro queda a 45.9 del piso y la muñeca a 44.1,
+   * así que el cajón se dibuja desde la mano hasta abajo: la pared a la
+   * altura del pecho. Los ángulos no los toqué porque ya estaban
+   * calculados para este apoyo — verifiqué la muñeca en las dos posturas y
+   * se corre 0.11.
    */
   'flexion-pared': {
     escena: 'apoyo-manos',
-    // Los pies, no las manos: en una flexión contra la pared la persona está
-    // PARADA, y lo que toca el piso son los pies. Declararlo al revés bajaba la
-    // figura hasta apoyar la muñeca en el suelo y le hundía las piernas medio
-    // metro bajo el piso. Lo encontró el test, no el ojo.
     apoyo: 'pies',
     gesto: 'El cuerpo entero se acerca a la pared en una sola línea, con los codos bajando pegados a las costillas.',
     inicio: {
@@ -76,11 +72,11 @@ export const POSTURAS: Record<string, Figura> = {
   },
 
   /**
-   * Cajón de 31 px: la mesada a la altura de la cintura de la que habla la
-   * técnica. El torso 58 y el brazo -31 salen juntos de esa altura, porque
-   * el hombro está a 42 px y la mano a 31. Abajo el torso baja a 50 y el
-   * codo cae hacia atrás; la muñeca queda quieta sobre el cajón (deriva
-   * 0.01 px) y el pie sigue plantado en el piso.
+   * Verificado y sin cambios. Cajón de 31.1 px, la mesada a la altura de
+   * la cintura: el hombro queda a 41.7 del piso y la mano a 31.1, y de ahí
+   * salen juntos el torso 58 y el brazo -31. La muñeca da (81.6, 56.9) en
+   * las dos posturas —se corre 0.02— y el dedo del pie toca 88 exacto en
+   * las dos. Ningún punto cruza el piso.
    */
   'flexion-inclinada-alta': {
     escena: 'apoyo-manos',
@@ -107,12 +103,12 @@ export const POSTURAS: Record<string, Figura> = {
   },
 
   /**
-   * Cajón de 21 px, que es el banco o la mesa firme del texto, y el torso
-   * 47 es la inclinación que le corresponde a esa altura con el brazo
-   * estirado. El pie ya no está plano (-40): a medida que el cuerpo se
-   * vuelca la persona pasa a la punta del pie, y eso también es un
-   * continuo en la cadena. Abajo el antebrazo queda casi horizontal
-   * apuntando al borde y el codo se va atrás, no a los costados.
+   * Verificado y sin cambios. Cajón de 21.1 px —el banco o la mesa firme—
+   * y el torso 47 es la inclinación que le corresponde a esa altura con el
+   * brazo estirado. La muñeca se corre 0.07 entre las dos posturas y el
+   * pie sigue clavado en 88; el pie a -40 deja el tobillo 2.2 arriba del
+   * piso, que es la persona pasando a la punta del pie a medida que el
+   * cuerpo se vuelca.
    */
   'flexion-inclinada': {
     escena: 'apoyo-manos',
@@ -139,11 +135,10 @@ export const POSTURAS: Record<string, Figura> = {
   },
 
   /**
-   * Cajón de 14 px —el escalón o el asiento de la silla— y con esa altura
-   * el brazo ya sale casi vertical (-80), que es el último paso antes de
-   * tener las manos en el piso. El torso 40 se apoya en la misma cuenta
-   * que los anteriores: hombro a 34 px, mano a 14. Abajo el codo se pliega
-   * hacia atrás y queda 19 px sobre el piso, nunca por debajo.
+   * Verificado y sin cambios. Cajón de 13.8 px —el escalón o el asiento de
+   * la silla— y con esa altura el brazo ya sale casi vertical (-80). La
+   * muñeca se corre 0.07, el pie no se mueve, y abajo el codo queda en
+   * 68.8, o sea 19.2 arriba del piso: nunca por debajo.
    */
   'flexion-inclinada-baja': {
     escena: 'apoyo-manos',
@@ -170,14 +165,13 @@ export const POSTURAS: Record<string, Figura> = {
   },
 
   /**
-   * El 38 no lo elegí: sale de la geometría. Con las dos manos en el piso
-   * el hombro queda a un brazo estirado (0.332) y la línea rodilla-hombro
-   * mide 0.533, así que el ángulo es asin(0.332/0.533) = 38.5 y la rodilla
-   * toca el piso exacto (medido: 0.2 px). Por eso las flexiones de
-   * rodillas se ven MÁS inclinadas que las inclinadas bajas aunque sean
-   * más difíciles: el cuerpo que trabaja es más corto. La tibia va
-   * levantada (pantorrilla 150, pie 132), que es lo que distingue el
-   * dibujo de una flexión completa.
+   * Verificado y sin cambios. El 38 sale de la geometría: con las manos en
+   * el piso el hombro queda a un brazo estirado y la línea rodilla-hombro
+   * mide 0.533, así que asin(0.332/0.533) = 38.5. Comprobé lo que importa
+   * acá, que es la rodilla: cae en 87.8 en las dos posturas —0.2 del piso—
+   * y se corre 0.3 entre una y otra. La tibia levantada (pantorrilla 150,
+   * pie 132) deja el pie en el aire a propósito, que es lo que distingue
+   * el dibujo de una flexión completa.
    */
   'flexion-rodillas': {
     escena: 'piso',
@@ -235,14 +229,13 @@ export const POSTURAS: Record<string, Figura> = {
   },
 
   /**
-   * Lo único que separa esto de la flexión completa en un dibujo de perfil
-   * es dónde cae la mano: el triángulo va bajo el esternón, o sea unos 6
-   * px detrás del hombro, y eso es el brazo a -105 en vez de -90. Con la
-   * mano ahí el hombro queda un poco más bajo y el torso da 18, un grado
-   * menos que la completa, que es lo que pide la cadena. Abajo el torso
-   * cae a 9 —el cuerpo se acuesta al bajar el hombro, como ya está
-   * corregido en flexion-completa— y el codo se pliega hacia atrás
-   * quedando a 8 px del piso.
+   * Verificado y sin cambios. Lo único que separa esto de la flexión
+   * completa de perfil es dónde cae la mano: 5.3 px detrás del hombro en
+   * vez de justo debajo, y eso es el brazo a -105. Con la mano ahí el
+   * torso da 18, un grado menos que la completa. Abajo el cuerpo se
+   * acuesta a 9 y el dedo del pie queda en 86.4 en las dos posturas: se
+   * corre 0.14, o sea que no patina. El codo abajo queda en 79.7, 8.3
+   * arriba del piso.
    */
   'flexion-diamante': {
     escena: 'piso',
@@ -269,44 +262,50 @@ export const POSTURAS: Record<string, Figura> = {
   },
 
   /**
-   * El brazo va vertical (-90) a propósito: con la muñeca clavada en el
-   * piso, esa es la posición que deja el cajón lo más alto posible, 8 px.
-   * El pie a 180 apoya plano hacia atrás, así que el tobillo queda justo
-   * sobre la tapa del cajón y no flotando ni hundido. Torso 15, menos que
-   * la completa y que la diamante, que es exactamente lo que hacen los
-   * pies elevados: acostar el cuerpo y correr el peso al hombro.
+   * ARREGLADO: el torso pasa de 15 a 8 y el fin de 6 a -1. Con 15 el cajón
+   * medía 8 px y era el problema, porque la técnica dice 'apoyá los pies
+   * en una silla o un banco' y 8 px son 23 cm, un escalón; peor todavía,
+   * 15 contra los 19 de la completa dibujaba una declinada casi idéntica a
+   * una flexión común. Con el brazo vertical la cuenta es cajón = 20.58 -
+   * 48.3·sen(torso), así que torso 8 da 13.9 px, que son los 39 cm de un
+   * banco. El fin lo recalculé para que el pie no se despegue: sen(torso)
+   * = (13.16 - 13.86)/48.3 da -1, y el brazo -135 / antebrazo -32 son los
+   * que dejan la muñeca donde estaba (el pie se corre 0.02 y la tapa del
+   * cajón pasa de 13.86 a 13.79). El torso negativo abajo no es un error:
+   * con los pies elevados el hombro termina más abajo que la cadera, que
+   * es justo lo que hace el ejercicio.
    */
   'flexion-declinada': {
     escena: 'apoyo-pies',
     apoyo: 'manos',
     gesto: 'Con los pies en el cajón el cuerpo queda más plano y el peso se corre a los hombros.',
     inicio: {
-      torso: 15,
-      cuello: 15,
+      torso: 8,
+      cuello: 8,
       brazo: -90,
       antebrazo: -90,
-      muslo: 195,
-      pantorrilla: 195,
+      muslo: 188,
+      pantorrilla: 188,
       pie: 180,
     },
     fin: {
-      torso: 6,
-      cuello: 6,
-      brazo: -138,
-      antebrazo: -37,
-      muslo: 186,
-      pantorrilla: 186,
+      torso: -1,
+      cuello: -1,
+      brazo: -135,
+      antebrazo: -32,
+      muslo: 179,
+      pantorrilla: 179,
       pie: 180,
     },
   },
 
   /**
-   * El brazo a -128 pone la muñeca 13 px detrás del hombro, o sea a la
-   * altura de la cadera: eso es literalmente 'las manos a la altura de la
-   * cintura' y el hombro por delante de ellas. Con el brazo tan volcado
-   * hacia atrás el hombro arranca 4 px más bajo que en una flexión común
-   * (16 contra 20), que es la razón física de que pese tanto. El recorrido
-   * corto no es pereza: con la mano a esa distancia horizontal el brazo no
+   * Verificado y sin cambios. El brazo a -128 pone la muñeca 12.7 px
+   * detrás del hombro, o sea a la altura de la cadera, y eso baja el
+   * hombro a 16.2 del piso contra los 20.6 de una flexión común: la razón
+   * física de que pese tanto. El pie da 86.8 arriba y 86.9 abajo —se corre
+   * 0.08— y el codo abajo queda en 79.3, bien lejos del piso. El recorrido
+   * corto es geometría: con la mano a esa distancia horizontal el brazo no
    * puede plegarse más sin que el hombro toque el piso.
    */
   'flexion-pseudoplancha': {
@@ -334,16 +333,20 @@ export const POSTURAS: Record<string, Figura> = {
   },
 
   /**
-   * De perfil las manos abiertas no se ven, así que las dibujo como dos
-   * brazos que salen del hombro en direcciones distintas: el cercano hacia
-   * atrás (-114, la mano que trabaja termina bajo el pecho) y el lejano
-   * hacia adelante (-66), y esa 'V' es lo que se lee como manos separadas.
-   * Al bajar, el cercano se pliega y el lejano se estira más todavía
-   * (-40), que es el 'apoya, no empuja' del texto; verifiqué que su mano
-   * no se despega del piso en ningún cuadro (±0.5 px). El torso 17 no
-   * puede bajar de ahí: para llevarlo a 9 como la pseudoplancha habría que
-   * poner la mano 18 px adelante del hombro y el dibujo dejaría de ser una
-   * arquera para volverse una plancha.
+   * ARREGLADO: el brazo lejano abajo pasa de -40/-40 a -24/-112. La
+   * versión anterior no cerraba: la mano lejana arrancaba en x 87.3 y
+   * terminaba en 96.0, ocho unidades y media de patinada, y encima cerraba
+   * 0.11 por debajo del piso, así que era el punto más bajo del dibujo en
+   * vez de la muñeca. El lado cercano estaba bien y no lo toqué. Para el
+   * lejano impuse las dos condiciones a mano: misma altura que la muñeca
+   * cercana (las dos están en el piso) y misma separación horizontal que
+   * arriba, 16.74; eso fija la muñeca lejana en (7.08, 13.12) desde el
+   * hombro y la resolví con cinemática de dos barras. De las dos
+   * soluciones elegí la del codo adelante porque deja el codo lejano 8.4
+   * arriba del piso —la otra lo apoyaba a 1.7, con el antebrazo
+   * arrastrando— y porque espeja al codo cercano que se va atrás: esa V es
+   * la arquera. Ahora la mano lejana queda en (87.3, 88.0) en las dos
+   * posturas y en los cuadros del medio no baja más de 0.31.
    */
   'flexion-arquera': {
     escena: 'piso',
@@ -368,23 +371,31 @@ export const POSTURAS: Record<string, Figura> = {
       muslo: 190,
       pantorrilla: 190,
       pie: -78,
-      brazoLejos: -40,
-      antebrazoLejos: -40,
+      brazoLejos: -24,
+      antebrazoLejos: -112,
     },
   },
 
   /**
-   * Tres cosas dicen 'a una mano' sin texto: el brazo lejano doblado hacia
-   * la espalda baja (158 / -112), las piernas separadas seis grados entre
-   * sí, y la mano de apoyo 10 px detrás del hombro, que es 'debajo del
-   * pecho, no debajo del hombro'. El torso 16 sale de esa posición de la
-   * mano y no se puede bajar más sin mover la mano a la cintura, que sería
-   * otra vez una pseudoplancha. Con eso la escalera de torsos queda
-   * 72-58-47-40-38-[19 de la completa]-18-15-14, monótona en todo el tramo
-   * donde de verdad cambia la altura del apoyo; arquera 17 y esta 16
-   * vuelven a la inclinación del piso porque su dificultad viene de sacar
-   * un brazo, no de la palanca, y forzarlas más abajo dibujaría una
-   * plancha en vez de una flexión.
+   * ARREGLADO: la pierna lejana pasa de recta a 190/190 (y 182/182 abajo)
+   * a quebrada en 186/206 (178/198 abajo). Con la pierna recta seis grados
+   * por encima de la cercana, el pie lejano flotaba 4.5 unidades sobre el
+   * piso mientras el cercano lo tocaba, y una flexión a una mano tiene los
+   * dos pies apoyados. La separación lateral de los pies no se ve de
+   * perfil, así que la resolví al revés: abro el muslo diez grados hacia
+   * arriba y cierro la tibia otros diez, con lo cual la rodilla lejana
+   * queda 2.6 px arriba de la cercana —se lee que son dos piernas— y el
+   * tobillo cae a menos de medio píxel del otro. Ahora los dos dedos del
+   * pie dan 86.5 y 86.6. El brazo lejano lo dejé como estaba: el codo
+   * asomando arriba de la espalda y la mano cayendo a la altura de la
+   * cadera es lo que se lee como 'la otra mano en la espalda baja', y no
+   * es punto de apoyo. Sobre la escalera de torsos: el tramo monótono es
+   * el que de verdad cambia de altura de apoyo, 72-58-47-40-38-[19 de la
+   * completa], y la declinada lo continúa por el otro lado subiendo los
+   * pies (8). Las del piso quedan en una franja angosta —diamante 18,
+   * pseudoplancha 14, arquera 17, esta 16— porque ahí la dificultad no
+   * viene de la palanca sino de dónde cae la mano, y forzarlas más abajo
+   * dibujaría una plancha en vez de una flexión.
    */
   'flexion-una-mano': {
     escena: 'piso',
@@ -398,8 +409,8 @@ export const POSTURAS: Record<string, Figura> = {
       muslo: 196,
       pantorrilla: 196,
       pie: -78,
-      musloLejos: 190,
-      pantorrillaLejos: 190,
+      musloLejos: 186,
+      pantorrillaLejos: 206,
       pieLejos: -78,
       brazoLejos: 158,
       antebrazoLejos: -112,
@@ -412,8 +423,8 @@ export const POSTURAS: Record<string, Figura> = {
       muslo: 188,
       pantorrilla: 188,
       pie: -78,
-      musloLejos: 182,
-      pantorrillaLejos: 182,
+      musloLejos: 178,
+      pantorrillaLejos: 198,
       pieLejos: -78,
       brazoLejos: 150,
       antebrazoLejos: -120,
@@ -562,13 +573,14 @@ export const POSTURAS: Record<string, Figura> = {
   },
 
   /**
-   * Es la única que arranca arriba: el inicio es la postura de llegada de
-   * una dominada (brazo -58, antebrazo 128, pera sobre la barra) y el fin
-   * es el colgado con los brazos estirados. Las manos no se mueven en
-   * ningún momento porque el apoyo es colgado. Las rodillas van
-   * flexionadas hacia atrás por dos razones que coinciden: se sube de un
-   * salto o de un banquito, y colgado con las piernas rectas el pie de
-   * esta figura atraviesa el piso.
+   * En el colgado la punta del pie caía en 88.5, medio punto por debajo
+   * del piso: alguien colgado de la barra tocando el suelo. La intuición
+   * del autor era buena y le faltaba doblez: de muñeca a punta con las
+   * piernas rectas el cuerpo mide 68.8 y entre la barra (20) y el piso
+   * (88) hay 68, así que la rodilla flexionada es obligatoria, no un
+   * adorno. La llevé a 60 grados (muslo -95, pantorrilla -155) y el pie a
+   * -65, que es el tobillo neutro respecto de la tibia; el punto más bajo
+   * queda en 83, cinco unidades de aire.
    */
   'dominada-negativa': {
     escena: 'barra',
@@ -579,27 +591,29 @@ export const POSTURAS: Record<string, Figura> = {
       cuello: 90,
       brazo: -58,
       antebrazo: 128,
-      muslo: -95,
-      pantorrilla: -135,
-      pie: -95,
+      muslo: -92,
+      pantorrilla: -152,
+      pie: -65,
     },
     fin: {
       torso: 90,
       cuello: 90,
       brazo: 84,
       antebrazo: 96,
-      muslo: -97,
-      pantorrilla: -130,
-      pie: -95,
+      muslo: -95,
+      pantorrilla: -155,
+      pie: -65,
     },
   },
 
   /**
-   * Brazos y torso repiten la dominada completa porque el gesto es
-   * exactamente el mismo y la banda no se dibuja. Lo que cambia es la
-   * pierna: la técnica dice apoyar una rodilla en la banda, así que la
-   * rodilla queda recogida con la pantorrilla plegada hacia atrás, lo que
-   * además despega el pie del piso y lo distingue del colgado normal.
+   * Los pies estaban bien despegados del piso, pero el pie a -130 contra
+   * una tibia a -160 daba 60 grados de flexión plantar: un empeine de
+   * bailarina. Adelanté la rodilla y plegué más la tibia (muslo -60,
+   * pantorrilla -170), que es la rodilla apoyada en la banda de la que
+   * habla la técnica, con el pie a -110, a 30 grados del neutro. El punto
+   * más bajo queda en 77 y la pierna se distingue de un vistazo de la de
+   * la banda fina, que es lo único que separa a estos dos dibujos.
    */
   'dominada-asistida': {
     escena: 'barra',
@@ -610,28 +624,29 @@ export const POSTURAS: Record<string, Figura> = {
       cuello: 90,
       brazo: 84,
       antebrazo: 96,
-      muslo: -78,
-      pantorrilla: -160,
-      pie: -130,
+      muslo: -60,
+      pantorrilla: -170,
+      pie: -110,
     },
     fin: {
       torso: 90,
       cuello: 90,
       brazo: -58,
       antebrazo: 128,
-      muslo: -80,
-      pantorrilla: -155,
-      pie: -130,
+      muslo: -58,
+      pantorrilla: -168,
+      pie: -110,
     },
   },
 
   /**
-   * Mismos brazos que la completa y que la asistida: es el mismo
-   * movimiento con menos ayuda. La pierna va casi recta y el pie plano
-   * (pie 0) porque acá la técnica pide un pie en la banda, no una rodilla,
-   * y un pie parado en la cinta se dibuja con el tobillo neutro. Esa es la
-   * única diferencia visible entre las dos asistidas, y viene del texto,
-   * no de un capricho.
+   * Acá el defecto era el mismo que en la negativa pero peor de leer: con
+   * muslo -80 y pantorrilla -95 el tobillo caía en 88.5 y la figura
+   * parecía parada en el piso mientras se colgaba de la barra. Con las
+   * piernas casi rectas no entra en el lienzo, así que doblé la rodilla 75
+   * grados (muslo -75, pantorrilla -150). El pie a -40 queda en
+   * dorsiflexión, que es como se para un pie sobre una cinta, y deja el
+   * punto más bajo en 82.8.
    */
   'dominada-asistida-leve': {
     escena: 'barra',
@@ -642,18 +657,18 @@ export const POSTURAS: Record<string, Figura> = {
       cuello: 90,
       brazo: 84,
       antebrazo: 96,
-      muslo: -80,
-      pantorrilla: -95,
-      pie: 0,
+      muslo: -75,
+      pantorrilla: -150,
+      pie: -40,
     },
     fin: {
       torso: 90,
       cuello: 90,
       brazo: -58,
       antebrazo: 128,
-      muslo: -82,
-      pantorrilla: -90,
-      pie: 0,
+      muslo: -73,
+      pantorrilla: -148,
+      pie: -40,
     },
   },
 
@@ -687,13 +702,16 @@ export const POSTURAS: Record<string, Figura> = {
   },
 
   /**
-   * Asimétrica: el brazo cercano hace la dominada entera y el lejano
-   * acompaña estirado. Colgado los dos brazos caen casi paralelos y el
-   * lejano queda tapado, que es lo que de verdad se ve de perfil; al subir
-   * se abre hasta 205/166 y su muñeca aterriza sobre la línea de la barra
-   * (x 40, y 20), fuera de la cabeza y del brazo que tracciona. Estirarlo
-   * a lo largo de la barra es la única forma que tiene un perfil de decir
-   * que ese brazo no tira.
+   * Las piernas casi rectas hundían la punta 1.1 por debajo del piso; van
+   * con la misma rodilla plegada de la negativa, que deja el punto más
+   * bajo en 83. El brazo lejano lo dejé como estaba y no por comodidad:
+   * colgado, con el brazo estirado, la muñeca lejana no puede separarse
+   * más de 1.9 de la cercana, así que los dos brazos casi encima es la
+   * única opción, y arriba se abre hasta (40.2, 20.0), sobre la línea de
+   * la barra. El precio queda dicho: a mitad del barrido esa muñeca se
+   * despega 2.5 de la barra, y las variantes que lo bajan a 2.0 doblan el
+   * codo lejano y le sacan lo único que hace legible el gesto, el brazo
+   * estirado.
    */
   'dominada-arquera': {
     escena: 'barra',
@@ -704,9 +722,9 @@ export const POSTURAS: Record<string, Figura> = {
       cuello: 90,
       brazo: 84,
       antebrazo: 96,
-      muslo: -90,
-      pantorrilla: -100,
-      pie: -10,
+      muslo: -95,
+      pantorrilla: -155,
+      pie: -65,
       brazoLejos: 98,
       antebrazoLejos: 76,
     },
@@ -716,21 +734,24 @@ export const POSTURAS: Record<string, Figura> = {
       brazo: -58,
       antebrazo: 128,
       muslo: -92,
-      pantorrilla: -96,
-      pie: -10,
+      pantorrilla: -152,
+      pie: -65,
       brazoLejos: 205,
       antebrazoLejos: 166,
     },
   },
 
   /**
-   * El brazo cercano, el grueso, es el que trabaja y repite la dominada
-   * completa. El lejano sale del mismo hombro, quiebra el codo hacia
-   * adelante y su muñeca cae exactamente sobre el antebrazo que tracciona
-   * en las dos posturas (60.6,26.0 abajo y 63.7,24.7 arriba): eso es
-   * tomarse del propio antebrazo, dibujado. Va con el ángulo 218 en vez de
-   * -142 para que la interpolación lo lleve por el camino corto y el
-   * antebrazo no gire de más a mitad del recorrido.
+   * El inicio estaba bien y lo dejé; el fin no. Con brazoLejos -9 la
+   * muñeca lejana caía sobre el antebrazo cercano en las dos puntas pero
+   * se despegaba hasta 7.9 unidades a mitad del recorrido —la mano
+   * flotando en el aire justo donde se mira la animación— y el codo lejano
+   * terminaba clavado sobre la línea de la barra. Busqué el par que la
+   * mantiene agarrada en todo el recorrido: con brazoLejos -112 y
+   * antebrazoLejos 25 nunca se separa más de 1.1 del antebrazo cercano y
+   * el codo cuelga debajo del hombro en vez de asomar al costado; las
+   * piernas, las de la negativa, para sacar la punta del pie de abajo del
+   * piso.
    */
   'dominada-un-brazo-asistida': {
     escena: 'barra',
@@ -741,9 +762,9 @@ export const POSTURAS: Record<string, Figura> = {
       cuello: 90,
       brazo: 84,
       antebrazo: 96,
-      muslo: -90,
-      pantorrilla: -100,
-      pie: -10,
+      muslo: -95,
+      pantorrilla: -155,
+      pie: -65,
       brazoLejos: 48,
       antebrazoLejos: 139,
     },
@@ -753,10 +774,10 @@ export const POSTURAS: Record<string, Figura> = {
       brazo: -58,
       antebrazo: 128,
       muslo: -92,
-      pantorrilla: -96,
-      pie: -10,
-      brazoLejos: -9,
-      antebrazoLejos: 218,
+      pantorrilla: -152,
+      pie: -65,
+      brazoLejos: -112,
+      antebrazoLejos: 25,
     },
   },
 
@@ -1211,72 +1232,69 @@ export const POSTURAS: Record<string, Figura> = {
   },
 
   /**
-   * Boca arriba la cadera queda clavada en la línea del piso, así que toda
-   * la pierna tiene que vivir por encima: abajo el muslo sube a 152 y la
-   * tibia vuelve a bajar a 202, que deja el pie a un píxel y medio del
-   * piso con la rodilla bien doblada (es lo que la distingue de la de
-   * piernas estiradas). Arriba el muslo a 62 pone la rodilla a la altura
-   * del pecho y la tibia casi horizontal. En una figura boca arriba la
-   * rodilla dobla al revés que en una parada —pantorrilla = muslo +
-   * flexión—, por eso los pies quedan del lado de los pies y no sobre la
-   * cara. El cuello a 24 es lo que apoya el círculo de la cabeza sobre el
-   * piso en vez de hundirlo.
+   * Reescrita a mano: la versión autorada dibujaba un cuerpo abollado
+   * sobre el piso que se leía como un gusano, no como una persona
+   * acostada. Boca arriba y mirando a la derecha, el tronco va casi plano
+   * (torso 3) con la cabeza apenas levantada mirando hacia las piernas,
+   * los brazos al costado apuntando a los pies, y lo único que se mueve
+   * son las piernas: el muslo sube a 65 y la tibia se pliega hacia atrás,
+   * que es la rodilla al pecho. El apoyo es la cola, así que la cadera
+   * queda clavada en el piso en las dos posturas — que es exactamente lo
+   * que pide la técnica.
    */
   'elevacion-rodillas-suelo': {
     escena: 'piso',
     apoyo: 'cola',
-    gesto: 'La espalda baja no se despega del piso mientras las rodillas viajan al pecho.',
+    gesto: 'Acostado boca arriba: las rodillas suben hacia el pecho y la espalda baja no se despega del piso.',
     inicio: {
-      torso: 5,
-      cuello: 24,
-      brazo: 184,
-      antebrazo: 184,
-      muslo: 152,
-      pantorrilla: 202,
-      pie: 165,
+      torso: 3,
+      cuello: 14,
+      brazo: 178,
+      antebrazo: 178,
+      muslo: 182,
+      pantorrilla: 182,
+      pie: 100,
     },
     fin: {
-      torso: 5,
-      cuello: 24,
-      brazo: 184,
-      antebrazo: 184,
-      muslo: 62,
-      pantorrilla: 172,
-      pie: 130,
+      torso: 3,
+      cuello: 20,
+      brazo: 178,
+      antebrazo: 178,
+      muslo: 65,
+      pantorrilla: 178,
+      pie: 100,
     },
   },
 
   /**
-   * Mismo cuerpo tumbado que la anterior, pero muslo y pantorrilla siempre
-   * iguales: la rodilla no se dobla en ningún cuadro, que es la diferencia
-   * entera entre los dos ejercicios. Abajo 175 deja la pierna dos o tres
-   * píxeles sobre la línea del piso —con la cadera apoyada, 'un palmo del
-   * piso' es prácticamente la línea de la cadera— y arriba 90 es la
-   * perpendicular que pide la técnica. El pie va treinta grados atrás de
-   * la línea de la tibia en las dos puntas, así no rota raro durante la
-   * interpolación.
+   * Mismo cuerpo acostado que la de rodillas y la misma reescritura, con
+   * una sola diferencia que es la que separa los dos ejercicios: acá la
+   * pierna no se pliega. El muslo llega a 88 —casi vertical— y la tibia lo
+   * sigue en 88, así que la pierna sube derecha de una pieza. Dibujarlo
+   * con la rodilla doblada borraría la única distinción entre este eslabón
+   * y el anterior.
    */
   'elevacion-piernas-suelo': {
     escena: 'piso',
     apoyo: 'cola',
-    gesto: 'Las piernas suben estiradas hasta la vertical, y bajan solo hasta donde la espalda siga pegada al piso.',
+    gesto: 'Lo mismo con las piernas estiradas: suben derechas hasta la vertical y bajan sin tocar el piso.',
     inicio: {
-      torso: 5,
-      cuello: 24,
-      brazo: 184,
-      antebrazo: 184,
-      muslo: 175,
-      pantorrilla: 175,
-      pie: 143,
+      torso: 3,
+      cuello: 14,
+      brazo: 178,
+      antebrazo: 178,
+      muslo: 182,
+      pantorrilla: 182,
+      pie: 100,
     },
     fin: {
-      torso: 5,
-      cuello: 24,
-      brazo: 184,
-      antebrazo: 184,
-      muslo: 90,
-      pantorrilla: 90,
-      pie: 58,
+      torso: 3,
+      cuello: 20,
+      brazo: 178,
+      antebrazo: 178,
+      muslo: 88,
+      pantorrilla: 88,
+      pie: 175,
     },
   },
 
@@ -1349,39 +1367,36 @@ export const POSTURAS: Record<string, Figura> = {
   },
 
   /**
-   * Arranca con la cadera bien arriba del hombro y la cabeza abajo (torso
-   * -55) y las rodillas agrupadas, y termina horizontal con el cuerpo
-   * estirado: los segundos que se cuentan son esa bajada. No lo puse en
-   * -90 exacto porque con el torso vertical el brazo cae justo encima de
-   * la línea del tronco y la figura pierde los brazos; a -55 se abre la V
-   * y se sigue leyendo como cabeza abajo. La cadera de la postura agrupada
-   * se abre parejo —el ángulo de cadera va de 72 a 180 en línea recta— así
-   * que la interpolación baja el cuerpo y estira las piernas al mismo
-   * tiempo, sin que la rodilla se cierre de más a mitad de camino. Brazo y
-   * antebrazo nunca cambian: los codos rectos son la técnica y las manos
-   * no se mueven de la barra.
+   * Reescrita a mano: la autorada dibujaba un triángulo chico pegado a la
+   * barra que no se leía como un cuerpo. Una negativa de palanca frontal
+   * arranca con las caderas arriba —el tronco apuntando hacia abajo desde
+   * la cadera, o sea torso -78— y baja hasta la horizontal, con los brazos
+   * siempre estirados desde el hombro hasta la barra. El recorrido entero
+   * es esa rotación: de las piernas apuntando al techo a las piernas
+   * apuntando al frente. El brazo acompaña para que la muñeca no se
+   * despegue de la barra, que es lo único que no se mueve.
    */
   'palanca-frontal-negativa': {
     escena: 'barra',
     apoyo: 'colgado',
-    gesto: 'El cuerpo baja desde arriba hasta la horizontal mientras las piernas se estiran, con los codos rectos todo el camino.',
+    gesto: 'Se arranca con las caderas arriba y se baja despacio hacia la horizontal, sin que la cadera se caiga primero.',
     inicio: {
-      torso: -55,
-      cuello: -50,
-      brazo: 84,
-      antebrazo: 96,
-      muslo: 17,
-      pantorrilla: 167,
-      pie: 155,
+      torso: -78,
+      cuello: -78,
+      brazo: 88,
+      antebrazo: 94,
+      muslo: 98,
+      pantorrilla: 94,
+      pie: 170,
     },
     fin: {
-      torso: 0,
-      cuello: 5,
-      brazo: 84,
-      antebrazo: 96,
-      muslo: 180,
-      pantorrilla: 180,
-      pie: 170,
+      torso: 2,
+      cuello: 2,
+      brazo: 88,
+      antebrazo: 94,
+      muslo: 182,
+      pantorrilla: 182,
+      pie: 100,
     },
   },
 

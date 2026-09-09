@@ -199,10 +199,13 @@ function encuadre(figura: Figura): string {
   const xs = puntos.map((p) => p.x)
   const ys = puntos.map((p) => p.y)
 
-  // El piso y la barra son parte del dibujo: si quedan afuera, el cuerpo
-  // aparece apoyado en nada.
-  const y0 = Math.min(...ys, figura.apoyo === 'colgado' ? ALTURA_BARRA - 6 : PISO)
-  const y1 = Math.max(...ys, PISO)
+  // El piso entra en el marco solo si el cuerpo lo usa. Colgado de una barra
+  // los pies no llegan al suelo, así que forzarlo adentro dejaba medio recuadro
+  // vacío debajo de la persona y encogía la figura a la mitad para nada: lo que
+  // sostiene ahí es la barra, y el piso no es información.
+  const cuelga = figura.apoyo === 'colgado'
+  const y0 = Math.min(...ys, cuelga ? ALTURA_BARRA - 6 : PISO)
+  const y1 = cuelga ? Math.max(...ys) : Math.max(...ys, PISO)
   const margen = 8
 
   return [
@@ -230,14 +233,16 @@ function Lienzo({
       role="img"
       aria-label={figura.gesto}
     >
-      <line
-        x1={-ANCHO}
-        y1={PISO}
-        x2={ANCHO * 2}
-        y2={PISO}
-        stroke="var(--color-regla)"
-        strokeWidth={1.4}
-      />
+      {figura.apoyo !== 'colgado' && (
+        <line
+          x1={-ANCHO}
+          y1={PISO}
+          x2={ANCHO * 2}
+          y2={PISO}
+          stroke="var(--color-regla)"
+          strokeWidth={1.4}
+        />
+      )}
       <Apoyos escena={figura.escena} e={e} />
       <Cuerpo e={e} />
     </svg>
