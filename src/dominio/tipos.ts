@@ -119,6 +119,19 @@ export interface RegistroEjercicio {
   /** El objetivo que tenía propuesto para esa sesión. */
   objetivo: Objetivo
   series: Serie[]
+  /**
+   * La bajada: volumen en el eslabón anterior, después del trabajo duro.
+   *
+   * Se marca por la misma razón que `Serie.cierre`, y la razón resultó ser más
+   * concreta de lo previsto. El motor ya la saltea sin ayuda —es otro ejercicio
+   * que el del avance— pero la curva de fuerza no: se queda con el máximo
+   * índice de carga del día, y un eslabón más fácil hecho al techo de su
+   * ventana puede dar un índice MÁS ALTO que el duro hecho al piso de la suya.
+   * Medido: flexión inclinada baja al máximo da 0,576 contra 0,571 del eslabón
+   * siguiente al mínimo. Sin esta marca, el punto del día quedaba atribuido al
+   * ejercicio equivocado en las sesiones más completas.
+   */
+  bajada?: true
 }
 
 /**
@@ -129,8 +142,13 @@ export interface RegistroEjercicio {
  * entrenamiento de siete minutos no dice nada sobre si alguien está listo
  * para el eslabón siguiente. Separar las dos cosas es lo que permite ser
  * indulgente con la persona sin mentirle al motor.
+ *
+ * `fuelle` es el día de acondicionamiento: metabólico y movilidad, sin una sola
+ * serie de la que el motor pueda opinar. Existe por la misma razón que la
+ * corta, del otro lado: permite entrenar cinco días sin que el motor lea como
+ * pérdida de capacidad lo que en realidad es no haber descansado.
  */
-export type TipoSesion = 'plan' | 'corta' | 'vuelta'
+export type TipoSesion = 'plan' | 'corta' | 'vuelta' | 'fuelle'
 
 /** Una sesión de entrenamiento completa. */
 /**
@@ -154,6 +172,25 @@ export interface DecisionGuardada {
   cambioDeNivel: boolean
 }
 
+/**
+ * Una ráfaga metabólica efectivamente hecha.
+ *
+ * Es trabajo real y por eso se guarda, pero no tiene objetivo, no tiene ventana
+ * y no pertenece a ninguna cadena: no hay nada que el motor pueda decidir con
+ * esto. Es el mismo criterio que la serie de cierre —cuenta para el volumen, no
+ * opina sobre la progresión— llevado un paso más lejos.
+ */
+export interface RegistroRafaga {
+  rafagaId: string
+  /** Segundos efectivamente en movimiento. */
+  segundos: number
+  /**
+   * El ejercicio en cuyo descanso ocurrió, o `null` si fue en el bloque de
+   * fuelle del final, que no cuelga de ninguna serie.
+   */
+  despuesDe: string | null
+}
+
 export interface Sesion {
   id: string
   /** Fecha en formato ISO (AAAA-MM-DD), para poder ordenar y agrupar. */
@@ -167,6 +204,23 @@ export interface Sesion {
   tipo: TipoSesion
   /** Lo que el motor decidió al cerrarla. Ausente en las sesiones viejas. */
   decisiones?: DecisionGuardada[]
+  /**
+   * El trabajo metabólico de la sesión: las ráfagas que entraron en los
+   * descansos y el bloque de fuelle del final.
+   *
+   * Vive en un campo aparte y no como un `RegistroEjercicio` más, a propósito.
+   * Meterlo entre los registros funcionaría de casualidad —`cerrarSesion` sigue
+   * de largo cuando el id no está en `POR_ID`— y "anda porque el Map no lo
+   * tiene" es la clase de invariante que se rompe el día que alguien quiera
+   * dibujar las ráfagas. Además ensuciaría el volumen: `seriesDeSesion` y
+   * `repeticionesDeSesion` recorren `registros` sin filtrar.
+   */
+  rafagas?: RegistroRafaga[]
+  /**
+   * True si fue una sesión densa. Mismo idioma que `Serie.cierre`: un campo
+   * opcional que solo está cuando es cierto.
+   */
+  densa?: true
   /**
    * Esfuerzo de la sesión entera, del 1 al 10. Es el session-RPE de Foster,
    * que es la forma más barata y mejor validada de estimar carga interna sin
@@ -244,6 +298,16 @@ export interface Rutina {
   /** Días de la semana (1 = lunes … 7 = domingo) en que toca entrenar. */
   dias: number[]
   bloques: BloqueRutina[]
+  /**
+   * Los días que son de fuelle en vez de fuerza: acondicionamiento, sin una
+   * sola serie de la cadena.
+   *
+   * Tienen que ser un subconjunto de `dias`, y existen para que se pueda
+   * entrenar cinco días sin que el motor lea como pérdida de capacidad lo que
+   * en realidad fue no haber descansado. Ausente en las rutinas que no los
+   * tienen, que son todas las que ya estaban publicadas.
+   */
+  diasDeFuelle?: number[]
 }
 
 /** Preferencias de la app, guardadas junto con el resto de los datos. */
@@ -278,6 +342,27 @@ export interface Preferencias {
   habitosActivos?: boolean
   /** Si se pide la predicción de repeticiones antes de cada serie. */
   prediccionActiva?: boolean
+  /**
+   * Cuánto aprieta el fuelle: el trabajo metabólico que entra en los descansos.
+   * Apagada por defecto, y apagada deja la sesión exactamente como estaba.
+   */
+  densidad?: 'apagada' | 'suave' | 'fuerte'
+  /**
+   * Si puede saltar donde entrena. No es una preferencia de gusto: un
+   * departamento con vecinos abajo no admite burpees, y ofrecerlos igual es
+   * ofrecer algo que no va a hacer.
+   */
+  puedeSaltar?: boolean
+  /** Si tiene un escalón, un cajón o una silla firme a mano. */
+  tieneEscalon?: boolean
+  /**
+   * Cuánto se quiere que dure una sesión, en minutos.
+   *
+   * Lo que se estira para llegar es el bloque de fuelle, nunca las series: el
+   * motor mide el rendimiento contra las series propuestas, así que agregar
+   * series para llenar una hora se pagaría con eslabones.
+   */
+  minutosObjetivo?: number
   /** Cómo se quiere describir dentro de un año. Se usa en el cierre de sesión. */
   identidad?: string
 }
@@ -338,10 +423,14 @@ export interface SesionEnCurso {
   actualizadoEn: number
   /** Si era una sesión corta. Se guarda porque venía en la URL y la URL se pierde. */
   corta: boolean
+  /** Si era un día de fuelle. Mismo motivo que `corta`: venía en la URL. */
+  diaDeFuelle?: boolean
   /** En qué ejercicio del plan iba. */
   indice: number
-  /** En qué etapa: las series, la de cierre o las preguntas del final. */
-  etapa: 'series' | 'cierre-serie' | 'preguntas'
+  /** En qué etapa: las series, el fuelle, la de cierre o las preguntas. */
+  etapa: 'series' | 'fuelle' | 'cierre-serie' | 'preguntas'
+  /** Cuántas ráfagas van hechas, para no repetir la misma al retomar. */
+  rafagas?: RegistroRafaga[]
   /** Lo anotado hasta ahora, por ejercicio. */
   hechas: Record<string, Serie[]>
 }

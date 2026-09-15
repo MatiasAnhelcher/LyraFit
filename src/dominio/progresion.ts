@@ -172,6 +172,10 @@ export function logradoTipico(series: Serie[]): number {
  *   rendimiento 1,00 contra esa vara más baja, así que si contara podría
  *   disparar un salto de eslabón que no se ganó. La vara se baja para que
  *   volver sea fácil, no para regalar un nivel.
+ * - La **de fuelle** es el día de acondicionamiento: no tiene una sola serie de
+ *   la cadena, así que no hay nada que medir. Cuenta para la adherencia, que es
+ *   justamente lo que la hace útil: permite entrenar cinco días sin que el
+ *   motor lea como pérdida de capacidad lo que fue no haber descansado.
  *
  * Es exhaustiva a propósito: un tipo de sesión nuevo no hereda el permiso de
  * mover el plan, hay que dárselo acá.
