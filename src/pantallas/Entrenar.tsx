@@ -48,9 +48,24 @@ import { RUTINA_POR_DEFECTO, RUTINA_POR_ID } from '@/dominio/rutinas'
 import { ajusteDelDia, bandaSostenida, cadenasCongeladas } from '@/dominio/estado'
 import { seAbreHoy } from '@/dominio/anticipacion'
 import { mueveElPlan } from '@/dominio/progresion'
+import {
+  DESCANSO_DE_BAJADA,
+  MINUTOS_OBJETIVO_POR_DEFECTO,
+  bajadaDe,
+  minutosDelBloque,
+  minutosDeSesion,
+} from '@/dominio/bajada'
+import {
+  bloqueDeFuelle,
+  rafagaDelDescanso,
+  type Densidad,
+  type Equipo,
+  type PasoDeFuelle,
+  type Rafaga,
+} from '@/dominio/metabolico'
 import { esVuelta, RECORTE_DE_VUELTA } from '@/dominio/adherencia'
 import { haceCuanto, laVezPasada } from '@/dominio/estadisticas'
-import type { RegistroEjercicio, Serie, TipoSesion } from '@/dominio/tipos'
+import type { RegistroEjercicio, RegistroRafaga, Serie, TipoSesion } from '@/dominio/tipos'
 import {
   cerrarSesion,
   descartarSesionEnCurso,
@@ -71,7 +86,25 @@ import { Accion, AccionQuieta, Rotulo, nombreUnidad } from '@/componentes/ui'
 import { ComoSeHace } from '@/componentes/comoSeHace'
 import { Cierre } from './Cierre'
 
-type Etapa = 'series' | 'cierre-serie' | 'preguntas'
+type Etapa = 'series' | 'fuelle' | 'cierre-serie' | 'preguntas'
+
+/**
+ * Cuántos minutos dura el bloque de fuelle del final.
+ *
+ * Va antes de la serie de cierre y no después, y el orden no es un detalle:
+ * `docs/estrategia-2026.md` §2.4 dice que "terminá fuerte" está contradicho por
+ * la regla del pico y el final, y la serie de cierre existe justamente para que
+ * la sesión no termine en el punto más duro. Así la sesión tiene su pico de
+ * exigencia y igual termina en algo que se puede sostener.
+ */
+/**
+ * Y cuánto dura el bloque cuando el día ENTERO es de fuelle.
+ *
+ * Es la sesión completa, no la cola de una: acá no hay fuerza antes, así que no
+ * hay nada que proteger y el bloque puede ser largo. Se toma la duración
+ * elegida menos lo que se va en preguntas y en entrar en calor.
+ */
+const ALREDEDOR_DEL_DIA_DE_FUELLE = 6
 
 export function Entrenar() {
   const navegar = useNavigate()
@@ -88,6 +121,14 @@ export function Entrenar() {
    */
   const [cortaRetomada, setCortaRetomada] = useState(false)
   const esCorta = parametros.get('corta') === '1' || cortaRetomada
+  /**
+   * Si hoy es día de fuelle: acondicionamiento, sin una sola serie de la
+   * cadena. Sale de la URL o del borrador, por la misma razón que la corta: la
+   * URL se pierde cuando el navegador recicla la pestaña, y un día de fuelle
+   * retomado como día de fuerza abriría una sesión que nadie pidió.
+   */
+  const [fuelleRetomado, setFuelleRetomado] = useState(false)
+  const esDiaDeFuelle = parametros.get('fuelle') === '1' || fuelleRetomado
 
   const avances = useLiveQuery(leerAvances, [])
   const preferencias = useLiveQuery(leerPreferencias, [])
@@ -96,7 +137,12 @@ export function Entrenar() {
 
   const [indice, setIndice] = useState(0)
   const [hechas, setHechas] = useState<Record<string, Serie[]>>({})
-  const [etapa, setEtapa] = useState<Etapa>('series')
+  const [etapa, setEtapa] = useState<Etapa>(
+    // El día de fuelle arranca directamente en el bloque: no hay series que
+    // hacer antes, y pasar por la pantalla de series sería ofrecer un plan que
+    // hoy no toca.
+    parametros.get('fuelle') === '1' ? 'fuelle' : 'series',
+  )
   const [resumen, setResumen] = useState<ResumenSesion | null>(null)
   const [guardando, setGuardando] = useState(false)
   const [prediccion, setPrediccion] = useState<number | null>(null)
@@ -137,6 +183,30 @@ export function Entrenar() {
   const [explicando, setExplicando] = useState(false)
   const [listo, setListo] = useState(false)
   /**
+   * El fuelle: lo metabólico que se hizo en los huecos.
+   *
+   * Vive en el estado de la sesión y no adentro del componente del descanso
+   * porque tiene que sobrevivir a que el navegador recicle la pestaña, igual
+   * que las series. Se guarda en el borrador y se restaura con él.
+   */
+  const [rafagas, setRafagas] = useState<RegistroRafaga[]>([])
+  /** La ráfaga del descanso en curso, o null si este descanso no tiene. */
+  const [rafagaActual, setRafagaActual] = useState<{
+    rafaga: Rafaga
+    segundos: number
+    /** El descanso entero, para saber dónde termina el tramo de la ráfaga. */
+    total: number
+  } | null>(null)
+  /** Si la salteó a mano. Se apaga sola al arrancar el descanso siguiente. */
+  const [rafagaSalteada, setRafagaSalteada] = useState(false)
+  /**
+   * La ráfaga esperando a que termine su tramo para quedar anotada.
+   *
+   * En un ref y no en el estado porque lo que la anota es un efecto que corre
+   * cuatro veces por segundo: con estado, cada tic la volvería a anotar.
+   */
+  const pendiente = useRef<RegistroRafaga | null>(null)
+  /**
    * La energía de antes no se pregunta: ya la contestaste.
    *
    * Si hoy hiciste el chequeo diario, el ítem de energía ES la medición previa.
@@ -150,6 +220,18 @@ export function Entrenar() {
   const vitalidadPre = useMemo(
     () => estados?.find((e) => e.fecha === fechaISO())?.energia,
     [estados],
+  )
+
+  /** Cuánto aprieta el fuelle y con qué cuenta donde entrena. */
+  const densidad: Densidad = preferencias?.densidad ?? 'apagada'
+  const equipo: Equipo = useMemo(
+    () => ({
+      ...(preferencias?.puedeSaltar !== undefined ? { puedeSaltar: preferencias.puedeSaltar } : {}),
+      ...(preferencias?.tieneEscalon !== undefined
+        ? { tieneEscalon: preferencias.tieneEscalon }
+        : {}),
+    }),
+    [preferencias?.puedeSaltar, preferencias?.tieneEscalon],
   )
 
   const duracion = useCronometro(resumen === null, arrancadaEn)
@@ -180,11 +262,13 @@ export function Entrenar() {
           setIndice(borrador.indice)
           setHechas(borrador.hechas)
           setEtapa(borrador.etapa)
+          setRafagas(borrador.rafagas ?? [])
           // Se re-ancla el arranque a lo que se llevaba entrenado, no a la
           // hora original: el hueco entre que te fuiste y volviste no es
           // tiempo de entrenamiento.
           setArrancadaEn(Date.now() - (borrador.duracionAcumulada ?? 0) * 1000)
           if (borrador.corta) setCortaRetomada(true)
+          if (borrador.diaDeFuelle) setFuelleRetomado(true)
           setRetomada(true)
         } else {
           // El arranque es ahora, no la primera serie anotada: entre abrir la
@@ -213,7 +297,8 @@ export function Entrenar() {
    */
   useEffect(() => {
     if (!listo || resumen) return
-    const algo = Object.values(hechas).some((series) => series.length > 0)
+    const algo =
+      Object.values(hechas).some((series) => series.length > 0) || rafagas.length > 0
     if (!algo) return
     const desde = arrancadaEn ?? Date.now()
     void guardarSesionEnCurso({
@@ -222,11 +307,13 @@ export function Entrenar() {
       // como dependencia del efecto: escribiría en la base una vez por segundo.
       duracionAcumulada: Math.max(0, Math.round((Date.now() - desde) / 1000)),
       corta: esCorta,
+      diaDeFuelle: esDiaDeFuelle,
       indice,
       etapa,
       hechas,
+      ...(rafagas.length > 0 ? { rafagas } : {}),
     })
-  }, [listo, resumen, hechas, indice, etapa, arrancadaEn, esCorta])
+  }, [listo, resumen, hechas, indice, etapa, arrancadaEn, esCorta, esDiaDeFuelle, rafagas])
 
   /**
    * Los tres últimos segundos del descanso, en la piel.
@@ -255,6 +342,28 @@ export function Entrenar() {
     }
   }, [descanso.activo, descanso.restante])
 
+  /**
+   * Si el descanso está en su tramo de ráfaga.
+   *
+   * La ráfaga va al principio del descanso y no al final, y eso es lo que la
+   * hace inofensiva: lo que queda pegado a la serie siguiente es descanso
+   * verdadero, que es justamente lo que resintetiza la fosfocreatina.
+   */
+  const enRafaga =
+    descanso.activo &&
+    rafagaActual !== null &&
+    !rafagaSalteada &&
+    descanso.restante > rafagaActual.total - rafagaActual.segundos
+
+  // Terminado el tramo, la ráfaga queda anotada. Una sola vez: lo que la anota
+  // es `pendiente`, que se vacía al hacerlo.
+  useEffect(() => {
+    if (enRafaga) return
+    cerrarRafaga()
+    // `cerrarRafaga` lee y limpia un ref; no hace falta en las dependencias.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [enRafaga])
+
   useModoDePantalla(resumen ? 'cierre' : 'entrenar')
   usePantallaDespierta(resumen === null)
 
@@ -264,9 +373,39 @@ export function Entrenar() {
 
   /** Qué clase de sesión es. Lo necesitan el factor, la anticipación y el cierre. */
   const tipo: TipoSesion = useMemo(
-    () => (esCorta ? 'corta' : esVuelta(historial ?? [], fechaISO()) ? 'vuelta' : 'plan'),
-    [esCorta, historial],
+    () =>
+      esDiaDeFuelle
+        ? 'fuelle'
+        : esCorta
+          ? 'corta'
+          : esVuelta(historial ?? [], fechaISO())
+            ? 'vuelta'
+            : 'plan',
+    [esDiaDeFuelle, esCorta, historial],
   )
+
+  /**
+   * Si esta sesión lleva fuelle.
+   *
+   * La corta queda afuera y no hace falta una regla aparte para los descansos
+   * —con una serie por ejercicio no hay ningún descanso— pero sí para el bloque
+   * del final: siete minutos con diez de fuelle encima ya no son siete minutos,
+   * y la sesión corta existe para que hacer algo sea barato.
+   */
+  const esDensa = densidad !== 'apagada' && !esCorta
+
+  /**
+   * La densidad con la que se arma el bloque.
+   *
+   * Un día de fuelle con el fuelle apagado no sería un día: sería una pantalla
+   * vacía. Así que el día de fuelle trae su propia densidad mínima, y es suave
+   * —la que no pide saltar ni tener nada— porque es la única que se puede
+   * suponer sin preguntar.
+   */
+  const densidadDelBloque: Densidad =
+    esDiaDeFuelle && densidad === 'apagada' ? 'suave' : densidad
+
+  const minutosObjetivo = preferencias?.minutosObjetivo ?? MINUTOS_OBJETIVO_POR_DEFECTO
 
   /** El factor del día: estado sostenido y sesión de vuelta se multiplican. */
   const factor = useMemo(() => {
@@ -299,9 +438,64 @@ export function Entrenar() {
         !ajusteDelDia(bandaSostenida(estados ?? [], fechaISO())).neutra &&
         !cadenasCongeladas(estados ?? [], fechaISO()).has(bloque.patron)
       const abre = seAbreHoy(avance, cadenaDe(bloque.patron), POR_ID, cuenta)
-      return [{ ejercicio, objetivo: { series, cantidad }, antes, abre }]
+      const duro = {
+        ejercicio,
+        objetivo: { series, cantidad },
+        antes,
+        abre,
+        descansoSegundos: ejercicio.descansoSegundos,
+        bajada: false,
+      }
+
+      // Y, en las sesiones densas, volumen en el eslabón anterior.
+      //
+      // Es otro ejercicio, así que `cerrarSesion` lo saltea sin que nadie se lo
+      // pida —"solo progresa el patrón si se entrenó el ejercicio que tocaba"—
+      // y la curva de fuerza se queda con el máximo del día, así que tampoco
+      // puede hundirla. Las dos cosas tienen su test en `bajada.test.ts`.
+      if (!esDensa) return [duro]
+      const abajo = bajadaDe(ejercicio, cadenaDe(bloque.patron), POR_ID)
+      if (!abajo) return [duro]
+      return [
+        duro,
+        {
+          ejercicio: abajo.ejercicio,
+          objetivo: abajo.objetivo,
+          antes: null,
+          abre: null,
+          descansoSegundos: DESCANSO_DE_BAJADA,
+          bajada: true,
+        },
+      ]
     })
-  }, [rutina, avances, esCorta, factor, historial, estados, tipo])
+  }, [rutina, avances, esCorta, esDensa, factor, historial, estados, tipo])
+
+  /**
+   * El bloque de fuelle, dimensionado para que la sesión dure lo que se pidió.
+   *
+   * Acá está la respuesta a "quiero una sesión de una hora": no se estiran las
+   * series —el motor las mide, y estirarlas se paga con eslabones— sino el
+   * único tramo que el motor no mira. Se calcula cuánto dura la fuerza con los
+   * números reales de esta sesión y el bloque cubre la diferencia, con tope.
+   */
+  const minutosDeFuerza = useMemo(() => minutosDeSesion(plan), [plan])
+
+  const fuelle: PasoDeFuelle[] = useMemo(() => {
+    if (densidadDelBloque === 'apagada') return []
+    if (esDiaDeFuelle) {
+      return bloqueDeFuelle(
+        Math.max(1, minutosObjetivo - ALREDEDOR_DEL_DIA_DE_FUELLE),
+        equipo,
+        densidadDelBloque,
+      )
+    }
+    if (!esDensa) return []
+    return bloqueDeFuelle(
+      minutosDelBloque(minutosObjetivo, minutosDeFuerza),
+      equipo,
+      densidadDelBloque,
+    )
+  }, [esDensa, esDiaDeFuelle, densidadDelBloque, equipo, minutosObjetivo, minutosDeFuerza])
 
   if (!avances || !preferencias || !historial || !listo || plan.length === 0) {
     return (
@@ -320,7 +514,7 @@ export function Entrenar() {
   // que se acota: entrar por un índice que no existe rompe la pantalla entera.
   const enCurso = Math.min(Math.max(indice, 0), plan.length - 1)
   const paso = plan[enCurso]!
-  const { ejercicio, objetivo, antes, abre } = paso
+  const { ejercicio, objetivo, antes, abre, descansoSegundos, bajada } = paso
   const series = hechas[ejercicio.id] ?? []
   const completo = series.length >= objetivo.series
   const esUltimo = enCurso === plan.length - 1
@@ -343,7 +537,13 @@ export function Entrenar() {
    * de antes, mide algo.
    */
   const tocaPredecir =
-    preferencias.prediccionActiva !== false && series.length === 0 && predicho === null
+    preferencias.prediccionActiva !== false &&
+    // En la bajada no: la calibración mide qué tan bien se conoce uno el cuerpo
+    // en el ejercicio que está costando, y preguntarla en un eslabón ya
+    // dominado cobra toques para medir algo que ya se sabe.
+    !bajada &&
+    series.length === 0 &&
+    predicho === null
 
   // La serie de cierre: el ejercicio más fácil de la sesión, al 60%.
   const cierre = plan.reduce((facil, p) => (p.ejercicio.ccr < facil.ejercicio.ccr ? p : facil), plan[0]!)
@@ -381,7 +581,58 @@ export function Entrenar() {
     const quedan = objetivo.series - (series.length + 1)
     tocar(quedan === 0 ? 'ejercicio' : quedan === 1 ? 'quedaUna' : 'serie')
 
-    if (quedan > 0) descanso.arrancar(ejercicio.descansoSegundos)
+    if (quedan > 0) {
+      // Qué ráfaga entra en ESTE descanso. El patrón que viene es el de este
+      // mismo ejercicio —lo que sigue es otra serie suya— y por eso el dominio
+      // nunca va a devolver algo que lo cargue: saltos de sentadilla antes de
+      // una serie de sentadillas le costarían repeticiones, y el motor leería
+      // esas repeticiones de menos como pérdida de fuerza.
+      const elegida = esDensa
+        ? rafagaDelDescanso({
+            descansoSegundos,
+            patronQueViene: ejercicio.patron,
+            equipo,
+            densidad,
+            indice: rafagas.length,
+          })
+        : null
+      setRafagaActual(
+        elegida ? { ...elegida, total: descansoSegundos } : null,
+      )
+      setRafagaSalteada(false)
+      pendiente.current = elegida
+        ? { rafagaId: elegida.rafaga.id, segundos: elegida.segundos, despuesDe: ejercicio.id }
+        : null
+      descanso.arrancar(descansoSegundos)
+    }
+  }
+
+  /** Anota la ráfaga cuando su tramo terminó, y una sola vez. */
+  function cerrarRafaga() {
+    const hecha = pendiente.current
+    if (!hecha) return
+    pendiente.current = null
+    setRafagas((previas) => [...previas, hecha])
+  }
+
+  /** Salteá la ráfaga sin saltear el descanso: lo que queda es descanso. */
+  function saltearRafaga() {
+    pendiente.current = null
+    setRafagaSalteada(true)
+  }
+
+  /**
+   * Cortar el descanso, venga de donde venga.
+   *
+   * Existe para que ningún camino pueda anotar una ráfaga que no se hizo: si se
+   * corta el descanso antes de que el tramo de la ráfaga termine, la ráfaga se
+   * descarta. Si ya había terminado, `pendiente` está en null y esto no hace
+   * nada. Es más barato que acordarse en los cinco lugares que detienen el
+   * descanso.
+   */
+  function cortarDescanso() {
+    pendiente.current = null
+    descanso.detener()
   }
 
   function deshacer() {
@@ -389,7 +640,7 @@ export function Entrenar() {
       ...previas,
       [ejercicio.id]: (previas[ejercicio.id] ?? []).slice(0, -1),
     }))
-    descanso.detener()
+    cortarDescanso()
     setPredicho(null)
     // El tacto sí: es el único patrón de la app que baja, y confirma que la
     // corrección entró sin tener que mirar. El sonido no, porque deshacer es
@@ -415,15 +666,16 @@ export function Entrenar() {
     setArrancadaEn(Date.now())
     setCortaRetomada(false)
     setRetomada(false)
-    descanso.detener()
+    setRafagas([])
+    cortarDescanso()
   }
 
   function avanzar() {
-    descanso.detener()
+    cortarDescanso()
     setPrediccion(null)
     setPredicho(null)
     if (!esUltimo) setIndice((i) => i + 1)
-    else setEtapa('cierre-serie')
+    else setEtapa(fuelle.length > 0 ? 'fuelle' : 'cierre-serie')
   }
 
   async function terminar(datos: {
@@ -432,12 +684,13 @@ export function Entrenar() {
     vitalidadPost?: number
   }) {
     setGuardando(true)
-    descanso.detener()
+    cortarDescanso()
 
-    const registros: RegistroEjercicio[] = plan.map(({ ejercicio: e, objetivo: o }) => ({
+    const registros: RegistroEjercicio[] = plan.map(({ ejercicio: e, objetivo: o, bajada: b }) => ({
       ejercicioId: e.id,
       objetivo: o,
       series: hechas[e.id] ?? [],
+      ...(b ? { bajada: true as const } : {}),
     }))
 
     try {
@@ -445,6 +698,8 @@ export function Entrenar() {
         registros,
         duracionSegundos: duracion,
         tipo,
+        ...(rafagas.length > 0 ? { rafagas } : {}),
+        ...(esDensa ? { densa: true as const } : {}),
         ...(vitalidadPre !== undefined ? { vitalidadPre } : {}),
         ...datos,
       })
@@ -465,6 +720,17 @@ export function Entrenar() {
       <Preguntas
         guardando={guardando}
         onListo={(datos) => void terminar(datos)}
+      />
+    )
+  }
+
+  if (etapa === 'fuelle') {
+    return (
+      <BloqueDeFuelle
+        pasos={fuelle}
+        onRafaga={(hecha) => setRafagas((previas) => [...previas, hecha])}
+        onListo={() => setEtapa(esDiaDeFuelle ? 'preguntas' : 'cierre-serie')}
+        onSaltear={() => setEtapa(esDiaDeFuelle ? 'preguntas' : 'cierre-serie')}
       />
     )
   }
@@ -601,10 +867,12 @@ export function Entrenar() {
         {descanso.activo ? (
           <Descanso
             restante={descanso.restante}
-            total={ejercicio.descansoSegundos}
+            total={descansoSegundos}
             clave={{ tecnica: ejercicio.tecnica, hechas: series.length }}
+            rafaga={enRafaga && rafagaActual ? rafagaActual.rafaga : null}
             onSumar={() => descanso.sumar(30)}
-            onSaltear={descanso.detener}
+            onSaltear={cortarDescanso}
+            onSaltearRafaga={saltearRafaga}
           />
         ) : completo ? (
           <section className="flex flex-1 flex-col items-center justify-center text-center">
@@ -688,9 +956,39 @@ export function Entrenar() {
           <AccionQuieta onClick={avanzar}>Saltear este ejercicio</AccionQuieta>
         )}
         {!completo && esUltimo && algoRegistrado && (
-          <AccionQuieta onClick={() => setEtapa('cierre-serie')}>Terminar acá</AccionQuieta>
+          <AccionQuieta onClick={() => setEtapa(fuelle.length > 0 ? 'fuelle' : 'cierre-serie')}>
+            Terminar acá
+          </AccionQuieta>
         )}
       </div>
+    </div>
+  )
+}
+
+/**
+ * El arco que se vacía.
+ *
+ * Es la animación 5 del sistema visual y la única que representa tiempo real,
+ * por eso es lineal: si acelerara, mentiría. Está acá afuera porque ahora la
+ * usan dos pantallas —el descanso y el bloque de fuelle— y duplicar el SVG
+ * habría sido la forma más fácil de que una de las dos dejara de ser lineal sin
+ * que nadie se diera cuenta. **No es una animación nueva: es la misma.**
+ */
+function Arco({ restante, total }: { restante: number; total: number }) {
+  return (
+    <div className="relative flex h-44 w-44 items-center justify-center">
+      <svg viewBox="0 0 100 100" className="absolute inset-0 h-full w-full">
+        <circle className="arco-descanso-fondo" cx="50" cy="50" r="46" />
+        <circle
+          className="arco-descanso"
+          cx="50"
+          cy="50"
+          r="46"
+          pathLength={1}
+          style={{ ['--resto' as string]: String(Math.max(0, restante / Math.max(total, 1))) }}
+        />
+      </svg>
+      <p className="cifra text-5xl">{comoReloj(restante)}</p>
     </div>
   )
 }
@@ -700,8 +998,10 @@ function Descanso({
   restante,
   total,
   clave,
+  rafaga,
   onSumar,
   onSaltear,
+  onSaltearRafaga,
 }: {
   restante: number
   total: number
@@ -710,8 +1010,14 @@ function Descanso({
    * indicación. Es lo único que cambia entre un descanso y el siguiente.
    */
   clave: { tecnica: string[]; hechas: number }
+  /**
+   * La ráfaga, si este descanso está en su tramo metabólico. En null el
+   * descanso es exactamente el que era antes de que existiera el fuelle.
+   */
+  rafaga: Rafaga | null
   onSumar: () => void
   onSaltear: () => void
+  onSaltearRafaga: () => void
 }) {
   // Una indicación por descanso, rotando. Sesenta o noventa segundos por
   // serie son unos veinte minutos de sesión mirando un arco vaciarse: es el
@@ -735,35 +1041,141 @@ function Descanso({
 
   return (
     <section className="flex flex-1 flex-col items-center justify-center pb-8">
-      <div className="relative flex h-44 w-44 items-center justify-center">
-        <svg viewBox="0 0 100 100" className="absolute inset-0 h-full w-full">
-          <circle className="arco-descanso-fondo" cx="50" cy="50" r="46" />
-          <circle
-            className="arco-descanso"
-            cx="50"
-            cy="50"
-            r="46"
-            pathLength={1}
-            style={{ ['--resto' as string]: String(Math.max(0, restante / Math.max(total, 1))) }}
-          />
-        </svg>
-        <p className="cifra text-5xl">{comoReloj(restante)}</p>
+      {/* El rótulo es lo único que dice en qué tramo estás. El arco no cambia:
+          sigue midiendo el descanso entero, que es el tiempo que de verdad
+          falta para la serie siguiente. Partirlo en dos arcos habría sido una
+          animación nueva y, peor, habría escondido cuánto falta en serio. */}
+      <Rotulo>{rafaga ? 'RÁFAGA' : 'DESCANSO'}</Rotulo>
+      <div className="mt-3">
+        <Arco restante={restante} total={total} />
       </div>
-      {indicacion && (
-        <p className="mt-8 max-w-[32ch] text-center text-sm leading-relaxed text-[var(--color-glosa)]">
-          {indicacion}
-        </p>
+
+      {rafaga ? (
+        <>
+          <p className="mt-6 text-center text-lg font-semibold">{rafaga.nombre}</p>
+          <p className="mt-2 max-w-[32ch] text-center text-sm leading-relaxed text-[var(--color-glosa)]">
+            {rafaga.gesto}
+          </p>
+        </>
+      ) : (
+        indicacion && (
+          <p className="mt-8 max-w-[32ch] text-center text-sm leading-relaxed text-[var(--color-glosa)]">
+            {indicacion}
+          </p>
+        )
       )}
 
       <div className="mt-8 flex gap-3">
         <button onClick={onSumar} className="rotulo px-4 py-3" style={{ border: '1px solid var(--color-regla)' }}>
           +30 s
         </button>
+        {/* Saltear la ráfaga NO saltea el descanso: lo que queda sigue siendo
+            descanso. Es la diferencia entre "hoy no" y "ya estoy listo", y
+            confundirlas le cobraría recuperación a alguien que solo quería no
+            hacer burpees. */}
+        {rafaga && (
+          <button
+            onClick={onSaltearRafaga}
+            className="rotulo px-4 py-3"
+            style={{ border: '1px solid var(--color-regla)' }}
+          >
+            Hoy no
+          </button>
+        )}
         <button onClick={onSaltear} className="rotulo px-4 py-3" style={{ border: '1px solid var(--color-regla)' }}>
           Saltear
         </button>
       </div>
     </section>
+  )
+}
+
+/**
+ * El bloque de fuelle: lo metabólico, al final de la fuerza.
+ *
+ * Va acá y no entre medio de las series porque es lo único que puede ser
+ * exigente sin costarle nada al motor: cuando arranca, ya no queda ninguna
+ * serie que medir. Y va ANTES de la serie de cierre, no después, para que la
+ * sesión termine igual que terminaba: en algo que se puede sostener.
+ *
+ * Cada ráfaga se avisa apenas termina, en vez de entregar la lista al final.
+ * Es a propósito: si el navegador recicla la pestaña a mitad del bloque, lo que
+ * ya se hizo está en el borrador y no se pierde.
+ */
+function BloqueDeFuelle({
+  pasos,
+  onRafaga,
+  onListo,
+  onSaltear,
+}: {
+  pasos: PasoDeFuelle[]
+  onRafaga: (hecha: RegistroRafaga) => void
+  onListo: () => void
+  onSaltear: () => void
+}) {
+  const [indice, setIndice] = useState(0)
+  /** Si está en la pausa que sigue a la ráfaga, en vez de en la ráfaga. */
+  const [pausando, setPausando] = useState(false)
+  const paso = pasos[indice]
+
+  const reloj = useTemporizador(() => {
+    const actual = pasos[indice]
+    if (!actual) return
+    if (!pausando) {
+      onRafaga({ rafagaId: actual.rafaga.id, segundos: actual.segundos, despuesDe: null })
+      tocar('serie')
+      if (actual.descansoSegundos > 0) {
+        setPausando(true)
+        return
+      }
+    }
+    setPausando(false)
+    setIndice((n) => n + 1)
+  })
+
+  const { arrancar } = reloj
+  useEffect(() => {
+    const actual = pasos[indice]
+    if (!actual) return
+    arrancar(pausando ? actual.descansoSegundos : actual.segundos)
+  }, [indice, pausando, pasos, arrancar])
+
+  const terminado = useRef(false)
+  useEffect(() => {
+    if (indice < pasos.length || terminado.current) return
+    terminado.current = true
+    sonar('descanso')
+    onListo()
+  }, [indice, pasos.length, onListo])
+
+  if (!paso) return null
+
+  const total = pausando ? paso.descansoSegundos : paso.segundos
+  const quedan = pasos.length - indice
+
+  return (
+    <div className="flex min-h-dvh flex-col">
+      <header className="px-4 py-3">
+        <Rotulo>EL FUELLE · {quedan === 1 ? 'LA ÚLTIMA' : `QUEDAN ${quedan}`}</Rotulo>
+      </header>
+
+      <section className="flex flex-1 flex-col items-center justify-center pb-8">
+        <Rotulo>{pausando ? 'AFLOJÁ' : 'AHORA'}</Rotulo>
+        <div className="mt-3">
+          <Arco restante={reloj.restante} total={total} />
+        </div>
+        <p className="mt-6 text-center text-lg font-semibold">{paso.rafaga.nombre}</p>
+        {!pausando && (
+          <p className="mt-2 max-w-[32ch] text-center text-sm leading-relaxed text-[var(--color-glosa)]">
+            {paso.rafaga.gesto}
+          </p>
+        )}
+      </section>
+
+      <div className="mt-auto">
+        <AccionQuieta onClick={onSaltear}>Cortar el fuelle</AccionQuieta>
+      </div>
+    </div>
   )
 }
 

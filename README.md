@@ -34,8 +34,16 @@ muestra cada vez que decide algo. Nada de esperar a "sentirte listo".
   el motor no te baje el objetivo por dos días malos.
 - **Progreso** con una curva de fuerza que no se corta cuando cambiás de
   ejercicio, y el mapa de dónde estás en cada cadena.
-- **Tres rutinas** para elegir según cuántos días tengas, incluida una mínima de
-  dos días para las semanas complicadas.
+- **El fuelle**: trabajo metabólico metido en los huecos que la sesión ya tenía.
+  Nunca sale del descanso que hace falta para la serie siguiente —sale de lo que
+  sobra por encima de un piso de recuperación— y nunca carga el patrón que estás
+  entrenando. Eso es lo que evita que transpirar te cueste eslabones.
+- **Cuatro rutinas** para elegir según cuántos días tengas: desde una mínima de
+  dos días para las semanas complicadas hasta una de cinco, con dos días de
+  acondicionamiento en el medio que no le piden fuerza a ninguna cadena.
+- **Cuánto va a durar**, antes de empezar. Elegís si querés cuarenta y cinco
+  minutos o una hora y la app estira el bloque metabólico para llegar, nunca las
+  series: el motor mide contra las series que te propuso.
 
 ## Cómo se levanta
 
@@ -56,7 +64,16 @@ preview` corriendo en otra terminal:
 ```bash
 node revisar.mjs   # recorre el alta y una sesión entera, y guarda capturas
 node rescate.mjs   # revisa los datos: que no se pierda una sesión y que se midan dos números
+node fuelle.mjs    # que el trabajo metabólico no le cueste fuerza a nadie
 ```
+
+`fuelle.mjs` contesta la única pregunta que importa de todo lo metabólico y que
+ningún test puede contestar: que el piso de recuperación llegue **entero a la
+pantalla**. La aritmética correcta puede llegar mal —alcanza con que el descanso
+arranque después de la ráfaga en vez de contenerla— así que esto anota una
+serie, espera a que el tramo termine y lee el reloj. Y comprueba contra la base
+real que el motor haya decidido una vez por cadena y no una por registro, que es
+lo que separa "volumen extra" de "mentirle al motor".
 
 Los dibujos de los ejercicios se revisan aparte, porque los tests comprueban que
 la geometría cierre pero no que la postura se parezca al ejercicio. Eso hay que
@@ -95,6 +112,8 @@ src/
     estado.ts        el chequeo diario y su línea de base
     vitalidad.ts     el delta de energía y la calibración
     rutinas.ts       qué patrones se trabajan cada día
+    metabolico.ts    el fuelle: qué ráfaga entra en cada hueco, y cuánta
+    bajada.ts        el volumen que el motor no mira, y cuánto dura la sesión
     estadisticas.ts  la curva de fuerza, récords, semanas
   datos/         la persistencia
     db.ts            el esquema de IndexedDB y sus migraciones
@@ -175,7 +194,17 @@ recortadas: suman 64 KB entre las cuatro.
   rojo existe solo para borrar datos en Ajustes.
 - **La sesión de siete minutos cuenta para la adherencia y no para la
   progresión.** Separar las dos cosas es lo que permite ser indulgente con la
-  persona sin mentirle al motor.
+  persona sin mentirle al motor. El día de fuelle usa la misma puerta del otro
+  lado: permite entrenar cinco días sin que el motor lea como pérdida de
+  capacidad lo que en realidad fue no haber descansado.
+- **Para estirar una sesión se estira el bloque metabólico, nunca las series.**
+  El motor mide el rendimiento contra `objetivo.series * objetivo.cantidad` y la
+  peor serie pesa un cuarto: agregar series para llenar una hora cansa la última
+  y se paga en eslabones. Medido corriendo el motor ochenta sesiones contra
+  alguien que llega justo al techo de cada ventana: **absorbe hasta un 12% de
+  merma y se derrumba al 18%** —cero subidas de eslabón—. El piso de
+  recuperación del fuelle existe para quedar lejos de ese acantilado, y el
+  acantilado está atado con un test.
 - **`leerAvances()` solo lee, nunca escribe.** Las pantallas la usan a través de
   `useLiveQuery`, que corre en una transacción de solo lectura: una escritura
   ahí adentro revienta con `ReadOnlyError` la primera vez que alguien abre la

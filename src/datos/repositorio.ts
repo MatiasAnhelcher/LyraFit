@@ -14,6 +14,7 @@ import type {
   Patron,
   Preferencias,
   RegistroEjercicio,
+  RegistroRafaga,
   Sesion,
   SesionEnCurso,
   TipoSesion,
@@ -183,6 +184,10 @@ export interface CierreDeSesion {
   vitalidadPost?: number
   /** Cómo se sintió, de -2 a +2. */
   animo?: number
+  /** El trabajo metabólico: las ráfagas de los descansos y el bloque del final. */
+  rafagas?: RegistroRafaga[]
+  /** True si fue una sesión densa. */
+  densa?: true
 }
 
 /**
@@ -212,6 +217,10 @@ export async function cerrarSesion(entrada: CierreDeSesion): Promise<ResumenSesi
     ...(entrada.vitalidadPre !== undefined ? { vitalidadPre: entrada.vitalidadPre } : {}),
     ...(entrada.vitalidadPost !== undefined ? { vitalidadPost: entrada.vitalidadPost } : {}),
     ...(entrada.animo !== undefined ? { animo: entrada.animo } : {}),
+    // El fuelle se guarda aparte de los registros, y por eso el bucle de abajo
+    // ni lo ve: no hay forma de que una ráfaga toque una decisión del motor.
+    ...(entrada.rafagas?.length ? { rafagas: entrada.rafagas } : {}),
+    ...(entrada.densa ? { densa: true as const } : {}),
   }
 
   const [avances, estados, historial] = await Promise.all([

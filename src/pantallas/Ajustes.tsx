@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
+import { MINUTOS_OBJETIVO, MINUTOS_OBJETIVO_POR_DEFECTO } from '@/dominio/bajada'
 import { RUTINAS, DIA_CORTO } from '@/dominio/rutinas'
 import type { Preferencias } from '@/dominio/tipos'
 import {
@@ -94,13 +95,116 @@ export function Ajustes() {
               <span className="min-w-0">
                 <span className="nombre block">{rutina.nombre}</span>
                 <span className="rotulo mt-0.5 block">
-                  {rutina.dias.map((d) => DIA_CORTO[d]).join(' · ')}
+                  {/* Los días de fuelle se marcan en la misma línea: dos listas
+                      separadas obligarían a cruzarlas de memoria. */}
+                  {rutina.dias
+                    .map((d) => `${DIA_CORTO[d]}${rutina.diasDeFuelle?.includes(d) ? '·f' : ''}`)
+                    .join(' · ')}
                 </span>
               </span>
               <span className="cifra-fila">{rutina.dias.length}</span>
             </button>
           ))}
         </div>
+      </section>
+
+      {/* El fuelle va DESPUÉS de la rutina y antes de la app, porque es una
+          decisión de entrenamiento y no una preferencia de interfaz: cambia lo
+          que la app te va a pedir que hagas, no cómo se ve. */}
+      <section className="mt-8">
+        <Rotulo>EL FUELLE</Rotulo>
+        <p className="mt-2 max-w-[42ch] text-xs leading-relaxed text-[var(--color-glosa)]">
+          Trabajo metabólico en los huecos que la sesión ya tenía. Nunca sale del descanso
+          que hace falta para la serie que viene, y nunca carga el patrón que estás
+          entrenando: eso es lo que evita que transpirar te cueste fuerza.
+        </p>
+        <div className="registro mt-3">
+          {(
+            [
+              ['apagada', 'Apagado', 'La sesión queda exactamente como estaba.'],
+              ['suave', 'Suave', 'Tramos cortos y nada explosivo. Para empezar o para semanas cargadas.'],
+              ['fuerte', 'Fuerte', 'Todo lo que el descanso permita, y un bloque al final antes de la serie de cierre.'],
+            ] as const
+          ).map(([valor, titulo, detalle]) => (
+            <button
+              key={valor}
+              onClick={() => cambiar({ densidad: valor })}
+              className="fila-pulsable"
+            >
+              <span className="canal">
+                {(preferencias.densidad ?? 'apagada') === valor ? '◆' : '◇'}
+              </span>
+              <span className="min-w-0">
+                <span className="nombre block">{titulo}</span>
+                <span className="mt-0.5 block text-xs leading-relaxed text-[var(--color-glosa)]">
+                  {detalle}
+                </span>
+              </span>
+              <span />
+            </button>
+          ))}
+        </div>
+
+        {/* La duración y el equipo solo aparecen con el fuelle encendido:
+            apagado no cambian nada y serían filas que no hacen nada. */}
+        {(preferencias.densidad ?? 'apagada') !== 'apagada' && (
+          <>
+            <Rotulo className="mt-6">CUÁNTO QUERÉS QUE DURE</Rotulo>
+            <p className="mt-2 max-w-[42ch] text-xs leading-relaxed text-[var(--color-glosa)]">
+              Lo que se estira para llegar es el bloque de fuelle, nunca las series. El motor
+              mide el rendimiento contra las series que te propuso: agregar series para llenar
+              una hora se pagaría con eslabones.
+            </p>
+            <div className="registro mt-3">
+              {MINUTOS_OBJETIVO.map((minutos) => (
+                <button
+                  key={minutos}
+                  onClick={() => cambiar({ minutosObjetivo: minutos })}
+                  className="fila-pulsable"
+                >
+                  <span className="canal">
+                    {(preferencias.minutosObjetivo ?? MINUTOS_OBJETIVO_POR_DEFECTO) === minutos
+                      ? '◆'
+                      : '◇'}
+                  </span>
+                  <span className="min-w-0">
+                    <span className="nombre block">
+                      {minutos === 90
+                        ? 'Lo más largo que dé'
+                        : minutos === 60
+                          ? 'Una hora'
+                          : 'Tres cuartos de hora'}
+                    </span>
+                    {minutos === 90 && (
+                      <span className="mt-0.5 block text-xs leading-relaxed text-[var(--color-glosa)]">
+                        Entre una hora y una y cuarto, según en qué eslabón estés. Más que eso
+                        sería volumen de relleno, y el bloque tiene tope.
+                      </span>
+                    )}
+                  </span>
+                  <span className="cifra-fila">{minutos === 90 ? '—' : minutos}</span>
+                </button>
+              ))}
+            </div>
+          </>
+        )}
+
+        {(preferencias.densidad ?? 'apagada') !== 'apagada' && (
+          <div className="registro mt-3">
+            <Interruptor
+              titulo="Puedo saltar"
+              detalle="Si hay vecinos abajo o el piso no aguanta, dejalo en no: no te va a pedir saltos ni burpees."
+              activo={preferencias.puedeSaltar === true}
+              onCambiar={(v) => cambiar({ puedeSaltar: v })}
+            />
+            <Interruptor
+              titulo="Tengo escalón o cajón"
+              detalle="Un escalón, un cajón o una silla firme para subidas."
+              activo={preferencias.tieneEscalon === true}
+              onCambiar={(v) => cambiar({ tieneEscalon: v })}
+            />
+          </div>
+        )}
       </section>
 
       <section className="mt-8">

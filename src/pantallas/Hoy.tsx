@@ -29,7 +29,16 @@ import {
   diaDeLaSemana,
   proximoDia,
   tocaEntrenar,
+  claseDeDia,
 } from '@/dominio/rutinas'
+import {
+  DESCANSO_DE_BAJADA,
+  MINUTOS_OBJETIVO_POR_DEFECTO,
+  bajadaDe,
+  minutosDelBloque,
+  minutosDeSesion,
+} from '@/dominio/bajada'
+import { bloqueDeFuelle, type Densidad } from '@/dominio/metabolico'
 import { adherencia, esVuelta, proximoHito, sesionesDeVida } from '@/dominio/adherencia'
 import { laVezPasada } from '@/dominio/estadisticas'
 import { bandaSostenida, ajusteDelDia, cadenasCongeladas } from '@/dominio/estado'
@@ -78,6 +87,12 @@ export function Hoy() {
   const rutina =
     RUTINA_POR_ID.get(preferencias.rutinaActivaId) ?? RUTINA_POR_ID.get(RUTINA_POR_DEFECTO)!
   const esDiaDeEntrenar = tocaEntrenar(rutina, hoy)
+  /**
+   * Fuerza, fuelle o descanso. El día de fuelle no le pide fuerza a ninguna
+   * cadena, así que la pantalla no puede ofrecer lo mismo: anunciar los cuatro
+   * eslabones y después abrir un bloque metabólico sería mentir dos veces.
+   */
+  const esDiaDeFuelle = claseDeDia(rutina, hoy) === 'fuelle'
   const siguiente = proximoDia(rutina, hoy)
   const entrenoHoy = sesiones.some((s) => s.fecha === fecha)
   const total = sesionesDeVida(sesiones)
@@ -111,6 +126,54 @@ export function Hoy() {
       },
     ]
   })
+
+  /**
+   * Cuánto va a durar la sesión de hoy, estimado.
+   *
+   * La app nunca supo decirlo, y resulta que es una de las preguntas más
+   * concretas que se le pueden hacer: "tengo una hora, ¿entro?". Sale de los
+   * mismos números con los que se arma la sesión —las series, las ventanas, los
+   * descansos de cada ejercicio y el bloque de fuelle—, así que no es una
+   * promesa: es una cuenta.
+   *
+   * Se muestra redondeada y con un "aprox." adelante, porque la variabilidad
+   * real entre dos personas haciendo la misma sesión es de varios minutos y una
+   * cifra exacta sería más precisa que honesta.
+   */
+  const densidad: Densidad = preferencias.densidad ?? 'apagada'
+  const esDensa = densidad !== 'apagada'
+  const equipo = {
+    ...(preferencias.puedeSaltar !== undefined ? { puedeSaltar: preferencias.puedeSaltar } : {}),
+    ...(preferencias.tieneEscalon !== undefined ? { tieneEscalon: preferencias.tieneEscalon } : {}),
+  }
+  const densidadDelDia: Densidad = esDiaDeFuelle && !esDensa ? 'suave' : densidad
+  const minutosObjetivo = preferencias.minutosObjetivo ?? MINUTOS_OBJETIVO_POR_DEFECTO
+
+  // Las mismas cuentas que hace `Entrenar`, con los mismos datos: la fuerza
+  // primero, y el bloque cubriendo lo que falta para llegar a la duración
+  // elegida. Si estas dos pantallas se separaran, la estimación diría una cosa
+  // y la sesión duraría otra, que es peor que no estimar nada.
+  const entradas = bloques.flatMap(({ patron, avance, ejercicio }) => {
+    const duro = { ejercicio, objetivo: avance.objetivoActual }
+    if (!esDensa) return [duro]
+    const abajo = bajadaDe(ejercicio, cadenaDe(patron), POR_ID)
+    return abajo ? [duro, { ...abajo, descansoSegundos: DESCANSO_DE_BAJADA }] : [duro]
+  })
+
+  const segundosDeFuelle =
+    densidadDelDia === 'apagada'
+      ? 0
+      : bloqueDeFuelle(
+          esDiaDeFuelle
+            ? Math.max(1, minutosObjetivo - 6)
+            : minutosDelBloque(minutosObjetivo, minutosDeSesion(entradas)),
+          equipo,
+          densidadDelDia,
+        ).reduce((suma, paso) => suma + paso.segundos + paso.descansoSegundos, 0)
+
+  const minutos = esDiaDeFuelle
+    ? Math.round(segundosDeFuelle / 60) + 6
+    : minutosDeSesion(entradas, segundosDeFuelle)
 
   /**
    * La víspera: el eslabón que se abre hoy si esta sesión se cumple.
@@ -185,12 +248,18 @@ export function Hoy() {
         <Rotulo>
           {entrenoHoy
             ? 'YA ENTRENASTE HOY'
-            : esDiaDeEntrenar
-              ? vuelve
-                ? 'SESIÓN DE VUELTA'
-                : `HOY · ${rutina.nombre.toUpperCase()}`
-              : 'HOY TOCA DESCANSAR'}
+            : esDiaDeFuelle
+              ? 'HOY · FUELLE'
+              : esDiaDeEntrenar
+                ? vuelve
+                  ? 'SESIÓN DE VUELTA'
+                  : `HOY · ${rutina.nombre.toUpperCase()}`
+                : 'HOY TOCA DESCANSAR'}
         </Rotulo>
+
+        {esDiaDeEntrenar && !entrenoHoy && (
+          <p className="rotulo mt-2">APROX. {minutos} MIN</p>
+        )}
 
         <div className="registro mt-3">
           {bloques.map(({ patron, avance, ejercicio, antes }) => {
@@ -282,10 +351,16 @@ export function Hoy() {
             // queda así, y un temporizador no es un gesto. Sin esta línea el
             // aviso del descanso no suena nunca en iPhone.
             despertarAudio()
-            navegar('/entrenar')
+            navegar(esDiaDeFuelle ? '/entrenar?fuelle=1' : '/entrenar')
           }}
         >
-          {entrenoHoy ? 'Entrenar otra vez' : vuelve ? 'Volver a empezar' : 'Empezar'}
+          {entrenoHoy
+            ? 'Entrenar otra vez'
+            : esDiaDeFuelle
+              ? 'Empezar el fuelle'
+              : vuelve
+                ? 'Volver a empezar'
+                : 'Empezar'}
         </Accion>
         <button
           onClick={() => {

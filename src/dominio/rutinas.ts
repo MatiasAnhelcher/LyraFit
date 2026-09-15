@@ -35,6 +35,20 @@ export const RUTINAS: Rutina[] = [
     ],
   },
   {
+    id: 'densa-cinco',
+    nombre: 'Densa, cinco días',
+    descripcion:
+      'Tres días de fuerza con el fuelle metido en los descansos y dos días de acondicionamiento en el medio. Es la forma de entrenar cinco días sin quedarse sin recuperación: los días de fuelle no le piden fuerza a ninguna cadena, así que el motor no los lee.',
+    dias: [1, 2, 3, 4, 5],
+    diasDeFuelle: [2, 4],
+    bloques: [
+      { patron: 'traccion', nota: 'Primero lo que más cuesta, con el cuerpo entero.' },
+      { patron: 'empuje' },
+      { patron: 'piernas' },
+      { patron: 'core', nota: 'Al final: si lo hacés antes, te sabotea el resto.' },
+    ],
+  },
+  {
     id: 'minima',
     nombre: 'La mínima',
     descripcion:
@@ -76,6 +90,24 @@ export function diaDeLaSemana(fecha: Date): number {
 
 export function tocaEntrenar(rutina: Rutina, fecha: Date): boolean {
   return rutina.dias.includes(diaDeLaSemana(fecha))
+}
+
+/** Qué clase de día es hoy en esta rutina. */
+export type ClaseDeDia = 'fuerza' | 'fuelle' | 'descanso'
+
+/**
+ * Fuerza, fuelle o descanso.
+ *
+ * Existe para que las pantallas no tengan que cruzar `dias` con `diasDeFuelle`
+ * cada una por su cuenta: son dos listas y cruzarlas mal —un día de fuelle que
+ * no está en `dias`— daría un día que la app anuncia y no sabe abrir. Acá el
+ * cruce se hace una vez y hay un test que comprueba que ninguna rutina declare
+ * un día de fuelle fuera de sus días.
+ */
+export function claseDeDia(rutina: Rutina, fecha: Date): ClaseDeDia {
+  const dia = diaDeLaSemana(fecha)
+  if (!rutina.dias.includes(dia)) return 'descanso'
+  return rutina.diasDeFuelle?.includes(dia) ? 'fuelle' : 'fuerza'
 }
 
 /** El próximo día de entrenamiento a partir de una fecha, sin contarla. */

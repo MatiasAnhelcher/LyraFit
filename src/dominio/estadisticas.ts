@@ -244,6 +244,10 @@ export function curvaDeFuerza(sesiones: Sesion[], patron: Patron): PuntoDeFuerza
     for (const registro of sesion.registros) {
       const ejercicio = POR_ID.get(registro.ejercicioId)
       if (!ejercicio || ejercicio.patron !== patron) continue
+      // La bajada es volumen en un eslabón ya dominado: no es la mejor marca
+      // del día aunque el índice le dé más alto, y darle el punto atribuiría la
+      // sesión al ejercicio equivocado.
+      if (registro.bajada) continue
 
       const mejor = Math.max(0, ...sinCierre(registro.series).map((s) => s.logrado))
       if (mejor <= 0) continue

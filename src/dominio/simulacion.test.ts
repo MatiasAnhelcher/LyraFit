@@ -281,3 +281,63 @@ describe('la víspera es rara, y tiene que seguir siéndolo', () => {
     expect(frecuencia(() => Infinity)).toBeGreaterThan(0.05)
   })
 })
+
+/**
+ * Cuánto puede costar el fuelle antes de romper la progresión.
+ *
+ * El fuelle mete trabajo metabólico en los descansos, y la objeción correcta es
+ * que eso podría dejar a la persona con menos repeticiones en la serie
+ * siguiente. Si pasara, el motor leería esa merma como pérdida de capacidad y
+ * bajaría de eslabón a alguien que no perdió nada: le gastó la fuerza tres
+ * minutos antes, que no es lo mismo.
+ *
+ * La pregunta no es "¿podría pasar?" —claro que podría— sino **cuánta merma
+ * aguanta el motor**, y eso es medible corriéndolo. Se simula la persona que
+ * peor la pasaría: la que llega exactamente al techo de cada ventana, donde
+ * cada subida de eslabón se gana por un pelo y cualquier merma se nota.
+ *
+ * Medido sobre ochenta sesiones, las cuatro cadenas, subidas de eslabón:
+ *
+ * | merma | empuje | tracción | piernas | core |
+ * |-------|--------|----------|---------|------|
+ * | 0 %   | 10     | 9        | 8       | 8    |
+ * | 10 %  | 8      | 9        | 8       | 8    |
+ * | 12 %  | 7      | 9        | 8       | 8    |
+ * | 14 %  | 5      | 2        | 3       | 4    |
+ * | 18 %  | 0      | 0        | 0       | 0    |
+ *
+ * O sea: **hay un acantilado, y está entre el 12 % y el 14 %.** Por debajo, el
+ * motor absorbe la merma casi entera. Por encima, la progresión se derrumba y a
+ * partir del 18 % no queda nada: ochenta sesiones sin subir un solo eslabón.
+ *
+ * Eso es lo que justifica el piso de recuperación de `metabolico.ts`, y también
+ * lo que hay que vigilar: si mañana alguien toca SUBE, BAJA o el peso de la
+ * peor serie, el margen se mueve y esta tabla lo dice. Por eso el test no
+ * afirma una desigualdad vaga sino los dos bordes del acantilado.
+ */
+describe('cuánta merma aguanta el motor antes de romperse', () => {
+  /** Alguien que llega justo al techo de cada ventana, menos una merma. */
+  function alFilo(merma: number) {
+    return (e: Ejercicio) => Math.round(e.ventana.max * (1 - merma))
+  }
+
+  const subidas = (patron: Patron, merma: number) =>
+    simular(patron, alFilo(merma), 80).filter((p) => p.movimiento === 'nivel-arriba').length
+
+  for (const patron of ['empuje', 'traccion', 'piernas', 'core'] as Patron[]) {
+    it(`en ${patron} una merma del 12% no le cuesta la progresión`, () => {
+      const intacta = subidas(patron, 0)
+      expect(intacta, 'sin merma tiene que progresar').toBeGreaterThanOrEqual(8)
+      // Del otro lado del acantilado no: conserva al menos siete de cada diez
+      // subidas, que es lo que quiere decir "el motor lo absorbe".
+      expect(subidas(patron, 0.12)).toBeGreaterThanOrEqual(Math.ceil(intacta * 0.7))
+    })
+
+    it(`en ${patron} una merma del 18% la rompe del todo`, () => {
+      // No es una advertencia teórica: son ochenta sesiones sin subir un solo
+      // eslabón. Si esto alguna vez deja de fallar en cero, el motor cambió de
+      // forma y el piso de recuperación hay que recalcularlo.
+      expect(subidas(patron, 0.18)).toBe(0)
+    })
+  }
+})
