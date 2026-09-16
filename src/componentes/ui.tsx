@@ -19,6 +19,7 @@ export const COLOR_PATRON: Record<Patron, string> = {
   traccion: 'var(--color-traccion)',
   piernas: 'var(--color-piernas)',
   core: 'var(--color-core)',
+  bisagra: 'var(--color-bisagra)',
 }
 
 /** El rótulo de lámina: el título es una placa, no un titular. */

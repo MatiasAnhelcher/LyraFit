@@ -953,6 +953,219 @@ export const EJERCICIOS: Ejercicio[] = [
     ccr: 1.15,
     descansoSegundos: 150,
   },
+
+  {
+    id: 'puente-gluteos',
+    nombre: 'Puente de glúteos',
+    patron: 'bisagra',
+    medida: 'repeticiones',
+    nivel: 1,
+    resumen:
+      'Acostado boca arriba, levantar la cadera hasta alinear rodillas, cadera y hombros. Acá los glúteos aprenden a estirar la cadera sin que lo haga la espalda.',
+    tecnica: [
+      'Acostate boca arriba con las rodillas dobladas y los talones a un palmo de la cola.',
+      'Meté la pelvis apenas hacia adentro para pegar la espalda baja al piso antes de arrancar.',
+      'Empujá con los talones y subí la cadera hasta formar una línea de rodillas a hombros.',
+      'Apretá los glúteos un segundo arriba y bajá lento, sin apoyar del todo entre repeticiones.',
+    ],
+    erroresComunes: [
+      'Subir arqueando la espalda baja en vez de estirar la cadera. Si lo sentís en los lumbares, subiste de más.',
+      'Empujar con las puntas de los pies: el trabajo se va a los cuádriceps.',
+      'Dejar los talones demasiado lejos de la cola, que es la receta del calambre en el isquiotibial.',
+    ],
+    ventana: { min: 10, max: 15 },
+    series: 3,
+    ccr: 0.3,
+    descansoSegundos: 45,
+  },
+  {
+    id: 'puente-gluteos-pies-elevados',
+    nombre: 'Puente con los pies en la silla',
+    patron: 'bisagra',
+    medida: 'repeticiones',
+    nivel: 2,
+    resumen:
+      'El mismo puente con los talones arriba de una silla. El recorrido se alarga y los isquiotibiales empiezan a trabajar en serio.',
+    tecnica: [
+      'Trabá una silla contra la pared y apoyá los talones en el asiento, con las rodillas más o menos a noventa grados.',
+      'Pegá la espalda baja al piso y empujá el asiento con los talones, hacia abajo y hacia vos.',
+      'Subí la cadera hasta la línea de rodillas a hombros y frená ahí, sin pasarte de largo.',
+      'Bajá lento hasta rozar el piso con la cola y encadená la siguiente.',
+    ],
+    erroresComunes: [
+      'Usar una silla suelta que se corre en la mitad de la serie.',
+      'Arquear la espalda arriba para ganar unos centímetros de altura.',
+      'Apoyar el pie entero y terminar empujando con la planta en vez del talón.',
+    ],
+    ventana: { min: 10, max: 15 },
+    series: 3,
+    ccr: 0.42,
+    descansoSegundos: 60,
+  },
+  {
+    id: 'puente-una-pierna',
+    nombre: 'Puente de glúteos a una pierna',
+    patron: 'bisagra',
+    medida: 'repeticiones',
+    nivel: 3,
+    resumen:
+      'El puente con un solo pie en el piso: cada cadera tiene que estirarse sola y además sostener la pelvis pareja. La cantidad es por pierna.',
+    tecnica: [
+      'Armá el puente en el piso y llevá una rodilla al pecho, sostenida con las dos manos.',
+      'Empujá con el talón de la pierna de apoyo y subí hasta la línea de rodilla a hombro.',
+      'Mantené las dos caderas a la misma altura en todo el recorrido, como si llevaras un vaso apoyado en la pelvis.',
+      'Bajá controlado y completá todas las repeticiones de un lado antes de cambiar.',
+    ],
+    erroresComunes: [
+      'Dejar caer la cadera del lado libre. Si no la podés sostener pareja, volvé al eslabón anterior.',
+      'Empujar el piso con las manos para completar la subida.',
+      'Estirar la pierna libre hacia el techo y usarla de envión.',
+    ],
+    // Igual que la bisagra a una pierna: sin peso, el techo de un puente a una
+    // pierna no está en doce. Los eslabones de esta cadena son de repetición
+    // alta porque no hay carga externa que los acorte, y ponerles ventanas de
+    // ejercicio cargado hacía que el motor los agotara en tres sesiones.
+    ventana: { min: 8, max: 15 },
+    series: 3,
+    ccr: 0.55,
+    descansoSegundos: 75,
+  },
+  {
+    id: 'bisagra-una-pierna',
+    nombre: 'Bisagra a una pierna',
+    patron: 'bisagra',
+    medida: 'repeticiones',
+    nivel: 4,
+    resumen:
+      'El peso muerto rumano a una pierna, sin peso: llevar la cadera atrás y bajar el torso mientras la pierna libre sube. Es la bisagra pura, con el isquiotibial cargado estirado. La cantidad es por pierna.',
+    tecnica: [
+      'Parate en una pierna con la rodilla apenas flexionada, nunca trabada.',
+      'Llevá la cadera hacia atrás y bajá el torso mientras la pierna libre se estira atrás, formando una sola línea de la cabeza al talón.',
+      'Bajá hasta donde puedas sostener la espalda derecha, más o menos con el torso paralelo al piso.',
+      'Volvé estirando la cadera, no tirando con la espalda. Si te tambaleás, tocá una silla con la punta de los dedos.',
+    ],
+    erroresComunes: [
+      'Redondear la espalda para bajar más. El rango lo pone el isquiotibial, no la columna.',
+      'Abrir la cadera de la pierna libre hacia el costado y terminar rotado.',
+      'Doblar la rodilla de apoyo y convertirlo en una sentadilla a una pierna a medias.',
+      'Bajar rápido y rebotar abajo, justo donde el músculo está más estirado.',
+    ],
+    // Ventana ancha a propósito. Una bisagra a una pierna SIN PESO no tiene su
+    // techo en doce: el límite lo pone el equilibrio y la resistencia, no la
+    // fuerza, y quien la domina hace veinte. Con la ventana angosta que tenía,
+    // `simulacion.test.ts` mostró que el motor promovía, cobraba cuatro
+    // sesiones de fracaso y bajaba, en un ciclo de once sesiones que no
+    // terminaba nunca. No era el motor: era la ventana mal puesta.
+    ventana: { min: 8, max: 15 },
+    series: 3,
+    ccr: 0.66,
+    descansoSegundos: 90,
+  },
+  {
+    id: 'puente-una-pierna-elevado',
+    nombre: 'Puente a una pierna con el pie en la silla',
+    patron: 'bisagra',
+    medida: 'repeticiones',
+    nivel: 5,
+    resumen:
+      'Un solo talón arriba de la silla, la otra pierna en el aire y toda la cadera colgando de ese isquiotibial. La cantidad es por pierna.',
+    tecnica: [
+      'Acostate boca arriba con un talón apoyado en el asiento de una silla trabada contra la pared.',
+      'Levantá la otra pierna y sostenela en el aire con la rodilla doblada.',
+      'Empujá el asiento con el talón y subí la cadera hasta la línea de rodilla a hombro, con las dos caderas parejas.',
+      'Bajá lento hasta rozar el piso. Si aparece el calambre, acercá el talón unos centímetros y seguí.',
+    ],
+    erroresComunes: [
+      'Dejar que la cadera libre se hunda o rote hacia el costado.',
+      'Apoyar un instante el pie libre para arrancar la repetición siguiente.',
+      'Arquear la espalda baja para ganar altura en vez de terminar de estirar la cadera.',
+    ],
+    ventana: { min: 6, max: 12 },
+    series: 3,
+    ccr: 0.8,
+    descansoSegundos: 90,
+  },
+  {
+    id: 'curl-talones-deslizando',
+    nombre: 'Curl de isquios deslizando los talones',
+    patron: 'bisagra',
+    medida: 'repeticiones',
+    nivel: 6,
+    resumen:
+      'Desde el puente, estirar las piernas deslizando los talones por el piso y volver a doblarlas sin que la cadera se caiga. Es la primera vez que el isquiotibial dobla la rodilla con carga.',
+    tecnica: [
+      'Acostate boca arriba con una media, una toalla o un repasador bajo cada talón, en un piso liso.',
+      'Subí a la posición de puente y quedate arriba: la cadera no toca el piso hasta terminar la serie.',
+      'Deslizá los talones hacia adelante hasta casi estirar las piernas, sin dejar caer la cadera.',
+      'Volvé tirando con la parte de atrás del muslo hasta la posición de puente.',
+    ],
+    erroresComunes: [
+      'Dejar caer la cadera al estirar. Si se cae, acortá el recorrido: la cadera arriba es el ejercicio.',
+      'Empujar el piso con las manos para volver.',
+      'Estirar tan rápido que la vuelta se hace con envión.',
+    ],
+    ventana: { min: 6, max: 12 },
+    series: 3,
+    ccr: 0.87,
+    descansoSegundos: 90,
+  },
+  {
+    id: 'curl-nordico-negativo',
+    nombre: 'Curl nórdico negativo',
+    patron: 'bisagra',
+    medida: 'repeticiones',
+    nivel: 7,
+    resumen:
+      'Arrodillado con los talones trabados, dejarse caer adelante lo más lento posible y frenar con las manos. Solo la bajada: es la parte que construye el isquiotibial.',
+    tecnica: [
+      'Arrodillate sobre algo blando, con los talones trabados abajo del travesaño de una silla apoyada contra la pared o del borde de un mueble pesado.',
+      'Apretá glúteos y abdomen: de las rodillas a la cabeza tenés que ser una sola línea.',
+      'Caé adelante frenando con la parte de atrás del muslo todo lo que puedas y apoyá las manos cuando ya no aguantes.',
+      'Volvé empujando con los brazos hasta arrodillado. La subida no cuenta, no la pelees.',
+      'Arrancá cortando la bajada a mitad de camino y ganá recorrido de a poco, semana a semana.',
+    ],
+    erroresComunes: [
+      'Doblarse en la cadera para acortar la palanca: la cola se va atrás y el ejercicio se vuelve otro.',
+      'Soltarse de golpe y llegar al piso en dos segundos. Si no podés frenar cinco, hacé menos recorrido.',
+      'Meterse de entrada con series largas. Cuatro repeticiones bien frenadas te dejan el muslo dolorido tres días.',
+      'Trabar los talones abajo de algo que se levanta. Cargalo con tu peso y probalo antes de caer.',
+    ],
+    ventana: { min: 3, max: 8 },
+    series: 3,
+    // 1,05 y no 0,95. El `ccr` es lo que el motor usa para recalcular el
+    // objetivo al cambiar de eslabón, y con 0,95 la cuenta daba "doce curls
+    // deslizando equivalen a ocho nórdicos negativos". Es falso: acá no cambia
+    // la dificultad, cambia el RÉGIMEN — se pasa de concéntrico a excéntrico
+    // puro—. Medido en `simulacion.test.ts`, el número viejo hacía que el motor
+    // promoviera, pidiera ocho, cobrara cuatro sesiones de fracaso, bajara de
+    // eslabón y repitiera el ciclo cada diecisiete sesiones, para siempre.
+    ccr: 1.05,
+    descansoSegundos: 120,
+  },
+  {
+    id: 'curl-nordico',
+    nombre: 'Curl nórdico',
+    patron: 'bisagra',
+    medida: 'repeticiones',
+    nivel: 8,
+    resumen:
+      'La bajada frenada hasta abajo y la vuelta sin manos. Es lo más duro que se puede hacer con los isquiotibiales sin tocar una pesa.',
+    tecnica: [
+      'Armate igual que en la negativa: talones trabados, línea recta de rodillas a cabeza.',
+      'Bajá frenando parejo, sin acelerar en el último tramo.',
+      'Tocá el piso apenas con las manos o con el pecho y volvé tirando con la parte de atrás del muslo.',
+      'Si el último tramo todavía no sale, dejá las manos cerca del piso y usalas apenas para pasar el punto muerto.',
+    ],
+    erroresComunes: [
+      'Romper la línea en la cadera para salir del fondo. Si la cola se va atrás, la repetición no cuenta.',
+      'Tomar envión empujando el piso con los brazos y anotarla como completa.',
+      'Sumar repeticiones apenas sale la primera. Acá se crece de a una por semana, no de a tres.',
+    ],
+    ventana: { min: 2, max: 6 },
+    series: 3,
+    ccr: 1.3,
+    descansoSegundos: 180,
+  },
 ]
 
 export const CADENAS: Cadena[] = [
@@ -1027,6 +1240,22 @@ export const CADENAS: Cadena[] = [
       'palanca-frontal-agrupada',
     ],
   },
+  {
+    patron: 'bisagra',
+    nombre: 'Bisagra de cadera',
+    descripcion:
+      'Isquiotibiales y glúteos: la mitad de atrás de la pierna, que la sentadilla casi no toca. Del puente de glúteos al curl nórdico. Acá el peso se mueve estirando la cadera, no doblando la rodilla.',
+    ejercicios: [
+      'puente-gluteos',
+      'puente-gluteos-pies-elevados',
+      'puente-una-pierna',
+      'bisagra-una-pierna',
+      'puente-una-pierna-elevado',
+      'curl-talones-deslizando',
+      'curl-nordico-negativo',
+      'curl-nordico',
+    ],
+  },
 ]
 
 /** Índice por id, para no recorrer el arreglo entero cada vez. */
@@ -1053,4 +1282,5 @@ export const NOMBRE_PATRON: Record<Patron, string> = {
   traccion: 'Tracción',
   piernas: 'Piernas',
   core: 'Core',
+  bisagra: 'Bisagra',
 }

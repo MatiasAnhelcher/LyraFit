@@ -19,13 +19,25 @@ muestra cada vez que decide algo. Nada de esperar a "sentirte listo".
 
 ## Qué hace
 
-- **Cuatro cadenas de progresión** —empuje, tracción, piernas y core— con 39
-  ejercicios, de la flexión en la pared a la flexión a una mano, y del remo
-  australiano a la dominada a un brazo asistida. Cada uno con su técnica, sus
-  errores típicos y su ventana de trabajo.
+- **Cinco cadenas de progresión** —empuje, tracción, piernas, core y bisagra de
+  cadera— con 47 ejercicios, de la flexión en la pared a la flexión a una mano,
+  y del remo australiano a la dominada a un brazo asistida.
+
+  La bisagra entró última y por un hueco que era un desbalance, no un faltante
+  de catálogo: los nueve ejercicios de piernas son todos dominantes de rodilla,
+  así que isquiotibiales y glúteos quedaban sin entrenar. Termina en el curl
+  nórdico, que es la cualidad mejor documentada como protectora de la lesión de
+  isquiotibiales (Petersen, AJSM 2011; van Dyk, BJSM 2019). No suma un quinto
+  bloque a la sesión: **alterna** con piernas día por medio, porque ni hace
+  falta hacer las dos todos los días ni entra un renglón más arriba del pliegue.
+
+  Cada ejercicio con su técnica, sus errores típicos y su ventana de trabajo.
 - **Test de nivel al empezar.** Cuatro preguntas con un dato objetivo —cuántas
   flexiones hacés, no si te considerás principiante— y la app te ubica en el
-  eslabón que te corresponde en cada cadena.
+  eslabón que te corresponde. La bisagra no se pregunta y arranca en el primer
+  eslabón para todo el mundo: el puente de glúteos no le queda grande a nadie, y
+  del otro lado de esa cadena está el curl nórdico, donde entrar de más es la
+  única forma de lastimarse.
 - **Motor de progresión** que ajusta el objetivo sesión a sesión y explica en
   una frase por qué cambió.
 - **Registro de series** con predicción previa, temporizador de descanso que no
@@ -46,9 +58,9 @@ muestra cada vez que decide algo. Nada de esperar a "sentirte listo".
 - **Cuatro rutinas** para elegir según cuántos días tengas: desde una mínima de
   dos días para las semanas complicadas hasta una de cinco, con dos días de
   acondicionamiento en el medio que no le piden fuerza a ninguna cadena.
-- **Cuánto va a durar**, antes de empezar. Elegís si querés cuarenta y cinco
-  minutos o una hora y la app estira el bloque metabólico para llegar, nunca las
-  series: el motor mide contra las series que te propuso.
+- **Cuánto va a durar**, antes de empezar. Es una cuenta con tus propios
+  números, no una promesa: la duración no se elige —se elige cuán fuerte— y de
+  ahí sale.
 
 ## Cómo se levanta
 
@@ -93,7 +105,7 @@ mirarlo, y todo junto:
 
 ```bash
 npm run dev &      # la hoja de contacto solo existe en desarrollo
-node figuras.mjs   # los 39 dibujos en una grilla → capturas/figuras.png
+node figuras.mjs   # los dibujos en una grilla → capturas/figuras.png
 ```
 
 Y antes de publicar, la que mira lo que las otras no pueden mirar: qué le pasa
@@ -118,7 +130,7 @@ código viejo pidiendo trozos que el cache nuevo ya borró.
 src/
   dominio/       las reglas, sin nada de React ni de base de datos
     tipos.ts         el vocabulario de la app
-    biblioteca.ts    los 39 ejercicios y sus cadenas
+    biblioteca.ts    los 47 ejercicios y sus cinco cadenas
     progresion.ts    el motor: cuándo subir, sostener o bajar
     adherencia.ts    lo que reemplaza a la racha
     estado.ts        el chequeo diario y su línea de base

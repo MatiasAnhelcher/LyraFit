@@ -120,6 +120,11 @@
   --color-traccion: #0e6b8c;
   --color-piernas: #3f5f10;
   --color-core: #6b2fbd;
+  /* La bisagra entra en el hueco que quedaba en la rueda: naranja 25°, verde
+     80°, azul 197°, violeta 270°. El rosa profundo es el único lugar donde una
+     quinta cadena no se confunde con ninguna de las cuatro, ni siquiera con el
+     violeta del core, que es lo más cerca que está. */
+  --color-bisagra: #a3175c;
 
   /* --- LA CARTA: noche fija, idéntica en claro y en oscuro --- */
   --carta-fondo: #080b11;
@@ -136,6 +141,7 @@
   --luz-traccion: #38bdf8;
   --luz-piernas: #a3e635;
   --luz-core: #c084fc;
+  --luz-bisagra: #fb7185;
 
   /* Gráficos: mantienen su paleta propia, ya verificada. Un color pensado
      para iluminar un nodo de 7px no es un buen relleno de barra de 40px. */
@@ -143,6 +149,7 @@
   --color-grafico-2: #0e6b8c;
   --color-grafico-3: #3f5f10;
   --color-grafico-4: #6b2fbd;
+  --color-grafico-5: #a3175c;
   --color-grafico-grilla: #cdc7ba;
 
   --font-cifra: 'Plex', ui-monospace, 'SF Mono', 'Roboto Mono', monospace;
@@ -184,12 +191,14 @@
       --color-empuje: #ff7a45;
       --color-traccion: #38bdf8;
       --color-piernas: #a3e635;
+      --color-bisagra: #fb7185;
       --color-core: #c084fc;
 
       --color-grafico-1: #ff7a45;
       --color-grafico-2: #38bdf8;
       --color-grafico-3: #a3e635;
       --color-grafico-4: #c084fc;
+      --color-grafico-5: #fb7185;
       --color-grafico-grilla: #35302a;
     }
   }
@@ -208,12 +217,14 @@
     --color-empuje: #ff7a45;
     --color-traccion: #38bdf8;
     --color-piernas: #a3e635;
+    --color-bisagra: #fb7185;
     --color-core: #c084fc;
 
     --color-grafico-1: #ff7a45;
     --color-grafico-2: #38bdf8;
     --color-grafico-3: #a3e635;
     --color-grafico-4: #c084fc;
+    --color-grafico-5: #fb7185;
     --color-grafico-grilla: #35302a;
   }
 

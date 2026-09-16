@@ -31,6 +31,7 @@ import {
   proximoDia,
   tocaEntrenar,
   claseDeDia,
+  patronDelBloque,
 } from '@/dominio/rutinas'
 import { DESCANSO_DE_BAJADA, bajadaDe, minutosDeSesion } from '@/dominio/bajada'
 import {
@@ -126,7 +127,10 @@ export function Hoy() {
 
   const congeladas = cadenasCongeladas(estados, fecha)
 
-  const bloques = rutina.bloques.flatMap((bloque) => {
+  const bloques = rutina.bloques.flatMap((bloqueDelPlan) => {
+    // Un bloque puede alternar entre dos patrones según el día. La resolución
+    // vive en el dominio para que esta pantalla y `Entrenar` no puedan diferir.
+    const bloque = { ...bloqueDelPlan, patron: patronDelBloque(bloqueDelPlan, rutina, hoy) }
     const avance = avances.get(bloque.patron)
     const ejercicio = avance ? buscarEjercicio(avance.ejercicioId) : undefined
     if (!avance || !ejercicio) return []

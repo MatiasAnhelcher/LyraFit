@@ -44,7 +44,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { NOMBRE_PATRON, POR_ID, buscarEjercicio, cadenaDe } from '@/dominio/biblioteca'
-import { RUTINA_POR_DEFECTO, RUTINA_POR_ID } from '@/dominio/rutinas'
+import { RUTINA_POR_DEFECTO, RUTINA_POR_ID, patronDelBloque } from '@/dominio/rutinas'
 import { ajusteDelDia, bandaSostenida, cadenasCongeladas } from '@/dominio/estado'
 import { seAbreHoy } from '@/dominio/anticipacion'
 import { mueveElPlan } from '@/dominio/progresion'
@@ -405,7 +405,11 @@ export function Entrenar() {
   const plan = useMemo(() => {
     if (!rutina || !avances) return []
     const bloques = esCorta ? rutina.bloques.slice(0, rutina.bloques.length) : rutina.bloques
-    return bloques.flatMap((bloque) => {
+    return bloques.flatMap((bloqueDelPlan) => {
+      const bloque = {
+        ...bloqueDelPlan,
+        patron: patronDelBloque(bloqueDelPlan, rutina, new Date()),
+      }
       const avance = avances.get(bloque.patron)
       const ejercicio = avance ? buscarEjercicio(avance.ejercicioId) : undefined
       if (!avance || !ejercicio) return []

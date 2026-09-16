@@ -50,7 +50,7 @@ describe('conteos por sesión', () => {
 
   it('reparte las series según el patrón de cada ejercicio', () => {
     const s = sesion('2026-09-02', 'flexion-completa', [10, 10, 10])
-    expect(seriesPorPatron(s)).toEqual({ empuje: 3, traccion: 0, piernas: 0, core: 0 })
+    expect(seriesPorPatron(s)).toEqual({ empuje: 3, traccion: 0, piernas: 0, core: 0, bisagra: 0 })
   })
 
   it('ignora ejercicios que no están en la biblioteca', () => {

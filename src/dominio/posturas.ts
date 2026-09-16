@@ -1436,4 +1436,188 @@ export const POSTURAS: Record<string, Figura> = {
     },
   },
 
+
+  // ─── Bisagra de cadera ─────────────────────────────────────────────
+  //
+  // La cadena más difícil de dibujar de las cinco, y por un motivo concreto:
+  // sus primeros eslabones son BOCA ARRIBA, y este sistema está pensado para un
+  // cuerpo que mira a la derecha y se apoya en un punto. Un puente apoya en dos
+  // —los hombros y los pies— y la cadera queda en el aire entre los dos.
+  //
+  // Se resuelve anclando en los pies y dejando que el hombro caiga en el piso
+  // por geometría, no por un número escrito a mano. Y la cabeza va apenas
+  // levantada: con el cuello en cero el círculo de la cabeza queda partido por
+  // la línea del piso, que se ve como un error de dibujo aunque el punto esté
+  // exactamente donde tiene que estar.
+
+  'puente-gluteos': {
+    escena: 'piso',
+    apoyo: 'pies',
+    gesto: 'La cadera sube hasta que rodillas, cadera y hombros quedan en una línea.',
+    inicio: {
+      // Cadera en el piso: el torso queda horizontal, con la cabeza a la derecha.
+      torso: 0,
+      cuello: 14,
+      brazo: 178,
+      antebrazo: 178,
+      muslo: 152,
+      pantorrilla: 248,
+      pie: 180,
+    },
+    fin: {
+      // La cadera sube y el torso se inclina: el hombro queda abajo y adelante.
+      torso: -24,
+      cuello: 10,
+      brazo: 175,
+      antebrazo: 175,
+      muslo: 166,
+      pantorrilla: 262,
+      pie: 180,
+    },
+  },
+
+  'puente-una-pierna': {
+    escena: 'piso',
+    apoyo: 'pies',
+    gesto: 'El mismo puente con un pie en el aire: la cadera sube sin torcerse.',
+    inicio: {
+      torso: 0,
+      cuello: 14,
+      brazo: 178,
+      antebrazo: 178,
+      muslo: 152,
+      pantorrilla: 248,
+      pie: 180,
+      // La pierna que no apoya, doblada en el aire.
+      musloLejos: 118,
+      pantorrillaLejos: 186,
+      pieLejos: 150,
+    },
+    fin: {
+      torso: -24,
+      cuello: 10,
+      brazo: 175,
+      antebrazo: 175,
+      muslo: 166,
+      pantorrilla: 262,
+      pie: 180,
+      musloLejos: 128,
+      pantorrillaLejos: 196,
+      pieLejos: 160,
+    },
+  },
+
+  'bisagra-una-pierna': {
+    escena: 'piso',
+    apoyo: 'pies',
+    gesto: 'La cadera va atrás y el torso baja mientras la pierna libre sube: una sola línea.',
+    inicio: {
+      torso: 90,
+      cuello: 90,
+      brazo: -86,
+      antebrazo: -86,
+      muslo: -90,
+      pantorrilla: -90,
+      pie: 0,
+      // La pierna libre apenas despegada, todavía cerca del piso.
+      musloLejos: -96,
+      pantorrillaLejos: -100,
+      pieLejos: 0,
+    },
+    fin: {
+      // El torso casi paralelo al piso y la pierna libre estirada atrás, en la
+      // misma línea. La rodilla de apoyo queda apenas flexionada, nunca trabada.
+      torso: 22,
+      cuello: 34,
+      brazo: -80,
+      antebrazo: -80,
+      muslo: -84,
+      pantorrilla: -96,
+      pie: 0,
+      musloLejos: -160,
+      pantorrillaLejos: -172,
+      pieLejos: 200,
+    },
+  },
+
+  'curl-talones-deslizando': {
+    escena: 'piso',
+    apoyo: 'pies',
+    gesto: 'Desde el puente, los talones se van lejos y vuelven sin que la cadera baje.',
+    inicio: {
+      // Arranca donde termina el puente: cadera arriba, rodillas dobladas.
+      torso: -24,
+      cuello: 10,
+      brazo: 175,
+      antebrazo: 175,
+      muslo: 166,
+      pantorrilla: 262,
+      pie: 180,
+    },
+    fin: {
+      // Las piernas se estiran y LA CADERA NO BAJA: el torso queda con la misma
+      // inclinación que al empezar. Es todo el ejercicio, y también el error que
+      // más se comete —"dejar caer la cadera al estirar"—, así que un dibujo con
+      // el torso plano estaría enseñando justo lo contrario.
+      torso: -23,
+      cuello: 10,
+      brazo: 176,
+      antebrazo: 176,
+      muslo: 186,
+      pantorrilla: 193,
+      pie: 150,
+    },
+  },
+
+  'curl-nordico-negativo': {
+    escena: 'piso',
+    apoyo: 'pies',
+    gesto: 'Arrodillado y derecho, se cae adelante frenando con la parte de atrás del muslo.',
+    inicio: {
+      // Arrodillado, con la tibia entera en el piso y el cuerpo vertical.
+      torso: 90,
+      cuello: 90,
+      brazo: -88,
+      antebrazo: -88,
+      muslo: -90,
+      pantorrilla: 180,
+      pie: 180,
+    },
+    fin: {
+      // El cuerpo entero gira sobre la rodilla; los brazos se adelantan para
+      // frenar. La tibia no se mueve: es lo que ancla la figura.
+      torso: 46,
+      cuello: 52,
+      brazo: -30,
+      antebrazo: -20,
+      muslo: -134,
+      pantorrilla: 180,
+      pie: 180,
+    },
+  },
+
+  'curl-nordico': {
+    escena: 'piso',
+    apoyo: 'pies',
+    gesto: 'La misma caída frenada, pero hasta abajo y con la vuelta sin manos.',
+    inicio: {
+      torso: 90,
+      cuello: 90,
+      brazo: -88,
+      antebrazo: -88,
+      muslo: -90,
+      pantorrilla: 180,
+      pie: 180,
+    },
+    fin: {
+      // Baja más que la negativa: el pecho llega cerca del piso.
+      torso: 22,
+      cuello: 28,
+      brazo: -16,
+      antebrazo: -8,
+      muslo: -158,
+      pantorrilla: 180,
+      pie: 180,
+    },
+  },
 }

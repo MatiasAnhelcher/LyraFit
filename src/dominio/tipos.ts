@@ -7,7 +7,7 @@
  */
 
 /** Los cuatro patrones de movimiento sobre los que se arma el entrenamiento. */
-export type Patron = 'empuje' | 'traccion' | 'piernas' | 'core'
+export type Patron = 'empuje' | 'traccion' | 'piernas' | 'core' | 'bisagra'
 
 /**
  * Un ejercicio se mide por repeticiones (flexiones) o por tiempo de sostén
@@ -289,6 +289,17 @@ export interface BloqueRutina {
   patron: Patron
   /** Para mostrar el porqué del bloque al armar la sesión. */
   nota?: string
+  /**
+   * El patrón con el que este bloque ALTERNA entre un día y el siguiente.
+   *
+   * Existe por dos razones que coinciden. La de entrenamiento: la bisagra de
+   * cadera y la sentadilla no hace falta hacerlas las dos todos los días, y el
+   * curl nórdico —donde termina la bisagra— se banca una vez por semana y no
+   * tres. La de interfaz: sumar un quinto bloque empujaba `Empezar` abajo del
+   * pliegue en un teléfono de 360×640, que es exactamente lo que ya se arregló
+   * dos veces. Alternar no cuesta ni un píxel.
+   */
+  alterna?: Patron
 }
 
 export interface Rutina {

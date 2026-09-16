@@ -6,7 +6,7 @@
  * ejercicio exacto sale del avance que tengas en esa cadena.
  */
 
-import type { Rutina } from './tipos'
+import type { BloqueRutina, Patron, Rutina } from './tipos'
 
 export const RUTINAS: Rutina[] = [
   {
@@ -18,7 +18,11 @@ export const RUTINAS: Rutina[] = [
     bloques: [
       { patron: 'traccion', nota: 'Primero lo que más cuesta, con el cuerpo entero.' },
       { patron: 'empuje' },
-      { patron: 'piernas' },
+      {
+        patron: 'piernas',
+        alterna: 'bisagra',
+        nota: 'Un día sentadilla, el siguiente bisagra de cadera: adelante y atrás del muslo.',
+      },
       { patron: 'core', nota: 'Al final: si lo hacés antes, te sabotea el resto.' },
     ],
   },
@@ -44,7 +48,11 @@ export const RUTINAS: Rutina[] = [
     bloques: [
       { patron: 'traccion', nota: 'Primero lo que más cuesta, con el cuerpo entero.' },
       { patron: 'empuje' },
-      { patron: 'piernas' },
+      {
+        patron: 'piernas',
+        alterna: 'bisagra',
+        nota: 'Un día sentadilla, el siguiente bisagra de cadera: adelante y atrás del muslo.',
+      },
       { patron: 'core', nota: 'Al final: si lo hacés antes, te sabotea el resto.' },
     ],
   },
@@ -90,6 +98,25 @@ export function diaDeLaSemana(fecha: Date): number {
 
 export function tocaEntrenar(rutina: Rutina, fecha: Date): boolean {
   return rutina.dias.includes(diaDeLaSemana(fecha))
+}
+
+/**
+ * Qué patrón toca hoy en un bloque que alterna.
+ *
+ * Sale del ÍNDICE del día dentro de los días de la rutina, no de un contador
+ * guardado. Es determinista a partir de la fecha, así que `Hoy` y `Entrenar`
+ * llegan siempre a la misma respuesta sin compartir estado, y no hay nada que
+ * pueda desincronizarse ni migrar.
+ *
+ * Con la rutina de cuerpo completo —lunes, miércoles, viernes— da sentadilla,
+ * bisagra, sentadilla. O sea bisagra una vez por semana, que es justo la
+ * frecuencia que admite el curl nórdico donde esa cadena termina.
+ */
+export function patronDelBloque(bloque: BloqueRutina, rutina: Rutina, fecha: Date): Patron {
+  if (!bloque.alterna) return bloque.patron
+  const posicion = rutina.dias.indexOf(diaDeLaSemana(fecha))
+  if (posicion < 0) return bloque.patron
+  return posicion % 2 === 0 ? bloque.patron : bloque.alterna
 }
 
 /** Qué clase de día es hoy en esta rutina. */

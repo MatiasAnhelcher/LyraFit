@@ -53,7 +53,7 @@ export function seriesDeSesion(sesion: Sesion): number {
 }
 
 export function seriesPorPatron(sesion: Sesion): Record<Patron, number> {
-  const acumulado: Record<Patron, number> = { empuje: 0, traccion: 0, piernas: 0, core: 0 }
+  const acumulado: Record<Patron, number> = { empuje: 0, traccion: 0, piernas: 0, core: 0, bisagra: 0 }
 
   for (const registro of sesion.registros) {
     const ejercicio = POR_ID.get(registro.ejercicioId)

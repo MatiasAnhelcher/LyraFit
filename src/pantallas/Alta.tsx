@@ -118,6 +118,13 @@ export function Alta() {
     traccion: 0,
     piernas: 0,
     core: 0,
+    // La bisagra no se prueba en el alta: el alta tiene un tope duro de ocho
+    // pantallas escrito en su propio encabezado, y ya está en ocho. Además
+    // arrancar el puente de glúteos desde el primer eslabón es lo correcto
+    // para cualquiera — no hay nadie para quien sea demasiado fácil de una
+    // forma que importe, y el final de esta cadena es el curl nórdico, donde
+    // entrar de más es la única forma de lastimarse.
+    bisagra: 0,
   })
   const [guardando, setGuardando] = useState(false)
 

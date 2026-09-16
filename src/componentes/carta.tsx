@@ -37,6 +37,7 @@ const LUZ: Record<Patron, string> = {
   traccion: 'var(--luz-traccion)',
   piernas: 'var(--luz-piernas)',
   core: 'var(--luz-core)',
+  bisagra: 'var(--luz-bisagra)',
 }
 
 /**
@@ -50,6 +51,7 @@ const SILUETA: Record<Patron, number[]> = {
   traccion: [1, 2, 0, -1, -2, -1, 1, 0, 2, 1, -1, 0],
   piernas: [0, 2, 1, -1, -2, 0, 1, -1, 0, 2, -1],
   core: [-1, 0, 2, 1, -1, -2, 0, 1, 2, 0, -1],
+  bisagra: [2, 0, -1, 1, 0, -2, -1, 2, 1, -1, 0],
 }
 
 const ANCHO = 340

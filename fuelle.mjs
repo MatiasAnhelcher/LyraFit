@@ -437,7 +437,7 @@ if (tipoDelDia !== 'fuelle') {
 if (antes !== despues) {
   fallos.push('Un día de fuelle movió los avances. No puede tocar el plan.')
 } else {
-  console.log('Un día de fuelle entero deja los cuatro avances exactamente como estaban.')
+  console.log('Un día de fuelle entero deja todos los avances exactamente como estaban.')
 }
 
 await navegador.close()

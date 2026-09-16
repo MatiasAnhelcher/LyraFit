@@ -47,7 +47,22 @@ const cada = (f: Figura): [string, Postura][] => [
  * Es deuda declarada, que es distinto de deuda escondida: el test verde no dice
  * "está todo dibujado", dice "está dibujado todo lo que dijimos que iba a estar".
  */
-const SIN_DIBUJO_TODAVIA = new Set<string>([])
+const SIN_DIBUJO_TODAVIA = new Set<string>([
+  // Los dos puentes con los pies arriba de una silla.
+  //
+  // No es falta de ganas: no se pueden dibujar con este sistema todavía. Un
+  // puente apoya en DOS lugares —los hombros en el piso y los pies en la
+  // silla— y `Figura.apoyo` describe uno solo. Y la escena que dibuja un cajón
+  // bajo los pies, `apoyo-pies`, está declarada para el caso contrario: cuando
+  // lo que apoya en el piso son las manos.
+  //
+  // Dibujarlos mal sería peor que no dibujarlos: mostrarían el puente del piso
+  // y la diferencia entre un eslabón y el siguiente es justamente la silla.
+  // Para que entren hace falta una escena nueva y un apoyo de dos puntos, que
+  // es trabajo del motor de figuras y no de esta cadena.
+  'puente-gluteos-pies-elevados',
+  'puente-una-pierna-elevado',
+])
 
 describe('las figuras de los ejercicios', () => {
   it('no falta ningún dibujo sin que esté declarado', () => {

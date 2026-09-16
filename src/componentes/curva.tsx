@@ -28,6 +28,7 @@ const COLOR: Record<Patron, string> = {
   traccion: 'var(--color-grafico-2)',
   piernas: 'var(--color-grafico-3)',
   core: 'var(--color-grafico-4)',
+  bisagra: 'var(--color-grafico-5)',
 }
 
 const FORMATO = new Intl.DateTimeFormat('es-AR', { day: 'numeric', month: 'short' })
