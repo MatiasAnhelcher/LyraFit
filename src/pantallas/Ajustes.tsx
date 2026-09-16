@@ -1,6 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
-import { MINUTOS_OBJETIVO } from '@/dominio/bajada'
 import { RUTINAS, DIA_CORTO } from '@/dominio/rutinas'
 import type { Preferencias } from '@/dominio/tipos'
 import {
@@ -122,8 +121,8 @@ export function Ajustes() {
           {(
             [
               ['apagada', 'Apagado', 'La sesión queda exactamente como estaba.'],
-              ['suave', 'Suave', 'Tramos cortos y nada explosivo. Para empezar o para semanas cargadas.'],
-              ['fuerte', 'Fuerte', 'Todo lo que el descanso permita, y un bloque al final antes de la serie de cierre.'],
+              ['suave', 'Suave', 'Tramos cortos, nada explosivo y un bloque de ocho minutos. Para empezar o para semanas cargadas.'],
+              ['fuerte', 'Fuerte', 'Ráfagas más largas y un bloque de hasta doce minutos al final, antes de la serie de cierre.'],
             ] as const
           ).map(([valor, titulo, detalle]) => (
             <button
@@ -145,52 +144,17 @@ export function Ajustes() {
           ))}
         </div>
 
-        {/* La duración y el equipo solo aparecen con el fuelle encendido:
-            apagado no cambian nada y serían filas que no hacen nada. */}
-        {(preferencias.densidad ?? 'apagada') !== 'apagada' && (
-          <>
-            <Rotulo className="mt-6">CUÁNTO QUERÉS QUE DURE</Rotulo>
-            <p className="mt-2 max-w-[42ch] text-xs leading-relaxed text-[var(--color-glosa)]">
-              Lo que se estira para llegar es el bloque de fuelle, nunca las series. El motor
-              mide el rendimiento contra las series que te propuso: agregar series para llenar
-              una hora se pagaría con eslabones.
-            </p>
-            <div className="registro mt-3">
-              {MINUTOS_OBJETIVO.map((minutos) => (
-                <button
-                  key={minutos}
-                  onClick={() => cambiar({ minutosObjetivo: minutos })}
-                  className="fila-pulsable"
-                >
-                  <span className="canal">
-                    {/* Sin marca hasta que se elija: `undefined` no es sesenta,
-                        es que nadie pidió una sesión más larga, y ahí el bloque
-                        es el mínimo. Preseleccionar una opción diría lo
-                        contrario. */}
-                    {preferencias.minutosObjetivo === minutos ? '◆' : '◇'}
-                  </span>
-                  <span className="min-w-0">
-                    <span className="nombre block">
-                      {minutos === 90
-                        ? 'Lo más largo que dé'
-                        : minutos === 60
-                          ? 'Una hora'
-                          : 'Tres cuartos de hora'}
-                    </span>
-                    {minutos === 90 && (
-                      <span className="mt-0.5 block text-xs leading-relaxed text-[var(--color-glosa)]">
-                        Entre una hora y una y cuarto, según en qué eslabón estés. Más que eso
-                        sería volumen de relleno, y el bloque tiene tope.
-                      </span>
-                    )}
-                  </span>
-                  <span className="cifra-fila">{minutos === 90 ? '—' : minutos}</span>
-                </button>
-              ))}
-            </div>
-          </>
-        )}
+        {/* El equipo solo aparece con el fuelle encendido: apagado no filtra
+            nada y serían dos filas que no hacen nada.
 
+            Acá también había un selector de "cuánto querés que dure", y era la
+            idea equivocada: hacía que el bloque metabólico creciera hasta
+            llenar la hora pedida. Con "lo más largo que dé" en un día de fuelle
+            armaba OCHENTA Y CUATRO vueltas —una hora y media de saltos
+            encadenados— porque ese camino no pasaba por ningún tope. La
+            duración de una sesión no se elige: se elige cuán fuerte, y la
+            duración sale de ahí. Lo que se muestra en Hoy es la estimación, que
+            es un dato y no una palanca. */}
         {(preferencias.densidad ?? 'apagada') !== 'apagada' && (
           <div className="registro mt-3">
             <Interruptor

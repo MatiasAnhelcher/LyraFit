@@ -32,14 +32,13 @@ import {
   tocaEntrenar,
   claseDeDia,
 } from '@/dominio/rutinas'
+import { DESCANSO_DE_BAJADA, bajadaDe, minutosDeSesion } from '@/dominio/bajada'
 import {
-  DESCANSO_DE_BAJADA,
-  MINUTOS_DEL_DIA_POR_DEFECTO,
-  bajadaDe,
+  bloqueDeFuelle,
   minutosDelBloque,
-  minutosDeSesion,
-} from '@/dominio/bajada'
-import { bloqueDeFuelle, type Densidad } from '@/dominio/metabolico'
+  minutosDelDiaDeFuelle,
+  type Densidad,
+} from '@/dominio/metabolico'
 import { adherencia, esVuelta, proximoHito, sesionesDeVida } from '@/dominio/adherencia'
 import { laVezPasada } from '@/dominio/estadisticas'
 import { bandaSostenida, ajusteDelDia, cadenasCongeladas } from '@/dominio/estado'
@@ -170,8 +169,6 @@ export function Hoy() {
     ...(preferencias.tieneEscalon !== undefined ? { tieneEscalon: preferencias.tieneEscalon } : {}),
   }
   const densidadDelDia: Densidad = esDiaDeFuelle && !esDensa ? 'suave' : densidad
-  const minutosObjetivo = preferencias.minutosObjetivo
-
   // Las mismas cuentas que hace `Entrenar`, con los mismos datos: la fuerza
   // primero, y el bloque cubriendo lo que falta para llegar a la duración
   // elegida. Si estas dos pantallas se separaran, la estimación diría una cosa
@@ -188,8 +185,8 @@ export function Hoy() {
       ? 0
       : bloqueDeFuelle(
           esDiaDeFuelle
-            ? Math.max(1, (minutosObjetivo ?? MINUTOS_DEL_DIA_POR_DEFECTO) - 6)
-            : minutosDelBloque(minutosObjetivo, minutosDeSesion(entradas)),
+            ? minutosDelDiaDeFuelle(densidadDelDia)
+            : minutosDelBloque(minutosDeSesion(entradas), densidadDelDia),
           equipo,
           densidadDelDia,
         ).reduce((suma, paso) => suma + paso.segundos + paso.descansoSegundos, 0)

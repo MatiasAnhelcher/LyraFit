@@ -48,15 +48,11 @@ import { RUTINA_POR_DEFECTO, RUTINA_POR_ID } from '@/dominio/rutinas'
 import { ajusteDelDia, bandaSostenida, cadenasCongeladas } from '@/dominio/estado'
 import { seAbreHoy } from '@/dominio/anticipacion'
 import { mueveElPlan } from '@/dominio/progresion'
-import {
-  DESCANSO_DE_BAJADA,
-  MINUTOS_DEL_DIA_POR_DEFECTO,
-  bajadaDe,
-  minutosDelBloque,
-  minutosDeSesion,
-} from '@/dominio/bajada'
+import { DESCANSO_DE_BAJADA, bajadaDe, minutosDeSesion } from '@/dominio/bajada'
 import {
   bloqueDeFuelle,
+  minutosDelBloque,
+  minutosDelDiaDeFuelle,
   rafagaDelDescanso,
   type Densidad,
   type Equipo,
@@ -97,15 +93,6 @@ type Etapa = 'series' | 'fuelle' | 'cierre-serie' | 'preguntas'
  * la sesión no termine en el punto más duro. Así la sesión tiene su pico de
  * exigencia y igual termina en algo que se puede sostener.
  */
-/**
- * Y cuánto dura el bloque cuando el día ENTERO es de fuelle.
- *
- * Es la sesión completa, no la cola de una: acá no hay fuerza antes, así que no
- * hay nada que proteger y el bloque puede ser largo. Se toma la duración
- * elegida menos lo que se va en preguntas y en entrar en calor.
- */
-const ALREDEDOR_DEL_DIA_DE_FUELLE = 6
-
 export function Entrenar() {
   const navegar = useNavigate()
   const [parametros] = useSearchParams()
@@ -405,7 +392,6 @@ export function Entrenar() {
   const densidadDelBloque: Densidad =
     esDiaDeFuelle && densidad === 'apagada' ? 'suave' : densidad
 
-  const minutosObjetivo = preferencias?.minutosObjetivo
 
   /** El factor del día: estado sostenido y sesión de vuelta se multiplican. */
   const factor = useMemo(() => {
@@ -471,34 +457,26 @@ export function Entrenar() {
   }, [rutina, avances, esCorta, esDensa, factor, historial, estados, tipo])
 
   /**
-   * El bloque de fuelle, dimensionado para que la sesión dure lo que se pidió.
+   * El bloque de fuelle: una prescripción fija, no un relleno.
    *
-   * Acá está la respuesta a "quiero una sesión de una hora": no se estiran las
-   * series —el motor las mide, y estirarlas se paga con eslabones— sino el
-   * único tramo que el motor no mira. Se calcula cuánto dura la fuerza con los
-   * números reales de esta sesión y el bloque cubre la diferencia, con tope.
+   * Antes esto se dimensionaba para que la sesión llegara a la duración elegida,
+   * y ese era el error de fondo: la app optimizaba "que dure una hora" en vez de
+   * "que sirva". La sesión dura lo que dura; lo que se elige es cuán fuerte.
    */
   const minutosDeFuerza = useMemo(() => minutosDeSesion(plan), [plan])
 
   const fuelle: PasoDeFuelle[] = useMemo(() => {
     if (densidadDelBloque === 'apagada') return []
     if (esDiaDeFuelle) {
-      return bloqueDeFuelle(
-        Math.max(
-          1,
-          (minutosObjetivo ?? MINUTOS_DEL_DIA_POR_DEFECTO) - ALREDEDOR_DEL_DIA_DE_FUELLE,
-        ),
-        equipo,
-        densidadDelBloque,
-      )
+      return bloqueDeFuelle(minutosDelDiaDeFuelle(densidadDelBloque), equipo, densidadDelBloque)
     }
     if (!esDensa) return []
     return bloqueDeFuelle(
-      minutosDelBloque(minutosObjetivo, minutosDeFuerza),
+      minutosDelBloque(minutosDeFuerza, densidadDelBloque),
       equipo,
       densidadDelBloque,
     )
-  }, [esDensa, esDiaDeFuelle, densidadDelBloque, equipo, minutosObjetivo, minutosDeFuerza])
+  }, [esDensa, esDiaDeFuelle, densidadDelBloque, equipo, minutosDeFuerza])
 
   if (!avances || !preferencias || !historial || !listo || plan.length === 0) {
     return (

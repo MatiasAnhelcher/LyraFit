@@ -2,6 +2,10 @@ import { describe, expect, it } from 'vitest'
 import { EJERCICIOS } from './biblioteca'
 import {
   MINIMO_DE_RAFAGA,
+  MINUTOS_DEL_BLOQUE,
+  TOPE_DEL_DIA_DE_FUELLE,
+  minutosDelBloque,
+  minutosDelDiaDeFuelle,
   PISO_DE_RECUPERACION,
   RAFAGAS,
   TOPE_DE_RAFAGA,
@@ -26,7 +30,14 @@ import type { Patron } from './tipos'
  */
 
 const PATRONES: Patron[] = ['empuje', 'traccion', 'piernas', 'core']
-const DENSIDADES: Densidad[] = ['suave', 'fuerte']
+/**
+ * Las densidades que de verdad producen algo.
+ *
+ * El tipo excluye `'apagada'` a propósito y no por comodidad: `MINUTOS_DEL_BLOQUE`
+ * no tiene entrada para apagada porque apagada no tiene bloque, y que el tipo lo
+ * diga es lo que hace que un test que lo asuma no compile.
+ */
+const DENSIDADES: Exclude<Densidad, 'apagada'>[] = ['suave', 'fuerte']
 
 /** Las cuatro combinaciones de equipo posibles, incluida la más pobre. */
 const EQUIPOS: Equipo[] = [
@@ -260,5 +271,76 @@ describe('el bloque de fuelle', () => {
 
   it('apagado no hay bloque', () => {
     expect(bloqueDeFuelle(10, { puedeSaltar: true }, 'apagada')).toEqual([])
+  })
+})
+
+describe('cuánto dura el bloque, que es donde estuvo el peor defecto', () => {
+  /**
+   * Las ochenta y cuatro vueltas.
+   *
+   * El día de fuelle no pasaba por ningún tope: tomaba la duración que la
+   * persona hubiera elegido y le restaba seis. Con "lo más largo que dé"
+   * —noventa minutos— armaba ochenta y cuatro vueltas de cuarenta segundos:
+   * una hora y media de saltos y burpees encadenados, en una app de fuerza.
+   *
+   * No lo encontró ningún test porque todos miraban el bloque de DESPUÉS de la
+   * fuerza, que sí tenía tope. Lo encontró una persona usando la app y sacando
+   * una captura de pantalla. Estos tests existen para que no vuelva por ningún
+   * camino, incluidos los que todavía no existen.
+   */
+  it('ninguna vuelta de más: el bloque nunca pasa la media hora', () => {
+    for (const densidad of DENSIDADES) {
+      for (const minutos of [1, 12, 30, 45, 84, 90, 600]) {
+        const bloque = bloqueDeFuelle(minutos, { puedeSaltar: true, tieneEscalon: true }, densidad)
+        const segundos = bloque.reduce((s, p) => s + p.segundos + p.descansoSegundos, 0)
+        expect(
+          segundos / 60,
+          `pedidos ${minutos} min con densidad ${densidad}: dio ${Math.round(segundos / 60)}`,
+        ).toBeLessThanOrEqual(TOPE_DEL_DIA_DE_FUELLE)
+      }
+    }
+  })
+
+  it('pedir noventa minutos ya no da ochenta y cuatro vueltas', () => {
+    const bloque = bloqueDeFuelle(84, { puedeSaltar: true, tieneEscalon: true }, 'fuerte')
+    expect(bloque.length, `dio ${bloque.length} vueltas`).toBeLessThanOrEqual(30)
+  })
+
+  it('después de la fuerza, el bloque nunca pasa de doce minutos', () => {
+    // El efecto de interferencia escala con la duración del trabajo de
+    // resistencia. Ocho a doce minutos quedan lejos de esa dosis; treinta y
+    // cinco, que es lo que daba antes, no.
+    for (const densidad of DENSIDADES) {
+      for (const fuerza of [10, 21, 30, 36, 60, 120]) {
+        const bloque = minutosDelBloque(fuerza, densidad)
+        expect(bloque, `${fuerza} min de fuerza con ${densidad}`).toBeLessThanOrEqual(
+          MINUTOS_DEL_BLOQUE[densidad],
+        )
+        expect(bloque).toBeLessThanOrEqual(12)
+      }
+    }
+  })
+
+  it('y nunca es más largo que la fuerza que lo precede', () => {
+    // Un finisher más largo que la sesión deja de ser un finisher: es una
+    // segunda sesión pegada a la primera, con el glucógeno ya bajo.
+    for (const densidad of DENSIDADES) {
+      for (const fuerza of [12, 21, 30, 36, 60]) {
+        expect(minutosDelBloque(fuerza, densidad), `${fuerza} min`).toBeLessThanOrEqual(fuerza)
+      }
+    }
+  })
+
+  it('apagado no hay bloque de ninguna clase', () => {
+    expect(minutosDelBloque(40, 'apagada')).toBe(0)
+    expect(minutosDelDiaDeFuelle('apagada')).toBe(0)
+  })
+
+  it('el día de fuelle es una sesión, no una maratón', () => {
+    for (const densidad of DENSIDADES) {
+      const minutos = minutosDelDiaDeFuelle(densidad)
+      expect(minutos).toBeGreaterThan(10)
+      expect(minutos).toBeLessThanOrEqual(TOPE_DEL_DIA_DE_FUELLE)
+    }
   })
 })

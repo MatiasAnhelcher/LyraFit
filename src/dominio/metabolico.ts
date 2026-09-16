@@ -253,6 +253,59 @@ export const TRABAJO_DEL_BLOQUE = 40
 export const PAUSA_DEL_BLOQUE = 20
 
 /**
+ * Cuánto dura el bloque después de la fuerza. Fijo, no calculado.
+ *
+ * Esto antes se dimensionaba para que la sesión llegara a la duración que la
+ * persona hubiera pedido, y ese era el error de fondo: la app terminaba
+ * optimizando "que la sesión dure una hora" en vez de "que la sesión sirva".
+ * Con veintiún minutos de fuerza —alguien en los primeros eslabones— el bloque
+ * daba veintiún minutos: un minuto de metabólico por cada minuto de fuerza,
+ * justo para quien menos lo tolera.
+ *
+ * El efecto de interferencia escala con la DURACIÓN y la frecuencia del trabajo
+ * de resistencia, no con su mera presencia (Wilson, 2012). Ocho a doce minutos
+ * quedan lejos de esa dosis; treinta y cinco, no. Y la pérdida de grasa sale
+ * del balance semanal, no del finisher: pagarla con recuperación cuesta fuerza,
+ * que cuesta músculo, que es el tejido que sostiene el gasto de reposo.
+ */
+export const MINUTOS_DEL_BLOQUE: Record<Exclude<Densidad, 'apagada'>, number> = {
+  suave: 8,
+  fuerte: 12,
+}
+
+/**
+ * Y el tope de un día de fuelle, que es una sesión entera de acondicionamiento.
+ *
+ * Existe porque su ausencia produjo el peor defecto que tuvo esto: el día de
+ * fuelle no pasaba por ningún tope y tomaba la duración pedida menos seis. Con
+ * "lo más largo que dé" —noventa minutos— armaba un bloque de **ochenta y
+ * cuatro vueltas**: una hora y media de saltos y burpees encadenados. No lo
+ * encontró ningún test porque todos miraban el bloque de después de la fuerza,
+ * que sí tenía tope. Lo encontró alguien usando la app.
+ */
+export const TOPE_DEL_DIA_DE_FUELLE = 30
+
+/**
+ * Cuántos minutos de bloque van después de una sesión de fuerza.
+ *
+ * Dos límites, y el segundo es el que importa: **nunca más de un tercio de lo
+ * que duró la fuerza.** Un finisher más largo que eso deja de ser un finisher y
+ * pasa a ser una segunda sesión pegada a la primera, en el peor momento posible
+ * —con el glucógeno ya bajo— y para alguien cuyo objetivo primario es fuerza.
+ */
+export function minutosDelBloque(minutosDeFuerza: number, densidad: Densidad): number {
+  if (densidad === 'apagada') return 0
+  const tope = MINUTOS_DEL_BLOQUE[densidad]
+  return Math.max(4, Math.min(tope, Math.round(minutosDeFuerza / 3)))
+}
+
+/** Y cuántos dura el día de fuelle, que no tiene fuerza adelante que proteger. */
+export function minutosDelDiaDeFuelle(densidad: Densidad): number {
+  if (densidad === 'apagada') return 0
+  return densidad === 'suave' ? 20 : TOPE_DEL_DIA_DE_FUELLE
+}
+
+/**
  * Arma el bloque a partir de los minutos que se le quieran dar.
  *
  * Alterna las ráfagas disponibles en orden para que dos seguidas no carguen lo
@@ -270,7 +323,12 @@ export function bloqueDeFuelle(
 
   const trabajo = densidad === 'suave' ? TOPE_SUAVE : TRABAJO_DEL_BLOQUE
   const ciclo = trabajo + PAUSA_DEL_BLOQUE
-  const vueltas = Math.max(1, Math.floor((minutos * 60) / ciclo))
+  // El tope va ACÁ adentro y no solo en quien llama, porque el defecto de las
+  // ochenta y cuatro vueltas fue exactamente eso: un camino que no pasaba por
+  // el tope de afuera. Una función que puede devolver una hora y media de
+  // burpees tiene que negarse sola.
+  const pedidos = Math.min(minutos, TOPE_DEL_DIA_DE_FUELLE)
+  const vueltas = Math.max(1, Math.floor((pedidos * 60) / ciclo))
 
   // De más dura a más liviana no: al revés. El bloque arranca con lo que se
   // puede sostener y deja lo más duro para cuando ya entraste en calor, que es
