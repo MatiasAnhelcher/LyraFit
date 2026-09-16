@@ -34,6 +34,11 @@ muestra cada vez que decide algo. Nada de esperar a "sentirte listo".
   el motor no te baje el objetivo por dos días malos.
 - **Progreso** con una curva de fuerza que no se corta cuando cambiás de
   ejercicio, y el mapa de dónde estás en cada cadena.
+- **Lyra**, que es la misma criatura que vive en Grow Cosmos, traída acá y
+  pasada al naranja. No es un cambio de paleta arbitrario: `--color-vega` ya era
+  el acento de esta app y se llama así porque **Vega es la estrella alfa de la
+  constelación de Lyra**. La mascota y el color eran la misma estrella desde el
+  principio. Te mira, parpadea, flota, y si la tocás cambia de frase.
 - **El fuelle**: trabajo metabólico metido en los huecos que la sesión ya tenía.
   Nunca sale del descanso que hace falta para la serie siguiente —sale de lo que
   sobra por encima de un piso de recuperación— y nunca carga el patrón que estás
@@ -65,7 +70,14 @@ preview` corriendo en otra terminal:
 node revisar.mjs   # recorre el alta y una sesión entera, y guarda capturas
 node rescate.mjs   # revisa los datos: que no se pierda una sesión y que se midan dos números
 node fuelle.mjs    # que el trabajo metabólico no le cueste fuerza a nadie
+node logo.mjs     # regenera el favicon y los íconos desde el componente de Lyra
 ```
+
+`logo.mjs` no dibuja el logo: **lo lee de `src/componentes/lyra.tsx`** —el
+degradé del cuerpo, los tres trazos de la cresta— y calcula la estrella con la
+misma cuenta. Si el logo se dibujara aparte, la primera vez que alguien toque la
+paleta el ícono y la mascota pasarían a ser dos criaturas *parecidas*, que es
+peor que dos criaturas distintas.
 
 `fuelle.mjs` contesta la única pregunta que importa de todo lo metabólico y que
 ningún test puede contestar: que el piso de recuperación llegue **entero a la
@@ -112,6 +124,7 @@ src/
     estado.ts        el chequeo diario y su línea de base
     vitalidad.ts     el delta de energía y la calibración
     rutinas.ts       qué patrones se trabajan cada día
+    frases.ts        las 300 cosas que Lyra puede decir, y cuándo
     metabolico.ts    el fuelle: qué ráfaga entra en cada hueco, y cuánta
     bajada.ts        el volumen que el motor no mira, y cuánto dura la sesión
     estadisticas.ts  la curva de fuerza, récords, semanas
@@ -192,6 +205,14 @@ recortadas: suman 64 KB entre las cuatro.
   para que faltar esté previsto, y un contador de sesiones que solo sube.
 - **No hay rojo en nada del entrenamiento.** El techo de alarma es un ámbar. El
   rojo existe solo para borrar datos en Ajustes.
+- **Lyra habla, pero nunca en lugar de un dato.** §9 del documento de estrategia
+  prohíbe las frases motivacionales, y tiene razón sobre un tipo puntual: la que
+  promete un resultado, la que elogia a la persona en vez de a la conducta, y la
+  que ocupa el lugar de un dato sobre el desempeño propio. Las 300 frases entran
+  con esas tres cosas prohibidas **por test** —`frases.test.ts` las hace fallar
+  con expresiones regulares— y Lyra habla siempre *después* de lo que decidió el
+  motor, nunca encima. Al escribirlas, el test rechazó tres que había que
+  reescribir.
 - **La sesión de siete minutos cuenta para la adherencia y no para la
   progresión.** Separar las dos cosas es lo que permite ser indulgente con la
   persona sin mentirle al motor. El día de fuelle usa la misma puerta del otro

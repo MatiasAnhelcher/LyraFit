@@ -19,6 +19,7 @@
  *   con nodos dice de dónde viniste, dónde estás y qué falta.
  */
 
+import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { NOMBRE_PATRON, POR_ID, buscarEjercicio, cadenaDe } from '@/dominio/biblioteca'
@@ -55,7 +56,20 @@ import {
 } from '@/datos/repositorio'
 import { despertarAudio } from '@/respuesta'
 import { Carta } from '@/componentes/carta'
+import { Lyra } from '@/componentes/lyra'
+import { fraseDe, recordar, type Momento } from '@/dominio/frases'
 import { Accion, Cargando, Glifo, Glosa, Objetivo, Rotulo, Tira } from '@/componentes/ui'
+
+/**
+ * Lo que Lyra ya dijo en esta pestaña.
+ *
+ * A nivel de módulo y no en el estado del componente: `Hoy` se monta y se
+ * desmonta cada vez que se navega, y con la memoria adentro del componente
+ * Lyra repetiría la misma frase al volver de Progreso. Tampoco va a la base:
+ * una escritura en IndexedDB por cada apertura de la app, para recordar qué
+ * frase se mostró, es un precio que esto no vale.
+ */
+let dichas: string[] = []
 
 const FORMATO_FECHA = new Intl.DateTimeFormat('es-AR', {
   weekday: 'long',
@@ -64,6 +78,14 @@ const FORMATO_FECHA = new Intl.DateTimeFormat('es-AR', {
 })
 
 export function Hoy() {
+  /**
+   * El azar de la frase.
+   *
+   * Vive acá y no adentro de `fraseDe` porque todo `src/dominio/` son funciones
+   * puras: una fuente de azar ahí adentro haría que el mismo estado diera
+   * distintas frases y no habría forma de atar nada con un test.
+   */
+  const [azar, setAzar] = useState(() => Math.random())
   const navegar = useNavigate()
   const hoy = new Date()
   const fecha = fechaISO(hoy)
@@ -177,6 +199,24 @@ export function Hoy() {
     : minutosDeSesion(entradas, segundosDeFuelle)
 
   /**
+   * Qué le toca decir a Lyra.
+   *
+   * No es una frase al azar sobre un fondo: el momento sale del estado real de
+   * la app, que es lo que separa una voz de un cartel. Si hoy toca descansar,
+   * habla de descansar; si volvés después de faltar, habla de volver.
+   */
+  const momento: Momento = !esDiaDeEntrenar
+    ? 'descanso'
+    : vuelve
+      ? 'vuelta'
+      : entrenoHoy
+        ? 'constancia'
+        : 'abrir'
+
+  const dijo = fraseDe(momento, azar, dichas)
+  if (dijo) dichas = recordar(dichas, dijo.texto)
+
+  /**
    * La víspera: el eslabón que se abre hoy si esta sesión se cumple.
    *
    * Es lo único que la app anticipa, y lo dice porque es literalmente cierto —
@@ -201,7 +241,18 @@ export function Hoy() {
     <>
       <header>
         <Rotulo>{FORMATO_FECHA.format(hoy).toUpperCase()}</Rotulo>
-        <p className="cifra-identidad mt-3">{String(total).padStart(3, '0')}</p>
+        {/* Lyra va acá, al lado de la cifra de identidad, y no arriba: la
+            columna de la derecha de esta línea estaba vacía, así que la marca
+            no cuesta un solo píxel de alto. Importa porque `Empezar` tiene doce
+            píxeles de aire sobre la barra en un teléfono de 360×640, y ya se
+            rompió una vez por un renglón de más.
+
+            Quieta y no interactiva: acá es el logo. La que respira y contesta
+            es la de más abajo. */}
+        <div className="flex items-center justify-between gap-4">
+          <p className="cifra-identidad mt-3">{String(total).padStart(3, '0')}</p>
+          <Lyra tamano={56} interactiva={false} expresion="calma" className="shrink-0" />
+        </div>
         <p className="mt-1 text-sm text-[var(--color-glosa)]">
           {total === 0
             ? 'sesiones. Todavía ninguna.'
@@ -375,6 +426,29 @@ export function Hoy() {
           Solo tengo 7 minutos
         </button>
       </div>
+
+      {/* Lyra, y lo único que dice.
+       *
+       * Va DEBAJO de la acción por la misma razón que el ofrecimiento del
+       * fuelle: `Empezar` tiene doce píxeles de aire sobre la barra en un
+       * teléfono chico, y ya se rompió una vez por un renglón de más. La marca
+       * quieta, que es lo que hay que ver primero, está arriba y no cuesta alto.
+       *
+       * Tocarla cambia la frase. Es la única forma de que 300 frases no sean
+       * 300 frases que nadie va a leer nunca. */}
+      {dijo && (
+        <section className="mt-8 flex items-start gap-3">
+          <Lyra
+            tamano={52}
+            expresion={dijo.expresion}
+            className="shrink-0"
+            onTocar={() => setAzar(Math.random())}
+          />
+          <p className="mt-2 max-w-[34ch] text-sm leading-relaxed text-[var(--color-glosa)]">
+            {dijo.texto}
+          </p>
+        </section>
+      )}
 
       {/* El fuelle, ofrecido una vez.
        *

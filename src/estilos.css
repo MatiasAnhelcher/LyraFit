@@ -815,8 +815,23 @@
   }
 
   /* ------------------------------------------------------------------ *
-   * 7. MOVIMIENTO — cinco animaciones en toda la aplicación.
-   *    Cualquier sexta es un bug.
+   * 7. MOVIMIENTO
+   *
+   * Durante mucho tiempo esta sección decía "cinco animaciones en toda la
+   * aplicación; cualquier sexta es un bug", y la regla hizo su trabajo: cada
+   * cosa que se movió después tuvo que justificarse por escrito. La sexta fue
+   * la figura del ejercicio, con el argumento de que el movimiento ES la
+   * información. La séptima y la octava son Lyra, y no tienen ese argumento:
+   * un ser que no respira está muerto, y un ser muerto no acompaña a nadie.
+   *
+   * Así que la regla cambia y queda escrita como cambió, en vez de erosionarse
+   * con excepciones sueltas. Lo que se conserva, que es lo que la hacía valer:
+   *
+   *   · Nada se mueve durante el esfuerzo. `[data-pantalla='entrenar']` no
+   *     tiene Lyra, y no la va a tener.
+   *   · Los números siguen sin moverse. Nunca.
+   *   · Sigue sin haber confeti, medallas, monedas ni barras que se llenan.
+   *   · Con `prefers-reduced-motion` todo queda quieto, sin perder información.
    * ------------------------------------------------------------------ */
 
   /* (1) LA REGLA SE IMPRIME. Abre la pantalla de cierre: una hoja vacía y
@@ -907,6 +922,63 @@
     stroke-width: 2;
   }
 
+  /* (6) LYRA RESPIRA. Un flote lento y parejo, de tres punto cuatro segundos.
+     Es el único `infinite` del sistema junto con nada más, y existe para que
+     Lyra esté viva en vez de estampada. Se apaga sola con movimiento
+     reducido. */
+  .lyra {
+    display: inline-block;
+    position: relative;
+    user-select: none;
+    line-height: 0;
+  }
+  .lyra svg {
+    overflow: visible;
+    filter: drop-shadow(0 3px 8px rgba(176, 58, 12, 0.35));
+  }
+  .lyra--viva svg {
+    animation: respirar 3400ms ease-in-out infinite;
+  }
+  @keyframes respirar {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(-3.5%); }
+  }
+
+  /* (7) EL REBOTE DEL TOQUE. Una sola vuelta, con un overshoot mínimo: es un
+     acuse de recibo, no una celebración. */
+  .lyra-rebote {
+    animation: respirar 3400ms ease-in-out infinite, rebotar 600ms cubic-bezier(0.34, 1.56, 0.64, 1);
+  }
+  @keyframes rebotar {
+    0% { scale: 1; rotate: 0deg; }
+    30% { scale: 1.16; rotate: -5deg; }
+    60% { scale: 0.96; rotate: 4deg; }
+    100% { scale: 1; rotate: 0deg; }
+  }
+
+  /* Las chispas del toque: seis puntos que salen y se apagan. No caen, no se
+     acumulan y no vuelven. Es lo contrario del confeti. */
+  .lyra-chispas {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+  }
+  .lyra-chispas > span {
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    width: 4px;
+    height: 4px;
+    margin: -2px 0 0 -2px;
+    border-radius: 50%;
+    animation: chispear 700ms ease-out forwards;
+    transform: rotate(var(--ang)) translateX(0);
+  }
+  @keyframes chispear {
+    from { opacity: 1; transform: rotate(var(--ang)) translateX(0) scale(1); }
+    to { opacity: 0; transform: rotate(var(--ang)) translateX(var(--lejos)) scale(0.2); }
+  }
+
   /*
    * QUÉ NO SE MUEVE, NUNCA:
    *   · Los números. No cuentan hacia arriba, no ruedan, no hacen odómetro.
@@ -914,9 +986,10 @@
    *   · No hay transición entre pantallas. Corte duro: a 140 pulsaciones,
    *     250 ms de deslizamiento se perciben como una app trabada.
    *   · No hay hover con movimiento (es un teléfono).
-   *   · No hay confeti, ni "¡bien hecho!", ni íconos que rebotan, ni barras
-   *     que se llenan con brillo, ni medallas, ni monedas. Nunca.
-   *   · No existe ni un animation-iteration-count: infinite en el sistema.
+   *   · No hay confeti, ni "¡bien hecho!", ni barras que se llenan con brillo,
+   *     ni medallas, ni monedas. Nunca.
+   *   · El único `infinite` del sistema es el que hace respirar a Lyra. Si
+   *     aparece un segundo, es un bug.
    */
 
   /* ------------------------------------------------------------------ *
@@ -980,6 +1053,12 @@
      actualizando, pero salta de segundo a segundo en vez de deslizarse. */
   .arco-descanso {
     transition: none;
+  }
+  /* Lyra queda quieta y entera: no pierde nada, deja de respirar. El
+     componente además no engancha el puntero ni el parpadeo. */
+  .lyra--viva svg,
+  .lyra-rebote {
+    animation: none;
   }
 
   *,
