@@ -125,6 +125,72 @@ const conLaBase = (tablas, fn, arg) =>
     [tablas, fn.toString(), arg],
   )
 
+// ── (0) El ofrecimiento de Hoy: se hace una vez y no vuelve ───────────────
+//
+// El fuelle se publicó apagado, así que la app se veía idéntica y quien lo
+// había pedido no lo encontró. La fila de Hoy es la respuesta, y su contrato
+// tiene dos mitades: que aparezca cuando nunca se preguntó, y que NO vuelva
+// después de cualquiera de las dos respuestas. La segunda es la que se olvida,
+// y la que dejaría a alguien viendo el mismo ofrecimiento para siempre.
+
+const ofrecimiento = () => p.getByText('El fuelle', { exact: true })
+const densidadGuardada = () =>
+  conLaBase(['preferencias'], async (leer) => (await leer('preferencias'))[0]?.densidad ?? null)
+const olvidarLaRespuesta = () =>
+  conLaBase(['preferencias'], async (leer, poner) => {
+    const [prefe] = await leer('preferencias')
+    const { densidad: _, ...sinDensidad } = prefe
+    await poner('preferencias', sinDensidad)
+  })
+const volverAHoy = async () => {
+  // Recarga de verdad y no navegación de hash: la escritura fue cruda y
+  // `liveQuery` no se entera. Es el error que hizo fallar `revisar.mjs` una de
+  // cada dos corridas sin que hubiera nada roto en la app.
+  await p.goto('about:blank')
+  await p.goto(`${BASE}/#/`, { waitUntil: 'networkidle' })
+  await p.waitForTimeout(600)
+}
+
+if (!(await ofrecimiento().isVisible().catch(() => false))) {
+  fallos.push('En una instalación nueva, Hoy no ofrece el fuelle')
+} else {
+  if ((await densidadGuardada()) !== null) {
+    fallos.push('La densidad ya estaba definida antes de contestar el ofrecimiento')
+  }
+
+  await p.getByRole('button', { name: 'Probarlo', exact: true }).click()
+  await p.waitForTimeout(500)
+  const tras = await densidadGuardada()
+  if (tras !== 'suave') {
+    fallos.push(`"Probarlo" dejó la densidad en "${tras}" en vez de "suave"`)
+  }
+
+  await volverAHoy()
+  if (await ofrecimiento().isVisible().catch(() => false)) {
+    fallos.push('Después de aceptar, el ofrecimiento sigue ahí')
+  }
+
+  // La otra mitad: decir que no también cierra la pregunta.
+  await olvidarLaRespuesta()
+  await volverAHoy()
+  if (!(await ofrecimiento().isVisible().catch(() => false))) {
+    fallos.push('Olvidada la respuesta, el ofrecimiento no volvió')
+  } else {
+    await p.getByRole('button', { name: 'Ahora no', exact: true }).click()
+    await p.waitForTimeout(500)
+    const negado = await densidadGuardada()
+    if (negado !== 'apagada') {
+      fallos.push(`"Ahora no" dejó la densidad en "${negado}" en vez de "apagada"`)
+    }
+    await volverAHoy()
+    if (await ofrecimiento().isVisible().catch(() => false)) {
+      fallos.push('Después de decir que no, el ofrecimiento vuelve igual')
+    } else {
+      console.log('El fuelle se ofrece una vez en Hoy y no vuelve, se acepte o se rechace.')
+    }
+  }
+}
+
 // ── Encender el fuelle y ponerse en un eslabón con descanso largo ──────────
 //
 // Sin esto la revisión sería vacía: con los descansos cortos de los primeros
@@ -137,6 +203,9 @@ const puestos = await conLaBase(['preferencias', 'avances'], async (leer, poner)
     densidad: 'fuerte',
     puedeSaltar: true,
     tieneEscalon: true,
+    // Con la duración sin elegir el bloque sería el mínimo, y el recorrido no
+    // vería un bloque de verdad.
+    minutosObjetivo: 60,
   })
   const avances = await leer('avances')
   // Eslabones con descanso de 150 s en las cuatro cadenas: ahí la ráfaga dura

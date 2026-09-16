@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
-import { MINUTOS_OBJETIVO, MINUTOS_OBJETIVO_POR_DEFECTO } from '@/dominio/bajada'
+import { MINUTOS_OBJETIVO } from '@/dominio/bajada'
 import { RUTINAS, DIA_CORTO } from '@/dominio/rutinas'
 import type { Preferencias } from '@/dominio/tipos'
 import {
@@ -163,9 +163,11 @@ export function Ajustes() {
                   className="fila-pulsable"
                 >
                   <span className="canal">
-                    {(preferencias.minutosObjetivo ?? MINUTOS_OBJETIVO_POR_DEFECTO) === minutos
-                      ? '◆'
-                      : '◇'}
+                    {/* Sin marca hasta que se elija: `undefined` no es sesenta,
+                        es que nadie pidió una sesión más larga, y ahí el bloque
+                        es el mínimo. Preseleccionar una opción diría lo
+                        contrario. */}
+                    {preferencias.minutosObjetivo === minutos ? '◆' : '◇'}
                   </span>
                   <span className="min-w-0">
                     <span className="nombre block">

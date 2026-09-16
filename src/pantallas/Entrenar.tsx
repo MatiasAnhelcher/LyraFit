@@ -50,7 +50,7 @@ import { seAbreHoy } from '@/dominio/anticipacion'
 import { mueveElPlan } from '@/dominio/progresion'
 import {
   DESCANSO_DE_BAJADA,
-  MINUTOS_OBJETIVO_POR_DEFECTO,
+  MINUTOS_DEL_DIA_POR_DEFECTO,
   bajadaDe,
   minutosDelBloque,
   minutosDeSesion,
@@ -405,7 +405,7 @@ export function Entrenar() {
   const densidadDelBloque: Densidad =
     esDiaDeFuelle && densidad === 'apagada' ? 'suave' : densidad
 
-  const minutosObjetivo = preferencias?.minutosObjetivo ?? MINUTOS_OBJETIVO_POR_DEFECTO
+  const minutosObjetivo = preferencias?.minutosObjetivo
 
   /** El factor del día: estado sostenido y sesión de vuelta se multiplican. */
   const factor = useMemo(() => {
@@ -484,7 +484,10 @@ export function Entrenar() {
     if (densidadDelBloque === 'apagada') return []
     if (esDiaDeFuelle) {
       return bloqueDeFuelle(
-        Math.max(1, minutosObjetivo - ALREDEDOR_DEL_DIA_DE_FUELLE),
+        Math.max(
+          1,
+          (minutosObjetivo ?? MINUTOS_DEL_DIA_POR_DEFECTO) - ALREDEDOR_DEL_DIA_DE_FUELLE,
+        ),
         equipo,
         densidadDelBloque,
       )

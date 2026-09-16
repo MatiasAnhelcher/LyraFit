@@ -174,7 +174,11 @@ describe('cuánto dura una sesión', () => {
       const bloque = minutosDelBloque(objetivo, fuerza)
       const total = minutosDeSesion(entradas, bloque * 60)
 
-      if (bloque === BLOQUE_MAXIMO || bloque === BLOQUE_MINIMO) {
+      // Si algún tope recortó el bloque, la sesión tiene que quedar POR DEBAJO
+      // de lo pedido, nunca por encima: un tope que se pasa no es un tope. Y
+      // comparar contra lo que se pidió es más robusto que enumerar los topes,
+      // que ya son tres y podrían ser cuatro.
+      if (bloque < objetivo - fuerza) {
         expect(total, `pedidos ${objetivo}: el tope tiene que quedar por debajo`).toBeLessThan(
           objetivo,
         )
@@ -197,13 +201,44 @@ describe('cuánto dura una sesión', () => {
     expect(techo(8)).toBeGreaterThan(techo(0))
   })
 
-  it('pero no estira el bloque más allá del tope', () => {
-    // Treinta y cinco minutos de metabólico pegados a la fuerza ya son dos
-    // sesiones. Pedir tres horas no puede dar tres horas.
-    expect(minutosDelBloque(180, 25)).toBe(BLOQUE_MAXIMO)
+  it('pero no estira el bloque más allá de los dos topes', () => {
+    // El absoluto: pedir tres horas no puede dar tres horas.
+    expect(minutosDelBloque(180, 60)).toBe(BLOQUE_MAXIMO)
+
+    // Y el proporcional, que es el que faltaba: el bloque no puede ser más
+    // largo que la fuerza que lo precede. Alguien en los primeros eslabones
+    // —veintiún minutos de fuerza— que pide una hora recibía treinta y cinco
+    // minutos de metabólico. Más cardio que fuerza, en una app de fuerza.
+    expect(minutosDelBloque(60, 21)).toBe(21)
+    expect(minutosDelBloque(90, 21)).toBe(21)
+
     // Y una sesión de fuerza que ya se pasó del objetivo igual lleva su bloque
     // mínimo: el fuelle no es relleno de tiempo, es parte del entrenamiento.
     expect(minutosDelBloque(45, 60)).toBe(BLOQUE_MINIMO)
+  })
+
+  it('sin duración elegida, el bloque es el mínimo', () => {
+    // `undefined` no es sesenta: es que nadie pidió una sesión más larga.
+    // Aplanar las dos cosas con un `?? 60` le daba media hora de cardio a
+    // alguien que tocó "Probarlo" en Hoy por curiosidad, que es exactamente lo
+    // contrario de una primera probada.
+    for (const fuerza of [15, 21, 30, 40]) {
+      expect(minutosDelBloque(undefined, fuerza), `fuerza ${fuerza}`).toBe(BLOQUE_MINIMO)
+    }
+  })
+
+  it('el bloque nunca supera a la fuerza, para ningún nivel ni duración', () => {
+    for (const posicion of [0, 2, 4, 6, 8]) {
+      const fuerza = minutosDeSesion(plan(posicion, true))
+      for (const objetivo of MINUTOS_OBJETIVO) {
+        const bloque = minutosDelBloque(objetivo, fuerza)
+        // El mínimo es el único que puede pasarse, y solo cuando la fuerza es
+        // más corta que él: ahí el piso manda, porque un bloque de dos minutos
+        // no es un bloque.
+        if (bloque === BLOQUE_MINIMO) continue
+        expect(bloque, `nivel ${posicion}, objetivo ${objetivo}`).toBeLessThanOrEqual(fuerza)
+      }
+    }
   })
 
   it('nunca da un número negativo ni absurdo', () => {

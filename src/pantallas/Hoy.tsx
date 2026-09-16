@@ -33,7 +33,7 @@ import {
 } from '@/dominio/rutinas'
 import {
   DESCANSO_DE_BAJADA,
-  MINUTOS_OBJETIVO_POR_DEFECTO,
+  MINUTOS_DEL_DIA_POR_DEFECTO,
   bajadaDe,
   minutosDelBloque,
   minutosDeSesion,
@@ -49,6 +49,7 @@ import {
   leerAvances,
   leerEstadoDeHoy,
   leerEstados,
+  guardarPreferencias,
   leerPreferencias,
   leerSesiones,
 } from '@/datos/repositorio'
@@ -147,7 +148,7 @@ export function Hoy() {
     ...(preferencias.tieneEscalon !== undefined ? { tieneEscalon: preferencias.tieneEscalon } : {}),
   }
   const densidadDelDia: Densidad = esDiaDeFuelle && !esDensa ? 'suave' : densidad
-  const minutosObjetivo = preferencias.minutosObjetivo ?? MINUTOS_OBJETIVO_POR_DEFECTO
+  const minutosObjetivo = preferencias.minutosObjetivo
 
   // Las mismas cuentas que hace `Entrenar`, con los mismos datos: la fuerza
   // primero, y el bloque cubriendo lo que falta para llegar a la duración
@@ -165,7 +166,7 @@ export function Hoy() {
       ? 0
       : bloqueDeFuelle(
           esDiaDeFuelle
-            ? Math.max(1, minutosObjetivo - 6)
+            ? Math.max(1, (minutosObjetivo ?? MINUTOS_DEL_DIA_POR_DEFECTO) - 6)
             : minutosDelBloque(minutosObjetivo, minutosDeSesion(entradas)),
           equipo,
           densidadDelDia,
@@ -245,6 +246,11 @@ export function Hoy() {
       )}
 
       <section className="mt-8">
+        {/* La duración va en ESTA línea y no en una propia.
+            Medido en tres teléfonos: como línea aparte empujaba `Empezar` once
+            píxeles por debajo de la barra de navegación en un Android de
+            360×640. Es la misma regla que ya había movido la acción arriba del
+            pliegue, rota por un renglón de veinticuatro píxeles. */}
         <Rotulo>
           {entrenoHoy
             ? 'YA ENTRENASTE HOY'
@@ -255,11 +261,8 @@ export function Hoy() {
                   ? 'SESIÓN DE VUELTA'
                   : `HOY · ${rutina.nombre.toUpperCase()}`
                 : 'HOY TOCA DESCANSAR'}
+          {esDiaDeEntrenar && !entrenoHoy && ` · ${minutos} MIN`}
         </Rotulo>
-
-        {esDiaDeEntrenar && !entrenoHoy && (
-          <p className="rotulo mt-2">APROX. {minutos} MIN</p>
-        )}
 
         <div className="registro mt-3">
           {bloques.map(({ patron, avance, ejercicio, antes }) => {
@@ -372,6 +375,58 @@ export function Hoy() {
           Solo tengo 7 minutos
         </button>
       </div>
+
+      {/* El fuelle, ofrecido una vez.
+       *
+       * Una función que hay que ir a buscar a Ajustes es una función que no
+       * existe: el fuelle se publicó apagado y la app se veía idéntica, así que
+       * quien lo había pedido no lo encontró.
+       *
+       * La condición es `=== undefined` y no `?? 'apagada'` a propósito, y es
+       * todo el mecanismo: la diferencia entre "nunca se preguntó" y "se
+       * preguntó y dijo que no" YA ESTABA en los datos, aplanada por un
+       * operador. Por eso esto no necesita ninguna preferencia nueva, ninguna
+       * migración ni ningún campo de "ya lo vio" — los dos botones escriben un
+       * valor explícito y con eso la fila no vuelve nunca más.
+       *
+       * Va DEBAJO de la acción y no arriba. Que "Empezar" esté arriba del
+       * pliegue fue un arreglo medido en tres teléfonos —estaba entre 160 y 367
+       * píxeles por debajo— y nada puede volver a empujarlo.
+       */}
+      {preferencias.densidad === undefined && (
+        <section className="mt-8">
+          <Rotulo>ALGO QUE TODAVÍA NO PROBASTE</Rotulo>
+          <div className="registro mt-3">
+            <div>
+              <span className="canal">◇</span>
+              <span className="min-w-0">
+                <span className="nombre block">El fuelle</span>
+                <span className="mt-0.5 block text-xs leading-relaxed text-[var(--color-glosa)]">
+                  Transpirar en los huecos que la sesión ya tiene, sin tocar el descanso que
+                  hace falta para la serie que viene.
+                </span>
+              </span>
+              <span />
+            </div>
+          </div>
+          <div className="mt-3 flex gap-3">
+            <button
+              onClick={() => void guardarPreferencias({ densidad: 'suave' })}
+              className="rotulo px-4 py-3"
+              style={{ border: '1px solid var(--color-regla-fuerte)' }}
+            >
+              Probarlo
+            </button>
+            <button
+              onClick={() => void guardarPreferencias({ densidad: 'apagada' })}
+              className="rotulo px-4 py-3"
+              style={{ border: '1px solid var(--color-regla)' }}
+            >
+              Ahora no
+            </button>
+          </div>
+        </section>
+      )}
 
       <section className="mt-8">
         <Rotulo className="mb-3">DÓNDE ESTÁS</Rotulo>

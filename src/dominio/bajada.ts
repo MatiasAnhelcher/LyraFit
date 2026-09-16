@@ -132,7 +132,15 @@ export function minutosDeSesion(
  * eso `Hoy` la muestra antes de empezar.
  */
 export const MINUTOS_OBJETIVO = [45, 60, 90] as const
-export const MINUTOS_OBJETIVO_POR_DEFECTO = 60
+
+/**
+ * Cuánto dura un día de fuelle cuando nadie eligió duración.
+ *
+ * El día de fuelle no tiene fuerza adelante, así que no hay nada de qué
+ * descontar: o dura lo que se pidió, o dura esto. Media hora es lo que dura una
+ * sesión de acondicionamiento sin que sea un evento.
+ */
+export const MINUTOS_DEL_DIA_POR_DEFECTO = 30
 
 /** Lo más corto y lo más largo que puede ser el bloque de fuelle. */
 export const BLOQUE_MINIMO = 6
@@ -147,14 +155,32 @@ export const BLOQUE_MAXIMO = 35
  * serie pesa un cuarto—, y más cadenas no existen, son cuatro.
  *
  * El fuelle, en cambio, no toca nada de lo que el motor lee. Así que cuando
- * alguien pide una sesión de una hora y media, lo que se estira es esto.
+ * alguien pide una sesión más larga, lo que se estira es esto.
  *
- * Con tope, y el tope no es una comodidad: treinta y cinco minutos de trabajo
- * metabólico después de la fuerza ya son una sesión de acondicionamiento
- * completa pegada a una de fuerza. Más que eso no es entrenar más, es no
- * recuperar.
+ * Hay DOS topes, y los dos existen por algo que pasó:
+ *
+ * - **Uno absoluto.** Treinta y cinco minutos de trabajo metabólico pegados a
+ *   la fuerza ya son una sesión de acondicionamiento completa. Más que eso no
+ *   es entrenar más, es no recuperar.
+ *
+ * - **Y uno proporcional: el bloque nunca puede ser más largo que la fuerza.**
+ *   Sin esto, alguien en los primeros eslabones —cuya sesión de fuerza dura
+ *   veintiún minutos— que pidiera una hora recibía treinta y cinco minutos de
+ *   metabólico: más cardio que fuerza, en una app de fuerza. Es la versión
+ *   metabólica del volumen de relleno, y se descubrió justo antes de publicar
+ *   el ofrecimiento de Hoy, calculando qué recibía de verdad alguien que
+ *   tocaba "Probarlo" en una instalación nueva.
+ *
+ * Y `undefined` no es sesenta: es **nadie pidió una sesión más larga**. Ahí el
+ * bloque es el mínimo. Es la misma distinción que decide si el fuelle se ofrece
+ * en Hoy, y aplanarla con un `?? 60` le daba media hora de cardio a alguien que
+ * lo único que hizo fue tener curiosidad.
  */
-export function minutosDelBloque(minutosObjetivo: number, minutosDeFuerza: number): number {
-  const falta = minutosObjetivo - minutosDeFuerza
-  return Math.max(BLOQUE_MINIMO, Math.min(BLOQUE_MAXIMO, Math.round(falta)))
+export function minutosDelBloque(
+  minutosObjetivo: number | undefined,
+  minutosDeFuerza: number,
+): number {
+  if (minutosObjetivo === undefined) return BLOQUE_MINIMO
+  const tope = Math.min(BLOQUE_MAXIMO, Math.max(BLOQUE_MINIMO, Math.round(minutosDeFuerza)))
+  return Math.max(BLOQUE_MINIMO, Math.min(tope, Math.round(minutosObjetivo - minutosDeFuerza)))
 }
