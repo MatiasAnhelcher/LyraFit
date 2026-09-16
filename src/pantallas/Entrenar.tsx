@@ -48,6 +48,8 @@ import { RUTINA_POR_DEFECTO, RUTINA_POR_ID, patronDelBloque } from '@/dominio/ru
 import { ajusteDelDia, bandaSostenida, cadenasCongeladas } from '@/dominio/estado'
 import { seAbreHoy } from '@/dominio/anticipacion'
 import { mueveElPlan } from '@/dominio/progresion'
+import { dichoDelDescanso, type Expresion } from '@/dominio/frases'
+import { Lyra } from '@/componentes/lyra'
 import { DESCANSO_DE_BAJADA, bajadaDe, minutosDeSesion } from '@/dominio/bajada'
 import {
   bloqueDeFuelle,
@@ -186,6 +188,16 @@ export function Entrenar() {
   } | null>(null)
   /** Si la salteó a mano. Se apaga sola al arrancar el descanso siguiente. */
   const [rafagaSalteada, setRafagaSalteada] = useState(false)
+  /**
+   * El azar de lo que dice Lyra en el descanso.
+   *
+   * Se sortea al arrancar CADA descanso y no se deriva de los contadores. Con
+   * los contadores sería determinista —mismo ejercicio, misma serie, misma
+   * frase— y entonces todas las sesiones dirían exactamente lo mismo en el
+   * mismo orden, que es la forma más rápida de que trescientas setenta y ocho
+   * frases se sientan como tres.
+   */
+  const [azarDeLaFrase, setAzarDeLaFrase] = useState(() => Math.random())
   /**
    * La ráfaga esperando a que termine su tramo para quedar anotada.
    *
@@ -585,6 +597,7 @@ export function Entrenar() {
         elegida ? { ...elegida, total: descansoSegundos } : null,
       )
       setRafagaSalteada(false)
+      setAzarDeLaFrase(Math.random())
       pendiente.current = elegida
         ? { rafagaId: elegida.rafaga.id, segundos: elegida.segundos, despuesDe: ejercicio.id }
         : null
@@ -853,7 +866,13 @@ export function Entrenar() {
           <Descanso
             restante={descanso.restante}
             total={descansoSegundos}
-            clave={{ tecnica: ejercicio.tecnica, hechas: series.length }}
+            clave={{
+              tecnica: ejercicio.tecnica,
+              faltan: objetivo.series - series.length,
+              indice: enCurso,
+              total: plan.length,
+              azar: azarDeLaFrase,
+            }}
             rafaga={enRafaga && rafagaActual ? rafagaActual.rafaga : null}
             onSumar={() => descanso.sumar(30)}
             onSaltear={cortarDescanso}
@@ -991,10 +1010,17 @@ function Descanso({
   restante: number
   total: number
   /**
-   * La técnica del ejercicio y cuántas series van hechas, para elegir la
-   * indicación. Es lo único que cambia entre un descanso y el siguiente.
+   * Lo que hace falta para saber QUÉ decir en este descanso: la técnica del
+   * ejercicio, cuántas series faltan, en qué lugar de la sesión está y el azar
+   * de este descanso. Lo decide `dichoDelDescanso`, en el dominio.
    */
-  clave: { tecnica: string[]; hechas: number }
+  clave: {
+    tecnica: string[]
+    faltan: number
+    indice: number
+    total: number
+    azar: number
+  }
   /**
    * La ráfaga, si este descanso está en su tramo metabólico. En null el
    * descanso es exactamente el que era antes de que existiera el fuelle.
@@ -1004,25 +1030,27 @@ function Descanso({
   onSaltear: () => void
   onSaltearRafaga: () => void
 }) {
-  // Una indicación por descanso, rotando. Sesenta o noventa segundos por
-  // serie son unos veinte minutos de sesión mirando un arco vaciarse: es el
-  // bloque de tiempo más grande de la app y estaba muerto. La técnica ya
-  // estaba escrita para cada uno de los treinta y nueve ejercicios y no la
-  // veía nadie, porque para leerla hay que salir de la sesión y entrar a la
-  // ficha, que es exactamente lo que nadie hace con el pulso a ciento
-  // cuarenta. Acá llega sola, en el único momento en que sirve: justo antes
-  // de volver a hacer el movimiento.
+  // Lo que se dice en el descanso, y con qué cara. La decisión entera vive en
+  // el dominio, con test: son cuatro caminos y la garantía de que ninguno deja
+  // el descanso mudo, que es justo lo que se rompe sin que nadie lo note.
   //
-  // Rota para que tres descansos den tres indicaciones distintas y no la
-  // misma tres veces, que se leería una sola vez y después sería mobiliario.
+  // Sesenta o noventa segundos por serie son unos veinte minutos de sesión
+  // mirando un arco vaciarse: es el bloque de tiempo más grande de la app y
+  // estaba muerto. La técnica ya estaba escrita para los cuarenta y siete
+  // ejercicios y no la veía nadie, porque para leerla hay que salir de la
+  // sesión y entrar a la ficha, que es exactamente lo que nadie hace con el
+  // pulso a ciento cuarenta.
   //
-  // Los errores comunes no van acá y sí en la ficha: un "no hagas esto"
-  // leído de reojo y a medias se puede entender al revés, y la ficha tiene
-  // lugar para enmarcarlo.
-  const indicacion =
-    clave.tecnica.length > 0
-      ? clave.tecnica[clave.hechas % clave.tecnica.length]
-      : null
+  // Y quién lo dice: Lyra, en el descanso y NUNCA durante la serie. El aliento
+  // verbal aumenta las repeticiones, pero funciona como voz, no como algo que
+  // compita por la mirada mientras se lee un número.
+  //
+  // Los errores comunes no van acá y sí en la ficha: un "no hagas esto" leído
+  // de reojo y a medias se puede entender al revés, y la ficha tiene lugar
+  // para enmarcarlo.
+  const dicho = dichoDelDescanso(clave)
+  const texto = dicho?.texto ?? null
+  const cara: Expresion = dicho?.expresion ?? 'piensa'
 
   return (
     <section className="flex flex-1 flex-col items-center justify-center pb-8">
@@ -1043,10 +1071,17 @@ function Descanso({
           </p>
         </>
       ) : (
-        indicacion && (
-          <p className="mt-8 max-w-[32ch] text-center text-sm leading-relaxed text-[var(--color-glosa)]">
-            {indicacion}
-          </p>
+        texto && (
+          /* El ancho es fijo —`w-full` con tope— y no el que pida la frase.
+             Con una caja que se encoge, Lyra aparecía a 24 px del borde con la
+             indicación larga y a 140 con "La última sale": saltaba de lugar en
+             cada descanso, y el descanso vuelve doce veces por sesión. Con el
+             ancho fijo cae siempre en el mismo punto y lo único que cambia es
+             lo que dice. */
+          <div className="mt-8 flex w-full max-w-[36ch] items-start gap-3">
+            <Lyra tamano={44} expresion={cara} className="shrink-0" />
+            <p className="mt-1 text-sm leading-relaxed text-[var(--color-glosa)]">{texto}</p>
+          </div>
         )
       )}
 

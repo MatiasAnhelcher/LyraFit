@@ -178,6 +178,14 @@ async function main() {
     await capturar(pagina, `2-entrenar-${tema}`)
     await revisarDesborde(pagina, `Entrenar (${tema})`)
 
+    // El descanso se captura una sola vez, la primera que aparece. Es la
+    // pantalla que más tiempo está a la vista de toda la app —unos veinte
+    // minutos por sesión mirando el arco vaciarse— y hasta acá era la única
+    // que la revisión cruzaba sin mirar, porque el bucle la saltea apenas la
+    // ve. Desde que Lyra habla ahí, encima, tiene contenido que puede
+    // desbordar.
+    let descansoVisto = false
+
     for (let vuelta = 0; vuelta < 80; vuelta++) {
       // Nombres exactos: sin `exact`, "Saltear" también engancha "Saltear este
       // ejercicio" y la revisión se saltea media sesión sin avisar.
@@ -189,6 +197,11 @@ async function main() {
       const terminar = pagina.getByRole('button', { name: 'Terminar', exact: true })
 
       if (await saltear.isVisible().catch(() => false)) {
+        if (!descansoVisto) {
+          descansoVisto = true
+          await capturar(pagina, `2b-descanso-${tema}`)
+          await revisarDesborde(pagina, `Descanso (${tema})`)
+        }
         await saltear.click() // saltea el descanso
       } else if (await voy.isVisible().catch(() => false)) {
         await voy.click()

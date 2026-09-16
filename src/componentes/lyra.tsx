@@ -29,9 +29,14 @@
  *
  * - **Con `prefers-reduced-motion` queda quieta del todo.** Sin flotar, sin
  *   parpadear, sin chispas. Sigue siendo Lyra, en pose.
- * - **Nunca aparece durante el esfuerzo.** `[data-pantalla='entrenar']` apaga
- *   todo lo que no sea el número que hay que mirar, y una cara que te mira
- *   mientras contás repeticiones es exactamente el ruido que esa regla evita.
+ * - **Nunca aparece durante la serie; sí en el descanso.** La distinción es la
+ *   que importa y antes acá decía "nunca durante el esfuerzo", que era impreciso.
+ *   Mientras hacés la serie estás leyendo un número con el pulso a ciento
+ *   cuarenta: ahí una cara que te mira es exactamente el ruido que
+ *   `[data-pantalla='entrenar']` apaga. El descanso son sesenta a ciento
+ *   cincuenta segundos mirando un arco vaciarse, y ahí es donde habla un
+ *   entrenador — el aliento verbal aumenta las repeticiones, pero funciona
+ *   como voz, no como algo que compita por la mirada.
  * - **No hay confeti.** Las chispas del toque son seis puntos que se van en
  *   setecientos milisegundos, no una celebración.
  *

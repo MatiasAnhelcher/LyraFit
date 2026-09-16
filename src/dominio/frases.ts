@@ -57,6 +57,13 @@ export type Momento =
   | 'duda'
   | 'cuerpo'
   | 'largo'
+  // Los tres de adentro de la sesión, que son los únicos que Lyra dice con la
+  // persona en movimiento. Van en el DESCANSO, nunca durante la serie: lo que
+  // aumenta las repeticiones es el aliento verbal, y eso funciona como voz, no
+  // como algo que compita por la mirada mientras se lee un número.
+  | 'aliento'
+  | 'ultima'
+  | 'final'
 
 /** La cara con la que lo dice. Son las mismas expresiones que tiene el dibujo. */
 export type Expresion = 'calma' | 'contenta' | 'festejo' | 'guino' | 'orgullosa' | 'piensa' | 'dormida'
@@ -437,6 +444,102 @@ export const FRASES: Grupo[] = [
       'Mucha gente empieza. Poca sigue. Vos seguís.',
     ],
   },
+  {
+    momento: 'aliento',
+    expresion: 'orgullosa',
+    lineas: [
+      'Vas bien. Respirá hondo y seguimos.',
+      'Esa ya está. Vamos con la que sigue.',
+      'Buen ritmo. No lo apures.',
+      'Acomodate, tomá aire y volvé.',
+      'Vamos bien. Falta menos de lo que parece.',
+      'Aprovechá el descanso entero. Es parte.',
+      'Te sale. Seguí igual.',
+      'Una menos. Así se hace.',
+      'Sacudí los brazos y volvé a entrar.',
+      'Todo lo que anotaste ya es tuyo.',
+      'La que viene sale igual que la anterior.',
+      'Estás en el medio, que es donde cuesta. Normal.',
+      'Bajá las pulsaciones y arrancamos.',
+      'Vas mejor de lo que creés.',
+      'Cuidá la técnica y el número viene solo.',
+      'No hace falta que sea rápido.',
+      'Otra más y esto empieza a terminarse.',
+      'Respirá. El descanso es para eso.',
+      'Vos podés con la que sigue.',
+      'Buen laburo hasta acá.',
+      'Estás haciendo justo lo que había que hacer.',
+      'Mantené la forma y listo.',
+      'Cuando vuelvas, empezá tranquilo.',
+      'El cuerpo ya entró en calor. Ahora rinde.',
+      'Falta poco para el próximo ejercicio.',
+      'Seguís entero. Aprovechalo.',
+    ],
+  },
+  {
+    momento: 'ultima',
+    expresion: 'guino',
+    lineas: [
+      'Queda una. Esta es la que cuenta.',
+      'La última. Dale todo y después descansás.',
+      'Una sola más y este ejercicio está.',
+      'Ya casi. Queda la última.',
+      'Esta es la que más suma. Última.',
+      'Última: la técnica primero, el número después.',
+      'La que viene cierra el ejercicio.',
+      'Una y listo. Vos podés.',
+      'Última serie. Después no hay más de esto.',
+      'La de cierre. Metele.',
+      'Ya está prácticamente hecho. Falta una.',
+      'Esta última vale doble en la cabeza.',
+      'Una más y pasamos a otra cosa.',
+      'Guardá algo para esta. Es la última.',
+      'Última. Respirá y entrá.',
+      'Lo difícil ya pasó. Queda una.',
+      'Cerrá este ejercicio como empezaste.',
+      'La última es la que te vas a acordar.',
+      'Una sola. Y bien hecha.',
+      'Último esfuerzo de este ejercicio.',
+      'Ya la tenés. Es la última.',
+      'Esta cierra. Después aflojás.',
+      'Falta poco: una serie.',
+      'La última sale. Siempre sale.',
+      'Una más y cambiamos de patrón.',
+      'Terminala como si fuera la primera.',
+    ],
+  },
+  {
+    momento: 'final',
+    expresion: 'festejo',
+    lineas: [
+      'Último ejercicio. Esto ya está terminando.',
+      'Lo que queda es poco. Aguantá ahí.',
+      'Ya casi. Este es el último.',
+      'Estás en el final de la sesión.',
+      'Última cadena del día.',
+      'Esto es lo último que te pido hoy.',
+      'Falta poco y te vas.',
+      'El final. Terminalo bien y listo.',
+      'Ya hiciste casi todo. Queda esto.',
+      'Último tramo. Vos podés.',
+      'Después de esto, se acabó por hoy.',
+      'La sesión ya está ganada. Cerrala.',
+      'Este es el que te deja la sesión completa.',
+      'Un ejercicio y a otra cosa.',
+      'Último. Y después la fácil del final.',
+      'Ya está casi entera. Terminala.',
+      'Lo más difícil quedó atrás.',
+      'Esto es la cola de la sesión.',
+      'Aguantá un poquito más.',
+      'Último ejercicio: acá se cierra.',
+      'Casi. Ya casi.',
+      'Estás a un ejercicio de terminar.',
+      'Lo que falta se hace solo.',
+      'Final de sesión. Bien ahí.',
+      'Un último empujón y listo.',
+      'Ya te la ganaste. Cerrá.',
+    ],
+  },
 ]
 
 /** Todas las frases, sin agrupar. Para contar y para verificar. */
@@ -449,7 +552,7 @@ export const TODAS: string[] = FRASES.flatMap((g) => g.lineas)
  * así el test falla si alguien saca o agrega una sin querer, en vez de
  * adaptarse en silencio a lo que haya.
  */
-export const CUANTAS = 300
+export const CUANTAS = 378
 
 const POR_MOMENTO = new Map(FRASES.map((g) => [g.momento, g]))
 
@@ -491,4 +594,59 @@ export const MEMORIA = 40
 /** Agrega una frase al buffer, recortándolo. */
 export function recordar(dichas: readonly string[], texto: string): string[] {
   return [texto, ...dichas.filter((d) => d !== texto)].slice(0, MEMORIA)
+}
+
+/**
+ * Qué se dice en un descanso, y con qué cara.
+ *
+ * Vive acá y no en la pantalla porque es una decisión, no un renderizado: hay
+ * cuatro caminos y una garantía —**un descanso nunca se queda mudo**— que sin
+ * un test se rompe la primera vez que alguien toca una rama.
+ *
+ * El criterio es el de un entrenador, que tampoco dice lo mismo en el minuto
+ * cinco que en el cuarenta:
+ *
+ * - Si falta una sola serie, se habla de esa serie.
+ * - Si es el último ejercicio, se habla del final.
+ * - En la primera mitad de la sesión, la técnica. Es lo que de verdad sirve
+ *   justo antes de repetir el movimiento, y es cuando queda cabeza para
+ *   aplicarla.
+ * - En la segunda mitad, aliento. Es cuando hace falta no aflojar y cuando una
+ *   corrección técnica ya no se ejecuta.
+ *
+ * La técnica rota por `azar` y no por la serie que va. Todos los ejercicios
+ * son de tres series, así que el único descanso que muestra técnica es el de
+ * la primera: rotar por el contador de series dejaba las otras indicaciones
+ * escritas y nunca vistas.
+ */
+export function dichoDelDescanso(clave: {
+  /** Las indicaciones de técnica del ejercicio. */
+  tecnica: readonly string[]
+  /** Cuántas series faltan después de esta. */
+  faltan: number
+  /** Qué ejercicio de la sesión es, empezando en cero. */
+  indice: number
+  /** Cuántos ejercicios tiene la sesión. */
+  total: number
+  /** El azar del descanso, entre 0 y 1. */
+  azar: number
+}): { texto: string; expresion: Expresion } | null {
+  const { tecnica, faltan, indice, total, azar } = clave
+
+  if (faltan === 1) return fraseDe('ultima', azar)
+  if (indice === total - 1) return fraseDe('final', azar)
+
+  const primeraMitad = indice < (total - 1) / 2
+  if (!primeraMitad) {
+    const aliento = fraseDe('aliento', azar)
+    if (aliento) return aliento
+  }
+
+  if (tecnica.length === 0) return fraseDe('aliento', azar)
+
+  const i = Math.min(
+    tecnica.length - 1,
+    Math.max(0, Math.floor(Math.abs(azar) * tecnica.length)),
+  )
+  return { texto: tecnica[i]!, expresion: 'piensa' }
 }

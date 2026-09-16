@@ -5,6 +5,7 @@ import {
   LARGO_MAXIMO,
   MEMORIA,
   TODAS,
+  dichoDelDescanso,
   fraseDe,
   recordar,
   type Momento,
@@ -35,6 +36,9 @@ const MOMENTOS: Momento[] = [
   'duda',
   'cuerpo',
   'largo',
+  'aliento',
+  'ultima',
+  'final',
 ]
 
 describe('el banco de frases', () => {
@@ -237,5 +241,89 @@ describe('la memoria de lo dicho', () => {
     for (let i = 0; i < MEMORIA * 3; i++) memoria = recordar(memoria, `frase ${i}`)
     expect(memoria.length).toBe(MEMORIA)
     expect(memoria[0]).toBe(`frase ${MEMORIA * 3 - 1}`)
+  })
+})
+
+describe('lo que Lyra dice en el descanso', () => {
+  const base = { tecnica: ['Codos pegados.', 'Cuerpo en línea.'], faltan: 2, indice: 0, total: 4, azar: 0.5 }
+  /** Los azares que hay que probar: un descanso real puede traer cualquiera. */
+  const AZARES = [0, 0.01, 0.25, 0.5, 0.75, 0.99, 0.999999]
+
+  it('nunca deja un descanso mudo, en ninguna posición de la sesión', () => {
+    for (const total of [2, 3, 4, 5]) {
+      for (let indice = 0; indice < total; indice++) {
+        for (const faltan of [1, 2, 3]) {
+          for (const azar of AZARES) {
+            const dicho = dichoDelDescanso({ ...base, faltan, indice, total, azar })
+            expect(dicho, `total=${total} indice=${indice} faltan=${faltan} azar=${azar}`).not.toBeNull()
+            expect(dicho!.texto.length).toBeGreaterThan(0)
+          }
+        }
+      }
+    }
+  })
+
+  it('tampoco se queda mudo si el ejercicio no tuviera técnica escrita', () => {
+    // Hoy todos la tienen, pero el que agregue el ejercicio cuarenta y ocho no
+    // se va a acordar, y un descanso en blanco no avisa: se ve como un hueco.
+    for (const azar of AZARES) {
+      const dicho = dichoDelDescanso({ ...base, tecnica: [], azar })
+      expect(dicho).not.toBeNull()
+      expect(dicho!.texto.length).toBeGreaterThan(0)
+    }
+  })
+
+  it('con una sola serie por delante habla de esa última', () => {
+    const grupo = FRASES.find((g) => g.momento === 'ultima')!
+    for (const azar of AZARES) {
+      const dicho = dichoDelDescanso({ ...base, faltan: 1, azar })
+      expect(grupo.lineas).toContain(dicho!.texto)
+    }
+  })
+
+  it('en el último ejercicio habla del final, aunque falten series', () => {
+    const grupo = FRASES.find((g) => g.momento === 'final')!
+    for (const azar of AZARES) {
+      const dicho = dichoDelDescanso({ ...base, faltan: 2, indice: 3, total: 4, azar })
+      expect(grupo.lineas).toContain(dicho!.texto)
+    }
+  })
+
+  it('la técnica es de la primera mitad y el aliento de la segunda', () => {
+    const aliento = FRASES.find((g) => g.momento === 'aliento')!
+    // Sesión de cuatro: técnica en el primero y el segundo, aliento en el
+    // tercero. El cuarto es el último y ya habla del final.
+    for (const azar of AZARES) {
+      expect(base.tecnica).toContain(dichoDelDescanso({ ...base, indice: 0, azar })!.texto)
+      expect(base.tecnica).toContain(dichoDelDescanso({ ...base, indice: 1, azar })!.texto)
+      expect(aliento.lineas).toContain(dichoDelDescanso({ ...base, indice: 2, azar })!.texto)
+    }
+  })
+
+  it('el aliento existe también en una sesión de tres ejercicios', () => {
+    // Con la regla vieja —"la segunda mitad"— una sesión de tres caía entera
+    // del lado de la técnica y el banco de aliento no se veía nunca.
+    const aliento = FRASES.find((g) => g.momento === 'aliento')!
+    for (const azar of AZARES) {
+      expect(base.tecnica).toContain(dichoDelDescanso({ ...base, indice: 0, total: 3, azar })!.texto)
+      expect(aliento.lineas).toContain(dichoDelDescanso({ ...base, indice: 1, total: 3, azar })!.texto)
+    }
+  })
+
+  it('la técnica rota con el azar y no se queda siempre en la misma', () => {
+    // Es el defecto que tenía: rotaba por la serie que va, que en el único
+    // descanso con técnica vale uno siempre, así que de las cuatro
+    // indicaciones de un ejercicio se veía una sola, para siempre.
+    const tecnica = ['uno', 'dos', 'tres', 'cuatro']
+    const vistas = new Set(
+      AZARES.map((azar) => dichoDelDescanso({ ...base, tecnica, azar })!.texto),
+    )
+    expect(vistas).toEqual(new Set(tecnica))
+  })
+
+  it('es pura: el mismo descanso dice siempre lo mismo', () => {
+    const uno = dichoDelDescanso({ ...base, azar: 0.37 })
+    const otro = dichoDelDescanso({ ...base, azar: 0.37 })
+    expect(uno).toEqual(otro)
   })
 })
