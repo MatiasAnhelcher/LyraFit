@@ -24,14 +24,17 @@ import { useNavigate } from 'react-router-dom'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { NOMBRE_PATRON, POR_ID, buscarEjercicio, cadenaDe } from '@/dominio/biblioteca'
 import {
+  DIAS,
   NOMBRE_DIA,
-  RUTINA_POR_DEFECTO,
-  RUTINA_POR_ID,
-  diaDeLaSemana,
-  proximoDia,
-  tocaEntrenar,
   claseDeDia,
+  diaDeLaSemana,
+  diasDe,
   patronDelBloque,
+  destinoDelDia,
+  proximoDia,
+  rutinaActiva,
+  semanaActiva,
+  tieneFuelle,
 } from '@/dominio/rutinas'
 import { DESCANSO_DE_BAJADA, bajadaDe, minutosDeSesion } from '@/dominio/bajada'
 import {
@@ -107,20 +110,23 @@ export function Hoy() {
     )
   }
 
-  const rutina =
-    RUTINA_POR_ID.get(preferencias.rutinaActivaId) ?? RUTINA_POR_ID.get(RUTINA_POR_DEFECTO)!
-  const esDiaDeEntrenar = tocaEntrenar(rutina, hoy)
+  const rutina = rutinaActiva(preferencias)
+  const semana = semanaActiva(preferencias)
   /**
-   * Fuerza, fuelle o descanso. El día de fuelle no le pide fuerza a ninguna
-   * cadena, así que la pantalla no puede ofrecer lo mismo: anunciar los cuatro
-   * eslabones y después abrir un bloque metabólico sería mentir dos veces.
+   * Qué clase de día es: los dos ejes —fuerza y fuelle— en un solo valor.
+   *
+   * El día de fuelle no le pide fuerza a ninguna cadena, así que la pantalla no
+   * puede ofrecer lo mismo: anunciar los cuatro eslabones y después abrir un
+   * bloque metabólico sería mentir dos veces.
    */
-  const esDiaDeFuelle = claseDeDia(rutina, hoy) === 'fuelle'
-  const siguiente = proximoDia(rutina, hoy)
+  const clase = claseDeDia(semana, hoy)
+  const esDiaDeEntrenar = clase !== 'descanso'
+  const esDiaDeFuelle = clase === 'fuelle'
+  const siguiente = proximoDia(semana, hoy)
   const entrenoHoy = sesiones.some((s) => s.fecha === fecha)
   const total = sesionesDeVida(sesiones)
   const hito = proximoHito(total)
-  const marcha = adherencia(sesiones, fecha, rutina.dias.length)
+  const marcha = adherencia(sesiones, fecha, diasDe(semana).length)
   const banda = bandaSostenida(estados, fecha)
   const ajuste = ajusteDelDia(banda)
   const vuelve = esVuelta(sesiones, fecha)
@@ -130,7 +136,7 @@ export function Hoy() {
   const bloques = rutina.bloques.flatMap((bloqueDelPlan) => {
     // Un bloque puede alternar entre dos patrones según el día. La resolución
     // vive en el dominio para que esta pantalla y `Entrenar` no puedan diferir.
-    const bloque = { ...bloqueDelPlan, patron: patronDelBloque(bloqueDelPlan, rutina, hoy) }
+    const bloque = { ...bloqueDelPlan, patron: patronDelBloque(bloqueDelPlan, semana, hoy) }
     const avance = avances.get(bloque.patron)
     const ejercicio = avance ? buscarEjercicio(avance.ejercicioId) : undefined
     if (!avance || !ejercicio) return []
@@ -166,13 +172,27 @@ export function Hoy() {
    * real entre dos personas haciendo la misma sesión es de varios minutos y una
    * cifra exacta sería más precisa que honesta.
    */
-  const densidad: Densidad = preferencias.densidad ?? 'apagada'
-  const esDensa = densidad !== 'apagada'
+  /**
+   * `densidad` dice cuán fuerte aprieta el fuelle, NO en qué días entra. Eso lo
+   * decide la clase del día, que es lo que hace posible entrenar fuerte el
+   * lunes y meterle fuelle solo al miércoles.
+   *
+   * El respaldo es suave y no apagada: un día marcado con fuelle por alguien
+   * que nunca abrió Ajustes tiene que traer algo, y suave es la única densidad
+   * que no supone ni que puede saltar ni que tiene un cajón.
+   */
+  const densidad: Densidad =
+    preferencias.densidad === undefined || preferencias.densidad === 'apagada'
+      ? tieneFuelle(clase)
+        ? 'suave'
+        : 'apagada'
+      : preferencias.densidad
+  const esDensa = clase === 'ambos'
   const equipo = {
     ...(preferencias.puedeSaltar !== undefined ? { puedeSaltar: preferencias.puedeSaltar } : {}),
     ...(preferencias.tieneEscalon !== undefined ? { tieneEscalon: preferencias.tieneEscalon } : {}),
   }
-  const densidadDelDia: Densidad = esDiaDeFuelle && !esDensa ? 'suave' : densidad
+  const densidadDelDia: Densidad = tieneFuelle(clase) ? densidad : 'apagada'
   // Las mismas cuentas que hace `Entrenar`, con los mismos datos: la fuerza
   // primero, y el bloque cubriendo lo que falta para llegar a la duración
   // elegida. Si estas dos pantallas se separaran, la estimación diría una cosa
@@ -406,7 +426,7 @@ export function Hoy() {
             // queda así, y un temporizador no es un gesto. Sin esta línea el
             // aviso del descanso no suena nunca en iPhone.
             despertarAudio()
-            navegar(esDiaDeFuelle ? '/entrenar?fuelle=1' : '/entrenar')
+            navegar(destinoDelDia(clase))
           }}
         >
           {entrenoHoy
@@ -457,18 +477,22 @@ export function Hoy() {
        * existe: el fuelle se publicó apagado y la app se veía idéntica, así que
        * quien lo había pedido no lo encontró.
        *
-       * La condición es `=== undefined` y no `?? 'apagada'` a propósito, y es
-       * todo el mecanismo: la diferencia entre "nunca se preguntó" y "se
-       * preguntó y dijo que no" YA ESTABA en los datos, aplanada por un
-       * operador. Por eso esto no necesita ninguna preferencia nueva, ninguna
-       * migración ni ningún campo de "ya lo vio" — los dos botones escriben un
-       * valor explícito y con eso la fila no vuelve nunca más.
+       * La condición es `=== undefined` y no un campo de "ya lo vio", y es todo
+       * el mecanismo: la diferencia entre "nunca se preguntó" y "se preguntó y
+       * dijo que no" YA ESTÁ en los datos, y alcanza con no aplanarla. Los dos
+       * botones escriben la semana entera, así que la fila no vuelve nunca más.
+       *
+       * La condición se mudó de `densidad` a `semana` cuando el fuelle pasó a
+       * ser del día: desde entonces `densidad` dice cuán fuerte y no en qué
+       * días, así que "Ahora no" no tendría dónde escribirse. Y de paso queda
+       * mejor: quien armó su semana a mano ya sabe que el fuelle existe, y a ese
+       * no hay nada que ofrecerle.
        *
        * Va DEBAJO de la acción y no arriba. Que "Empezar" esté arriba del
        * pliegue fue un arreglo medido en tres teléfonos —estaba entre 160 y 367
        * píxeles por debajo— y nada puede volver a empujarlo.
        */}
-      {preferencias.densidad === undefined && (
+      {preferencias.semana === undefined && (
         <section className="mt-8">
           <Rotulo>ALGO QUE TODAVÍA NO PROBASTE</Rotulo>
           <div className="registro mt-3">
@@ -486,14 +510,25 @@ export function Hoy() {
           </div>
           <div className="mt-3 flex gap-3">
             <button
-              onClick={() => void guardarPreferencias({ densidad: 'suave' })}
+              onClick={() =>
+                void guardarPreferencias({
+                  // Los días de fuerza pasan a llevar fuelle adentro. No se
+                  // agrega ningún día: probar algo nuevo no puede costar un día
+                  // más de la semana de nadie.
+                  semana: Object.fromEntries(
+                    DIAS.map((d) => [d, semana[d] === 'fuerza' ? 'ambos' : (semana[d] ?? 'descanso')]),
+                  ),
+                })
+              }
               className="rotulo px-4 py-3"
               style={{ border: '1px solid var(--color-regla-fuerte)' }}
             >
               Probarlo
             </button>
             <button
-              onClick={() => void guardarPreferencias({ densidad: 'apagada' })}
+              // Se guarda la semana tal cual está. No cambia nada, y eso es
+              // justo lo que hace: deja escrito que ya se preguntó.
+              onClick={() => void guardarPreferencias({ semana })}
               className="rotulo px-4 py-3"
               style={{ border: '1px solid var(--color-regla)' }}
             >

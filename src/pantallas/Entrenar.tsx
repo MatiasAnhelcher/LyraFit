@@ -44,11 +44,20 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { NOMBRE_PATRON, POR_ID, buscarEjercicio, cadenaDe } from '@/dominio/biblioteca'
-import { RUTINA_POR_DEFECTO, RUTINA_POR_ID, patronDelBloque } from '@/dominio/rutinas'
+import { claseDeDia, patronDelBloque, rutinaActiva, semanaActiva } from '@/dominio/rutinas'
+import type { ClaseDeDia } from '@/dominio/rutinas'
 import { ajusteDelDia, bandaSostenida, cadenasCongeladas } from '@/dominio/estado'
 import { seAbreHoy } from '@/dominio/anticipacion'
 import { mueveElPlan } from '@/dominio/progresion'
 import { dichoDelDescanso, type Expresion } from '@/dominio/frases'
+import {
+  dichoDeLoQueViene,
+  loQueViene,
+  rotuloDeLoQueViene,
+  textoDeLoQueViene,
+  type LoQueViene,
+} from '@/dominio/siguiente'
+import { callar, configurarVoz, decir } from '@/voz'
 import { Lyra } from '@/componentes/lyra'
 import { DESCANSO_DE_BAJADA, bajadaDe, minutosDeSesion } from '@/dominio/bajada'
 import {
@@ -111,13 +120,25 @@ export function Entrenar() {
   const [cortaRetomada, setCortaRetomada] = useState(false)
   const esCorta = parametros.get('corta') === '1' || cortaRetomada
   /**
-   * Si hoy es día de fuelle: acondicionamiento, sin una sola serie de la
-   * cadena. Sale de la URL o del borrador, por la misma razón que la corta: la
-   * URL se pierde cuando el navegador recicla la pestaña, y un día de fuelle
-   * retomado como día de fuerza abriría una sesión que nadie pidió.
+   * Qué clase de día es esta sesión: fuerza, fuelle o las dos.
+   *
+   * Sale de tres lugares, en este orden, y los tres hacen falta:
+   *
+   * 1. **El borrador**, si la sesión se retomó. Manda sobre todo lo demás: una
+   *    sesión que arrancó anoche a las 23:58 no puede cambiar de clase porque
+   *    el reloj pasó la medianoche mientras se descansaba.
+   * 2. **La URL**, que es lo que escribe `Hoy` al abrir. Es la respuesta ya
+   *    calculada, y tomarla evita que las dos pantallas puedan diferir.
+   * 3. **La semana**, si no hay ni lo uno ni lo otro. Acá estaba el agujero:
+   *    entrar a `/entrenar` directo —un marcador, el atajo de la PWA, el botón
+   *    de atrás— daba una sesión de fuerza pelada aunque el día fuera denso o
+   *    de fuelle. La URL es un atajo, no la única fuente.
+   *
+   * Y si la semana dice que hoy no se entrena, la sesión es de fuerza a secas:
+   * entrenar un día de más no puede quedar sin plan.
    */
   const [fuelleRetomado, setFuelleRetomado] = useState(false)
-  const esDiaDeFuelle = parametros.get('fuelle') === '1' || fuelleRetomado
+  const [densaRetomada, setDensaRetomada] = useState(false)
 
   const avances = useLiveQuery(leerAvances, [])
   const preferencias = useLiveQuery(leerPreferencias, [])
@@ -161,6 +182,31 @@ export function Entrenar() {
    */
   const [arrancadaEn, setArrancadaEn] = useState<number | undefined>()
   const [retomada, setRetomada] = useState(false)
+
+  const rutina = preferencias ? rutinaActiva(preferencias) : null
+  const semana = preferencias ? semanaActiva(preferencias) : null
+
+  /** La clase de esta sesión, con las tres fuentes en orden. */
+  const claseDeLaSesion: ClaseDeDia = retomada
+    ? fuelleRetomado
+      ? 'fuelle'
+      : densaRetomada
+        ? 'ambos'
+        : 'fuerza'
+    : parametros.get('fuelle') === '1'
+      ? 'fuelle'
+      : parametros.get('densa') === '1'
+        ? 'ambos'
+        : semana
+          ? (() => {
+              const hoy = claseDeDia(semana, new Date())
+              return hoy === 'descanso' ? 'fuerza' : hoy
+            })()
+          : 'fuerza'
+
+  const esDiaDeFuelle = claseDeLaSesion === 'fuelle'
+  const esDiaDenso = claseDeLaSesion === 'ambos'
+
   /**
    * El panel de "cómo se hace", abierto encima de la sesión.
    *
@@ -221,8 +267,18 @@ export function Entrenar() {
     [estados],
   )
 
-  /** Cuánto aprieta el fuelle y con qué cuenta donde entrena. */
-  const densidad: Densidad = preferencias?.densidad ?? 'apagada'
+  /**
+   * Cuánto aprieta el fuelle, y con qué cuenta donde entrena.
+   *
+   * `densidad` dice cuán FUERTE, ya no en qué días: eso lo decide la clase del
+   * día. El respaldo es suave y no apagada porque un día marcado con fuelle por
+   * alguien que nunca abrió Ajustes tiene que traer algo, y suave es la única
+   * densidad que no supone ni que puede saltar ni que tiene un cajón.
+   */
+  const densidad: Densidad =
+    preferencias?.densidad === undefined || preferencias.densidad === 'apagada'
+      ? 'suave'
+      : preferencias.densidad
   const equipo: Equipo = useMemo(
     () => ({
       ...(preferencias?.puedeSaltar !== undefined ? { puedeSaltar: preferencias.puedeSaltar } : {}),
@@ -242,7 +298,8 @@ export function Entrenar() {
   useEffect(() => {
     configurarSonido(preferencias?.sonidoDescanso !== false)
     configurarHaptica(preferencias?.haptica !== false)
-  }, [preferencias?.sonidoDescanso, preferencias?.haptica])
+    configurarVoz(preferencias?.voz !== false)
+  }, [preferencias?.sonidoDescanso, preferencias?.haptica, preferencias?.voz])
 
   /**
    * Retomar lo que había quedado a medio hacer.
@@ -268,6 +325,7 @@ export function Entrenar() {
           setArrancadaEn(Date.now() - (borrador.duracionAcumulada ?? 0) * 1000)
           if (borrador.corta) setCortaRetomada(true)
           if (borrador.diaDeFuelle) setFuelleRetomado(true)
+          if (borrador.densa) setDensaRetomada(true)
           setRetomada(true)
         } else {
           // El arranque es ahora, no la primera serie anotada: entre abrir la
@@ -307,12 +365,13 @@ export function Entrenar() {
       duracionAcumulada: Math.max(0, Math.round((Date.now() - desde) / 1000)),
       corta: esCorta,
       diaDeFuelle: esDiaDeFuelle,
+      densa: esDiaDenso,
       indice,
       etapa,
       hechas,
       ...(rafagas.length > 0 ? { rafagas } : {}),
     })
-  }, [listo, resumen, hechas, indice, etapa, arrancadaEn, esCorta, esDiaDeFuelle, rafagas])
+  }, [listo, resumen, hechas, indice, etapa, arrancadaEn, esCorta, esDiaDeFuelle, esDiaDenso, rafagas])
 
   /**
    * Los tres últimos segundos del descanso, en la piel.
@@ -363,12 +422,31 @@ export function Entrenar() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [enRafaga])
 
+  // Al desmontar, callar: si alguien sale a mitad de una frase, la frase sigue
+  // sonando en la pantalla siguiente, que es de otra cosa.
+  useEffect(() => callar, [])
+
+  /**
+   * Un día de fuelle abierto sin el parámetro igual arranca en el bloque.
+   *
+   * `etapa` se decide en el primer render, cuando todavía no se leyeron las
+   * preferencias, así que ahí lo único que hay es la URL. Entrando directo
+   * —un marcador, el atajo de la PWA, el botón de atrás— la sesión abría la
+   * pantalla de series de un día que no tiene series.
+   *
+   * Solo corrige hacia adelante y solo si no se hizo nada todavía: una sesión
+   * retomada, o una con una serie anotada, manda ella.
+   */
+  useEffect(() => {
+    if (!listo || retomada || etapa !== 'series') return
+    if (Object.values(hechas).some((series) => series.length > 0)) return
+    if (claseDeLaSesion === 'fuelle') setEtapa('fuelle')
+  }, [listo, retomada, etapa, hechas, claseDeLaSesion])
+
   useModoDePantalla(resumen ? 'cierre' : 'entrenar')
   usePantallaDespierta(resumen === null)
 
-  const rutina = preferencias
-    ? (RUTINA_POR_ID.get(preferencias.rutinaActivaId) ?? RUTINA_POR_ID.get(RUTINA_POR_DEFECTO)!)
-    : null
+
 
   /** Qué clase de sesión es. Lo necesitan el factor, la anticipación y el cierre. */
   const tipo: TipoSesion = useMemo(
@@ -391,18 +469,17 @@ export function Entrenar() {
    * del final: siete minutos con diez de fuelle encima ya no son siete minutos,
    * y la sesión corta existe para que hacer algo sea barato.
    */
-  const esDensa = densidad !== 'apagada' && !esCorta
+  const esDensa = esDiaDenso && !esCorta
 
   /**
    * La densidad con la que se arma el bloque.
    *
-   * Un día de fuelle con el fuelle apagado no sería un día: sería una pantalla
-   * vacía. Así que el día de fuelle trae su propia densidad mínima, y es suave
-   * —la que no pide saltar ni tener nada— porque es la única que se puede
-   * suponer sin preguntar.
+   * Apagada en un día que no lleva fuelle, y la elegida en los que sí. Antes
+   * esto tenía que remendar el caso del día de fuelle con el fuelle apagado
+   * —una pantalla vacía— y ya no puede pasar: `densidad` nunca vale apagada.
    */
   const densidadDelBloque: Densidad =
-    esDiaDeFuelle && densidad === 'apagada' ? 'suave' : densidad
+    esDiaDeFuelle || esDiaDenso ? densidad : 'apagada'
 
 
   /** El factor del día: estado sostenido y sesión de vuelta se multiplican. */
@@ -415,12 +492,11 @@ export function Entrenar() {
 
   /** Los ejercicios concretos de la sesión, según el avance de cada patrón. */
   const plan = useMemo(() => {
-    if (!rutina || !avances) return []
-    const bloques = esCorta ? rutina.bloques.slice(0, rutina.bloques.length) : rutina.bloques
-    return bloques.flatMap((bloqueDelPlan) => {
+    if (!rutina || !semana || !avances) return []
+    return rutina.bloques.flatMap((bloqueDelPlan) => {
       const bloque = {
         ...bloqueDelPlan,
-        patron: patronDelBloque(bloqueDelPlan, rutina, new Date()),
+        patron: patronDelBloque(bloqueDelPlan, semana, new Date()),
       }
       const avance = avances.get(bloque.patron)
       const ejercicio = avance ? buscarEjercicio(avance.ejercicioId) : undefined
@@ -470,7 +546,7 @@ export function Entrenar() {
         },
       ]
     })
-  }, [rutina, avances, esCorta, esDensa, factor, historial, estados, tipo])
+  }, [rutina, semana, avances, esCorta, esDensa, factor, historial, estados, tipo])
 
   /**
    * El bloque de fuelle: una prescripción fija, no un relleno.
@@ -546,6 +622,20 @@ export function Entrenar() {
   const cierre = plan.reduce((facil, p) => (p.ejercicio.ccr < facil.ejercicio.ccr ? p : facil), plan[0]!)
   const objetivoCierre = Math.max(1, Math.round(cierre.objetivo.cantidad * 0.6))
 
+  /**
+   * Qué viene después, cuando falta poco para que haga falta saberlo.
+   *
+   * Null mientras queden dos series o más: ahí lo que viene es otra serie del
+   * mismo ejercicio. La decisión entera está en el dominio, con test.
+   */
+  const viene = loQueViene({
+    plan: plan.map((paso) => ({ nombre: paso.ejercicio.nombre, bajada: paso.bajada })),
+    enCurso,
+    quedan: objetivo.series - series.length,
+    hayFuelle: fuelle.length > 0,
+    nombreDelCierre: esDiaDeFuelle ? null : cierre.ejercicio.nombre,
+  })
+
   function registrarSerie(
     idEjercicio: string,
     logrado: number,
@@ -577,6 +667,22 @@ export function Entrenar() {
 
     const quedan = objetivo.series - (series.length + 1)
     tocar(quedan === 0 ? 'ejercicio' : quedan === 1 ? 'quedaUna' : 'serie')
+
+    // Y acá habla, UNA vez por ejercicio: cuando el ejercicio se completa y la
+    // transición que viene no tiene descanso, ni sonido, ni nada que leer sin
+    // mirar. En los demás casos la pantalla ya lo dice bien y repetirlo en voz
+    // sería ruido. Va adentro de `anotar` porque `anotar` es un gesto de la
+    // persona, que es lo único que en iOS deja hablar al navegador.
+    if (quedan === 0) {
+      const loDicho = loQueViene({
+        plan: plan.map((paso) => ({ nombre: paso.ejercicio.nombre, bajada: paso.bajada })),
+        enCurso,
+        quedan: 0,
+        hayFuelle: fuelle.length > 0,
+        nombreDelCierre: esDiaDeFuelle ? null : cierre.ejercicio.nombre,
+      })
+      if (loDicho) decir(dichoDeLoQueViene(loDicho))
+    }
 
     if (quedan > 0) {
       // Qué ráfaga entra en ESTE descanso. El patrón que viene es el de este
@@ -874,6 +980,7 @@ export function Entrenar() {
               azar: azarDeLaFrase,
             }}
             rafaga={enRafaga && rafagaActual ? rafagaActual.rafaga : null}
+            viene={viene}
             onSumar={() => descanso.sumar(30)}
             onSaltear={cortarDescanso}
             onSaltearRafaga={saltearRafaga}
@@ -881,7 +988,29 @@ export function Entrenar() {
         ) : completo ? (
           <section className="flex flex-1 flex-col items-center justify-center text-center">
             <Rotulo>EJERCICIO COMPLETO</Rotulo>
-            <button onClick={deshacer} className="mt-3 text-sm text-[var(--color-glosa)] underline underline-offset-4">
+            {/* Acá está el agujero que se tapa.
+                Esta pantalla decía "ejercicio completo" y nada más, y es el
+                instante exacto en que se pierde el hilo: la transición entre
+                ejercicios no tiene descanso —`anotar` solo lo arranca si queda
+                otra serie— así que cambiaba el título y había que leerlo.
+
+                `aria-live` es gratis y es la respuesta honesta al "sin mirar"
+                para quien ya usa lector de pantalla: lo escucha con su voz, su
+                idioma y su volumen. Cambia una vez por ejercicio, así que no es
+                ruido — sobre el reloj sería un desastre, y por eso no va ahí.
+
+                El botón de abajo NO cambia de etiqueta: "Siguiente ejercicio" y
+                "Terminar" los clickean tres portones por nombre. El nombre de
+                lo que viene va acá, que además es donde la mirada ya está. */}
+            {viene && (
+              <div className="mt-6" aria-live="polite">
+                <Rotulo>{rotuloDeLoQueViene(viene)}</Rotulo>
+                <p className="mt-1 max-w-[20ch] text-lg font-semibold leading-tight">
+                  {textoDeLoQueViene(viene)}
+                </p>
+              </div>
+            )}
+            <button onClick={deshacer} className="mt-6 text-sm text-[var(--color-glosa)] underline underline-offset-4">
               Deshacer la última serie
             </button>
           </section>
@@ -1003,6 +1132,7 @@ function Descanso({
   total,
   clave,
   rafaga,
+  viene,
   onSumar,
   onSaltear,
   onSaltearRafaga,
@@ -1026,6 +1156,11 @@ function Descanso({
    * descanso es exactamente el que era antes de que existiera el fuelle.
    */
   rafaga: Rafaga | null
+  /**
+   * Lo que viene después del ejercicio, o null si todavía faltan dos series.
+   * Lo resuelve el dominio; acá solo se dibuja.
+   */
+  viene: LoQueViene | null
   onSumar: () => void
   onSaltear: () => void
   onSaltearRafaga: () => void
@@ -1080,7 +1215,21 @@ function Descanso({
              lo que dice. */
           <div className="mt-8 flex w-full max-w-[36ch] items-start gap-3">
             <Lyra tamano={44} expresion={cara} className="shrink-0" />
-            <p className="mt-1 text-sm leading-relaxed text-[var(--color-glosa)]">{texto}</p>
+            <div className="min-w-0">
+              <p className="mt-1 text-sm leading-relaxed text-[var(--color-glosa)]">{texto}</p>
+              {/* El aviso previo va PEGADO a la línea de Lyra y no como párrafo
+                  aparte: medido en 320×568, como renglón suelto costaba 33 px y
+                  acá cuesta 19. Esta pantalla ya termina abajo del borde en el
+                  teléfono más chico —el descanso del medio, con la indicación
+                  de técnica de tres renglones, llega a 690 de 568— así que cada
+                  píxel que se agregue acá tiene que pelearse. */}
+              {viene && (
+                <p className="rotulo mt-2" aria-live="polite">
+                  después ·{' '}
+                  <span className="text-[var(--color-tinta)]">{textoDeLoQueViene(viene)}</span>
+                </p>
+              )}
+            </div>
           </div>
         )
       )}

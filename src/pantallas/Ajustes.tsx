@@ -1,6 +1,20 @@
 import { useEffect, useRef, useState } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
-import { RUTINAS, DIA_CORTO } from '@/dominio/rutinas'
+import {
+  DIAS,
+  DIA_CORTO,
+  GLIFO_CLASE,
+  NOMBRE_CLASE,
+  NOMBRE_DIA,
+  RUTINAS,
+  revisarSemana,
+  rutinaActiva,
+  tieneFuelle,
+  semanaActiva,
+  semanaDe,
+  siguienteClase,
+} from '@/dominio/rutinas'
+import type { ClaseDeDia } from '@/dominio/rutinas'
 import type { Preferencias } from '@/dominio/tipos'
 import {
   RespaldoInvalido,
@@ -13,6 +27,7 @@ import {
 } from '@/datos/repositorio'
 import { estadoDeAlmacenamiento, type EstadoDeAlmacenamiento } from '@/datos/respaldo'
 import { HAY_HAPTICA } from '@/respuesta'
+import { HAY_VOZ, vozElegida } from '@/voz'
 import { Accion, AccionQuieta, Cargando, Rotulo } from '@/componentes/ui'
 
 export function Ajustes() {
@@ -29,6 +44,29 @@ export function Ajustes() {
   if (!preferencias) return <Cargando filas={6} />
 
   const cambiar = (cambios: Partial<Preferencias>) => void guardarPreferencias(cambios)
+
+  /**
+   * La semana que de verdad corre, y el toque que la vuelve propia.
+   *
+   * El primer toque escribe los SIETE días de una, partiendo de la del preset.
+   * Así no queda una semana a medio escribir en la base, y `semana === undefined`
+   * sigue queriendo decir exactamente una cosa: "nunca la tocó".
+   */
+  const semana = semanaActiva(preferencias)
+  const rutina = rutinaActiva(preferencias)
+  const avisos = revisarSemana(semana, rutina)
+
+  const ciclarDia = (dia: number) =>
+    cambiar({ semana: { ...semana, [dia]: siguienteClase(semana[dia] ?? 'descanso') } })
+
+  // Elegir un preset reescribe la semana entera. Es deliberado y se ve en el
+  // acto, porque la grilla está justo abajo: un preset que dijera "lunes,
+  // miércoles y viernes" y dejara la semana vieja puesta sería mentir.
+  const elegirPreset = (id: string) => {
+    const nueva = RUTINAS.find((r) => r.id === id)
+    if (!nueva) return
+    cambiar({ rutinaActivaId: id, semana: semanaDe(nueva) })
+  }
 
   async function descargar() {
     const datos = await exportarTodo()
@@ -85,7 +123,7 @@ export function Ajustes() {
           {RUTINAS.map((rutina) => (
             <button
               key={rutina.id}
-              onClick={() => cambiar({ rutinaActivaId: rutina.id })}
+              onClick={() => elegirPreset(rutina.id)}
               className="fila-pulsable"
             >
               <span className="canal">
@@ -94,17 +132,87 @@ export function Ajustes() {
               <span className="min-w-0">
                 <span className="nombre block">{rutina.nombre}</span>
                 <span className="rotulo mt-0.5 block">
-                  {/* Los días de fuelle se marcan en la misma línea: dos listas
-                      separadas obligarían a cruzarlas de memoria. */}
-                  {rutina.dias
-                    .map((d) => `${DIA_CORTO[d]}${rutina.diasDeFuelle?.includes(d) ? '·f' : ''}`)
-                    .join(' · ')}
+                  {/* Lo que el preset trae es su semana, y se dibuja con las
+                      mismas letras que la grilla de abajo para que se vea que es
+                      lo mismo: elegirlo escribe eso ahí. */}
+                  {DIAS.map((d) => {
+                    const clase = semanaDe(rutina)[d] ?? 'descanso'
+                    return clase === 'descanso'
+                      ? DIA_CORTO[d]!.toLowerCase()
+                      : `${DIA_CORTO[d]}${clase === 'fuelle' ? '·f' : clase === 'ambos' ? '·+' : ''}`
+                  }).join(' ')}
                 </span>
               </span>
               <span className="cifra-fila">{rutina.dias.length}</span>
             </button>
           ))}
         </div>
+      </section>
+
+      {/* La semana, y por qué vive acá y no en Hoy.
+       *
+       * Hoy tiene doce píxeles de aire entre `Empezar` y la barra de navegación
+       * en un Android de 360×640, y la regla de que nada puede volver a
+       * empujarla está escrita cinco veces en el código. Una grilla de siete
+       * filas ahí adentro la rompería de nuevo.
+       *
+       * Son filas y no siete columnas: en 320 px de ancho, siete columnas dejan
+       * 45 px por día, que no alcanzan ni para el objetivo táctil ni para decir
+       * qué clase de día es. Una fila por día dice el nombre entero.
+       */}
+      <section className="mt-8">
+        <Rotulo>LA SEMANA</Rotulo>
+        <p className="mt-2 max-w-[42ch] text-xs leading-relaxed text-[var(--color-glosa)]">
+          Tocá un día para cambiarlo. Fuerza es la sesión de siempre; fuelle es
+          acondicionamiento, sin una sola serie de la que el motor opine; las dos mete
+          las ráfagas adentro de los descansos y un bloque metabólico al final.
+        </p>
+        <div className="registro mt-3">
+          {DIAS.map((dia) => {
+            const clase: ClaseDeDia = semana[dia] ?? 'descanso'
+            return (
+              <button key={dia} onClick={() => ciclarDia(dia)} className="fila-pulsable">
+                <span className="canal">{GLIFO_CLASE[clase]}</span>
+                <span className="min-w-0">
+                  <span className="nombre block">{NOMBRE_DIA[dia]}</span>
+                </span>
+                <span
+                  className="rotulo"
+                  style={{
+                    color:
+                      clase === 'descanso' ? 'var(--color-glosa)' : 'var(--color-tinta)',
+                  }}
+                >
+                  {clase === 'descanso' ? '—' : NOMBRE_CLASE[clase].toUpperCase()}
+                </span>
+              </button>
+            )
+          })}
+        </div>
+
+        {/* Los avisos: lo que la app tiene para decir de esta semana.
+            Se impide una sola cosa —quedarse sin ningún día de fuerza, que
+            dejaría al motor sin nada que leer— y todo lo demás se dice y se
+            deja pasar. Es su cuerpo y su decisión; lo que corresponde es que
+            sepa qué va a pasar, no que la app se lo prohíba. */}
+        {avisos.length > 0 && (
+          <div className="mt-3 space-y-2">
+            {avisos.map((aviso) => (
+              <p
+                key={aviso.clave}
+                className="max-w-[42ch] text-xs leading-relaxed"
+                style={{
+                  color:
+                    aviso.gravedad === 'impide'
+                      ? 'var(--color-vega)'
+                      : 'var(--color-glosa)',
+                }}
+              >
+                {aviso.texto}
+              </p>
+            ))}
+          </div>
+        )}
       </section>
 
       {/* El fuelle va DESPUÉS de la rutina y antes de la app, porque es una
@@ -115,12 +223,24 @@ export function Ajustes() {
         <p className="mt-2 max-w-[42ch] text-xs leading-relaxed text-[var(--color-glosa)]">
           Trabajo metabólico en los huecos que la sesión ya tenía. Nunca sale del descanso
           que hace falta para la serie que viene, y nunca carga el patrón que estás
-          entrenando: eso es lo que evita que transpirar te cueste fuerza.
+          entrenando: eso es lo que evita que transpirar te cueste fuerza. Acá elegís cuán
+          fuerte; en qué días entra lo dice la semana de arriba.
         </p>
+        {/* Acá había una tercera opción, "Apagado", y se fue cuando el fuelle
+            pasó a ser del día. Eran dos interruptores para una sola cosa: se
+            podía tener el miércoles marcado con fuelle y el fuelle apagado, y
+            entonces la app abría un día que no sabía llenar —el código lo
+            remendaba forzando "suave" por atrás—. Ahora el fuelle se apaga
+            donde se prende: no marcando ningún día. Una idea, un lugar.
+
+            Es la misma lección que dejó el selector de duración que vivía acá:
+            "cuánto querés que dure" era la palanca equivocada, y con "lo más
+            largo que dé" en un día de fuelle armaba OCHENTA Y CUATRO vueltas de
+            saltos encadenados. La duración de una sesión no se elige: se elige
+            cuán fuerte, y la duración sale de ahí. */}
         <div className="registro mt-3">
           {(
             [
-              ['apagada', 'Apagado', 'La sesión queda exactamente como estaba.'],
               ['suave', 'Suave', 'Tramos cortos, nada explosivo y un bloque de ocho minutos. Para empezar o para semanas cargadas.'],
               ['fuerte', 'Fuerte', 'Ráfagas más largas y un bloque de hasta doce minutos al final, antes de la serie de cierre.'],
             ] as const
@@ -131,7 +251,11 @@ export function Ajustes() {
               className="fila-pulsable"
             >
               <span className="canal">
-                {(preferencias.densidad ?? 'apagada') === valor ? '◆' : '◇'}
+                {(preferencias.densidad === undefined || preferencias.densidad === 'apagada'
+                  ? 'suave'
+                  : preferencias.densidad) === valor
+                  ? '◆'
+                  : '◇'}
               </span>
               <span className="min-w-0">
                 <span className="nombre block">{titulo}</span>
@@ -144,18 +268,9 @@ export function Ajustes() {
           ))}
         </div>
 
-        {/* El equipo solo aparece con el fuelle encendido: apagado no filtra
-            nada y serían dos filas que no hacen nada.
-
-            Acá también había un selector de "cuánto querés que dure", y era la
-            idea equivocada: hacía que el bloque metabólico creciera hasta
-            llenar la hora pedida. Con "lo más largo que dé" en un día de fuelle
-            armaba OCHENTA Y CUATRO vueltas —una hora y media de saltos
-            encadenados— porque ese camino no pasaba por ningún tope. La
-            duración de una sesión no se elige: se elige cuán fuerte, y la
-            duración sale de ahí. Lo que se muestra en Hoy es la estimación, que
-            es un dato y no una palanca. */}
-        {(preferencias.densidad ?? 'apagada') !== 'apagada' && (
+        {/* El equipo solo aparece si algún día lleva fuelle: sin ninguno no
+            filtra nada y serían dos filas que no hacen nada. */}
+        {DIAS.some((d) => tieneFuelle(semana[d] ?? 'descanso')) && (
           <div className="registro mt-3">
             <Interruptor
               titulo="Puedo saltar"
@@ -202,6 +317,19 @@ export function Ajustes() {
               detalle="Un patrón distinto por cada cosa que pasa. Sirve para no tener que mirar."
               activo={preferencias.haptica !== false}
               onCambiar={(v) => cambiar({ haptica: v })}
+            />
+          )}
+          {/* La voz, con el mismo criterio que la vibración, y además con el de
+              que sin una voz en español este teléfono no puede hablar: ahí la
+              fila tampoco se muestra, porque prometería algo que no va a pasar.
+              Una voz en inglés diciendo "flexiones declinadas" es peor que el
+              silencio, y lo que se muestra en pantalla no depende de esto. */}
+          {HAY_VOZ && vozElegida() && (
+            <Interruptor
+              titulo="Lyra habla"
+              detalle="Dice en voz alta qué ejercicio viene cuando terminás uno. Una vez por ejercicio y nada más."
+              activo={preferencias.voz !== false}
+              onCambiar={(v) => cambiar({ voz: v })}
             />
           )}
           <div>

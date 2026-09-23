@@ -289,6 +289,30 @@ describe('lo que Lyra dice en el descanso', () => {
     }
   })
 
+  it('en una sesión densa el banco del final también se alcanza', () => {
+    // El test de arriba usaba `{faltan: 2, indice: 3, total: 4}`, una
+    // combinación que en una sesión densa NO PUEDE OCURRIR: el plan denso es
+    // [duro, bajada, duro, bajada…], la última entrada es una bajada de dos
+    // series, y su único descanso tiene siempre una serie por delante. O sea
+    // que daba confianza falsa: la rama pasaba el test y no se veía nunca.
+    const grupo = FRASES.find((g) => g.momento === 'final')!
+    const ULTIMA_ENTRADA_DENSA = { faltan: 1, indice: 7, total: 8 }
+    for (const azar of AZARES) {
+      const dicho = dichoDelDescanso({ ...base, ...ULTIMA_ENTRADA_DENSA, azar })
+      expect(grupo.lineas, `azar=${azar}`).toContain(dicho!.texto)
+    }
+  })
+
+  it('la última serie de un ejercicio del medio sigue hablando de esa serie', () => {
+    // El arreglo no puede llevarse puesto el caso común: en cualquier ejercicio
+    // que no sea el último, una serie por delante sigue siendo "queda una".
+    const grupo = FRASES.find((g) => g.momento === 'ultima')!
+    for (const azar of AZARES) {
+      const dicho = dichoDelDescanso({ ...base, faltan: 1, indice: 1, total: 8, azar })
+      expect(grupo.lineas, `azar=${azar}`).toContain(dicho!.texto)
+    }
+  })
+
   it('la técnica es de la primera mitad y el aliento de la segunda', () => {
     const aliento = FRASES.find((g) => g.momento === 'aliento')!
     // Sesión de cuatro: técnica en el primero y el segundo, aliento en el

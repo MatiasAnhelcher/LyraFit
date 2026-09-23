@@ -633,8 +633,19 @@ export function dichoDelDescanso(clave: {
 }): { texto: string; expresion: Expresion } | null {
   const { tecnica, faltan, indice, total, azar } = clave
 
-  if (faltan === 1) return fraseDe('ultima', azar)
+  // El orden de estos dos `if` importa, y estaba al revés.
+  //
+  // Con `faltan === 1` primero, en una sesión densa el banco del final no se
+  // mostraba NUNCA: el plan denso queda [duro, bajada, duro, bajada…], la
+  // última entrada es una bajada de dos series, y su único descanso tiene
+  // siempre una serie por delante. Medido sobre 8910 sesiones densas
+  // simuladas: solo el 11% llegaba alguna vez a una frase de final, y eran
+  // justo las que no tienen bajada en el último bloque.
+  //
+  // El final gana porque dice algo más específico: "queda una" es cierto en
+  // treinta descansos de la semana, y "te vas" es cierto una sola vez.
   if (indice === total - 1) return fraseDe('final', azar)
+  if (faltan === 1) return fraseDe('ultima', azar)
 
   const primeraMitad = indice < (total - 1) / 2
   if (!primeraMitad) {

@@ -55,9 +55,16 @@ muestra cada vez que decide algo. Nada de esperar a "sentirte listo".
   Nunca sale del descanso que hace falta para la serie siguiente —sale de lo que
   sobra por encima de un piso de recuperación— y nunca carga el patrón que estás
   entrenando. Eso es lo que evita que transpirar te cueste eslabones.
-- **Cuatro rutinas** para elegir según cuántos días tengas: desde una mínima de
-  dos días para las semanas complicadas hasta una de cinco, con dos días de
-  acondicionamiento en el medio que no le piden fuerza a ninguna cadena.
+- **Tu semana, día por día.** Cada día de la semana es una de cuatro cosas:
+  descanso, fuerza, fuelle, o las dos. Hay cuatro plantillas para arrancar
+  —desde una mínima de dos días hasta una de cinco— pero tocar un día la
+  convierte en tuya. Si la semana que armaste le va a costar caro al motor, la
+  app lo dice con el motivo; lo único que impide es quedarte sin ningún día de
+  fuerza, que es de donde lee todo lo demás.
+- **Te dice qué viene después**, en el último descanso de cada ejercicio y al
+  terminarlo, y con Lyra te lo dice en voz alta: no hay que buscar nada en la
+  pantalla ni perder el ritmo. Habla una vez por ejercicio, y si el teléfono no
+  tiene ninguna voz en español se queda callada en vez de leerlo en inglés.
 - **Cuánto va a durar**, antes de empezar. Es una cuenta con tus propios
   números, no una promesa: la duración no se elige —se elige cuán fuerte— y de
   ahí sale.
@@ -82,8 +89,17 @@ preview` corriendo en otra terminal:
 node revisar.mjs   # recorre el alta y una sesión entera, y guarda capturas
 node rescate.mjs   # revisa los datos: que no se pierda una sesión y que se midan dos números
 node fuelle.mjs    # que el trabajo metabólico no le cueste fuerza a nadie
+node despues.mjs   # que se sepa qué viene, se vea todo el descanso y se diga una sola vez
+node pliegue.mjs   # que nada quede abajo del pliegue, medido en tres teléfonos
 node logo.mjs     # regenera el favicon y los íconos desde el componente de Lyra
 ```
+
+`pliegue.mjs` existe porque la regla de que `Empezar` tenga aire sobre la barra
+de navegación ya se rompió **dos veces**, las dos por un renglón que parecía
+inofensivo, y hasta ahora se verificaba a mano. Mide con `boundingBox()` en
+320×568, 360×640 y 390×844. Los dos últimos hacen fallar el portón; el de 320
+se mide y se informa, porque al agregarlo aparecieron desbordes anteriores y un
+portón que nace en rojo es un portón que nadie mira.
 
 `logo.mjs` no dibuja el logo: **lo lee de `src/componentes/lyra.tsx`** —el
 degradé del cuerpo, los tres trazos de la cresta— y calcula la estrella con la
@@ -135,8 +151,9 @@ src/
     adherencia.ts    lo que reemplaza a la racha
     estado.ts        el chequeo diario y su línea de base
     vitalidad.ts     el delta de energía y la calibración
-    rutinas.ts       qué patrones se trabajan cada día
-    frases.ts        las 300 cosas que Lyra puede decir, y cuándo
+    rutinas.ts       qué clase de día es cada día, y qué patrones toca
+    siguiente.ts     qué viene después, y cómo se escribe y se dice
+    frases.ts        las 378 cosas que Lyra puede decir, y cuándo
     metabolico.ts    el fuelle: qué ráfaga entra en cada hueco, y cuánta
     bajada.ts        el volumen que el motor no mira, y cuánto dura la sesión
     estadisticas.ts  la curva de fuerza, récords, semanas

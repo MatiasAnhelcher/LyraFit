@@ -302,6 +302,14 @@ export interface BloqueRutina {
   alterna?: Patron
 }
 
+/**
+ * Qué clase de día es cada día de la semana. Las claves son 1 (lunes) a 7.
+ *
+ * El tipo vive acá y no en `rutinas.ts` porque `Preferencias` lo necesita, y
+ * `rutinas.ts` ya importa de acá: al revés sería un ciclo.
+ */
+export type Semana = Record<number, 'descanso' | 'fuerza' | 'fuelle' | 'ambos'>
+
 export interface Rutina {
   id: string
   nombre: string
@@ -319,6 +327,16 @@ export interface Rutina {
    * tienen, que son todas las que ya estaban publicadas.
    */
   diasDeFuelle?: number[]
+  /**
+   * Los días que llevan fuerza Y fuelle: ráfagas adentro de los descansos y
+   * bloque metabólico al final.
+   *
+   * Antes esto no era un día sino `Preferencias.densidad`, o sea una palanca
+   * global que volvía densos todos los días de fuerza a la vez. Acá el preset
+   * declara cuáles, y `densidad` queda reducida a lo único que de verdad es:
+   * cuán fuerte, no cuáles.
+   */
+  diasDensos?: number[]
 }
 
 /** Preferencias de la app, guardadas junto con el resto de los datos. */
@@ -374,6 +392,26 @@ export interface Preferencias {
    * series para llenar una hora se pagaría con eslabones.
    */
   minutosObjetivo?: number
+  /**
+   * La semana armada a mano: qué clase de día es cada día.
+   *
+   * Ausente quiere decir "nunca la tocó", y entonces manda la del preset
+   * activo. Es la misma distinción que hace `densidad === undefined`, y por el
+   * mismo motivo: ya está en los datos y alcanza con no aplanarla.
+   *
+   * El primer toque en la grilla escribe los siete días de una, así que no hay
+   * estado a medio camino y no hay nada que migrar.
+   */
+  semana?: Semana
+  /**
+   * Si Lyra habla en voz alta lo que viene después.
+   *
+   * Es un canal distinto del sonido y por eso tiene su propio interruptor: los
+   * earcons son marcas y el habla lleva contenido. Y donde el navegador no
+   * tenga ninguna voz en español, la fila ni se muestra — mismo criterio que la
+   * vibración en iOS.
+   */
+  voz?: boolean
   /** Cómo se quiere describir dentro de un año. Se usa en el cierre de sesión. */
   identidad?: string
 }
@@ -436,6 +474,15 @@ export interface SesionEnCurso {
   corta: boolean
   /** Si era un día de fuelle. Mismo motivo que `corta`: venía en la URL. */
   diaDeFuelle?: boolean
+  /**
+   * Si era un día denso: fuerza CON fuelle. Mismo motivo que los dos de arriba.
+   *
+   * Hace falta desde que la densidad es del día y no una preferencia global:
+   * antes se podía recalcular leyendo `preferencias.densidad`, y ahora depende
+   * de qué día era cuando la sesión arrancó. Una sesión densa retomada como
+   * fuerza pelada perdería las ráfagas y el bloque a mitad de camino.
+   */
+  densa?: boolean
   /** En qué ejercicio del plan iba. */
   indice: number
   /** En qué etapa: las series, el fuelle, la de cierre o las preguntas. */

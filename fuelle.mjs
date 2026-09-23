@@ -134,13 +134,20 @@ const conLaBase = (tablas, fn, arg) =>
 // y la que dejaría a alguien viendo el mismo ofrecimiento para siempre.
 
 const ofrecimiento = () => p.getByText('El fuelle', { exact: true })
-const densidadGuardada = () =>
-  conLaBase(['preferencias'], async (leer) => (await leer('preferencias'))[0]?.densidad ?? null)
+
+// El marcador de "ya se preguntó" se mudó de `densidad` a `semana` cuando el
+// fuelle pasó a ser del día. `densidad` ahora dice cuán fuerte y no en qué
+// días, así que "Ahora no" no tendría dónde escribirse: los dos botones
+// escriben la semana entera, y con eso la fila no vuelve nunca más.
+const semanaGuardada = () =>
+  conLaBase(['preferencias'], async (leer) => (await leer('preferencias'))[0]?.semana ?? null)
+const diasConFuelle = (semana) =>
+  Object.values(semana ?? {}).filter((c) => c === 'fuelle' || c === 'ambos').length
 const olvidarLaRespuesta = () =>
   conLaBase(['preferencias'], async (leer, poner) => {
     const [prefe] = await leer('preferencias')
-    const { densidad: _, ...sinDensidad } = prefe
-    await poner('preferencias', sinDensidad)
+    const { semana: _, ...sinSemana } = prefe
+    await poner('preferencias', sinSemana)
   })
 const volverAHoy = async () => {
   // Recarga de verdad y no navegación de hash: la escritura fue cruda y
@@ -154,15 +161,21 @@ const volverAHoy = async () => {
 if (!(await ofrecimiento().isVisible().catch(() => false))) {
   fallos.push('En una instalación nueva, Hoy no ofrece el fuelle')
 } else {
-  if ((await densidadGuardada()) !== null) {
-    fallos.push('La densidad ya estaba definida antes de contestar el ofrecimiento')
+  if ((await semanaGuardada()) !== null) {
+    fallos.push('La semana ya estaba escrita antes de contestar el ofrecimiento')
   }
 
   await p.getByRole('button', { name: 'Probarlo', exact: true }).click()
   await p.waitForTimeout(500)
-  const tras = await densidadGuardada()
-  if (tras !== 'suave') {
-    fallos.push(`"Probarlo" dejó la densidad en "${tras}" en vez de "suave"`)
+  const tras = await semanaGuardada()
+  if (diasConFuelle(tras) === 0) {
+    fallos.push(`"Probarlo" no dejó ningún día con fuelle: ${JSON.stringify(tras)}`)
+  }
+  // Y no puede agregar días: probar algo nuevo no cuesta un día más de la
+  // semana de nadie.
+  const entrenaTras = Object.values(tras ?? {}).filter((c) => c !== 'descanso').length
+  if (entrenaTras !== 3) {
+    fallos.push(`"Probarlo" cambió la cantidad de días de 3 a ${entrenaTras}`)
   }
 
   await volverAHoy()
@@ -178,9 +191,11 @@ if (!(await ofrecimiento().isVisible().catch(() => false))) {
   } else {
     await p.getByRole('button', { name: 'Ahora no', exact: true }).click()
     await p.waitForTimeout(500)
-    const negado = await densidadGuardada()
-    if (negado !== 'apagada') {
-      fallos.push(`"Ahora no" dejó la densidad en "${negado}" en vez de "apagada"`)
+    const negado = await semanaGuardada()
+    if (negado === null) {
+      fallos.push('"Ahora no" no dejó escrita la semana, así que el ofrecimiento va a volver')
+    } else if (diasConFuelle(negado) !== 0) {
+      fallos.push(`"Ahora no" dejó ${diasConFuelle(negado)} días con fuelle: tenía que no cambiar nada`)
     }
     await volverAHoy()
     if (await ofrecimiento().isVisible().catch(() => false)) {
@@ -203,9 +218,11 @@ const puestos = await conLaBase(['preferencias', 'avances'], async (leer, poner)
     densidad: 'fuerte',
     puedeSaltar: true,
     tieneEscalon: true,
-    // Con la duración sin elegir el bloque sería el mínimo, y el recorrido no
-    // vería un bloque de verdad.
-    minutosObjetivo: 60,
+    // La densidad ya no decide QUÉ días llevan fuelle: eso lo dice la semana.
+    // Así que para una sesión densa hay que marcar los días como `ambos`, que
+    // es fuerza CON fuelle. Los siete, para que el recorrido no dependa de qué
+    // día de la semana se corra el portón.
+    semana: { 1: 'ambos', 2: 'ambos', 3: 'ambos', 4: 'ambos', 5: 'ambos', 6: 'ambos', 7: 'ambos' },
   })
   const avances = await leer('avances')
   // Eslabones con descanso de 150 s en las cuatro cadenas: ahí la ráfaga dura
@@ -255,7 +272,11 @@ if (!primerRotulo.includes('RÁFAGA')) {
   )
 } else {
   const alEmpezar = await reloj()
-  const nombre = await p.locator('main section p.text-lg').innerText()
+  // `.first()` no es cosmético: sin él, el día que otra cosa de esta pantalla
+  // use `text-lg` el locator machea dos elementos y Playwright revienta por
+  // modo estricto, o sea que el portón falla por un motivo que no es el que
+  // está midiendo.
+  const nombre = await p.locator('main section p.text-lg').first().innerText()
 
   // Esperar a que el tramo de ráfaga termine solo. Son cuarenta y cinco
   // segundos reales y no hay forma de acelerarlos: el arco representa tiempo
