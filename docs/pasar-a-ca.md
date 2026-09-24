@@ -63,7 +63,11 @@ De ahí salen tres descartes explícitos:
 
 ---
 
-## 3. El mapa muscular, pero diagnóstico
+## 3. El mapa muscular, pero diagnóstico — **hecho**
+
+> Construido en `src/dominio/musculos.ts` y en la sección "QUÉ ESTÁS
+> ENTRENANDO" de Progreso. Lo que sigue es el diseño; lo que cambió al
+> construirlo está anotado al final de la sección.
 
 En CA el mapa es decorativo: te muestra qué entrenaste y ahí termina. Acá es el
 **sustrato** de todo lo demás, y por eso va primero.

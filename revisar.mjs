@@ -321,9 +321,43 @@ async function main() {
     }
 
     await pagina.goto(`${BASE}/#/progreso`, { waitUntil: 'networkidle' })
+    // Los novecientos milisegundos son por el chunk lazy de recharts.
     await pagina.waitForTimeout(900)
     await capturar(pagina, `8-progreso-${tema}`)
     await revisarDesborde(pagina, `Progreso (${tema})`)
+
+    // Aserciones de contenido sobre Progreso, que hasta acá no tenía NINGUNA:
+    // solo se le miraba el desborde y la consola, así que una sección entera
+    // podía dejar de renderizarse y la revisión pasaba en verde.
+    const mapa = pagina.getByText('QUÉ ESTÁS ENTRENANDO')
+    if (!(await mapa.isVisible().catch(() => false))) {
+      problemas.push(`No apareció el mapa muscular en Progreso (${tema})`)
+    } else {
+      // Dieciocho filas, una por músculo cubierto. Si un día entra el empuje
+      // vertical y el deltoide lateral pasa a estar cubierto, esta cuenta
+      // cambia y hay que venir a decirlo.
+      const filas = await pagina
+        .locator('section', { has: pagina.getByText('QUÉ ESTÁS ENTRENANDO') })
+        .locator('.registro > *')
+        .count()
+      if (filas !== 18) {
+        problemas.push(`El mapa muscular tiene ${filas} filas y tenía que tener 18 (${tema})`)
+      }
+      // Y que diga algo: las cuatro salidas del diagnóstico son excluyentes, así
+      // que siempre tiene que haber exactamente una.
+      const dichos = await Promise.all(
+        [
+          /todavía no hay con qué/,
+          /Tu rutina no incluye/,
+          /Lo que menos venís trabajando/,
+          /No hay ningún músculo muy atrás/,
+        ].map((r) => pagina.getByText(r).isVisible().catch(() => false)),
+      )
+      const cuantos = dichos.filter(Boolean).length
+      if (cuantos !== 1) {
+        problemas.push(`El mapa muscular dijo ${cuantos} diagnósticos y tenía que decir 1 (${tema})`)
+      }
+    }
 
     await pagina.goto(`${BASE}/#/ajustes`, { waitUntil: 'networkidle' })
     await capturar(pagina, `9-ajustes-${tema}`)

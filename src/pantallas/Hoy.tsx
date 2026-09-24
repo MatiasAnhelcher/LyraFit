@@ -336,6 +336,22 @@ export function Hoy() {
           {esDiaDeEntrenar && !entrenoHoy && ` · ${minutos} MIN`}
         </Rotulo>
 
+        {/* Los cuatro eslabones se muestran SOLO los días que se entrena.
+            Hasta acá se pintaban siempre, y eso hacía dos cosas mal a la vez.
+            La primera ya estaba escrita arriba, en el comentario de la clase
+            del día: anunciar los cuatro eslabones un día de fuelle —donde no se
+            hace una sola serie de cadena— es mentir dos veces.
+            La segunda la encontró `pliegue.mjs` el primer jueves que corrió:
+            son trescientos sesenta píxeles, y con ellos `Empezar` quedaba
+            SETENTA Y TRES por debajo de la barra en un Android de 360×640 los
+            días de descanso. O sea que en la rutina por defecto —lunes,
+            miércoles y viernes— cuatro días de cada siete había que scrollear
+            para llegar a lo único que la pantalla existe para hacer. Es la
+            tercera vez que se rompe el pliegue y la primera que lo agarra una
+            medición en vez de una persona.
+            El botón se queda: entrenar un día de más está permitido. Lo que se
+            va es la lista de lo que hoy no toca. */}
+        {esDiaDeEntrenar && !esDiaDeFuelle && (
         <div className="registro mt-3">
           {bloques.map(({ patron, avance, ejercicio, antes }) => {
             const cadena = cadenaDe(patron)
@@ -379,6 +395,7 @@ export function Hoy() {
             )
           })}
         </div>
+        )}
 
         {vispera?.abre && (
           <p className="mt-4 max-w-[40ch] text-sm leading-relaxed text-[var(--color-glosa)]">

@@ -44,6 +44,24 @@ export function diasEntre(desde: string, hasta: string): number {
   return Math.round((aFecha(hasta).getTime() - aFecha(desde).getTime()) / 86_400_000)
 }
 
+/**
+ * Las sesiones que caen dentro de la ventana rodante que termina hoy.
+ *
+ * Estaba escrito adentro de `adherencia()` y se sacó acá cuando el mapa
+ * muscular necesitó la misma ventana: dos copias del predicado son dos lugares
+ * donde alguien puede escribir `<=` en vez de `<` y que las dos pantallas digan
+ * cosas distintas del mismo mes.
+ *
+ * El día 28 exacto queda AFUERA, que es lo que hace que la ventana tenga
+ * veintiocho días y no veintinueve.
+ */
+export function enLaVentana(sesiones: Sesion[], hoy: string, dias = VENTANA_DIAS): Sesion[] {
+  return sesiones.filter((s) => {
+    const paso = diasEntre(s.fecha, hoy)
+    return paso >= 0 && paso < dias
+  })
+}
+
 export interface Adherencia {
   /** Sesiones hechas dentro de la ventana. */
   hechas: number
@@ -73,11 +91,7 @@ export function adherencia(
 ): Adherencia {
   const meta = Math.max(1, Math.round((metaSemanal * VENTANA_DIAS) / 7))
 
-  const dentro = sesiones.filter((s) => {
-    const dias = diasEntre(s.fecha, hoy)
-    return dias >= 0 && dias < VENTANA_DIAS
-  })
-  const hechas = new Set(dentro.map((s) => s.fecha)).size
+  const hechas = new Set(enLaVentana(sesiones, hoy).map((s) => s.fecha)).size
 
   const semanasActivas = semanasDeUso(sesiones, hoy)
   const creditos = Math.min(CREDITOS_MAXIMOS, Math.floor(semanasActivas))
