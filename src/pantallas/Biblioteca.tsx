@@ -20,9 +20,32 @@ export function Biblioteca() {
     <>
       <Rotulo>BIBLIOTECA</Rotulo>
       <p className="mt-2 max-w-[40ch] text-xs leading-relaxed text-[var(--color-glosa)]">
-        Treinta y nueve ejercicios en cuatro cadenas, de más accesible a más exigente. El eslabón
+        Cuarenta y siete ejercicios en cinco cadenas, de más accesible a más exigente. El eslabón
         donde estás va marcado.
       </p>
+
+      {/* El reloj entra por acá y no por Hoy, y es una decisión medida, no una
+          preferencia: en un 360×640, un día de entrenar, `Empezar` queda con
+          **exactamente 12 px** de aire sobre la barra —el mínimo— y con un día
+          de "las dos" también. No hay lugar para un renglón más en Hoy, y la
+          regla del pliegue ya se rompió dos veces. El número lo mide
+          `pliegue.mjs`, que desde este cambio fuerza el día alto en vez de
+          medir el día que le toque correr.
+
+          Acá además pertenece: esta es la pantalla de los ejercicios, y un
+          tabata es elegir ejercicios y arrancar. */}
+      <Link to="/reloj" className="registro mt-6 block">
+        <div className="fila-pulsable">
+          <span className="canal">◷</span>
+          <span className="min-w-0">
+            <span className="nombre block">El reloj</span>
+            <span className="mt-0.5 block text-xs leading-relaxed text-[var(--color-glosa)]">
+              Tabata, EMOM y otros intervalos, con los ejercicios que elijas.
+            </span>
+          </span>
+          <span className="rotulo">4 min</span>
+        </div>
+      </Link>
 
       {CADENAS.map((cadena) => {
         const avance = avances.get(cadena.patron)

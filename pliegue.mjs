@@ -12,12 +12,18 @@
  *
  * Mide tres cosas, las tres con `boundingBox()` y no con el ojo:
  *
- *   1. `Empezar` con aire suficiente sobre la barra, en tres teléfonos.
+ *   1. `Empezar` con aire suficiente sobre la barra, en tres teléfonos, con
+ *      hoy puesto como día de entrenar: es el estado alto, y el que ya se
+ *      rompió. Un día de descanso sobran 188 px y uno de entrenar quedan 12.
  *   2. Los botones del descanso —`+30 s` y `Saltear`— adentro de la pantalla.
  *      Esta es la que decide si el aviso de "qué viene después" se queda en el
  *      descanso o se va: esa pantalla ya estaba a pocos píxeles del borde.
  *   3. La grilla de la semana en Ajustes, sin desborde y con las filas
  *      alcanzables con el dedo.
+ *   4. El reloj: la pantalla de elegir sin desborde a lo ancho, y la PAUSA
+ *      entera adentro de la pantalla. La pausa dura diez segundos y nadie
+ *      scrollea con las manos en el piso: si la cuenta queda abajo del borde,
+ *      no existe.
  *
  * Uso: npm run build && npx vite preview --port 4173, y después `node pliegue.mjs`.
  */
@@ -103,6 +109,36 @@ async function quienDesborda(p) {
   })
 }
 
+/**
+ * Hoy, puesto como día de entrenar antes de medirlo.
+ *
+ * Sin esto el portón medía el día que le tocara correr. Con la rutina por
+ * defecto —lunes, miércoles y viernes— un martes Hoy no dibuja las cuatro filas
+ * de las cadenas y sobran 188 px de aire; un miércoles sí las dibuja y quedan
+ * **12, que es exactamente el mínimo**. O sea que el portón pasaba cinco días
+ * de cada siete sin mirar el único caso que puede romperse, y la regresión que
+ * ya ocurrió dos veces es justo esa.
+ *
+ * Medido en 360×640: día de fuerza, 12 px; día de "las dos", 12 px también. No
+ * hay lugar para un renglón más en Hoy, y por eso la fila del reloj se quedó en
+ * Cadenas.
+ */
+async function ponerDiaDeEntrenar(p) {
+  const DIAS = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado']
+  const hoy = DIAS[new Date().getDay()]
+  await p.goto(`${BASE}/#/ajustes`, { waitUntil: 'networkidle' })
+  await p.waitForTimeout(500)
+  const fila = p.getByRole('button', { name: new RegExp(hoy) })
+  // El ciclo es descanso → fuerza → las dos → fuelle, así que en tres toques se
+  // llega desde cualquier estado. Se para en "las dos", que es el más alto.
+  for (let i = 0; i < 4; i++) {
+    if (/LAS DOS/i.test(await fila.innerText().catch(() => ''))) return true
+    await fila.click()
+    await p.waitForTimeout(250)
+  }
+  return /LAS DOS/i.test(await fila.innerText().catch(() => ''))
+}
+
 async function medirHoy(p, telefono) {
   // El ofrecimiento del fuelle se cierra: su fila también ocupa alto, y se mide
   // el estado en el que la app se abre veinte veces por semana, no el del
@@ -165,14 +201,43 @@ async function medirDescanso(p, telefono) {
 
   // El descanso del MEDIO: el que esta entrega no tocó, y el más alto de los
   // dos porque lleva la indicación de técnica, que ocupa hasta tres renglones.
+  //
+  // Se mide en sus DOS formas, porque desde que el portón fuerza un día de "las
+  // dos" el descanso arranca con ráfaga y la forma con ráfaga no es la más
+  // alta. Primero como viene, y después con la ráfaga salteada —"Hoy no", que
+  // la apaga para el resto de la sesión— que es la forma con Lyra y la
+  // indicación de técnica. La vara es la peor de las dos.
   await anotar()
-  const medio = await fondoDeLosBotones()
+  const medioConRafaga = await fondoDeLosBotones()
+
+  // "Hoy no" saltea ESA ráfaga y no las de la sesión: `rafagaSalteada` se
+  // reinicia cuando arranca cada descanso. Medido, porque lo había supuesto al
+  // revés y el portón acusó a la app de no mostrar un aviso que sí mostraba.
+  const saltearRafaga = async () => {
+    const hoyNo = p.getByRole('button', { name: 'Hoy no', exact: true })
+    if (!(await hoyNo.isVisible().catch(() => false))) return false
+    await hoyNo.click()
+    await p.waitForTimeout(400)
+    return true
+  }
+
+  await saltearRafaga()
+  const medioConLyra = await fondoDeLosBotones()
+  const medio =
+    medioConRafaga === null || medioConLyra === null
+      ? (medioConLyra ?? medioConRafaga)
+      : Math.max(medioConRafaga, medioConLyra)
 
   await p.getByRole('button', { name: 'Saltear', exact: true }).click()
   await p.waitForTimeout(300)
 
-  // Y el ÚLTIMO, que es el que ahora lleva el aviso de lo que viene.
+  // Y el ÚLTIMO, que es el que lleva el aviso de lo que viene. Se le saltea la
+  // ráfaga para medir la forma alta —Lyra, la frase y el aviso— que es la que
+  // puede empujar los botones abajo del borde. Que el aviso aparezca también
+  // durante el tramo de ráfaga es otra pregunta, y la respuesta es que no va
+  // ahí: lo verifica `despues.mjs` esperando a que el tramo termine.
   await anotar()
+  await saltearRafaga()
   const ultimo = await fondoDeLosBotones()
 
   if (medio === null || ultimo === null) {
@@ -266,6 +331,85 @@ async function medirSemana(p, telefono) {
   }
 }
 
+async function medirReloj(p, telefono) {
+  await p.goto(`${BASE}/#/reloj`, { waitUntil: 'networkidle' })
+  await p.waitForTimeout(600)
+
+  // La pantalla de elegir SÍ puede scrollear —cuatro formatos con su nota y
+  // trece ejercicios no entran en 568 px y no tienen por qué— pero no puede
+  // desbordar a lo ancho: las notas son el texto más largo de la app.
+  const ancho = await p.evaluate(() => document.documentElement.scrollWidth)
+  if (ancho > telefono.width + 1) {
+    const quien = await quienDesborda(p)
+    culpar(
+      telefono,
+      `[${telefono.nombre}] El reloj desborda a lo ancho: ${ancho} px en ${telefono.width}. Lo empuja ${quien?.que ?? 'algo que ya no está'}.`,
+    )
+  }
+
+  const filaTabata = p.getByRole('button', { name: /Tabata/ })
+  const caja = await filaTabata.boundingBox()
+  if (caja) {
+    medidas.push(`[${telefono.nombre}] Reloj · la fila de un formato mide ${Math.round(caja.height)} px de alto.`)
+    if (caja.height < 44) {
+      culpar(
+        telefono,
+        `[${telefono.nombre}] La fila del formato mide ${Math.round(caja.height)} px: por debajo de los 44 del mínimo táctil.`,
+      )
+    }
+  }
+
+  // Y la PAUSA, que es el estado más alto del reloj corriendo: el arco, lo que
+  // viene y la cuenta. Acá el scroll no es una opción —nadie scrollea con las
+  // manos en el piso— así que tiene que entrar entera. Son treinta segundos de
+  // espera porque el arco representa tiempo real y no hay forma de apurarlo.
+  const primero = p.getByRole('button', { name: /Flexiones/ }).first()
+  if (!(await primero.isVisible().catch(() => false))) {
+    culpar(telefono, `[${telefono.nombre}] No se encontró ningún ejercicio para elegir en el reloj.`)
+    return
+  }
+  await primero.click()
+  await p.getByRole('button', { name: 'Empezar', exact: true }).click()
+  await p.waitForTimeout(32_000)
+
+  if (!(await p.getByText('AFLOJÁ').isVisible().catch(() => false))) {
+    culpar(telefono, `[${telefono.nombre}] Treinta y dos segundos después de empezar, el reloj no estaba en la pausa.`)
+    return
+  }
+
+  // Medir el fondo de `main` no servía: `main` lleva `flex-1`, así que su caja
+  // llega siempre al borde y el número daba "568 de 568" en los tres teléfonos,
+  // que es la clase de medición que parece tranquilizadora y no mide nada. Lo
+  // que importa es si la página necesita scroll y dónde termina el botón de
+  // sumar, que es lo último que se dibuja y lo que hay que poder tocar.
+  const alto = await p.evaluate(() => document.documentElement.scrollHeight)
+  const mas = await p.getByRole('button', { name: 'Sumar' }).boundingBox()
+  const fondo = mas ? Math.round(mas.y + mas.height) : null
+  medidas.push(
+    `[${telefono.nombre}] Reloj · la pausa ocupa ${alto} px de ${telefono.height}; sumar termina en ${fondo ?? 'ninguna parte'}.`,
+  )
+  if (fondo === null) {
+    culpar(telefono, `[${telefono.nombre}] En la pausa del reloj no hay con qué contar la vuelta.`)
+  } else if (fondo > telefono.height || alto > telefono.height + 1) {
+    culpar(
+      telefono,
+      `[${telefono.nombre}] La pausa del reloj no entra: ocupa ${alto} px y sumar termina en ${fondo}, de ${telefono.height}. Nadie scrollea en una pausa de diez segundos.`,
+    )
+  }
+
+  const anchoCorriendo = await p.evaluate(() => document.documentElement.scrollWidth)
+  if (anchoCorriendo > telefono.width + 1) {
+    const quien = await quienDesborda(p)
+    culpar(
+      telefono,
+      `[${telefono.nombre}] El reloj corriendo desborda a lo ancho: ${anchoCorriendo} px. Lo empuja ${quien?.que ?? 'algo que ya no está'}.`,
+    )
+  }
+
+  await p.getByRole('button', { name: 'Salir', exact: true }).click()
+  await p.waitForTimeout(300)
+}
+
 const navegador = await chromium.launch({ executablePath: CHROMIUM })
 
 for (const telefono of TELEFONOS) {
@@ -281,11 +425,20 @@ for (const telefono of TELEFONOS) {
   // los otros dos, que es justo cuando una regresión se escapa.
   try {
     await alta(pagina)
+    if (!(await ponerDiaDeEntrenar(pagina))) {
+      culpar(
+        telefono,
+        `[${telefono.nombre}] No se pudo poner hoy como día de entrenar, así que lo que se midió en Hoy no es el caso alto.`,
+      )
+    }
+    await pagina.goto(`${BASE}/#/`, { waitUntil: 'networkidle' })
+    await pagina.waitForTimeout(600)
     await medirHoy(pagina, telefono)
     await medirSemana(pagina, telefono)
     await pagina.goto(`${BASE}/#/`, { waitUntil: 'networkidle' })
     await pagina.waitForTimeout(400)
     await medirDescanso(pagina, telefono)
+    await medirReloj(pagina, telefono)
   } catch (e) {
     fallos.push(`[${telefono.nombre}] El recorrido se cortó: ${e.message.split('\n')[0]}`)
   }

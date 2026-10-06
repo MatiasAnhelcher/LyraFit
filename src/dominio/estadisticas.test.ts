@@ -305,3 +305,50 @@ describe('la serie de cierre no cuenta como capacidad, pero sí como trabajo', (
     expect(repeticionesDeSesion(malDia)).toBe(19)
   })
 })
+
+describe('el reloj es trabajo, no una medida de capacidad', () => {
+  /** Una sesión de reloj: cuatro vueltas de veinte segundos del mismo ejercicio. */
+  function tabata(fecha: string, ejercicioId: string, logros: number[]): Sesion {
+    const base = sesion(fecha, ejercicioId, logros)
+    return {
+      ...base,
+      tipo: 'reloj',
+      registros: base.registros.map((r) => ({ ...r, reloj: true as const })),
+    }
+  }
+
+  it('no es "la vez pasada": la vara la pone la última sesión de verdad', () => {
+    // Es el dato más usado de la app —el número que aparece al lado de cada
+    // casillero— y si lo pusiera un tabata, la próxima sesión compararía tres
+    // series completas contra vueltas de veinte segundos.
+    const historial = [
+      sesion('2026-09-01', 'flexion-completa', [12, 11, 10]),
+      tabata('2026-09-03', 'flexion-completa', [9, 8, 7, 7]),
+    ]
+    const vara = laVezPasada(historial, 'flexion-completa', '2026-09-04')
+    expect(vara?.fecha).toBe('2026-09-01')
+    expect(vara?.logros).toEqual([12, 11, 10])
+  })
+
+  it('no entra en el histórico ni en el récord', () => {
+    const historial = [
+      sesion('2026-09-01', 'flexion-completa', [12, 11, 10]),
+      tabata('2026-09-03', 'flexion-completa', [9, 8, 7, 7]),
+    ]
+    expect(historicoDeEjercicio(historial, 'flexion-completa')).toHaveLength(1)
+    expect(recordDe(historial, 'flexion-completa')).toBe(12)
+  })
+
+  it('no entra en la curva de fuerza', () => {
+    const historial = [tabata('2026-09-03', 'flexion-completa', [9, 8, 7, 7])]
+    expect(curvaDeFuerza(historial, 'empuje')).toEqual([])
+  })
+
+  it('pero sí cuenta como volumen: cuatro vueltas son cuatro series', () => {
+    // Acá no se saltea nada, y es deliberado: el mapa muscular cuenta series, y
+    // veinte segundos de flexiones con el pulso a ciento ochenta son trabajo.
+    const t = tabata('2026-09-03', 'flexion-completa', [9, 8, 7, 7])
+    expect(seriesDeSesion(t)).toBe(4)
+    expect(seriesPorPatron(t).empuje).toBe(4)
+  })
+})

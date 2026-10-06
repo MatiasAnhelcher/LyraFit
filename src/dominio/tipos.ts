@@ -132,6 +132,15 @@ export interface RegistroEjercicio {
    * ejercicio equivocado en las sesiones más completas.
    */
   bajada?: true
+  /**
+   * El reloj: las vueltas de un tabata o de otro intervalo.
+   *
+   * Se marca por lo mismo que `bajada`, y con una razón propia: veinte segundos
+   * de flexiones con el pulso a ciento ochenta son trabajo real —cuentan como
+   * volumen y los músculos los reciben— pero no son una medida de capacidad.
+   * La curva de fuerza los saltea; el mapa muscular los cuenta.
+   */
+  reloj?: true
 }
 
 /**
@@ -148,7 +157,7 @@ export interface RegistroEjercicio {
  * corta, del otro lado: permite entrenar cinco días sin que el motor lea como
  * pérdida de capacidad lo que en realidad es no haber descansado.
  */
-export type TipoSesion = 'plan' | 'corta' | 'vuelta' | 'fuelle'
+export type TipoSesion = 'plan' | 'corta' | 'vuelta' | 'fuelle' | 'reloj'
 
 /** Una sesión de entrenamiento completa. */
 /**

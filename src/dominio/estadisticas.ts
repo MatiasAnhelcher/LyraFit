@@ -126,6 +126,10 @@ export function historicoDeEjercicio(
   for (const sesion of [...sesiones].sort((a, b) => a.fecha.localeCompare(b.fecha))) {
     for (const registro of sesion.registros) {
       if (registro.ejercicioId !== ejercicioId) continue
+      // El reloj no entra en el histórico: una vuelta de veinte segundos y una
+      // serie de tres minutos son el mismo ejercicio y no la misma medida, y
+      // mezclarlas haría caer la línea el día que hiciste un tabata.
+      if (registro.reloj) continue
       const logros = sinCierre(registro.series).map((s) => s.logrado)
       if (logros.length === 0) continue
       puntos.push({
@@ -180,6 +184,12 @@ export function laVezPasada(
   for (const sesion of ordenadas) {
     for (const registro of sesion.registros) {
       if (registro.ejercicioId !== ejercicioId) continue
+      // Y el reloj tampoco es "la vez pasada". Es el dato más usado de la app
+      // —la vara que aparece al lado de cada casillero— y si la vara la pusiera
+      // un tabata, la próxima sesión compararía tres series completas contra
+      // cuatro vueltas de veinte segundos. La vara tiene que ser la última vez
+      // que hiciste ESTO, no la última vez que lo hiciste contra el reloj.
+      if (registro.reloj) continue
       const logros = sinCierre(registro.series)
         .map((s) => s.logrado)
         .filter((n) => n > 0)
@@ -248,6 +258,10 @@ export function curvaDeFuerza(sesiones: Sesion[], patron: Patron): PuntoDeFuerza
       // del día aunque el índice le dé más alto, y darle el punto atribuiría la
       // sesión al ejercicio equivocado.
       if (registro.bajada) continue
+      // Y el reloj tampoco: veinte segundos a fondo con recuperación
+      // incompleta son trabajo real, pero no una medida de lo que podés mover.
+      // Meterlo en la curva haría subir la línea en un día que midió otra cosa.
+      if (registro.reloj) continue
 
       const mejor = Math.max(0, ...sinCierre(registro.series).map((s) => s.logrado))
       if (mejor <= 0) continue

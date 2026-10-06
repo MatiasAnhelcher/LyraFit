@@ -231,6 +231,40 @@ lugar donde se puede editar el propio progreso, y el motor deja de medir nada.
 
 ---
 
+## 7 bis. El reloj — **hecho**
+
+No estaba en este plan: lo pidió el dueño en el medio y entró en el día. Vale
+anotar por qué queda del lado de "superar a CA" y no del de "ponerse a la par",
+porque CA tiene un cronómetro de intervalos y casi todas las apps también.
+
+Lo que lo hace otra cosa:
+
+- **El tabata es el tabata.** 20/10 × 8, el protocolo de Tabata (1996), con el
+  nombre usado por lo que significa y no como sinónimo de "algo con
+  intervalos". Los otros tres formatos están nombrados por lo que son: `40 y
+  20`, `30 y 30`, `EMOM`.
+- **El puntaje es la peor vuelta, y es por ejercicio.** No el total ni el
+  promedio: un total premia salir a lo loco y apagarse en la quinta. Y con
+  rotación hay un puntaje por ejercicio, porque el mínimo entre flexiones y
+  sentadillas no es un puntaje, es la noticia de que las flexiones son más
+  duras. Esto último no lo hace nadie.
+- **La voz canta los cambios.** Es el único canal que sirve con el pulso a
+  ciento ochenta y las manos en el piso. Nombra el ejercicio —no dice "ya"—
+  porque en una rotación el cambio es lo único que no se puede adivinar.
+- **No le habla al motor.** Se guarda con `tipo: 'reloj'` y queda afuera de la
+  curva de fuerza, de "la vez pasada", del histórico y de los récords. Sí
+  cuenta como volumen para el mapa muscular, que es lo que de verdad es. Una
+  app que lee veinte segundos cerca del fallo como una medida de capacidad te
+  baja de eslabón por series que nadie pidió.
+- **La última vuelta se puede contar.** No tiene pausa —y no debería tenerla—
+  así que se cuenta en la pantalla del final. Es la vuelta más dura, la que
+  suele SER el puntaje, y en la primera versión quedaba siempre sin contar.
+
+Y una medición que vale escrita, porque cierra una pregunta que vuelve: la fila
+del reloj **no entra en Hoy**. En 360×640, un día de entrenar, `Empezar` queda
+con 12 px de aire sobre la barra, que es exactamente el mínimo. El reloj se
+entra desde Cadenas.
+
 ## 8. El orden
 
 Cada paso deja algo usable y ninguno depende de que el siguiente exista.

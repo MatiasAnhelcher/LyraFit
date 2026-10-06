@@ -259,6 +259,113 @@ if (!(await filaDeVoz.isVisible().catch(() => false))) {
   }
 }
 
+// ── 6. En sesión densa el aviso también llega ─────────────────────────────
+//
+// La sesión densa es el modo que el dueño eligió para sus días de "las dos", y
+// ahí los descansos se llenan de ráfagas. Durante el tramo de ráfaga el aviso
+// no está, y está bien que no esté: la ráfaga ocupa el PRINCIPIO del descanso,
+// así que lo que hay que verificar es que el aviso aparezca en cuanto el tramo
+// termina, que es el tramo pegado a la serie siguiente.
+//
+// Lo escribí al revés primero —esperando el aviso durante la ráfaga— y el
+// portón del pliegue demostró que meterlo ahí cuesta 45 px en una pantalla que
+// ya termina abajo del borde.
+//
+// Va en su propio contexto, con su propia base vacía: a esta altura del
+// recorrido hay una sesión a medio hacer, y `?densa=1` la retomaría en vez de
+// empezar una densa. Eso ya me hizo perder una corrida.
+{
+  const limpio = await navegador.newContext({
+    viewport: { width: 390, height: 844 },
+    locale: 'es-AR',
+    colorScheme: 'dark',
+  })
+  const d = await limpio.newPage()
+  d.on('pageerror', (e) => fallos.push(`[densa] Error de JavaScript: ${e.message}`))
+  await alta(d)
+
+  await d.goto(`${BASE}/#/entrenar?densa=1`, { waitUntil: 'networkidle' })
+  await d.waitForTimeout(900)
+
+  const conRafaga = []
+  const sinAviso = []
+
+  /** En qué serie va y de cuántas. Lo dice el rótulo, así que no hay que suponerlo. */
+  const serieYTotal = async () => {
+    const texto = await d
+      .getByText(/SERIE \d+ DE \d+/)
+      .first()
+      .innerText({ timeout: 800 })
+      .catch(() => '')
+    const m = texto.match(/SERIE (\d+) DE (\d+)/)
+    return m ? { serie: Number(m[1]), total: Number(m[2]) } : null
+  }
+
+  // Suponer tres series era el error de la primera versión de este portón: en
+  // una sesión densa, después de cada ejercicio viene su BAJADA, que tiene dos.
+  // Así que el último descanso de la bajada caía donde el portón esperaba la
+  // pantalla de ejercicio completo, y acusaba a la app de no avisar nada.
+  for (let paso = 0; paso < 12 && conRafaga.length === 0; paso++) {
+    const siguiente = d.getByRole('button', { name: 'Siguiente ejercicio', exact: true })
+    if (await siguiente.isVisible().catch(() => false)) {
+      await siguiente.click()
+      await d.waitForTimeout(500)
+      continue
+    }
+    const antes = await serieYTotal()
+    const puedeAnotar =
+      (await d.getByRole('button', { name: 'Anotar serie', exact: true }).isVisible().catch(() => false)) ||
+      (await d.getByRole('button', { name: 'Voy', exact: true }).isVisible().catch(() => false))
+    if (!antes || !puedeAnotar) break
+
+    await anotarSerie(d)
+
+    // Si quedaba UNA serie, el descanso que acaba de abrirse es el que tiene
+    // que anunciar lo que viene.
+    if (antes.total - antes.serie === 1) {
+      const enRafaga = await d.getByText('RÁFAGA', { exact: true }).isVisible().catch(() => false)
+      const cual = `${antes.serie} de ${antes.total}${enRafaga ? ' con ráfaga' : ''}`
+      let aviso = await textoDelAviso(d)
+
+      if (enRafaga) {
+        // Se espera a que el tramo de ráfaga termine. Son treinta a cuarenta y
+        // cinco segundos y es la única forma de medir esto de verdad: el
+        // descanso representa tiempo real.
+        for (let espera = 0; espera < 70 && (await d.getByText('RÁFAGA', { exact: true }).isVisible().catch(() => false)); espera++) {
+          await d.waitForTimeout(1000)
+        }
+        aviso = await textoDelAviso(d)
+        conRafaga.push(aviso)
+      }
+      if (!aviso) sinAviso.push(cual)
+    }
+
+    const saltear = d.getByRole('button', { name: 'Saltear', exact: true })
+    if (await saltear.isVisible().catch(() => false)) {
+      await saltear.click()
+      await d.waitForTimeout(250)
+    }
+  }
+
+  if (sinAviso.length > 0) {
+    fallos.push(
+      `En sesión densa el último descanso no anunció nada después de la serie: ${sinAviso.join(', ')}.`,
+    )
+  }
+  if (conRafaga.length === 0) {
+    console.log('En esta corrida ningún último descanso cayó con ráfaga: esa rama no se midió.')
+  } else if (conRafaga.some((a) => !a)) {
+    fallos.push(
+      'Terminada la ráfaga, el descanso no mostró el aviso de lo que viene. Ese es el tramo pegado a la serie siguiente: si ahí no está, no está.',
+    )
+  } else {
+    console.log(
+      `Terminada la ráfaga, el aviso apareció: ${conRafaga.map((a) => `"${a}"`).join(', ')}.`,
+    )
+  }
+  await limpio.close()
+}
+
 await navegador.close()
 
 if (anunciado) {

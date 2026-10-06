@@ -121,6 +121,9 @@ export function esRecord(
   for (const sesion of sesiones) {
     for (const registro of sesion.registros) {
       if (registro.ejercicioId !== ejercicioId) continue
+      // Una vuelta de tabata no es una marca ni puede impedir una: la marca es
+      // la mejor serie que hiciste, y veinte segundos no son una serie.
+      if (registro.reloj) continue
       for (const serie of registro.series) {
         if (serie.logrado > mejor) mejor = serie.logrado
       }
@@ -162,6 +165,10 @@ export function hechos(
     const primeras = sesiones
       .flatMap((s) => s.registros)
       .filter((r) => {
+        // El reloj queda afuera de la línea de base: un tabata como primera
+        // referencia diría "estás moviendo un 200% más de carga", y lo único
+        // que pasó es que la primera vez fueron veinte segundos.
+        if (r.reloj) return false
         const e = ejercicios.get(r.ejercicioId)
         return e?.patron === avance.patron
       })

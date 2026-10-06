@@ -254,6 +254,27 @@ async function main() {
     await capturar(pagina, `6-biblioteca-${tema}`)
     await revisarDesborde(pagina, `Biblioteca (${tema})`)
 
+    // El reloj, en sus dos estados: la lista corta —lo que te toca hoy— y la
+    // larga, que son los cuarenta y siete y es la que puede desbordar.
+    await pagina.goto(`${BASE}/#/reloj`, { waitUntil: 'networkidle' })
+    await pagina.waitForTimeout(400)
+    await capturar(pagina, `6b-reloj-${tema}`)
+    await revisarDesborde(pagina, `El reloj (${tema})`)
+
+    const verTodos = pagina.getByRole('button', { name: 'Ver todos los ejercicios' })
+    if (!(await verTodos.isVisible().catch(() => false))) {
+      problemas.push(`No está la salida a los cuarenta y siete en el reloj (${tema})`)
+    } else {
+      await verTodos.click()
+      await pagina.waitForTimeout(400)
+      const cuantos = await pagina.locator('section .registro .fila-pulsable').count()
+      if (cuantos < 40) {
+        problemas.push(`Con "ver todos" el reloj ofrece ${cuantos} filas y la biblioteca tiene 47 (${tema})`)
+      }
+      await capturar(pagina, `6c-reloj-todos-${tema}`)
+      await revisarDesborde(pagina, `El reloj con los cuarenta y siete (${tema})`)
+    }
+
     await pagina.goto(`${BASE}/#/biblioteca/flexion-completa`, { waitUntil: 'networkidle' })
     await pagina.waitForTimeout(400)
     await capturar(pagina, `7-ficha-${tema}`)

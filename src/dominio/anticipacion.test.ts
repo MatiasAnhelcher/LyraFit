@@ -134,6 +134,24 @@ describe('récord personal', () => {
     expect(esRecord(historial, 'flexion-completa', 0)).toBe(false)
     expect(esRecord([], 'flexion-completa', 0)).toBe(false)
   })
+
+  it('una vuelta de reloj no es una marca ni puede tapar una', () => {
+    // Doce flexiones en veinte segundos no son una serie de doce. Si contaran,
+    // un tabata bueno dejaría sin récord a las series de verdad por semanas.
+    const conTabata = [
+      ...historial,
+      {
+        ...sesion('flexion-completa', [12, 11, 11, 10]),
+        id: 'tabata',
+        tipo: 'reloj' as const,
+        registros: sesion('flexion-completa', [12, 11, 11, 10]).registros.map((r) => ({
+          ...r,
+          reloj: true as const,
+        })),
+      },
+    ]
+    expect(esRecord(conTabata, 'flexion-completa', 10)).toBe(true)
+  })
 })
 
 describe('seAbreHoy', () => {

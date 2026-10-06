@@ -59,6 +59,7 @@ import {
 } from '@/dominio/siguiente'
 import { callar, configurarVoz, decir } from '@/voz'
 import { Lyra } from '@/componentes/lyra'
+import { Arco } from '@/componentes/arco'
 import { DESCANSO_DE_BAJADA, bajadaDe, minutosDeSesion } from '@/dominio/bajada'
 import {
   bloqueDeFuelle,
@@ -1099,30 +1100,19 @@ export function Entrenar() {
 }
 
 /**
- * El arco que se vacía.
+ * El aviso de lo que viene, en una línea.
  *
- * Es la animación 5 del sistema visual y la única que representa tiempo real,
- * por eso es lineal: si acelerara, mentiría. Está acá afuera porque ahora la
- * usan dos pantallas —el descanso y el bloque de fuelle— y duplicar el SVG
- * habría sido la forma más fácil de que una de las dos dejara de ser lineal sin
- * que nadie se diera cuenta. **No es una animación nueva: es la misma.**
+ * Está en un solo lugar a propósito. Antes el `<p>` estaba escrito adentro de
+ * una de las dos ramas del descanso y la otra rama quedaba sin aviso: el mismo
+ * error que duplicar el arco, con la diferencia de que acá no se ve, porque
+ * nadie mira las dos ramas en la misma sesión.
  */
-function Arco({ restante, total }: { restante: number; total: number }) {
+function Aviso({ viene, className = '' }: { viene: LoQueViene | null; className?: string }) {
+  if (!viene) return null
   return (
-    <div className="relative flex h-44 w-44 items-center justify-center">
-      <svg viewBox="0 0 100 100" className="absolute inset-0 h-full w-full">
-        <circle className="arco-descanso-fondo" cx="50" cy="50" r="46" />
-        <circle
-          className="arco-descanso"
-          cx="50"
-          cy="50"
-          r="46"
-          pathLength={1}
-          style={{ ['--resto' as string]: String(Math.max(0, restante / Math.max(total, 1))) }}
-        />
-      </svg>
-      <p className="cifra text-5xl">{comoReloj(restante)}</p>
-    </div>
+    <p className={`rotulo ${className}`} aria-live="polite">
+      después · <span className="text-[var(--color-tinta)]">{textoDeLoQueViene(viene)}</span>
+    </p>
   )
 }
 
@@ -1204,6 +1194,21 @@ function Descanso({
           <p className="mt-2 max-w-[32ch] text-center text-sm leading-relaxed text-[var(--color-glosa)]">
             {rafaga.gesto}
           </p>
+          {/* Acá NO va el aviso de lo que viene, y conviene dejar escrito por
+              qué, porque yo mismo lo agregué y lo tuve que sacar.
+
+              Primero la razón de fondo: no falta. La ráfaga ocupa el PRINCIPIO
+              del descanso —`enRafaga` se apaga cuando quedan los segundos de
+              descanso verdadero— así que al terminar el tramo esta misma
+              pantalla pasa a la rama de abajo, con Lyra y con el aviso, y se
+              queda ahí todo el tramo pegado a la serie siguiente. Medido en el
+              portón del fuelle: 150 s de descanso total, 105 de ellos con el
+              aviso puesto.
+
+              Y después la razón de píxeles, que es la que lo cierra: agregarlo
+              también en el tramo de ráfaga costaba 45 px —el renglón se parte
+              en dos— en una pantalla que en 360×640 ya termina 52 px abajo del
+              borde. `pliegue.mjs` lo midió y lo rechazó, con razón. */}
         </>
       ) : (
         texto && (
@@ -1223,12 +1228,7 @@ function Descanso({
                   teléfono más chico —el descanso del medio, con la indicación
                   de técnica de tres renglones, llega a 690 de 568— así que cada
                   píxel que se agregue acá tiene que pelearse. */}
-              {viene && (
-                <p className="rotulo mt-2" aria-live="polite">
-                  después ·{' '}
-                  <span className="text-[var(--color-tinta)]">{textoDeLoQueViene(viene)}</span>
-                </p>
-              )}
+              <Aviso viene={viene} className="mt-2" />
             </div>
           </div>
         )

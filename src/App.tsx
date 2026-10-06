@@ -5,6 +5,7 @@ import { Layout } from './componentes/Layout'
 import { Rotulo } from './componentes/ui'
 import { Hoy } from './pantallas/Hoy'
 import { Entrenar } from './pantallas/Entrenar'
+import { Reloj } from './pantallas/Reloj'
 import { Alta } from './pantallas/Alta'
 import { Estado } from './pantallas/Estado'
 import { Biblioteca } from './pantallas/Biblioteca'
@@ -85,6 +86,10 @@ export function App() {
             y mientras te das de alta tampoco. */}
         <Route path="/alta" element={<Alta />} />
         <Route path="/entrenar" element={<Entrenar />} />
+        {/* El reloj también va a pantalla completa: en un tabata la barra de
+            navegación no se toca, y lo que hay que ver tiene que ser lo único
+            que se ve. */}
+        <Route path="/reloj" element={<Reloj />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </Portero>
