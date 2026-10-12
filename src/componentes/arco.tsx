@@ -28,7 +28,9 @@ export function Arco({ restante, total }: { restante: number; total: number }) {
           style={{ ['--resto' as string]: String(Math.max(0, restante / Math.max(total, 1))) }}
         />
       </svg>
-      <p className="cifra text-5xl">{comoReloj(restante)}</p>
+      <p className="cifra text-5xl" data-prueba="reloj">
+        {comoReloj(restante)}
+      </p>
     </div>
   )
 }

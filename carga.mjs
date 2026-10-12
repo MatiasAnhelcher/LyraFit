@@ -118,7 +118,7 @@ if (!(await conDiscos.isVisible().catch(() => false))) {
   const mas = p.getByRole('button', { name: 'Más peso' })
   for (let i = 0; i < 7; i++) await mas.click()
   await p.waitForTimeout(200)
-  const puesto = await p.locator('main span.cifra.w-20').innerText().catch(() => '')
+  const puesto = await p.locator('[data-prueba="kilos"]').innerText().catch(() => '')
   notas.push(`En la barra: ${puesto}.`)
   if (!puesto.startsWith('20')) fallos.push(`Los discos quedaron en "${puesto}" y tenían que dar 20 kg`)
 }

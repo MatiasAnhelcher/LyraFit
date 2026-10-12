@@ -143,7 +143,7 @@ await alta(p)
 await p.getByRole('button', { name: /^Empezar$/ }).click()
 await p.waitForTimeout(600)
 
-const tituloActual = async () => (await p.locator('h1').first().innerText()).replace(/\n/g, ' ').trim()
+const tituloActual = async () => (await p.locator('[data-prueba="titulo-ejercicio"]').first().innerText()).replace(/\n/g, ' ').trim()
 const deQuienVengo = await tituloActual()
 
 // ── 3. El descanso del medio no puede anunciar nada ───────────────────────
@@ -204,8 +204,7 @@ if (anunciado && !ultimoDicho.toLowerCase().includes(anunciado.toLowerCase())) {
 
 // ── 2. Lo que anunció es lo que vino ──────────────────────────────────────
 const enCompleto = await p
-  .getByText(/^DESPUÉS/)
-  .locator('xpath=following-sibling::p[1]')
+  .locator('[data-prueba="lo-que-viene"]')
   .innerText()
   .catch(() => null)
 if (enCompleto && anunciado && enCompleto.trim().toLowerCase() !== anunciado.toLowerCase()) {

@@ -902,7 +902,9 @@ export function Entrenar() {
         <button onClick={() => navegar('/')} className="rotulo">
           Salir
         </button>
-        <p className="cifra text-sm text-[var(--color-glosa)]">{comoReloj(duracion)}</p>
+        <p className="cifra text-sm text-[var(--color-glosa)]" data-prueba="cronometro">
+          {comoReloj(duracion)}
+        </p>
       </header>
 
       <div className="flex gap-px px-4">
@@ -937,7 +939,12 @@ export function Entrenar() {
           {objetivo.series}
         </Rotulo>
         <div className="mt-2 flex items-start justify-between gap-3">
-          <h1 className="text-3xl font-bold leading-tight tracking-tight">{ejercicio.nombre}</h1>
+          <h1
+            className="text-3xl font-bold leading-tight tracking-tight"
+            data-prueba="titulo-ejercicio"
+          >
+            {ejercicio.nombre}
+          </h1>
           {/* El acceso a la explicación, en la sesión y no afuera. Va al lado
               del nombre porque la pregunta "¿cómo era esto?" aparece mirando el
               nombre, no buscándola en un menú. */}
@@ -1045,7 +1052,10 @@ export function Entrenar() {
             {viene && (
               <div className="mt-6" aria-live="polite">
                 <Rotulo>{rotuloDeLoQueViene(viene)}</Rotulo>
-                <p className="mt-1 max-w-[20ch] text-lg font-semibold leading-tight">
+                <p
+                  className="mt-1 max-w-[20ch] text-lg font-semibold leading-tight"
+                  data-prueba="lo-que-viene"
+                >
                   {textoDeLoQueViene(viene)}
                 </p>
               </div>
@@ -1079,7 +1089,9 @@ export function Entrenar() {
               >
                 −
               </button>
-              <p className="cifra w-32 text-center text-7xl">{propuesto}</p>
+              <p className="cifra w-32 text-center text-7xl" data-prueba="repeticiones">
+                {propuesto}
+              </p>
               <button
                 onClick={() => setPrediccion(propuesto + salto)}
                 className="cifra flex h-16 w-16 items-center justify-center text-3xl"
@@ -1111,7 +1123,9 @@ export function Entrenar() {
                   >
                     −
                   </button>
-                  <span className="cifra w-20 text-center text-lg">{kg} kg</span>
+                  <span className="cifra w-20 text-center text-lg" data-prueba="kilos">
+                    {kg} kg
+                  </span>
                   <button
                     onClick={() => ponerKg(Math.min(tope, Number((kg + pasoDeDisco).toFixed(2))))}
                     className="cifra flex h-10 w-10 items-center justify-center"
@@ -1269,7 +1283,9 @@ function Descanso({
 
       {rafaga ? (
         <>
-          <p className="mt-6 text-center text-lg font-semibold">{rafaga.nombre}</p>
+          <p className="mt-6 text-center text-lg font-semibold" data-prueba="nombre-rafaga">
+            {rafaga.nombre}
+          </p>
           <p className="mt-2 max-w-[32ch] text-center text-sm leading-relaxed text-[var(--color-glosa)]">
             {rafaga.gesto}
           </p>
@@ -1412,7 +1428,9 @@ function BloqueDeFuelle({
         <div className="mt-3">
           <Arco restante={reloj.restante} total={total} />
         </div>
-        <p className="mt-6 text-center text-lg font-semibold">{paso.rafaga.nombre}</p>
+        <p className="mt-6 text-center text-lg font-semibold" data-prueba="nombre-rafaga">
+          {paso.rafaga.nombre}
+        </p>
         {!pausando && (
           <p className="mt-2 max-w-[32ch] text-center text-sm leading-relaxed text-[var(--color-glosa)]">
             {paso.rafaga.gesto}
@@ -1450,7 +1468,12 @@ function SerieDeCierre({
     <div className="flex min-h-dvh flex-col">
       <main className="mx-auto flex w-full max-w-lg flex-1 flex-col justify-center px-4">
         <Rotulo>CIERRE</Rotulo>
-        <h1 className="mt-2 text-3xl font-bold leading-tight tracking-tight">{nombre}</h1>
+        <h1
+          className="mt-2 text-3xl font-bold leading-tight tracking-tight"
+          data-prueba="titulo-ejercicio"
+        >
+          {nombre}
+        </h1>
         <p className="cifra mt-8 text-7xl">
           {cantidad}
           {medida === 'segundos' && <span className="unidad">s</span>}

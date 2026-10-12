@@ -248,7 +248,7 @@ await p.waitForTimeout(700)
 
 const rotulo = async () => (await p.locator('.rotulo').allInnerTexts()).join(' | ')
 const reloj = async () => {
-  const t = await p.locator('main p.cifra.text-5xl').innerText()
+  const t = await p.locator('[data-prueba="reloj"]').innerText()
   const [m, s] = t.split(':').map(Number)
   return m * 60 + s
 }
@@ -276,7 +276,7 @@ if (!primerRotulo.includes('RÁFAGA')) {
   // use `text-lg` el locator machea dos elementos y Playwright revienta por
   // modo estricto, o sea que el portón falla por un motivo que no es el que
   // está midiendo.
-  const nombre = await p.locator('main section p.text-lg').first().innerText()
+  const nombre = await p.locator('[data-prueba="nombre-rafaga"]').first().innerText()
 
   // Esperar a que el tramo de ráfaga termine solo. Son cuarenta y cinco
   // segundos reales y no hay forma de acelerarlos: el arco representa tiempo

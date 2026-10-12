@@ -48,6 +48,22 @@
  * Uso: node rescate.mjs   (con `npm run preview` andando en el 4173)
  */
 
+/*
+ * EL CONTRATO `data-prueba`
+ *
+ * Los portones encuentran los elementos por `[data-prueba="…"]` y no por clase.
+ * Antes leían clases de Tailwind —`main p.cifra.w-32` para las repeticiones,
+ * `span.cifra.w-20` para los kilos, `p.cifra.text-5xl` para el reloj del
+ * descanso— y eso convertía el TAMAÑO DE LETRA en API: cambiar un `text-5xl`
+ * por un `text-6xl` rompía una medición, y el `w-32` contra `w-20` era lo
+ * único que distinguía "repeticiones" de "kilos".
+ *
+ * Con el contrato, el aspecto se puede rehacer entero sin romper una sola
+ * medición. Los nombres de los botones NO entran en el contrato a propósito:
+ * son texto que la persona lee, y buscarlos por su nombre visible es
+ * exactamente lo que hay que hacer.
+ */
+
 import { chromium } from 'playwright'
 import { readFile } from 'node:fs/promises'
 
@@ -133,7 +149,7 @@ await salteaDescanso()
 await p.waitForTimeout(300)
 
 const casilleros = () => p.locator('ul[aria-label="Series de este ejercicio"] li').allInnerTexts()
-const reloj = () => p.locator('header p').innerText()
+const reloj = () => p.locator('[data-prueba="cronometro"]').innerText()
 const enSegundos = (t) => {
   const partes = t.trim().split(':').map(Number)
   return partes.length === 3
@@ -181,7 +197,7 @@ if (await p.getByText('sesión retomada donde la dejaste').isVisible().catch(() 
 // eso: si los dos campos salen iguales, la medición volvió a ser una mentira.
 await p.getByRole('button', { name: 'Sumar' }).click()
 await p.getByRole('button', { name: 'Sumar' }).click()
-const dijo = Number(await p.locator('main p.cifra.w-32').innerText())
+const dijo = Number(await p.locator('[data-prueba="repeticiones"]').innerText())
 await p.getByRole('button', { name: 'Voy', exact: true }).click()
 await p.waitForTimeout(300)
 
@@ -191,7 +207,7 @@ if (!/hiciste/i.test(pregunta)) {
 }
 
 for (let i = 0; i < 3; i++) await p.getByRole('button', { name: 'Restar' }).click()
-const hizo = Number(await p.locator('main p.cifra.w-32').innerText())
+const hizo = Number(await p.locator('[data-prueba="repeticiones"]').innerText())
 await p.getByRole('button', { name: 'Anotar serie', exact: true }).click()
 await p.waitForTimeout(400)
 

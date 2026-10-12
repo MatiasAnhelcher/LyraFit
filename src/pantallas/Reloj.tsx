@@ -411,7 +411,7 @@ function Corriendo({
         <button onClick={alSalir} className="rotulo">
           Salir
         </button>
-        <Rotulo>
+        <Rotulo prueba="vuelta">
           {tramo.clase === 'preparacion'
             ? formato.nombre.toUpperCase()
             : `VUELTA ${tramo.vuelta + 1} DE ${formato.vueltas}`}
@@ -419,7 +419,7 @@ function Corriendo({
       </header>
 
       <main className="flex flex-1 flex-col items-center justify-center px-4 pb-8">
-        <Rotulo>{rotuloDelTramo(tramo)}</Rotulo>
+        <Rotulo prueba="rotulo-tramo">{rotuloDelTramo(tramo)}</Rotulo>
         <div className="mt-3">
           <Arco restante={reloj.restante} total={tramo.segundos} />
         </div>
@@ -651,7 +651,9 @@ function Final({
           </p>
         ) : unEjercicio ? (
           <>
-            <p className="cifra mt-2 text-7xl">{peor}</p>
+            <p className="cifra mt-2 text-7xl" data-prueba="puntaje">
+              {peor}
+            </p>
             <p className="mt-2 max-w-[34ch] text-sm leading-relaxed text-[var(--color-glosa)]">
               Tu peor vuelta, que es el puntaje que vale. No el total: un total premia salir a lo
               loco y apagarse, y esto premia sostener, que es lo que el tabata mide.

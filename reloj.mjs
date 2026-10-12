@@ -126,7 +126,7 @@ const arrancoEn = Date.now()
 await empezar.click()
 await p.waitForTimeout(400)
 
-const rotulo = () => p.locator('main p.rotulo').first().innerText().catch(() => '')
+const rotulo = () => p.locator('[data-prueba="rotulo-tramo"]').first().innerText().catch(() => '')
 
 if (!(await rotulo()).includes('PREPARATE')) {
   fallos.push(`El reloj no arranca preparando, arranca en "${await rotulo()}"`)
@@ -150,7 +150,7 @@ for (let i = 0; i < 560; i++) {
     cambios.push({ rotulo: ahora, en: Math.round((Date.now() - arrancoEn) / 1000) })
     anterior = ahora
   }
-  const cabecera = await p.locator('header p.rotulo').innerText().catch(() => '')
+  const cabecera = await p.locator('[data-prueba="vuelta"]').innerText().catch(() => '')
   const v = cabecera.match(/VUELTA (\d+)/)
   if (v) vueltasVistas.add(v[1])
   if (!dibujoVisto) dibujoVisto = await p.locator('main svg[role="img"]').isVisible().catch(() => false)
@@ -242,7 +242,7 @@ if (!(await ultimaCuenta.isVisible().catch(() => false))) {
 // sentadillas no sería un puntaje.
 const filas = await p.locator('main .registro div').count().catch(() => 0)
 notas.push(`Filas en el final: ${filas}.`)
-if (await p.locator('main p.cifra.text-7xl').isVisible().catch(() => false)) {
+if (await p.locator('[data-prueba="puntaje"]').isVisible().catch(() => false)) {
   fallos.push('Con dos ejercicios rotando muestra UN puntaje, y no hay un puntaje único que tenga sentido')
 }
 

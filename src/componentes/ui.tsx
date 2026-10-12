@@ -23,8 +23,28 @@ export const COLOR_PATRON: Record<Patron, string> = {
 }
 
 /** El rótulo de lámina: el título es una placa, no un titular. */
-export function Rotulo({ children, className = '' }: { children: ReactNode; className?: string }) {
-  return <p className={`rotulo ${className}`}>{children}</p>
+export function Rotulo({
+  children,
+  className = '',
+  prueba,
+}: {
+  children: ReactNode
+  className?: string
+  /**
+   * El nombre con el que los portones encuentran este rótulo.
+   *
+   * Existe porque hasta hoy los portones lo buscaban por clase de Tailwind
+   * —`main p.rotulo`, `main p.cifra.text-7xl`— y eso convertía el tamaño de
+   * letra en API: cambiar un `text-5xl` por un `text-6xl` rompía una medición
+   * sin que nadie lo notara hasta correrla.
+   */
+  prueba?: string
+}) {
+  return (
+    <p className={`rotulo ${className}`} data-prueba={prueba}>
+      {children}
+    </p>
+  )
 }
 
 /** El contenedor de filas regladas. Las reglas van a sangre; el texto no. */
