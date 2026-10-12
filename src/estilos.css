@@ -1079,3 +1079,28 @@
     transition-duration: 0.01ms !important;
   }
 }
+
+/* ── El cuerpo del mapa muscular ──────────────────────────────────────── */
+
+/* La silueta es la regla, no la tinta: es el papel sobre el que se pinta, y
+   tiene que leerse como contorno y no como un músculo apagado. */
+.cuerpo-silueta {
+  fill: var(--color-regla);
+  /* El contorno es lo que hace que esto se lea como un dibujo y no como una
+     mancha. Sin él, a tamaño de teléfono el cuerpo y el fondo se tocan sin
+     borde y la figura pierde el perfil. */
+  stroke: var(--color-regla-fuerte);
+  stroke-width: 0.9;
+  stroke-linejoin: round;
+}
+
+/* Y el músculo es tinta plena a tres opacidades. Sin color nuevo: los cinco de
+   gráfico son para los gráficos, y acá alcanza con cuánta tinta hay. */
+.cuerpo-musculo {
+  fill: var(--color-tinta);
+  /* Un filo apenas marcado: separa dos músculos vecinos que caen en la misma
+     intensidad, que si no se leen como una sola mancha. */
+  stroke: var(--color-tinta);
+  stroke-width: 0.4;
+  stroke-linejoin: round;
+}
