@@ -223,10 +223,11 @@ export async function cerrarSesion(entrada: CierreDeSesion): Promise<ResumenSesi
     ...(entrada.densa ? { densa: true as const } : {}),
   }
 
-  const [avances, estados, historial] = await Promise.all([
+  const [avances, estados, historial, preferencias] = await Promise.all([
     leerAvances(),
     leerEstados(),
     leerSesiones(),
+    leerPreferencias(),
   ])
 
   const hoy = fechaISO()
@@ -264,8 +265,23 @@ export async function cerrarSesion(entrada: CierreDeSesion): Promise<ResumenSesi
     const decision = siguienteAvance(
       avance,
       {
-        rendimiento: rendimientoDeSesion(registro.objetivo, registro.series),
-        tipico: logradoTipico(registro.series),
+        // El contexto es lo que deja comparar series con distinta carga. Sin
+        // peso corporal cargado en Ajustes no hay traducción posible y las
+        // cuentas quedan exactamente como estaban: `traducirAlObjetivo` lo
+        // resuelve adentro, así que acá no hay condicional que mantener.
+        rendimiento: rendimientoDeSesion(registro.objetivo, registro.series, {
+          ejercicio,
+          ...(preferencias.pesoCorporalKg !== undefined
+            ? { pesoCorporalKg: preferencias.pesoCorporalKg }
+            : {}),
+        }),
+        tipico: logradoTipico(registro.series, {
+          ejercicio,
+          objetivo: registro.objetivo,
+          ...(preferencias.pesoCorporalKg !== undefined
+            ? { pesoCorporalKg: preferencias.pesoCorporalKg }
+            : {}),
+        }),
         neutra,
         protegida: ajuste.protegida,
         ...(animo !== undefined ? { animo } : {}),

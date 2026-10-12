@@ -20,6 +20,20 @@ export interface Objetivo {
   series: number
   /** Repeticiones o segundos por serie, según la medida del ejercicio. */
   cantidad: number
+  /**
+   * Los kilos que lleva encima el objetivo, si lleva.
+   *
+   * Ausente quiere decir peso corporal pelado, que es el caso de los 47
+   * ejercicios de las cadenas, y por eso es opcional y no cero: cero sería un
+   * dato escrito y esto es la falta de dato.
+   *
+   * Está en el OBJETIVO y no solo en la serie porque `rendimientoDeSesion`
+   * compara lo logrado contra lo propuesto, y comparar seis repeticiones con
+   * veinte kilos contra diez sin nada no es medir: es restar peras de
+   * manzanas. Medido: ese caso exacto da rendimiento 0,55 y el motor baja el
+   * objetivo al día siguiente, cuando la carga real subió.
+   */
+  kg?: number
 }
 
 export interface Ejercicio {
@@ -86,6 +100,15 @@ export interface Cadena {
 export interface Serie {
   /** Repeticiones o segundos logrados. */
   logrado: number
+  /**
+   * Los kilos de ESTA serie.
+   *
+   * Hace falta además de `Objetivo.kg` porque los discos se cambian entre
+   * serie y serie —es la mitad de lo que uno hace con una barra cargable— y
+   * porque las cuentas que recorren series (`logradoTipico`, el máximo de la
+   * curva de fuerza) no ven el objetivo.
+   */
+  kg?: number
   /**
    * Lo que la persona dijo que le iba a salir, antes de hacerla.
    *
@@ -368,6 +391,24 @@ export interface Preferencias {
   altaCompletadaEn?: number
   /** Qué tiene a mano para entrenar. Filtra las cadenas que necesitan barra. */
   tieneBarra?: boolean
+  /**
+   * El peso del cuerpo, en kilos. Es el interruptor maestro de toda la carga
+   * externa, y no una comodidad.
+   *
+   * El `ccr` de cada ejercicio es una FRACCIÓN del peso del cuerpo y los
+   * discos son kilos absolutos: sin este número no hay forma de pasar veinte
+   * kilos a la escala en la que el motor mide. Mientras falte, la app se
+   * comporta exactamente como antes de que existieran los kilos.
+   */
+  pesoCorporalKg?: number
+  /** Cuánto peso puede poner en la barra cargable, en kilos. Ausente: no tiene. */
+  cargaMaximaKg?: number
+  /**
+   * El disco más chico que puede agregar. Es lo que hace que un paso de carga
+   * sea un número que existe en su casa y no una cuenta: con discos de 2,5 no
+   * se puede subir 1,8 kg por más que la fórmula lo pida.
+   */
+  pasoDeDiscoKg?: number
   /**
    * Cómo prefiere leer la adherencia: lo que lleva hecho o lo que le falta.
    * Parece un detalle y no lo es — poder elegir el encuadre de la propia

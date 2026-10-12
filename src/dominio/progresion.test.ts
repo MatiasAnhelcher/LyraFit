@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { POR_ID, cadenaDe } from './biblioteca'
+import { EJERCICIOS, POR_ID, cadenaDe } from './biblioteca'
 import { RECORTE_DE_VUELTA } from './adherencia'
 import {
   BAJA,
@@ -9,6 +9,7 @@ import {
 
   avanceInicial,
   cantidadParaCarga,
+  ccrEfectivo,
   conUnidad,
   incremento,
   indiceDeCarga,
@@ -584,5 +585,95 @@ describe('qué sesiones mueven el plan', () => {
     const d = siguienteAvance(avance, { ...evaluacion, neutra: true }, ctx, 0)
     expect(d.cambioDeNivel).toBe(false)
     expect(d.avance.senal).toBe(avance.senal)
+  })
+})
+
+describe('los kilos, que entran sin mover nada de lo que ya estaba', () => {
+  const PESO = 75
+
+  it('sin carga, el índice y su inversa dan EXACTAMENTE lo de siempre', () => {
+    // Es el candado de toda la entrega: 47 ejercicios × varias cantidades, y
+    // el resultado tiene que ser idéntico bit a bit, no parecido. Por eso
+    // `ccrEfectivo` devuelve `ejercicio.ccr` tal cual en vez de `ccr + 0/peso`:
+    // en el papel son el mismo número y en punto flotante pueden no serlo.
+    for (const ejercicio of EJERCICIOS) {
+      for (const cantidad of [1, 3, 5, 8, 12, 15, 30]) {
+        expect(indiceDeCarga(ejercicio, cantidad, undefined), ejercicio.id).toBe(
+          indiceDeCarga(ejercicio, cantidad),
+        )
+        expect(ccrEfectivo(ejercicio), ejercicio.id).toBe(ejercicio.ccr)
+        expect(ccrEfectivo(ejercicio, { kg: 0, pesoCorporalKg: PESO }), ejercicio.id).toBe(
+          ejercicio.ccr,
+        )
+        // Y sin peso corporal cargado, los kilos no pueden hacer nada: no hay
+        // forma de pasarlos a la escala del motor.
+        expect(ccrEfectivo(ejercicio, { kg: 20 }), ejercicio.id).toBe(ejercicio.ccr)
+      }
+    }
+  })
+
+  it('veinte kilos sobre una dominada suben la carga, no la bajan', () => {
+    // El modo de falla que esto evita, medido antes de arreglarlo: diez
+    // dominadas sin lastre daban índice 1,267 y seis con veinte kilos daban
+    // 1,103 — el motor leía una CAÍDA del 13% el día que la carga real subió.
+    // Con el signo del gradiente invertido, un estimador de capacidad no
+    // estima nada.
+    const dominada = POR_ID.get('dominada-completa')!
+    const sinLastre = indiceDeCarga(dominada, 10)
+    const conLastre = indiceDeCarga(dominada, 6, { kg: 20, pesoCorporalKg: PESO })
+    expect(conLastre).toBeGreaterThan(sinLastre)
+  })
+
+  it('la inversa sigue siendo la inversa con los discos puestos', () => {
+    // `recalibrar` se apoya en esta igualdad para traducir entre eslabones. Un
+    // término de carga que entre en una función y no en la otra la rompe en
+    // silencio.
+    const carga = { kg: 15, pesoCorporalKg: PESO }
+    for (const id of ['flexion-completa', 'dominada-completa', 'sentadilla-completa']) {
+      const ejercicio = POR_ID.get(id)!
+      for (const cantidad of [4, 6, 9]) {
+        const indice = indiceDeCarga(ejercicio, cantidad, carga)
+        expect(cantidadParaCarga(ejercicio, indice, carga), `${id} × ${cantidad}`).toBeCloseTo(
+          cantidad,
+          0,
+        )
+      }
+    }
+  })
+
+  it('un objetivo sin discos hecho CON discos no se lee como un fracaso', () => {
+    // El caso que motivó todo. Objetivo 3×10 a peso corporal, hecho 6-6-5 con
+    // veinte kilos. En repeticiones peladas da 0,550 y el motor baja el
+    // objetivo al día siguiente; la carga real había subido un 28%.
+    const ejercicio = POR_ID.get('dominada-completa')!
+    const objetivo = { series: 3, cantidad: 10 }
+    const series = [{ logrado: 6, kg: 20 }, { logrado: 6, kg: 20 }, { logrado: 5, kg: 20 }]
+
+    const aCiegas = rendimientoDeSesion(objetivo, series)
+    const traducido = rendimientoDeSesion(objetivo, series, { ejercicio, pesoCorporalKg: PESO })
+
+    expect(aCiegas).toBeLessThan(0.7)
+    expect(traducido).toBeGreaterThan(aCiegas)
+    expect(traducido).toBeGreaterThan(0.9)
+  })
+
+  it('una serie vacía sigue valiendo cero aunque haya discos declarados', () => {
+    // La inversa, aplicada a cero repeticiones, devuelve un número positivo.
+    // Sin el corte explícito, una serie que no se hizo se traduciría a una
+    // serie que sí.
+    const ejercicio = POR_ID.get('dominada-completa')!
+    const objetivo = { series: 3, cantidad: 10 }
+    const series = [{ logrado: 0, kg: 20 }, { logrado: 0, kg: 20 }, { logrado: 0, kg: 20 }]
+    expect(rendimientoDeSesion(objetivo, series, { ejercicio, pesoCorporalKg: PESO })).toBe(0)
+  })
+
+  it('el típico también se traduce, o la meseta bajaría el objetivo de más', () => {
+    const ejercicio = POR_ID.get('flexion-completa')!
+    const objetivo = { series: 3, cantidad: 12 }
+    const series = [{ logrado: 8, kg: 10 }, { logrado: 8, kg: 10 }, { logrado: 7, kg: 10 }]
+    const pelado = logradoTipico(series)
+    const traducido = logradoTipico(series, { ejercicio, objetivo, pesoCorporalKg: PESO })
+    expect(pelado).toBe(8)
+    expect(traducido).toBeGreaterThan(pelado)
   })
 })

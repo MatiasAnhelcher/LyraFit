@@ -123,13 +123,75 @@ export function conUnidad(medida: Medida, cantidad: number): string {
  *
  * Se topea en 1,25 para que una sesión extraordinaria no tape dos malas.
  */
-export function rendimientoDeSesion(objetivo: Objetivo, series: Serie[]): number {
+/**
+ * Lo que hace falta saber para comparar series con distinta carga: de qué
+ * ejercicio son y cuánto pesa la persona.
+ *
+ * Es opcional en todos lados. Sin contexto, las cuentas son exactamente las de
+ * siempre — y hay un test que verifica que "exactamente" sea literal.
+ */
+export interface ContextoDeCarga {
+  ejercicio: Ejercicio
+  pesoCorporalKg?: number
+  /** El objetivo contra el que se traduce. Lo usa `logradoTipico`, que no lo recibe. */
+  objetivo?: Objetivo
+}
+
+/**
+ * Una serie, traducida a repeticiones del objetivo.
+ *
+ * Es la pieza que impide el peor error que la carga externa puede causar.
+ * Medido: objetivo de 3×10 fijado sin discos, hecho 6-6-5 con veinte kilos. En
+ * repeticiones peladas eso da rendimiento 0,550 y el motor BAJA el objetivo al
+ * día siguiente, cuando lo que pasó es que la carga subió un 28%. Traducido,
+ * las seis repeticiones con veinte kilos valen lo que valen.
+ *
+ * La traducción pasa por el índice de carga, que es la única escala de esta
+ * app en la que dos esfuerzos distintos son comparables, y usa la inversa
+ * exacta para volver. Si no hay con qué traducir —sin peso corporal, o cuando
+ * la serie tiene la misma carga que el objetivo— devuelve lo logrado tal cual.
+ */
+function traducirAlObjetivo(
+  serie: Serie,
+  objetivo: Objetivo | undefined,
+  contexto: ContextoDeCarga | undefined,
+): number {
+  const logrado = Math.max(0, serie.logrado)
+  // Cero es cero: una serie que no se hizo no se traduce, se cuenta como lo
+  // que fue. Sin esto, la inversa le devolvería un número positivo a una serie
+  // vacía, que es la clase de error que nadie encuentra mirando.
+  if (logrado <= 0) return 0
+  if (!contexto) return logrado
+
+  const peso = contexto.pesoCorporalKg
+  const kgObjetivo = objetivo?.kg ?? 0
+  const kgSerie = serie.kg ?? kgObjetivo
+  if (!peso || kgSerie === kgObjetivo) return logrado
+
+  const indice = indiceDeCarga(contexto.ejercicio, logrado, {
+    kg: kgSerie,
+    pesoCorporalKg: peso,
+  })
+  const equivalente = cantidadParaCarga(contexto.ejercicio, indice, {
+    kg: kgObjetivo,
+    pesoCorporalKg: peso,
+  })
+  return Math.max(0, equivalente)
+}
+
+export function rendimientoDeSesion(
+  objetivo: Objetivo,
+  series: Serie[],
+  contexto?: ContextoDeCarga,
+): number {
   const propuesto = objetivo.series * objetivo.cantidad
   if (propuesto <= 0 || objetivo.cantidad <= 0) return 0
 
   // La serie de cierre no opina. Se filtra acá y no en la pantalla para que
   // proteja a todos los que llaman, incluida la proyección del alta.
-  const logrados = series.filter((s) => !s.cierre).map((s) => Math.max(0, s.logrado))
+  const logrados = series
+    .filter((s) => !s.cierre)
+    .map((s) => traducirAlObjetivo(s, objetivo, contexto))
   const volumen = logrados.reduce((suma, n) => suma + n, 0)
 
   // Las series que faltaron cuentan como cero, así que abandonar a la mitad
@@ -145,10 +207,10 @@ export function rendimientoDeSesion(objetivo: Objetivo, series: Serie[]): number
 }
 
 /** La cantidad típica que se logró, para saber a qué bajar cuando hay meseta. */
-export function logradoTipico(series: Serie[]): number {
+export function logradoTipico(series: Serie[], contexto?: ContextoDeCarga): number {
   const logrados = series
     .filter((s) => !s.cierre)
-    .map((s) => Math.max(0, s.logrado))
+    .map((s) => traducirAlObjetivo(s, contexto?.objetivo, contexto))
     .sort((a, b) => a - b)
   if (logrados.length === 0) return 0
   const medio = Math.floor(logrados.length / 2)
@@ -202,6 +264,40 @@ export function fraccionDelMaximo(medida: Medida, cantidad: number): number {
 }
 
 /**
+ * La carga externa de una serie o de un objetivo: los discos puestos y el peso
+ * del cuerpo con el que se los compara.
+ *
+ * Van juntos a propósito. Los kilos solos no significan nada en la escala del
+ * motor —el `ccr` es una fracción del peso corporal— y el peso corporal solo
+ * no agrega información. Si falta cualquiera de los dos, no hay carga.
+ */
+export interface CargaExterna {
+  kg?: number
+  pesoCorporalKg?: number
+}
+
+/**
+ * El `ccr` con los discos puestos.
+ *
+ * `ccr` es la fracción del peso del cuerpo que mueve el ejercicio, y un disco
+ * es peso absoluto, así que la suma es directa: veinte kilos sobre una persona
+ * de setenta y cinco son 0,267 de peso corporal, y una dominada de 0,95 pasa a
+ * ser 1,217.
+ *
+ * **La salida temprana devuelve `ejercicio.ccr` tal cual, no una expresión
+ * equivalente.** No es una optimización: `ccr + 0 / 75` y `ccr` son el mismo
+ * número en el papel y pueden no serlo en punto flotante, y toda la app está
+ * llena de igualdades pineadas sobre estos valores. Sin carga, nada cambia, y
+ * "nada" quiere decir ni un bit.
+ */
+export function ccrEfectivo(ejercicio: Ejercicio, carga?: CargaExterna): number {
+  const kg = carga?.kg
+  const peso = carga?.pesoCorporalKg
+  if (!kg || !peso || kg <= 0 || peso <= 0) return ejercicio.ccr
+  return ejercicio.ccr + kg / peso
+}
+
+/**
  * El índice de carga: cuánto está levantando esta persona, en una escala
  * comparable entre ejercicios distintos.
  *
@@ -213,20 +309,41 @@ export function fraccionDelMaximo(medida: Medida, cantidad: number): number {
  *
  * Es una estimación y la app lo dice: no es una medición del cuerpo de nadie.
  */
-export function indiceDeCarga(ejercicio: Ejercicio, cantidad: number): number {
-  return ejercicio.ccr / fraccionDelMaximo(ejercicio.medida, cantidad)
+export function indiceDeCarga(
+  ejercicio: Ejercicio,
+  cantidad: number,
+  externa?: CargaExterna,
+): number {
+  return ccrEfectivo(ejercicio, externa) / fraccionDelMaximo(ejercicio.medida, cantidad)
 }
 
-/** La cantidad de este ejercicio que equivale a un índice de carga dado. */
-export function cantidadParaCarga(ejercicio: Ejercicio, carga: number): number {
+/**
+ * La cantidad de este ejercicio que equivale a un índice de carga dado.
+ *
+ * Es la inversa EXACTA de la de arriba y hay un test que lo pinea, así que el
+ * término de carga entra en las dos o en ninguna: una inversa que no invierte
+ * rompe la recalibración al cambiar de eslabón, que es la cuenta que sostiene
+ * que la curva de progreso no se desplome en el momento de mayor logro.
+ */
+export function cantidadParaCarga(
+  ejercicio: Ejercicio,
+  carga: number,
+  externa?: CargaExterna,
+): number {
   if (carga <= 0) return ejercicio.ventana.min
-  const fraccion = ejercicio.ccr / carga
+  const fraccion = ccrEfectivo(ejercicio, externa) / carga
 
   if (ejercicio.medida === 'segundos') {
     if (fraccion <= 0) return ejercicio.ventana.max
     return Math.round(REFERENCIA_ISOMETRICA / Math.pow(fraccion, 3))
   }
-  return Math.floor((1.0278 - fraccion) / 0.0278)
+  // El épsilon no es cosmética: sin él, `cantidadParaCarga(e, indiceDeCarga(e,
+  // 4))` devuelve 3. La división deja 3,999999999 y el piso se come una
+  // repetición entera. Sin carga externa el redondeo caía bien por casualidad
+  // en los valores que se usaban; con el término de kilos el `ccr` efectivo
+  // trae más decimales y la inversa dejó de invertir. Lo encontró el test de
+  // la inversa con quince kilos puestos.
+  return Math.floor((1.0278 - fraccion) / 0.0278 + 1e-9)
 }
 
 /**
