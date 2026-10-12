@@ -173,6 +173,22 @@ export function Entrenar() {
    */
   const [predicho, setPredicho] = useState<number | null>(null)
   /**
+   * Los kilos puestos, por ejercicio.
+   *
+   * Es un mapa y no un número suelto por dos razones. La primera es que cada
+   * ejercicio lleva su propia carga y una sesión pasa por varios. La segunda
+   * la encontró el portón: la primera versión era un número con un
+   * `useEffect` que lo reseteaba al cambiar de ejercicio, y ese efecto quedaba
+   * DESPUÉS de los returns tempranos de este componente —React error #310,
+   * "más hooks que en el render anterior"— así que la pantalla de entrenar
+   * crasheaba entera. Derivado de un mapa no hace falta ningún hook.
+   *
+   * Lo que no está en el mapa arranca donde quedó la vez pasada, que es la
+   * diferencia entre un toque y ocho: con discos de 2,5 kg, volver a veinte
+   * cuesta ocho toques en CADA ejercicio de CADA sesión.
+   */
+  const [kgPuestos, setKgPuestos] = useState<Record<string, number>>({})
+  /**
    * La red de contención de la sesión.
    *
    * `arrancadaEn` es de cuándo empezó de verdad, no de cuándo montó el
@@ -427,6 +443,7 @@ export function Entrenar() {
   // sonando en la pantalla siguiente, que es de otra cosa.
   useEffect(() => callar, [])
 
+
   /**
    * Un día de fuelle abierto sin el parámetro igual arranca en el bloque.
    *
@@ -589,6 +606,23 @@ export function Entrenar() {
   const enCurso = Math.min(Math.max(indice, 0), plan.length - 1)
   const paso = plan[enCurso]!
   const { ejercicio, objetivo, antes, abre, descansoSegundos, bajada } = paso
+
+  /* Los kilos arrancan donde quedaron la vez pasada. Va en un efecto y no en
+     el estado inicial porque el ejercicio cambia sin que el componente se
+     vuelva a montar, y arrancar siempre en cero costaría ocho toques por
+     ejercicio y por sesión para volver a veinte kilos. */
+  /* Los kilos del ejercicio en curso, derivados: lo que se tocó en esta
+     sesión y, si no se tocó nada, lo que se usó la vez pasada. */
+  const kg = kgPuestos[ejercicio.id] ?? antes?.kg ?? 0
+  const ponerKg = (valor: number) =>
+    setKgPuestos((previos) => ({ ...previos, [ejercicio.id]: valor }))
+
+  /* Los discos solo se ofrecen cuando hay con qué: el peso del cuerpo, que es
+     lo único que deja pasar kilos a la escala del motor, y una barra. Sin eso
+     la fila no aparece, que es lo mismo que hace la vibración en iOS. */
+  const tope = preferencias?.cargaMaximaKg ?? 0
+  const pasoDeDisco = preferencias?.pasoDeDiscoKg ?? 2.5
+  const puedeCargar = preferencias?.pesoCorporalKg !== undefined && tope > 0
   const series = hechas[ejercicio.id] ?? []
   const completo = series.length >= objetivo.series
   const esUltimo = enCurso === plan.length - 1
@@ -651,6 +685,10 @@ export function Entrenar() {
           logrado,
           ...(predicho !== undefined ? { predicho } : {}),
           ...(esCierre ? { cierre: true as const } : {}),
+          // Los kilos de ESTA serie, que es donde de verdad viven: los discos
+          // se cambian entre serie y serie. La serie de cierre va sin ellos
+          // porque es la fácil del final y se hace a peso corporal.
+          ...(kg > 0 && !esCierre ? { kg } : {}),
         },
       ],
     }))
@@ -768,6 +806,7 @@ export function Entrenar() {
     setEtapa('series')
     setPrediccion(null)
     setPredicho(null)
+    setKgPuestos({})
     setArrancadaEn(Date.now())
     setCortaRetomada(false)
     setRetomada(false)
@@ -1050,6 +1089,46 @@ export function Entrenar() {
                 +
               </button>
             </div>
+
+            {/* Los discos. Cerrado por defecto: la inmensa mayoría de los
+                ejercicios de esta app se hacen con el cuerpo y una fila de
+                kilos en todos sería mobiliario.
+
+                Los rótulos dicen "peso" y no "sumar" o "restar" a propósito:
+                `rescate.mjs` busca los botones de repeticiones por nombre y
+                sin `exact`, así que un aria-label con esas palabras le parte
+                el portón por ambigüedad. Y el número va en `w-20` y no en
+                `w-32` por lo mismo: el portón lee `main p.cifra.w-32` para
+                sacar las repeticiones. */}
+            {puedeCargar &&
+              (kg > 0 ? (
+                <div className="mt-5 flex items-center justify-center gap-3">
+                  <button
+                    onClick={() => ponerKg(Math.max(0, Number((kg - pasoDeDisco).toFixed(2))))}
+                    className="cifra flex h-10 w-10 items-center justify-center"
+                    style={{ border: '1px solid var(--color-regla)' }}
+                    aria-label="Menos peso"
+                  >
+                    −
+                  </button>
+                  <span className="cifra w-20 text-center text-lg">{kg} kg</span>
+                  <button
+                    onClick={() => ponerKg(Math.min(tope, Number((kg + pasoDeDisco).toFixed(2))))}
+                    className="cifra flex h-10 w-10 items-center justify-center"
+                    style={{ border: '1px solid var(--color-regla)' }}
+                    aria-label="Más peso"
+                  >
+                    +
+                  </button>
+                </div>
+              ) : (
+                <button
+                  onClick={() => ponerKg(pasoDeDisco)}
+                  className="rotulo mt-5 block w-full text-center underline underline-offset-4"
+                >
+                  Con discos
+                </button>
+              ))}
 
             {series.length > 0 && (
               <button

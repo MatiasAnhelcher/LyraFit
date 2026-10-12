@@ -171,6 +171,15 @@ export interface VezPasada {
   objetivo: Objetivo
   /** La mejor serie de ese día. */
   mejor: number
+  /**
+   * Los kilos que llevaba, si llevaba.
+   *
+   * Sin esto, cada sesión con barra empieza en cero y hay que tocar el más
+   * ocho veces para volver a veinte kilos — por ejercicio. El número que
+   * importa es el más alto del día: si una serie se hizo más liviana porque
+   * ya no salía, la vara sigue siendo lo que se levantó.
+   */
+  kg?: number
 }
 
 export function laVezPasada(
@@ -194,12 +203,16 @@ export function laVezPasada(
         .map((s) => s.logrado)
         .filter((n) => n > 0)
       if (logros.length === 0) continue
+      const kilos = sinCierre(registro.series)
+        .map((s) => s.kg ?? 0)
+        .filter((n) => n > 0)
       return {
         fecha: sesion.fecha,
         hace: diasEntre(sesion.fecha, hoy),
         logros,
         objetivo: registro.objetivo,
         mejor: Math.max(...logros),
+        ...(kilos.length > 0 ? { kg: Math.max(...kilos) } : {}),
       }
     }
   }

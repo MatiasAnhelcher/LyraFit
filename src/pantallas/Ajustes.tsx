@@ -289,6 +289,67 @@ export function Ajustes() {
       </section>
 
       <section className="mt-8">
+        <Rotulo>TU PESO Y LA BARRA</Rotulo>
+        {/* Por qué la app pregunta el peso, que es lo primero que uno se
+            pregunta cuando una app de ejercicio lo pide.
+
+            El `ccr` de cada ejercicio es una FRACCIÓN del peso del cuerpo, y
+            un disco son kilos absolutos. Sin este número no hay forma de pasar
+            veinte kilos a la escala en la que el motor mide, y la app no
+            podría leer una serie con lastre sin equivocarse: medido, un
+            objetivo de 3×10 hecho 6-6-5 con veinte kilos daba rendimiento 0,55
+            y el motor BAJABA el objetivo cuando la carga había subido.
+
+            Mientras no esté, nada cambia y los kilos no se ofrecen. */}
+        <p className="mt-2 max-w-[42ch] text-xs leading-relaxed text-[var(--color-glosa)]">
+          Tu peso es lo único que deja convertir los kilos de la barra a la escala en la que el
+          motor mide la carga. No se publica, no se compara con nada y no sale del teléfono. Sin
+          él, la app sigue funcionando igual que siempre y no te va a ofrecer poner discos.
+        </p>
+        <div className="registro mt-3">
+          <Numero
+            titulo="Tu peso"
+            detalle="Aproximado alcanza. Se usa solo para la cuenta de carga."
+            valor={preferencias.pesoCorporalKg}
+            unidad="kg"
+            paso={1}
+            minimo={35}
+            maximo={200}
+            vacio="sin decir"
+            onCambiar={(v) => cambiar({ pesoCorporalKg: v })}
+          />
+          {preferencias.pesoCorporalKg !== undefined && (
+            <>
+              <Numero
+                titulo="Barra cargable"
+                detalle="Hasta cuántos kilos podés ponerle, contando la barra. En cero, no tenés."
+                valor={preferencias.cargaMaximaKg}
+                unidad="kg"
+                paso={5}
+                minimo={0}
+                maximo={200}
+                vacio="no tengo"
+                onCambiar={(v) => cambiar({ cargaMaximaKg: v })}
+              />
+              {(preferencias.cargaMaximaKg ?? 0) > 0 && (
+                <Numero
+                  titulo="El disco más chico"
+                  detalle="Lo que de verdad podés agregar de una vez. Es el paso con el que va a subir la carga."
+                  valor={preferencias.pasoDeDiscoKg}
+                  unidad="kg"
+                  paso={1.25}
+                  minimo={1.25}
+                  maximo={10}
+                  vacio="2,5"
+                  onCambiar={(v) => cambiar({ pasoDeDiscoKg: v })}
+                />
+              )}
+            </>
+          )}
+        </div>
+      </section>
+
+      <section className="mt-8">
         <Rotulo>LA APP</Rotulo>
         <div className="registro mt-3">
           <Interruptor
@@ -464,6 +525,77 @@ export function Ajustes() {
         )}
       </section>
     </>
+  )
+}
+
+/**
+ * Una fila con un número que se sube y se baja.
+ *
+ * No es un campo de texto a propósito: un teclado numérico en un teléfono tapa
+ * media pantalla para escribir dos dígitos, y acá los dos únicos números que
+ * se piden se mueven de a pasos conocidos. Con `vacio` la fila dice que no hay
+ * dato en vez de mostrar un cero, que sería un dato escrito.
+ */
+function Numero({
+  titulo,
+  detalle,
+  valor,
+  unidad,
+  paso,
+  minimo,
+  maximo,
+  vacio,
+  onCambiar,
+}: {
+  titulo: string
+  detalle?: string
+  valor: number | undefined
+  unidad: string
+  paso: number
+  minimo: number
+  maximo: number
+  /** Qué se lee cuando todavía no hay número. */
+  vacio: string
+  onCambiar: (v: number) => void
+}) {
+  const mover = (cuanto: number) => {
+    const base = valor ?? minimo
+    const nuevo = Math.min(maximo, Math.max(minimo, Math.round((base + cuanto) / paso) * paso))
+    onCambiar(Number(nuevo.toFixed(2)))
+  }
+  return (
+    <div>
+      <span className="canal">{valor === undefined ? '◇' : '◆'}</span>
+      <span className="min-w-0">
+        <span className="nombre block">{titulo}</span>
+        {detalle && (
+          <span className="mt-0.5 block text-xs leading-relaxed text-[var(--color-glosa)]">
+            {detalle}
+          </span>
+        )}
+      </span>
+      <span className="flex items-center gap-2">
+        <button
+          onClick={() => mover(-paso)}
+          className="cifra flex h-10 w-10 items-center justify-center"
+          style={{ border: '1px solid var(--color-regla)' }}
+          aria-label={`Bajar ${titulo.toLowerCase()}`}
+        >
+          −
+        </button>
+        <span className="cifra w-20 text-center text-sm">
+          {valor === undefined ? vacio : `${valor} ${unidad}`}
+        </span>
+        <button
+          onClick={() => mover(paso)}
+          className="cifra flex h-10 w-10 items-center justify-center"
+          style={{ border: '1px solid var(--color-regla)' }}
+          aria-label={`Subir ${titulo.toLowerCase()}`}
+        >
+          +
+        </button>
+      </span>
+    </div>
   )
 }
 
