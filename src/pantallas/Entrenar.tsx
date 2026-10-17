@@ -508,6 +508,23 @@ export function Entrenar() {
     return ajuste.factor * vuelta
   }, [estados, historial])
 
+  /**
+   * Si hay barra con discos, que es lo que decide si los accesorios existen.
+   *
+   * Extraído a su propia constante y puesto en las dependencias del memo de
+   * abajo, y eso NO es higiene: el memo leía `preferencias` sin depender de
+   * ella. En el primer render `preferencias` todavía no cargó —viene de
+   * `liveQuery`— así que el plan se armaba sin accesorios, y cuando las
+   * preferencias llegaban el memo no volvía a correr. Resultado: los
+   * accesorios con barra no aparecían NUNCA en la sesión, aunque Hoy los
+   * hubiera anunciado un segundo antes.
+   *
+   * Un booleano en vez del objeto entero porque `preferencias` cambia con
+   * cualquier ajuste, y rearmar el plan a mitad de una sesión por haber
+   * tocado el sonido sería peor que el bug.
+   */
+  const tieneBarraCargable = (preferencias?.cargaMaximaKg ?? 0) > 0
+
   /** Los ejercicios concretos de la sesión, según el avance de cada patrón. */
   const plan = useMemo(() => {
     if (!rutina || !semana || !avances) return []
@@ -523,7 +540,7 @@ export function Entrenar() {
       // sesión y la sesión sería otra, que es exactamente el bug que
       // `patronDelBloque` ya había evitado una vez.
       const resuelto = ejercicioDelBloque(bloque, avance, POR_ID, cadenaDe(bloque.patron), {
-        tieneBarraCargable: (preferencias?.cargaMaximaKg ?? 0) > 0,
+        tieneBarraCargable,
       })
       if (!resuelto || !avance) return []
       const { ejercicio, objetivo: delBloque, accesorio } = resuelto
@@ -595,7 +612,7 @@ export function Entrenar() {
         },
       ]
     })
-  }, [rutina, semana, avances, esCorta, esDensa, factor, historial, estados, tipo])
+  }, [rutina, semana, avances, esCorta, esDensa, factor, historial, estados, tipo, tieneBarraCargable])
 
   /**
    * El bloque de fuelle: una prescripción fija, no un relleno.

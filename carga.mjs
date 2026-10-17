@@ -159,18 +159,30 @@ notas.push(`Avances antes de cerrar: ${antes}.`)
  * a ese estado sin hacer quince sesiones— y se mira qué muestra Entrenar.
  */
 {
-  await conLaBase(p, ['avances'], (leer, poner) => {
-    return new Promise((listo) => {
-      const pedido = leer('avances')
-      pedido.onsuccess = () => {
-        const avances = pedido.result
-        for (const a of avances) {
-          a.objetivoActual = { ...a.objetivoActual, kg: 12.5 }
-          poner('avances', a)
-        }
-        listo(avances.length)
-      }
+  // `leer` YA devuelve una promesa —lo dice `lib/portones.mjs`— y la primera
+  // versión de esto la trataba como un IDBRequest con `onsuccess`. El
+  // resultado no fue un error claro sino una transacción que se cerraba sola
+  // y una promesa colgada: "Resulting promise was garbage collected".
+  // El borrador primero. A esta altura del portón hay una sesión a medio
+  // hacer guardada en `curso`, y Entrenar la RETOMA en vez de armar el plan
+  // desde los avances — que es exactamente lo que tiene que hacer, y lo que
+  // hace que esta medición mire la pantalla equivocada si no se limpia.
+  await p.evaluate(async () => {
+    const req = indexedDB.open('lyrafit')
+    const db = await new Promise((r) => { req.onsuccess = () => r(req.result) })
+    await new Promise((r) => {
+      const tx = db.transaction(['curso'], 'readwrite')
+      tx.objectStore('curso').clear()
+      tx.oncomplete = () => r()
     })
+  })
+
+  await conLaBase(p, ['avances'], async (leer, poner) => {
+    const avances = await leer('avances')
+    for (const a of avances) {
+      poner('avances', { ...a, objetivoActual: { ...a.objetivoActual, kg: 12.5 } })
+    }
+    return avances.length
   })
   await p.reload({ waitUntil: 'networkidle' })
   await p.goto(`${BASE}/#/entrenar`, { waitUntil: 'networkidle' })

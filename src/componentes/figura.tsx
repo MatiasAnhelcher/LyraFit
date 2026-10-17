@@ -78,38 +78,123 @@ function Apoyos({ escena, e }: { escena: Escena; e: Esqueleto }) {
   return null
 }
 
+/**
+ * El cuerpo, con GROSOR y no como alambre.
+ *
+ * El dueño miró estos dibujos y dijo que eran ridículos y que no explicaban
+ * el ejercicio. Tenía razón y la causa no estaba en los datos: las posturas
+ * —los ángulos de cada articulación— estaban bien, y eso se ve en que la
+ * silueta del movimiento es correcta en los cuarenta y siete. Lo que estaba
+ * mal era el trazo: un esqueleto de 2,6 px parejo de la cabeza al pie, que no
+ * se lee como un cuerpo sino como un diagrama de palitos.
+ *
+ * El arreglo no toca una sola coordenada. Lo que cambia es que cada segmento
+ * lleva el grosor que le corresponde —el torso casi cuatro veces el
+ * antebrazo— y que las uniones llevan un remate redondo del ancho del
+ * segmento más grueso, que es lo que convierte dos palos en una articulación
+ * en vez de en una esquina.
+ *
+ * Es la misma idea que el mapa muscular: no hacen falta ilustraciones
+ * compradas, hace falta que el dibujo tenga las proporciones de una persona.
+ */
 function Cuerpo({ e }: { e: Esqueleto }) {
-  const linea = {
-    stroke: 'var(--color-tinta)',
-    strokeWidth: 2.6,
-    strokeLinecap: 'round' as const,
-    strokeLinejoin: 'round' as const,
-    fill: 'none',
+  /*
+   * Los grosores, en fracción del alto del cuerpo.
+   *
+   * No son a ojo: salen de las proporciones del canon de dibujo, el mismo que
+   * usa `anatomia.ts` para el mapa muscular. El torso de perfil es ancho, el
+   * muslo algo menos, y el antebrazo menos de la mitad del muslo. Que esa
+   * jerarquía exista es casi todo el trabajo — un cuerpo donde el brazo mide
+   * lo mismo que el torso no se lee como un cuerpo por más bien articulado
+   * que esté.
+   */
+  const G = {
+    torso: ALTO_CUERPO * 0.105,
+    muslo: ALTO_CUERPO * 0.072,
+    pantorrilla: ALTO_CUERPO * 0.05,
+    brazo: ALTO_CUERPO * 0.052,
+    antebrazo: ALTO_CUERPO * 0.04,
+    pie: ALTO_CUERPO * 0.03,
   }
-  const d = (...ps: Punto[]) => ps.map((p, i) => `${i ? 'L' : 'M'}${p.x.toFixed(2)} ${p.y.toFixed(2)}`).join(' ')
 
-  // El lado lejano, más fino y más claro: es lo que se lee como "esto está
-  // detrás". Va primero para que el cuerpo cercano lo tape donde se cruzan.
-  const lejos = { ...linea, strokeWidth: 1.8, opacity: 0.45 }
+  const tinta = 'var(--color-tinta)'
+
+  /** Un segmento, con su grosor. Redondo en las dos puntas: ahí van las uniones. */
+  const Hueso = ({
+    de,
+    a,
+    ancho,
+    lejano = false,
+  }: {
+    de: Punto
+    a: Punto
+    ancho: number
+    lejano?: boolean
+  }) => (
+    <line
+      x1={de.x}
+      y1={de.y}
+      x2={a.x}
+      y2={a.y}
+      stroke={tinta}
+      strokeWidth={lejano ? ancho * 0.72 : ancho}
+      strokeLinecap="round"
+      opacity={lejano ? 0.42 : 1}
+    />
+  )
 
   return (
     <g>
+      {/* El lado lejano primero y más fino: es lo que se lee como "esto está
+          detrás", y va abajo para que el cuerpo cercano lo tape al cruzarse. */}
       {e.rodillaLejos && (
-        <path d={d(e.cadera, e.rodillaLejos, e.tobilloLejos!, e.puntaLejos!)} {...lejos} />
+        <>
+          <Hueso de={e.cadera} a={e.rodillaLejos} ancho={G.muslo} lejano />
+          <Hueso de={e.rodillaLejos} a={e.tobilloLejos!} ancho={G.pantorrilla} lejano />
+          <Hueso de={e.tobilloLejos!} a={e.puntaLejos!} ancho={G.pie} lejano />
+        </>
       )}
-      {e.codoLejos && <path d={d(e.hombro, e.codoLejos, e.muñecaLejos!)} {...lejos} />}
-      {/* La pierna va primero: en un cuerpo de perfil, el brazo tapa al muslo. */}
-      <path d={d(e.cadera, e.rodilla, e.tobillo, e.punta)} {...linea} />
-      <path d={d(e.cadera, e.hombro)} {...linea} />
-      <path d={d(e.hombro, e.codo, e.muñeca)} {...linea} />
-      <circle
-        cx={e.cabeza.x}
-        cy={e.cabeza.y}
-        r={ALTO_CUERPO * 0.062}
-        fill="var(--color-fondo)"
-        stroke="var(--color-tinta)"
-        strokeWidth={2.4}
-      />
+      {e.codoLejos && (
+        <>
+          <Hueso de={e.hombro} a={e.codoLejos} ancho={G.brazo} lejano />
+          <Hueso de={e.codoLejos} a={e.muñecaLejos!} ancho={G.antebrazo} lejano />
+        </>
+      )}
+
+      {/* El torso va PRIMERO de los cercanos y la pierna encima: de perfil, el
+          muslo nace por delante de la cadera y taparlo al revés deja la pierna
+          saliendo del aire. */}
+      <Hueso de={e.cadera} a={e.hombro} ancho={G.torso} />
+      <Hueso de={e.cadera} a={e.rodilla} ancho={G.muslo} />
+      <Hueso de={e.rodilla} a={e.tobillo} ancho={G.pantorrilla} />
+      <Hueso de={e.tobillo} a={e.punta} ancho={G.pie} />
+
+      {/* El cuello: un segmento corto del hombro a la cabeza. Sin él la cabeza
+          queda pegada al torso y el dibujo pierde el gesto de la mirada, que
+          en media docena de ejercicios es parte de la técnica —"mirada al
+          piso un poco adelante de las manos"—. */}
+      <Hueso de={e.hombro} a={e.cabeza} ancho={G.brazo * 0.9} />
+
+      {/* La cabeza, rellena y no hueca. Hueca sobre fondo oscuro se leía como
+          un agujero; llena es una cabeza. */}
+      <circle cx={e.cabeza.x} cy={e.cabeza.y} r={ALTO_CUERPO * 0.066} fill={tinta} />
+
+      {/*
+        EL BRAZO CERCANO VA ÚLTIMO, DESPUÉS DE LA CABEZA, y no es un detalle.
+
+        Con la cabeza encima, en todos los ejercicios de barra el brazo sube
+        desde el hombro, pasa por detrás de la cabeza y desaparece: quedaba un
+        brazo saliéndole a la persona de la coronilla. Mientras la figura era
+        un alambre no se notaba —la línea se veía cruzar el círculo hueco— y
+        al darle grosor y relleno se volvió evidente.
+
+        Al revés no pasa nada: cuando los brazos están abajo —sentadilla,
+        flexión, plancha— no tocan la cabeza, así que ninguna postura empeora.
+        Y con los brazos arriba, el brazo por delante de la cabeza es como lo
+        dibuja cualquier pictograma.
+      */}
+      <Hueso de={e.hombro} a={e.codo} ancho={G.brazo} />
+      <Hueso de={e.codo} a={e.muñeca} ancho={G.antebrazo} />
     </g>
   )
 }

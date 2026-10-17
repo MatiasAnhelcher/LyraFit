@@ -52,6 +52,16 @@ muestra cada vez que decide algo. Nada de esperar a "sentirte listo".
   el motor no te baje el objetivo por dos días malos.
 - **Progreso** con una curva de fuerza que no se corta cuando cambiás de
   ejercicio, y el mapa de dónde estás en cada cadena.
+- **Una figura que se mueve** en cada ejercicio, de una postura a la otra. Lo
+  que nadie entiende de un ejercicio no es la postura quieta —eso ya lo dice el
+  texto— sino qué se mueve y hasta dónde.
+
+  Las posturas son datos —los ángulos de cada articulación, con tests de
+  geometría— y el trazo es aparte. Durante mucho tiempo el trazo fue un
+  esqueleto de 2,6 px parejo de la cabeza al pie, y eso no se lee como un
+  cuerpo: se lee como un diagrama de palitos. Ahora cada segmento lleva el
+  grosor que le toca —el torso casi cuatro veces el antebrazo— y los cuarenta
+  y siete dibujos mejoraron sin tocar una sola coordenada.
 - **Lyra**, que es la misma criatura que vive en Grow Cosmos, traída acá y
   pasada al naranja. No es un cambio de paleta arbitrario: `--color-vega` ya era
   el acento de esta app y se llama así porque **Vega es la estrella alfa de la
@@ -75,6 +85,41 @@ muestra cada vez que decide algo. Nada de esperar a "sentirte listo".
   números, no una promesa: la duración no se elige —se elige cuán fuerte— y de
   ahí sale.
 
+- **El diario: comida y sueño**, con el mismo peso que el entrenamiento y una
+  pantalla propia. Siete hábitos y **cero calorías** — el autorreporte de
+  ingesta subestima en torno al 30% y el gasto no se estima sin sensores, así
+  que contar calorías sería construir una versión mediocre de otra cosa y
+  heredar sus riesgos.
+
+  Es un piso, nunca un techo: la app no dice "te pasaste" de nada, no hay
+  rachas y no hay días limpios. Lo único que avisa sola es la cafeína, porque
+  es el único dato que la percepción no detecta — a nueve horas de distancia
+  nadie siente que el café le recortó el sueño, y se lo recortó.
+
+- **El mapa muscular dibujado**, en la ficha de cada ejercicio y en Progreso.
+  No es una imagen de banco: son los dieciocho músculos pintados con el dato
+  que la app ya tenía, así que dice qué carga ESTE ejercicio y dónde cayó TU
+  volumen de las últimas cuatro semanas.
+
+- **La barra cargable**, si la tenés. Cuando llegás al final de una cadena y
+  pasás las doce repeticiones, el índice de carga se satura y sumar deja de
+  medir: ahí el motor propone **subir un disco** en vez de decir "seguí
+  sumando" para siempre. El paso es el disco que tenés, no un porcentaje.
+
+  Y seis movimientos que no son eslabones de nada —press militar, remo con
+  barra, peso muerto rumano, elevación de talones, curl y extensión de
+  tríceps—, porque una cadena progresa por palanca y estos progresan por peso.
+  Tapan los cuatro huecos que el mapa muscular tenía medidos desde que existe.
+
+- **Cuatro rutinas por grupo muscular**: pecho y core, espalda, piernas,
+  brazos. Cuatro o cinco ejercicios por sesión en vez de uno por cadena,
+  mezclando el eslabón que te toca, volumen en el anterior y accesorios con
+  barra.
+
+  Con el costo dicho en pantalla: partir en cuatro días entrena cada grupo una
+  vez por semana, y con el mismo volumen semanal la evidencia favorece dos.
+  Se dice y no se impide.
+
 ## Cómo se levanta
 
 Necesitás Node 20 o superior.
@@ -97,8 +142,26 @@ node rescate.mjs   # revisa los datos: que no se pierda una sesión y que se mid
 node fuelle.mjs    # que el trabajo metabólico no le cueste fuerza a nadie
 node despues.mjs   # que se sepa qué viene, se vea todo el descanso y se diga una sola vez
 node pliegue.mjs   # que nada quede abajo del pliegue, medido en tres teléfonos
+node paleta.mjs    # contraste de cada par del sistema y de cada texto en pantalla
+node movimiento.mjs # que nada se mueva en el esfuerzo y que haya un solo infinito
+node carga.mjs     # los discos: que se ofrezcan con qué, y que lleguen a la base
 node logo.mjs     # regenera el favicon y los íconos desde el componente de Lyra
 ```
+
+`paleta.mjs` mide el contraste de cada par del sistema y de **todo el texto de
+seis pantallas**, contra el fondo efectivo —el primer ancestro opaco— y no
+contra el declarado. El proyecto afirmaba tener un validador de paleta desde
+hacía meses y nunca existió; mientras tanto cinco regletas ponían texto blanco
+sobre el acento, que da 2,6:1, mientras el propio CSS documentaba dos secciones
+más abajo que ahí va tinta oscura. Mirar una captura no mide contraste: el
+naranja es brillante y el blanco encima parece que se lee.
+
+`movimiento.mjs` convierte en medición tres reglas que eran comentarios y se
+erosionaron: que nada se mueva durante el esfuerzo, que haya un solo
+`infinite` en toda la app, y que con `prefers-reduced-motion` todo quede
+quieto **sin perder información** — que es la difícil, porque apagar una
+animación con `animation: none` deja el elemento en su estado inicial, y el
+estado inicial de casi todas es "invisible".
 
 `pliegue.mjs` existe porque la regla de que `Empezar` tenga aire sobre la barra
 de navegación ya se rompió **dos veces**, las dos por un renglón que parecía

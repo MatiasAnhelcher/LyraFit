@@ -450,7 +450,15 @@ export interface Preferencias {
   encuadre?: 'logrado' | 'restante'
   /** Si el chequeo diario de tres preguntas está activado. Apagado por defecto. */
   estadoActivo?: boolean
-  /** Si el módulo de hábitos de alimentación está activado. Apagado por defecto. */
+  /**
+   * @deprecated El diario de comida y sueño no es opcional y no tiene
+   * interruptor: es una pantalla propia en la barra de navegación, al mismo
+   * nivel que el entrenamiento, que es la afirmación entera del módulo.
+   *
+   * Este campo se declaró cuando el módulo era una especificación sin
+   * construir y nunca lo leyó nadie. Queda porque las bases ya instaladas lo
+   * traen escrito y borrarlo obligaría a una migración que no arregla nada.
+   */
   habitosActivos?: boolean
   /** Si se pide la predicción de repeticiones antes de cada serie. */
   prediccionActiva?: boolean

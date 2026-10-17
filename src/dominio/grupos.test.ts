@@ -16,6 +16,7 @@ import { CADENAS, EJERCICIOS, FUERA_DE_CADENA, POR_ID, cadenaDe } from './biblio
 import { ejercicioDelBloque } from './bajada'
 import { RUTINAS, RUTINAS_POR_GRUPO, RUTINA_POR_ID, advertenciaDe } from './rutinas'
 import { avanceInicial } from './progresion'
+import { curvaDeFuerza, laVezPasada } from './estadisticas'
 import type { Avance, Patron } from './tipos'
 
 const PATRONES: Patron[] = ['empuje', 'traccion', 'piernas', 'core', 'bisagra']
@@ -234,5 +235,43 @@ describe('las cadenas siguen intactas', () => {
   it('ninguna rutina nueva agregó un ejercicio a una cadena', () => {
     const enCadenas = new Set(CADENAS.flatMap((c) => c.ejercicios))
     for (const id of FUERA_DE_CADENA) expect(enCadenas.has(id)).toBe(false)
+  })
+})
+
+describe('qué hacen los accesorios con los datos', () => {
+  it('la vara SÍ los ve, y la curva de fuerza NO', () => {
+    /*
+     * De estas dos cosas juntas depende que los accesorios funcionen, y son
+     * contrarias entre sí, así que conviene que estén fijadas en un test y no
+     * en la cabeza de alguien.
+     *
+     * LA VARA los ve, porque es la única progresión que tienen: el motor no
+     * los mueve —no son el eslabón que tocaba— así que la doble progresión la
+     * lleva la persona, y lo que la sostiene es el número de la última vez
+     * puesto delante. Si `laVezPasada` los salteara, un accesorio arrancaría
+     * siempre en el piso de su ventana y nunca progresaría.
+     *
+     * LA CURVA no los ve, porque el punto del día es la mejor marca de la
+     * cadena y un curl con diez kilos puede dar un índice más alto que una
+     * dominada. Darle el punto atribuiría la sesión al ejercicio equivocado,
+     * que es exactamente el motivo por el que existe la marca `bajada`.
+     */
+    const sesion = {
+      id: 's1',
+      fecha: '2026-03-10',
+      tipo: 'plan' as const,
+      finalizadaEn: 1,
+      duracionSegundos: 600,
+      registros: [
+        {
+          ejercicioId: 'curl-barra',
+          objetivo: { series: 3, cantidad: 10, kg: 15 },
+          series: [{ logrado: 12, kg: 15 }],
+          bajada: true as const,
+        },
+      ],
+    }
+    expect(laVezPasada([sesion], 'curl-barra', '2026-03-11')?.mejor).toBe(12)
+    expect(curvaDeFuerza([sesion], 'traccion')).toEqual([])
   })
 })

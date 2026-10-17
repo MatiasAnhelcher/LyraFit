@@ -185,7 +185,17 @@ async function ponerLaRutinaMasAlta(p) {
   if (!(await boton.isVisible().catch(() => false))) return false
   await boton.click()
   await p.waitForTimeout(400)
-  return true
+
+  // Y el día de entrenar OTRA VEZ, porque elegir un preset reescribe la
+  // semana entera. `ponerDiaDeEntrenar` ya había forzado hoy a "las dos" para
+  // la primera medición, y este clic lo pisa con los días del preset: si hoy
+  // no es uno de ellos, Hoy no dibuja ninguna fila y el portón mide una
+  // pantalla de descanso creyendo que mide la más alta.
+  //
+  // Pasó, y el síntoma era elocuente: cero filas y `Empezar` ciento trece
+  // píxeles más arriba que en la medición anterior. Sin la verificación de
+  // "¿son cinco filas?" habría pasado en verde con muchísimo aire.
+  return ponerDiaDeEntrenar(p)
 }
 
 async function medirHoy(p, telefono, rutina) {
@@ -466,8 +476,13 @@ const navegador = await chromium.launch({ executablePath: CHROMIUM })
 for (const telefono of TELEFONOS) {
   const contexto = await navegador.newContext({
     viewport: { width: telefono.width, height: telefono.height },
-    colorScheme: 'dark',
     locale: 'es-AR',
+    // La zona horaria importa acá más que en ningún otro portón: qué día de
+    // la semana es decide si Hoy dibuja la lista de ejercicios o la pantalla
+    // de descanso, y sin esto el navegador usa UTC. A las nueve de la noche
+    // de un viernes argentino, UTC ya es sábado: el portón medía la pantalla
+    // de descanso de otro día y creía estar midiendo la de entrenar.
+    timezoneId: 'America/Argentina/Buenos_Aires',
   })
   const pagina = await contexto.newPage()
   pagina.on('pageerror', (e) => fallos.push(`[${telefono.nombre}] Error de JavaScript: ${e.message}`))
