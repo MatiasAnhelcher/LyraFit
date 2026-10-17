@@ -542,8 +542,7 @@ function Cuenta({
       <div className="mt-3 flex items-center justify-center gap-5">
         <button
           onClick={() => set((n) => Math.max(0, (n ?? sugerido ?? 0) - 1))}
-          className="cifra flex h-14 w-14 items-center justify-center text-2xl"
-          style={{ border: '1px solid var(--color-regla)' }}
+          className="paso h-14 w-14 text-2xl"
           aria-label="Restar"
         >
           −
@@ -556,8 +555,7 @@ function Cuenta({
         </p>
         <button
           onClick={() => set((n) => (n ?? sugerido ?? 0) + 1)}
-          className="cifra flex h-14 w-14 items-center justify-center text-2xl"
-          style={{ border: '1px solid var(--color-regla)' }}
+          className="paso h-14 w-14 text-2xl"
           aria-label="Sumar"
         >
           +

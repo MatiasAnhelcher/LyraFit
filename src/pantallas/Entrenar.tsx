@@ -1083,8 +1083,7 @@ export function Entrenar() {
             <div className="mt-4 flex items-center justify-center gap-6">
               <button
                 onClick={() => setPrediccion(Math.max(0, propuesto - salto))}
-                className="cifra flex h-16 w-16 items-center justify-center text-3xl"
-                style={{ border: '1px solid var(--color-regla)' }}
+                className="paso h-16 w-16 text-3xl"
                 aria-label="Restar"
               >
                 −
@@ -1094,8 +1093,7 @@ export function Entrenar() {
               </p>
               <button
                 onClick={() => setPrediccion(propuesto + salto)}
-                className="cifra flex h-16 w-16 items-center justify-center text-3xl"
-                style={{ border: '1px solid var(--color-regla)' }}
+                className="paso h-16 w-16 text-3xl"
                 aria-label="Sumar"
               >
                 +
@@ -1117,8 +1115,7 @@ export function Entrenar() {
                 <div className="mt-5 flex items-center justify-center gap-3">
                   <button
                     onClick={() => ponerKg(Math.max(0, Number((kg - pasoDeDisco).toFixed(2))))}
-                    className="cifra flex h-10 w-10 items-center justify-center"
-                    style={{ border: '1px solid var(--color-regla)' }}
+                    className="paso h-10 w-10"
                     aria-label="Menos peso"
                   >
                     −
@@ -1128,8 +1125,7 @@ export function Entrenar() {
                   </span>
                   <button
                     onClick={() => ponerKg(Math.min(tope, Number((kg + pasoDeDisco).toFixed(2))))}
-                    className="cifra flex h-10 w-10 items-center justify-center"
-                    style={{ border: '1px solid var(--color-regla)' }}
+                    className="paso h-10 w-10"
                     aria-label="Más peso"
                   >
                     +
@@ -1330,7 +1326,7 @@ function Descanso({
       )}
 
       <div className="mt-8 flex gap-3">
-        <button onClick={onSumar} className="rotulo px-4 py-3" style={{ border: '1px solid var(--color-regla)' }}>
+        <button onClick={onSumar} className="boton-contorno">
           +30 s
         </button>
         {/* Saltear la ráfaga NO saltea el descanso: lo que queda sigue siendo
@@ -1340,13 +1336,12 @@ function Descanso({
         {rafaga && (
           <button
             onClick={onSaltearRafaga}
-            className="rotulo px-4 py-3"
-            style={{ border: '1px solid var(--color-regla)' }}
+            className="boton-contorno"
           >
             Hoy no
           </button>
         )}
-        <button onClick={onSaltear} className="rotulo px-4 py-3" style={{ border: '1px solid var(--color-regla)' }}>
+        <button onClick={onSaltear} className="boton-contorno">
           Saltear
         </button>
       </div>

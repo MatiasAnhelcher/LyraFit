@@ -47,7 +47,7 @@ import { proximoHitoDeCadena, proyectar, ubicarEnCadena } from '@/dominio/progre
 import { RUTINAS } from '@/dominio/rutinas'
 import type { Patron } from '@/dominio/tipos'
 import { guardarPreferencias, ubicarDesdePrueba } from '@/datos/repositorio'
-import { Accion, AccionQuieta, Glifo, Rotulo, unidad } from '@/componentes/ui'
+import { Accion, AccionQuieta, Glifo, Rotulo, Segmento, unidad } from '@/componentes/ui'
 
 interface Prueba {
   patron: Patron
@@ -339,35 +339,23 @@ function Pruebas({
           }}
         >
           {regleta.map((n) => (
-            <button
-              key={n}
-              onClick={() => onCambiar(n)}
-              className="cifra h-12 text-base tabular-nums"
-              style={{
-                border: '1px solid var(--color-regla)',
-                backgroundColor: valor === n ? 'var(--color-vega)' : 'transparent',
-                color: valor === n ? '#fff' : 'var(--color-glosa)',
-              }}
-              aria-pressed={valor === n}
-            >
+            <Segmento key={n} elegido={valor === n} onClick={() => onCambiar(n)} cifra className="flex-1">
               {n}
-            </button>
+            </Segmento>
           ))}
         </div>
 
         <div className="mt-4 flex items-center justify-center gap-3">
           <button
             onClick={() => onCambiar(valor - paso)}
-            className="cifra flex h-12 w-12 items-center justify-center text-xl"
-            style={{ border: '1px solid var(--color-regla)' }}
+            className="paso h-12 w-12 text-xl"
             aria-label="Restar"
           >
             −
           </button>
           <button
             onClick={() => onCambiar(valor + paso)}
-            className="cifra flex h-12 w-12 items-center justify-center text-xl"
-            style={{ border: '1px solid var(--color-regla)' }}
+            className="paso h-12 w-12 text-xl"
             aria-label="Sumar"
           >
             +

@@ -6,6 +6,7 @@
  * y no se entera nadie más.
  */
 
+import type { DiaDelDiario } from '@/dominio/nutricion'
 import { db, marcarPendiente, PREFERENCIAS_POR_DEFECTO } from './db'
 import type {
   Avance,
@@ -148,6 +149,46 @@ export async function guardarEstado(
   await db.estados.put(estado)
   await marcarPendiente('estados', estado.fecha)
   return estado
+}
+
+// ─── El diario: comida y sueño ───────────────────────────────────────────
+
+/**
+ * Una fila por día, con la fecha de clave.
+ *
+ * Que la clave sea la fecha y no un id autoincremental es lo que hace que
+ * corregir un número del mediodía pise la fila de la mañana en vez de crear
+ * una segunda. Es la misma decisión que en `estados`, por el mismo motivo.
+ */
+export async function leerDiario(): Promise<DiaDelDiario[]> {
+  return db.diario.orderBy('fecha').toArray()
+}
+
+export async function leerDiaDelDiario(fecha = fechaISO()): Promise<DiaDelDiario | undefined> {
+  return db.diario.get(fecha)
+}
+
+/**
+ * Guardar un campo del día, sin pisar los otros.
+ *
+ * El diario se contesta de a pedazos —el sueño a la mañana, la proteína a la
+ * noche— así que una escritura que reemplace la fila entera borraría lo de
+ * hace seis horas. Por eso esto fusiona, y por eso la fusión va adentro de una
+ * transacción: sin ella, dos toques rápidos leen la misma fila vieja y el
+ * segundo pisa al primero.
+ */
+export async function guardarDiaDelDiario(
+  campos: Partial<Omit<DiaDelDiario, 'fecha' | 'actualizadoEn'>>,
+  fecha = fechaISO(),
+): Promise<DiaDelDiario> {
+  const dia = await db.transaction('rw', db.diario, async () => {
+    const antes = await db.diario.get(fecha)
+    const nuevo: DiaDelDiario = { ...antes, ...campos, fecha, actualizadoEn: Date.now() }
+    await db.diario.put(nuevo)
+    return nuevo
+  })
+  await marcarPendiente('diario', fecha)
+  return dia
 }
 
 // ─── Sesiones ────────────────────────────────────────────────────────────

@@ -47,10 +47,12 @@ import { adherencia, esVuelta, proximoHito, sesionesDeVida } from '@/dominio/adh
 import { laVezPasada } from '@/dominio/estadisticas'
 import { bandaSostenida, ajusteDelDia, cadenasCongeladas } from '@/dominio/estado'
 import { seAbreHoy } from '@/dominio/anticipacion'
+import { PISO_DE_PROTEINA, senalesDelDia } from '@/dominio/nutricion'
 import { mueveElPlan } from '@/dominio/progresion'
 import {
   fechaISO,
   leerAvances,
+  leerDiaDelDiario,
   leerEstadoDeHoy,
   leerEstados,
   guardarPreferencias,
@@ -60,6 +62,8 @@ import {
 import { despertarAudio } from '@/respuesta'
 import { Carta } from '@/componentes/carta'
 import { Lyra } from '@/componentes/lyra'
+import { IconoComida, IconoFuerza, IconoSueno } from '@/componentes/iconos'
+import { orden } from '@/componentes/movimiento'
 import { fraseDe, recordar, type Momento } from '@/dominio/frases'
 import { Accion, Cargando, Glifo, Glosa, Objetivo, Rotulo, Tira } from '@/componentes/ui'
 
@@ -98,6 +102,7 @@ export function Hoy() {
   const sesiones = useLiveQuery(() => leerSesiones(), [])
   const estados = useLiveQuery(leerEstados, [])
   const estadoDeHoy = useLiveQuery(leerEstadoDeHoy, [])
+  const diaDelDiario = useLiveQuery(() => leerDiaDelDiario(), [])
 
   if (!avances || !preferencias || !sesiones || !estados) {
     return (
@@ -252,6 +257,55 @@ export function Hoy() {
    * el mismo día es una lista, y una lista no anticipa nada.
    */
   const vispera = bloques.find((b) => b.abre)
+
+  /**
+   * Las tres señales del día.
+   *
+   * `valor === null` quiere decir "todavía no hay respuesta" y se dibuja como
+   * un guion apagado. Un 0 NO es null: contestar "cero comidas con proteína"
+   * es una respuesta, y tratarla como silencio dejaría la fila esperando para
+   * siempre algo que ya está dicho.
+   */
+  const senales = senalesDelDia(diaDelDiario)
+  const porciones = diaDelDiario?.porcionesDeProteina
+  const senalesDelDia_filas = [
+    {
+      clave: 'entrenaste',
+      a: esDiaDeEntrenar ? destinoDelDia(clase) : '/progreso',
+      Icono: IconoFuerza,
+      luz: 'var(--dominio-fuerza-luz)',
+      titulo: 'Entrenaste',
+      detalle: entrenoHoy
+        ? 'hoy'
+        : esDiaDeEntrenar
+          ? `hoy toca · ${minutos} min`
+          : 'hoy toca descansar',
+      valor: entrenoHoy ? '✓' : esDiaDeEntrenar ? null : '·',
+    },
+    {
+      clave: 'comiste',
+      a: '/diario',
+      Icono: IconoComida,
+      luz: 'var(--dominio-comida-luz)',
+      titulo: 'Comiste',
+      detalle:
+        porciones === undefined
+          ? `comidas con proteína · el piso son ${PISO_DE_PROTEINA}`
+          : porciones >= PISO_DE_PROTEINA
+            ? 'comidas con proteína · estás en el piso'
+            : `comidas con proteína · el piso son ${PISO_DE_PROTEINA}`,
+      valor: porciones === undefined ? null : String(porciones),
+    },
+    {
+      clave: 'dormiste',
+      a: '/diario',
+      Icono: IconoSueno,
+      luz: 'var(--dominio-sueno-luz)',
+      titulo: 'Dormiste',
+      detalle: diaDelDiario?.sueno ? 'horas, anoche' : 'anoche',
+      valor: diaDelDiario?.sueno ?? null,
+    },
+  ]
 
   const filasDeCarta = [...avances.values()].map((avance) => ({
     patron: avance.patron,
@@ -465,6 +519,67 @@ export function Hoy() {
         </button>
       </div>
 
+      {/*
+        EL DÍA: entrenaste · comiste · dormiste.
+
+        Las tres con el mismo peso visual exacto —misma fila, mismo canal,
+        misma tipografía— porque esa igualdad ES la afirmación. Una app de
+        entrenamiento que pone la comida y el sueño en una pantalla secundaria
+        está diciendo que son secundarios, y la evidencia dice lo contrario:
+        con el mismo déficit, dormir cinco horas y media en vez de ocho y media
+        hace perder 55% menos grasa y más músculo. Eso no es un accesorio del
+        entrenamiento, es la mitad del resultado.
+
+        Van DEBAJO de `Empezar` y no arriba. No es una decisión de jerarquía:
+        es la regla del pliegue, medida en tres teléfonos. En un Android de
+        360×640 `Empezar` tiene exactamente doce píxeles de aire sobre la barra
+        de navegación, y cada renglón que se agregue arriba lo empuja por
+        debajo. El orden sigue siendo quién sos, qué toca hoy, empezar, y
+        después dónde estás parado.
+
+        Y es un ESTADO, no un reclamo. Lo que falta se dibuja como un guion en
+        glosa, nunca como una cruz ni en rojo: lo que falta no está prohibido,
+        está sin iluminar. El silencio es la respuesta correcta la mayoría de
+        los días.
+      */}
+      <section className="mt-10">
+        <Rotulo>EL DÍA</Rotulo>
+        <div className="registro mt-3">
+          {senalesDelDia_filas.map((fila, i) => (
+            <button
+              key={fila.clave}
+              onClick={() => navegar(fila.a)}
+              className="fila-pulsable entrar-en-orden"
+              style={orden(i)}
+              data-prueba={`dia-${fila.clave}`}
+            >
+              <span className="canal" style={{ color: fila.luz }}>
+                <fila.Icono className="h-[18px] w-[18px]" />
+              </span>
+              <span className="min-w-0">
+                <span className="nombre block">{fila.titulo}</span>
+                <span className="rotulo mt-0.5 block truncate">{fila.detalle}</span>
+              </span>
+              <span
+                className="cifra-fila"
+                style={fila.valor === null ? { color: 'var(--color-glosa)', opacity: 0.55 } : undefined}
+              >
+                {fila.valor ?? '—'}
+              </span>
+            </button>
+          ))}
+        </div>
+        {/* El único aviso que este módulo levanta solo, y por eso está acá y no
+            escondido en el diario: es el dato que la percepción de la persona
+            NO puede detectar sola. Los otros seis hábitos no avisan nada —
+            nadie necesita que una app le diga que comió poca proteína. */}
+        {senales.avisoDeCafeina && (
+          <p className="mt-4 max-w-[40ch] text-sm leading-relaxed text-[var(--color-glosa)]">
+            {senales.avisoDeCafeina}
+          </p>
+        )}
+      </section>
+
       {/* Lyra, y lo único que dice.
        *
        * Va DEBAJO de la acción por la misma razón que el ofrecimiento del
@@ -537,8 +652,7 @@ export function Hoy() {
                   ),
                 })
               }
-              className="rotulo px-4 py-3"
-              style={{ border: '1px solid var(--color-regla-fuerte)' }}
+              className="boton-contorno boton-contorno-fuerte"
             >
               Probarlo
             </button>
@@ -546,8 +660,7 @@ export function Hoy() {
               // Se guarda la semana tal cual está. No cambia nada, y eso es
               // justo lo que hace: deja escrito que ya se preguntó.
               onClick={() => void guardarPreferencias({ semana })}
-              className="rotulo px-4 py-3"
-              style={{ border: '1px solid var(--color-regla)' }}
+              className="boton-contorno"
             >
               Ahora no
             </button>

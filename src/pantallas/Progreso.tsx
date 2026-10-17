@@ -27,6 +27,8 @@ import {
   loQueFalta,
   patronDe,
   seriesPorMusculo,
+  type Aporte,
+  type Musculo,
 } from '@/dominio/musculos'
 import { RUTINA_POR_ID, rutinaActiva } from '@/dominio/rutinas'
 import { fechaISO, guardarPreferencias, leerPreferencias } from '@/datos/repositorio'
@@ -34,6 +36,8 @@ import { calibracion, frasePorCalibracion, vitalidad } from '@/dominio/vitalidad
 import { sesionesDeVida } from '@/dominio/adherencia'
 import { leerAvances, leerSesiones } from '@/datos/repositorio'
 import { Carta } from '@/componentes/carta'
+import { CuerpoDoble } from '@/componentes/cuerpo'
+import { orden } from '@/componentes/movimiento'
 import { Cargando, Glifo, Rotulo, Tira, Vacio } from '@/componentes/ui'
 
 const Curva = lazy(() => import('@/componentes/curva').then((m) => ({ default: m.Curva })))
@@ -79,6 +83,35 @@ export function Progreso() {
     series: porMusculo.get(musculo) ?? 0,
   })).sort((a, b) => b.series - a.series)
   const techo = Math.max(...ranking.map((r) => r.series), 0)
+
+  /**
+   * El mismo ranking, pero como cuerpo pintado.
+   *
+   * La lista dice cuánto recibió cada músculo y es exacta; el dibujo dice
+   * DÓNDE, que es la pregunta que uno se hace primero y que una lista de
+   * dieciocho renglones no contesta nunca. Las dos juntas y no una: el dibujo
+   * sin la lista sería decorativo —el error que cometen todas las apps que lo
+   * tienen— y la lista sin el dibujo obliga a saber dónde queda el serrato.
+   *
+   * La escala es relativa al techo de la propia persona y no a un número
+   * absoluto, porque no existe tal número: diez series semanales son mucho
+   * para quien hace tres sesiones y poco para quien hace seis. Lo que el mapa
+   * contesta es "¿dónde cayó MI volumen?", no "¿entrenás suficiente?" — esa
+   * segunda pregunta la contesta `loQueFalta`, que tiene los umbrales de
+   * verdad.
+   *
+   * Los tres cortes son los mismos tres de `Aporte`, así que el dibujo usa la
+   * misma escala de tinta que la ficha de ejercicio y las dos pantallas se
+   * leen igual.
+   */
+  const mapa: Partial<Record<Musculo, Aporte>> = {}
+  if (techo > 0) {
+    for (const { musculo, series } of ranking) {
+      if (series <= 0) continue
+      const parte = series / techo
+      mapa[musculo] = parte >= 0.66 ? 1 : parte >= 0.33 ? 0.5 : 0.25
+    }
+  }
   const falta = loQueFalta({
     sesiones,
     hoy,
@@ -102,7 +135,7 @@ export function Progreso() {
     <>
       <Rotulo>PROGRESO</Rotulo>
 
-      <section className="mt-6">
+      <section className="entrar-en-orden mt-6" style={orden(0)}>
         <p className="cifra-acumulador">{total}</p>
         <p className="mt-1 text-sm text-[var(--color-glosa)]">
           sesiones · {resumen.series} series · {resumen.minutos} minutos
@@ -112,12 +145,12 @@ export function Progreso() {
         </div>
       </section>
 
-      <section className="mt-10">
+      <section className="entrar-en-orden mt-10" style={orden(1)}>
         <Rotulo className="mb-3">TUS CADENAS</Rotulo>
         <Carta filas={[...avances.values()].map((a) => ({ patron: a.patron, avance: a }))} rotulos />
       </section>
 
-      <section className="mt-10">
+      <section className="entrar-en-orden mt-10" style={orden(2)}>
         <Rotulo>CURVA DE FUERZA</Rotulo>
         <p className="mt-2 max-w-[40ch] text-xs leading-relaxed text-[var(--color-glosa)]">
           Cuánto estás moviendo, en una escala que compara ejercicios distintos. Por eso no se
@@ -132,7 +165,7 @@ export function Progreso() {
       </section>
 
       {(cal || vit) && (
-        <section className="mt-10">
+        <section className="entrar-en-orden mt-10" style={orden(3)}>
           <Rotulo>LO QUE TE DEJA ENTRENAR</Rotulo>
           <div className="registro mt-3">
             {vit && (
@@ -177,7 +210,7 @@ export function Progreso() {
         </section>
       )}
 
-      <section className="mt-10">
+      <section className="entrar-en-orden mt-10" style={orden(4)}>
         <Rotulo>SERIES POR SEMANA</Rotulo>
         <div className="registro mt-3">
           {[...semanas].reverse().map((s) => (
@@ -220,9 +253,14 @@ export function Progreso() {
        * carta vale igual acá: lo que falta no está prohibido, está sin
        * iluminar.
        */}
-      <section className="mt-10">
+      <section className="entrar-en-orden mt-10" style={orden(5)}>
         <Rotulo>QUÉ ESTÁS ENTRENANDO</Rotulo>
-        <p className="mt-2 max-w-[40ch] text-xs leading-relaxed text-[var(--color-glosa)]">
+        {techo > 0 && (
+          <div className="mt-4 flex items-center justify-center gap-6">
+            <CuerpoDoble vector={mapa} className="h-52" />
+          </div>
+        )}
+        <p className="mt-4 max-w-[40ch] text-xs leading-relaxed text-[var(--color-glosa)]">
           Series que recibió cada músculo en las últimas cuatro semanas. Una serie es una
           serie: una plancha de treinta segundos y ocho flexiones cuentan igual. Los
           músculos que un ejercicio solo estabiliza no suman — si sumaran, las flexiones
@@ -325,7 +363,7 @@ export function Progreso() {
 
           Y en el canal va el número de sesión y no la fecha: "047" dice quién
           sos, "12 sep" dice cuándo. La fecha baja al renglón chico. */}
-      <section className="mt-10 pb-4">
+      <section className="entrar-en-orden mt-10 pb-4" style={orden(6)}>
         <Rotulo>HISTORIAL</Rotulo>
         <div className="registro mt-3">
           {sesiones.slice(0, 20).map((sesion, i) => {

@@ -386,7 +386,12 @@ export interface Preferencias {
    * interruptor muerto es peor que ninguno.
    */
   haptica?: boolean
-  tema: 'claro' | 'oscuro' | 'sistema'
+  /**
+   * @deprecated El sistema tiene un solo mundo: la noche. El campo queda
+   * declarado porque las bases ya instaladas lo traen escrito y borrarlo
+   * obligaría a una migración que no arregla nada. Nadie lo lee.
+   */
+  tema?: 'claro' | 'oscuro' | 'sistema'
   /** Cuándo se terminó de configurar la app. Si no está, se muestra el alta. */
   altaCompletadaEn?: number
   /** Qué tiene a mano para entrenar. Filtra las cadenas que necesitan barra. */

@@ -28,7 +28,8 @@ import {
 import { estadoDeAlmacenamiento, type EstadoDeAlmacenamiento } from '@/datos/respaldo'
 import { HAY_HAPTICA } from '@/respuesta'
 import { HAY_VOZ, vozElegida } from '@/voz'
-import { Accion, AccionQuieta, Cargando, Rotulo } from '@/componentes/ui'
+import { orden } from '@/componentes/movimiento'
+import { Accion, AccionQuieta, Cargando, Regleta, Rotulo, Segmento } from '@/componentes/ui'
 
 export function Ajustes() {
   const preferencias = useLiveQuery(leerPreferencias, [])
@@ -117,7 +118,7 @@ export function Ajustes() {
     <>
       <Rotulo>AJUSTES</Rotulo>
 
-      <section className="mt-6">
+      <section className="entrar-en-orden mt-6" style={orden(0)}>
         <Rotulo>RUTINA</Rotulo>
         <div className="registro mt-3">
           {RUTINAS.map((rutina) => (
@@ -160,7 +161,7 @@ export function Ajustes() {
        * 45 px por día, que no alcanzan ni para el objetivo táctil ni para decir
        * qué clase de día es. Una fila por día dice el nombre entero.
        */}
-      <section className="mt-8">
+      <section className="entrar-en-orden mt-8" style={orden(1)}>
         <Rotulo>LA SEMANA</Rotulo>
         <p className="mt-2 max-w-[42ch] text-xs leading-relaxed text-[var(--color-glosa)]">
           Tocá un día para cambiarlo. Fuerza es la sesión de siempre; fuelle es
@@ -218,7 +219,7 @@ export function Ajustes() {
       {/* El fuelle va DESPUÉS de la rutina y antes de la app, porque es una
           decisión de entrenamiento y no una preferencia de interfaz: cambia lo
           que la app te va a pedir que hagas, no cómo se ve. */}
-      <section className="mt-8">
+      <section className="entrar-en-orden mt-8" style={orden(2)}>
         <Rotulo>EL FUELLE</Rotulo>
         <p className="mt-2 max-w-[42ch] text-xs leading-relaxed text-[var(--color-glosa)]">
           Trabajo metabólico en los huecos que la sesión ya tenía. Nunca sale del descanso
@@ -288,7 +289,7 @@ export function Ajustes() {
         )}
       </section>
 
-      <section className="mt-8">
+      <section className="entrar-en-orden mt-8" style={orden(3)}>
         <Rotulo>TU PESO Y LA BARRA</Rotulo>
         {/* Por qué la app pregunta el peso, que es lo primero que uno se
             pregunta cuando una app de ejercicio lo pide.
@@ -349,7 +350,7 @@ export function Ajustes() {
         </div>
       </section>
 
-      <section className="mt-8">
+      <section className="entrar-en-orden mt-8" style={orden(4)}>
         <Rotulo>LA APP</Rotulo>
         <div className="registro mt-3">
           <Interruptor
@@ -394,53 +395,27 @@ export function Ajustes() {
             />
           )}
           <div>
-            <span className="canal">◐</span>
-            <span className="nombre">Tema</span>
-            <span className="flex gap-px">
-              {(['claro', 'oscuro', 'sistema'] as const).map((t) => (
-                <button
-                  key={t}
-                  onClick={() => cambiar({ tema: t })}
-                  className="px-2.5 py-1.5 text-[0.625rem] uppercase tracking-wider"
-                  style={{
-                    border: '1px solid var(--color-regla)',
-                    backgroundColor: preferencias.tema === t ? 'var(--color-vega)' : 'transparent',
-                    color: preferencias.tema === t ? '#fff' : 'var(--color-glosa)',
-                  }}
-                >
-                  {t}
-                </button>
-              ))}
-            </span>
-          </div>
-          <div>
             <span className="canal">%</span>
             <span className="min-w-0">
               <span className="nombre block">La barra de 28 días</span>
               <span className="rotulo mt-0.5 block">cómo preferís leerla</span>
             </span>
-            <span className="flex gap-px">
+            <Regleta etiqueta="Cómo leer la barra de 28 días">
               {(['logrado', 'restante'] as const).map((e) => (
-                <button
+                <Segmento
                   key={e}
+                  elegido={(preferencias.encuadre ?? 'logrado') === e}
                   onClick={() => cambiar({ encuadre: e })}
-                  className="px-2.5 py-1.5 text-[0.625rem] uppercase tracking-wider"
-                  style={{
-                    border: '1px solid var(--color-regla)',
-                    backgroundColor:
-                      (preferencias.encuadre ?? 'logrado') === e ? 'var(--color-vega)' : 'transparent',
-                    color: (preferencias.encuadre ?? 'logrado') === e ? '#fff' : 'var(--color-glosa)',
-                  }}
                 >
                   {e === 'logrado' ? 'llevás' : 'faltan'}
-                </button>
+                </Segmento>
               ))}
-            </span>
+            </Regleta>
           </div>
         </div>
       </section>
 
-      <section className="mt-8">
+      <section className="entrar-en-orden mt-8" style={orden(5)}>
         <Rotulo>TUS DATOS</Rotulo>
         {almacenamiento && (
           <>
@@ -496,7 +471,7 @@ export function Ajustes() {
         {aviso && <p className="mt-3 text-sm text-[var(--color-glosa)]">{aviso}</p>}
       </section>
 
-      <section className="mt-10 pb-4">
+      <section className="entrar-en-orden mt-10 pb-4" style={orden(6)}>
         {!confirmando ? (
           <button
             onClick={() => setConfirmando(true)}
@@ -577,8 +552,7 @@ function Numero({
       <span className="flex items-center gap-2">
         <button
           onClick={() => mover(-paso)}
-          className="cifra flex h-10 w-10 items-center justify-center"
-          style={{ border: '1px solid var(--color-regla)' }}
+          className="paso h-10 w-10"
           aria-label={`Bajar ${titulo.toLowerCase()}`}
         >
           −
@@ -588,8 +562,7 @@ function Numero({
         </span>
         <button
           onClick={() => mover(paso)}
-          className="cifra flex h-10 w-10 items-center justify-center"
-          style={{ border: '1px solid var(--color-regla)' }}
+          className="paso h-10 w-10"
           aria-label={`Subir ${titulo.toLowerCase()}`}
         >
           +

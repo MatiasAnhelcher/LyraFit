@@ -3,6 +3,8 @@ import { useLiveQuery } from 'dexie-react-hooks'
 import { CADENAS, NOMBRE_PATRON, POR_ID } from '@/dominio/biblioteca'
 import { leerAvances } from '@/datos/repositorio'
 import { Cargando, Glifo, Objetivo, Rotulo } from '@/componentes/ui'
+import { IconoFuerza, IconoReloj } from '@/componentes/iconos'
+import { orden } from '@/componentes/movimiento'
 
 /**
  * La biblioteca.
@@ -17,12 +19,31 @@ export function Biblioteca() {
   if (!avances) return <Cargando filas={6} />
 
   return (
-    <>
-      <Rotulo>BIBLIOTECA</Rotulo>
-      <p className="mt-2 max-w-[40ch] text-xs leading-relaxed text-[var(--color-glosa)]">
-        Cuarenta y siete ejercicios en cinco cadenas, de más accesible a más exigente. El eslabón
-        donde estás va marcado.
-      </p>
+    /*
+      Toda esta pantalla vive en el dominio FUERZA, y eso es literal: las cinco
+      cadenas son la fuerza y nada más. El campo de brasa se percibe sin poder
+      nombrarlo —está a 1,04 de contraste contra el fondo de la app, o sea el
+      mismo negro con otra temperatura— y es lo que hace que uno sepa dónde
+      está antes de leer una palabra.
+
+      Los glifos de cadena siguen siendo de cadena: ocho píxeles, alta
+      saturación. El dominio nunca aparece a ese tamaño. Es la regla que impide
+      que nueve colores peleen por la misma pantalla.
+    */
+    <div data-dominio="fuerza" className="campo -mt-8 pt-8">
+      <header className="flex items-start justify-between gap-4">
+        <div>
+          <Rotulo className="rotulo-dominio">BIBLIOTECA</Rotulo>
+          <p className="mt-2 max-w-[40ch] text-xs leading-relaxed text-[var(--color-glosa)]">
+            Cuarenta y siete ejercicios en cinco cadenas, de más accesible a más exigente. El
+            eslabón donde estás va marcado.
+          </p>
+        </div>
+        <IconoFuerza
+          className="h-7 w-7 shrink-0"
+          style={{ color: 'var(--dominio-fuerza-luz)', opacity: 0.55 }}
+        />
+      </header>
 
       {/* El reloj entra por acá y no por Hoy, y es una decisión medida, no una
           preferencia: en un 360×640, un día de entrenar, `Empezar` queda con
@@ -36,7 +57,9 @@ export function Biblioteca() {
           tabata es elegir ejercicios y arrancar. */}
       <Link to="/reloj" className="registro mt-6 block">
         <div className="fila-pulsable">
-          <span className="canal">◷</span>
+          <span className="canal" style={{ color: 'var(--dominio-fuelle-luz)' }}>
+            <IconoReloj className="h-[18px] w-[18px]" />
+          </span>
           <span className="min-w-0">
             <span className="nombre block">El reloj</span>
             <span className="mt-0.5 block text-xs leading-relaxed text-[var(--color-glosa)]">
@@ -47,12 +70,12 @@ export function Biblioteca() {
         </div>
       </Link>
 
-      {CADENAS.map((cadena) => {
+      {CADENAS.map((cadena, i) => {
         const avance = avances.get(cadena.patron)
         const actual = avance ? cadena.ejercicios.indexOf(avance.ejercicioId) : -1
 
         return (
-          <section key={cadena.patron} className="mt-8">
+          <section key={cadena.patron} className="entrar-en-orden mt-8" style={orden(i)}>
             <div className="flex items-center gap-2">
               <Glifo patron={cadena.patron} />
               <Rotulo>{NOMBRE_PATRON[cadena.patron].toUpperCase()}</Rotulo>
@@ -94,6 +117,6 @@ export function Biblioteca() {
           </section>
         )
       })}
-    </>
+    </div>
   )
 }

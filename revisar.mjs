@@ -116,7 +116,13 @@ async function main() {
     executablePath: process.env.CHROMIUM_PATH ?? '/opt/pw-browsers/chromium',
   })
 
-  for (const tema of ['dark', 'light']) {
+  // Una sola pasada. Hasta el rediseño había dos, una por tema, y tenía
+  // sentido: la app tenía papel claro y oscuro. Ahora tiene un solo mundo —la
+  // noche— así que la segunda pasada capturaba exactamente las mismas
+  // pantallas y tardaba lo mismo en hacerlo. Lo que SÍ queda verificado, al
+  // final de esta función, es que el tema del sistema ya no cambia nada: es la
+  // afirmación que reemplaza a la pasada.
+  for (const tema of ['dark']) {
     const contexto = await navegador.newContext({
       viewport: { width: 390, height: 844 },
       deviceScaleFactor: 2,
@@ -423,6 +429,25 @@ async function main() {
 
     await contexto.close()
   }
+
+  // UN SOLO MUNDO: con el sistema en claro la app tiene que verse igual.
+  // Es lo que reemplaza a la segunda pasada entera. Si alguien vuelve a meter
+  // un override de `prefers-color-scheme`, esto lo agarra en una medición en
+  // vez de en una captura que haya que mirar.
+  const enClaro = await navegador.newContext({
+    viewport: { width: 390, height: 844 },
+    colorScheme: 'light',
+    locale: 'es-AR',
+  })
+  const paginaClara = await enClaro.newPage()
+  await paginaClara.goto(`${BASE}/#/`, { waitUntil: 'networkidle' })
+  const fondo = await paginaClara.evaluate(() => getComputedStyle(document.body).backgroundColor)
+  if (fondo !== 'rgb(16, 15, 13)') {
+    problemas.push(
+      `Con el sistema en tema claro el fondo es ${fondo} y tiene que ser rgb(16, 15, 13): el sistema tiene un solo mundo.`,
+    )
+  }
+  await enClaro.close()
 
   // La app también se usa en tablet y computadora: se revisa que no quede rota.
   const ancho = await navegador.newContext({

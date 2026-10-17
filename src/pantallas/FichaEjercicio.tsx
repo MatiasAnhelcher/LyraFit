@@ -5,6 +5,8 @@ import { historicoDeEjercicio, recordDe } from '@/dominio/estadisticas'
 import { proyectar } from '@/dominio/progresion'
 import { POSTURAS } from '@/dominio/posturas'
 import { FiguraEjercicio } from '@/componentes/figura'
+import { CuerpoDoble } from '@/componentes/cuerpo'
+import { APORTE, NOMBRE_MUSCULO, PISO_DE_DOSIS, type Aporte, type Musculo } from '@/dominio/musculos'
 import { fijarNivel, leerAvances, leerSesiones } from '@/datos/repositorio'
 import { Accion, AccionQuieta, Cargando, Glifo, Objetivo, Rotulo, nombreUnidad } from '@/componentes/ui'
 
@@ -50,6 +52,22 @@ export function FichaEjercicio() {
   const esActual = avance?.ejercicioId === ejercicio.id
   const record = recordDe(sesiones, ejercicio.id)
   const historico = historicoDeEjercicio(sesiones, ejercicio.id)
+  /**
+   * El vector muscular, partido en primarios y secundarios.
+   *
+   * El corte es `PISO_DE_DOSIS`, el mismo 0,5 que usa el resto del dominio
+   * para decidir qué cuenta como dosis de verdad. Los estabilizadores (0,25)
+   * se dibujan —insinuados, a 0,17 de tinta— pero no se nombran: el propio
+   * dominio declara que un 0,25 NO es una dosis, y listarlos haría parecer
+   * que una plancha entrena diez músculos.
+   */
+  const vector = APORTE[ejercicio.id]
+  const porAporte = vector
+    ? (Object.entries(vector) as [Musculo, Aporte][]).sort((a, b) => b[1] - a[1])
+    : []
+  const primarios = porAporte.filter(([, a]) => a >= 1)
+  const secundarios = porAporte.filter(([, a]) => a >= PISO_DE_DOSIS && a < 1)
+
   const anterior = posicion > 0 ? POR_ID.get(cadena.ejercicios[posicion - 1]!) : undefined
   const siguiente = POR_ID.get(cadena.ejercicios[posicion + 1] ?? '')
 
@@ -175,6 +193,42 @@ export function FichaEjercicio() {
           </div>
         )}
       </div>
+
+      {/*
+        EL MAPA MUSCULAR.
+
+        Estuvo terminado y testeado durante semanas sin que lo importara
+        ninguna pantalla, que es la forma más cara de no tener algo. Va acá
+        porque es donde contesta la pregunta que de verdad se hace frente a un
+        ejercicio nuevo: "¿esto para qué me sirve?".
+
+        Las dos vistas juntas y no una: de frente no se ve el dorsal y de
+        espaldas no se ve el pectoral, así que una sola vista hace que media
+        biblioteca parezca no entrenar nada.
+      */}
+      {vector && (
+        <section className="mt-8">
+          <Rotulo>DÓNDE SE SIENTE</Rotulo>
+          <div className="mt-3 flex items-start gap-5">
+            <CuerpoDoble vector={vector} className="h-44 shrink-0" />
+            <ul className="min-w-0 flex-1 pt-1">
+              {primarios.map(([m]) => (
+                <li key={m} className="nombre leading-relaxed">
+                  {NOMBRE_MUSCULO[m]}
+                </li>
+              ))}
+              {secundarios.length > 0 && (
+                <li className="mt-2 text-sm leading-relaxed text-[var(--color-glosa)]">
+                  {/* Los secundarios en glosa y en una sola línea: son parte
+                      del dibujo a media tinta, y repetirlos en lista de igual
+                      jerarquía borraría la diferencia que el dibujo hace. */}
+                  y algo de {secundarios.map(([m]) => NOMBRE_MUSCULO[m].toLowerCase()).join(', ')}
+                </li>
+              )}
+            </ul>
+          </div>
+        </section>
+      )}
 
       <section className="mt-8">
         <Rotulo>CÓMO SE HACE</Rotulo>

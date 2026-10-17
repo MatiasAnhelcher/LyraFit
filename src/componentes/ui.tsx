@@ -116,6 +116,70 @@ export function AccionQuieta({
 }
 
 /**
+ * La regleta de opciones: una fila de segmentos donde uno está elegido.
+ *
+ * Existe porque había cinco copias de esto escritas con estilos en línea —el
+ * alta, el estado, dos en ajustes— y las cinco ponían texto blanco sobre
+ * Vega. Blanco sobre #ff7a45 da 2,6:1, por debajo del mínimo legible, y el
+ * propio CSS documentaba desde hacía meses que ahí va tinta oscura. No fue
+ * descuido: la regla vivía en tres selectores condicionales que había que
+ * acordarse de copiar a mano. Ahora el color lo pone la clase.
+ *
+ * `aria-pressed` no es decoración de accesibilidad: es también el selector
+ * que pinta el segmento elegido. Un botón de regleta sin estado anunciado no
+ * se podría pintar.
+ */
+export function Regleta({
+  children,
+  className = '',
+  etiqueta,
+}: {
+  children: ReactNode
+  className?: string
+  /** Qué se está eligiendo. Un grupo sin nombre no se puede navegar a ciegas. */
+  etiqueta?: string
+}) {
+  return (
+    <div className={`regleta ${className}`} role="group" aria-label={etiqueta}>
+      {children}
+    </div>
+  )
+}
+
+export function Segmento({
+  children,
+  elegido,
+  onClick,
+  cifra = false,
+  tono,
+  className = '',
+  prueba,
+}: {
+  children: ReactNode
+  elegido: boolean
+  onClick: () => void
+  /** True cuando el contenido es un número: cifra tabular y fila más alta. */
+  cifra?: boolean
+  /** Ámbar cuando lo que se elige es una molestia, no una preferencia. */
+  tono?: 'ambar'
+  className?: string
+  prueba?: string
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-pressed={elegido}
+      data-prueba={prueba}
+      {...(tono ? { 'data-tono': tono } : {})}
+      className={`segmento${cifra ? ' segmento-cifra' : ''} ${className}`}
+    >
+      {children}
+    </button>
+  )
+}
+
+/**
  * La voz del motor.
  *
  * Es lo único de la app en cursiva y es deliberadamente más grande que el

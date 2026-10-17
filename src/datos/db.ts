@@ -18,13 +18,14 @@
  */
 
 import Dexie, { type Table } from 'dexie'
+import type { DiaDelDiario } from '@/dominio/nutricion'
 import type { Avance, Estado, Patron, Preferencias, Sesion, SesionEnCurso } from '@/dominio/tipos'
 import { RUTINA_POR_DEFECTO } from '@/dominio/rutinas'
 
 /** Una escritura a la espera de viajar al servidor, cuando exista un servidor. */
 export interface Pendiente {
   id?: number
-  tabla: 'sesiones' | 'avances' | 'preferencias' | 'estados'
+  tabla: 'sesiones' | 'avances' | 'preferencias' | 'estados' | 'diario'
   clave: string
   operacion: 'guardar' | 'borrar'
   creadoEn: number
@@ -37,6 +38,7 @@ export class BaseLyraFit extends Dexie {
   pendientes!: Table<Pendiente, number>
   estados!: Table<Estado, string>
   curso!: Table<SesionEnCurso, string>
+  diario!: Table<DiaDelDiario, string>
 
   constructor() {
     super('lyrafit')
@@ -102,6 +104,27 @@ export class BaseLyraFit extends Dexie {
       estados: 'fecha, actualizadoEn',
       curso: 'id',
     })
+
+    // v4 — el diario: comida y sueño, una fila por día.
+    //
+    // Tabla nueva y nada viejo cambia de forma, así que no hay `upgrade`: una
+    // base que venía de v3 se abre en v4 con el diario vacío y no pierde una
+    // fila. Eso lo verifica `actualizacion.mjs`, que es el único portón que
+    // puede: es la única copia de los datos del dueño y no hay servidor del
+    // que recuperarlos.
+    //
+    // La clave es la fecha 'AAAA-MM-DD' y no un id autoincremental, igual que
+    // en `estados`: así anotar dos veces el mismo día pisa la fila en vez de
+    // crear dos, que es lo que la persona espera cuando corrige un número.
+    this.version(4).stores({
+      sesiones: 'id, fecha, finalizadaEn',
+      avances: 'patron, actualizadoEn',
+      preferencias: 'id',
+      pendientes: '++id, creadoEn',
+      estados: 'fecha, actualizadoEn',
+      curso: 'id',
+      diario: 'fecha, actualizadoEn',
+    })
   }
 }
 
@@ -111,7 +134,6 @@ export const PREFERENCIAS_POR_DEFECTO: Preferencias = {
   id: 'unico',
   rutinaActivaId: RUTINA_POR_DEFECTO,
   sonidoDescanso: true,
-  tema: 'sistema',
   encuadre: 'logrado',
   estadoActivo: false,
   prediccionActiva: true,

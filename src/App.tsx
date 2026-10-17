@@ -8,12 +8,12 @@ import { Entrenar } from './pantallas/Entrenar'
 import { Reloj } from './pantallas/Reloj'
 import { Alta } from './pantallas/Alta'
 import { Estado } from './pantallas/Estado'
+import { Diario } from './pantallas/Diario'
 import { Biblioteca } from './pantallas/Biblioteca'
 import { FichaEjercicio } from './pantallas/FichaEjercicio'
 import { Ajustes } from './pantallas/Ajustes'
 import { HojaDeFiguras } from './pantallas/HojaDeFiguras'
 import { leerPreferencias } from './datos/repositorio'
-import { useTema } from './hooks/useTema'
 
 // Progreso es la única pantalla que usa la librería de gráficos, y esa
 // librería pesa más que todo el resto de la app junta. Cargándola aparte, el
@@ -53,14 +53,13 @@ function Portero({ children }: { children: React.ReactNode }) {
 }
 
 export function App() {
-  useTema()
-
   return (
     <Portero>
       <Routes>
         <Route element={<Layout />}>
           <Route path="/" element={<Hoy />} />
           <Route path="/estado" element={<Estado />} />
+          <Route path="/diario" element={<Diario />} />
           <Route path="/biblioteca" element={<Biblioteca />} />
           {/* La hoja de contacto de los dibujos, solo en desarrollo: es una
               herramienta de taller y no tiene por qué viajar al teléfono de

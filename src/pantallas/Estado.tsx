@@ -21,7 +21,7 @@ import { NOMBRE_PATRON } from '@/dominio/biblioteca'
 import { ENTRADAS_MINIMAS, leerEstado } from '@/dominio/estado'
 import type { Patron } from '@/dominio/tipos'
 import { fechaISO, guardarEstado, leerEstadoDeHoy, leerEstados } from '@/datos/repositorio'
-import { Accion, AccionQuieta, Rotulo } from '@/componentes/ui'
+import { Accion, AccionQuieta, Rotulo, Segmento } from '@/componentes/ui'
 
 const ITEMS = [
   {
@@ -90,18 +90,14 @@ export function Estado() {
                 const valor = i + 1
                 const elegido = actual[item.clave] === valor
                 return (
-                  <button
+                  <Segmento
                     key={valor}
+                    elegido={elegido}
                     onClick={() => setValores((v) => ({ ...v, [item.clave]: valor }))}
-                    className="flex-1 px-1 py-3 text-[0.6875rem] leading-tight"
-                    style={{
-                      border: '1px solid var(--color-regla)',
-                      backgroundColor: elegido ? 'var(--color-vega)' : 'transparent',
-                      color: elegido ? '#fff' : 'var(--color-glosa)',
-                    }}
+                    className="flex-1 px-1 text-center leading-tight"
                   >
                     {etiqueta}
-                  </button>
+                  </Segmento>
                 )
               })}
             </div>
@@ -116,30 +112,13 @@ export function Estado() {
               es otra cosa, y ahí la app deja de empujar esa cadena.
             </p>
             <div className="mt-3 flex flex-wrap gap-px">
-              <button
-                onClick={() => setMolestia('ninguna')}
-                className="px-3 py-3 text-[0.6875rem]"
-                style={{
-                  border: '1px solid var(--color-regla)',
-                  backgroundColor: molestia === 'ninguna' ? 'var(--color-vega)' : 'transparent',
-                  color: molestia === 'ninguna' ? '#fff' : 'var(--color-glosa)',
-                }}
-              >
+              <Segmento elegido={molestia === 'ninguna'} onClick={() => setMolestia('ninguna')}>
                 Parejo
-              </button>
+              </Segmento>
               {PATRONES.map((p) => (
-                <button
-                  key={p}
-                  onClick={() => setMolestia(p)}
-                  className="px-3 py-3 text-[0.6875rem]"
-                  style={{
-                    border: '1px solid var(--color-regla)',
-                    backgroundColor: molestia === p ? 'var(--color-ambar)' : 'transparent',
-                    color: molestia === p ? '#100f0d' : 'var(--color-glosa)',
-                  }}
-                >
+                <Segmento key={p} elegido={molestia === p} onClick={() => setMolestia(p)} tono="ambar">
                   {NOMBRE_PATRON[p]}
-                </button>
+                </Segmento>
               ))}
             </div>
           </section>

@@ -94,39 +94,76 @@
    ========================================================================== */
 
 @theme {
-  /* --- EL PAPEL (cambia con el tema). Cálido, no gris azulado: ese slate
-         #f4f5f7 es el olor a plantilla de toda app de fitness. --- */
-  --color-fondo: #f7f5f0;
-  --color-papel: #edeae3;
-  --color-tinta: #15140f;
-  --color-glosa: #56514a;
-  --color-regla: #cdc7ba;
-  --color-regla-fuerte: #8d867a;
+  /* --- LA NOCHE. Un solo mundo. ---
+         Durante un año hubo dos: papel cálido de día y oscuro de noche, más
+         una tercera noche fija para la carta y una cuarta para el esfuerzo.
+         Cuatro juegos de tokens para mantener sincronizados, con los
+         overrides de oscuro escritos DOS veces idénticos, un flash de blanco
+         a negro cada vez que empezabas una serie, y cinco lugares con blanco
+         sobre Vega que daban 2,6:1 — por debajo del mínimo legible— porque
+         nadie podía tener los cuatro mundos en la cabeza a la vez.
+
+         Ahora hay uno. El negro es cálido (#100f0d, no un gris azulado) para
+         que la tinta clara encima se lea como papel revelado y no como una
+         pantalla apagada. La carta y el esfuerzo siguen siendo una noche más
+         profunda y más fría: es un hundimiento adentro de la noche, no un
+         mundo aparte. --- */
+  --color-fondo: #100f0d;
+  --color-papel: #1b1915;
+  --color-tinta: #f2efe6;
+  --color-glosa: #a49b8c;
+  --color-regla: #35302a;
+  --color-regla-fuerte: #6b6459;
 
   /* Vega: la estrella más brillante de Lyra, y el único acento del sistema.
      Racionado a TRES apariciones por pantalla como máximo: la barra de
-     acción, la estrella "estás acá", y el filete de la glosa del motor. */
-  --color-vega: #b03a0c;
+     acción, la estrella "estás acá", y el filete de la glosa del motor.
+     7,4:1 contra el fondo, y lleva tinta OSCURA encima cuando es superficie. */
+  --color-vega: #ff7a45;
 
   /* El techo de alarma. No existe rojo para nada del entrenamiento. */
-  --color-ambar: #8a5300;
+  --color-ambar: #eeb43c;
 
   /* Solo para acciones destructivas del usuario en Ajustes (borrar datos).
      Por contrato: ninguna pantalla de entrenamiento puede usar este token. */
-  --color-destructivo: #a02216;
+  --color-destructivo: #f08a7e;
 
-  /* Rampa tinta: los patrones como TEXTO y REGLA sobre papel claro. */
-  --color-empuje: #9c4413;
-  --color-traccion: #0e6b8c;
-  --color-piernas: #3f5f10;
-  --color-core: #6b2fbd;
-  /* La bisagra entra en el hueco que quedaba en la rueda: naranja 25°, verde
-     80°, azul 197°, violeta 270°. El rosa profundo es el único lugar donde una
-     quinta cadena no se confunde con ninguna de las cuatro, ni siquiera con el
-     violeta del core, que es lo más cerca que está. */
-  --color-bisagra: #a3175c;
+  /* La tinta que va ENCIMA de una superficie clara (la barra de acción, un
+     glifo relleno). Un solo token para que nadie vuelva a escribir #fff
+     sobre naranja. */
+  --color-sobre-acento: #100f0d;
 
-  /* --- LA CARTA: noche fija, idéntica en claro y en oscuro --- */
+  /* --- LOS CUATRO DOMINIOS: atmósfera, nunca marca --- *
+   *
+   * La regla que impide el arcoíris: EL TAMAÑO DECIDE EL ROL.
+   *
+   *   dominio = atmósfera. Baja saturación, superficie grande, campo entero.
+   *             Dice EN QUÉ MUNDO ESTÁS.
+   *   cadena  = marca. Alta saturación, 8 px, el glifo. Dice QUÉ PATRÓN ES,
+   *             y vive solo adentro de fuerza.
+   *
+   * Nunca compiten porque nunca aparecen al mismo tamaño. Los cuatro campos
+   * están medidos a 1,04-1,05 contra el fondo: misma profundidad, distinto
+   * tono. No es "un fondo más claro", es el mismo negro con otra temperatura,
+   * que es lo que se percibe sin poder nombrarlo.
+   *
+   * La luz de cada dominio se usa de 24 px para arriba (el ícono, el rótulo,
+   * una regla). NUNCA en un glifo de 8 px: ese tamaño es de las cadenas.
+   */
+  --dominio-fuerza-campo: #191310;
+  --dominio-fuerza-luz: #ff7a45;   /* la brasa: es Vega, y es a propósito —
+                                      el acento del sistema SIEMPRE fue el de
+                                      la fuerza, no hace falta un quinto naranja */
+  --dominio-fuelle-campo: #0b1715;
+  --dominio-fuelle-luz: #49cfb4;   /* el aire: verde azulado, 9,9:1 */
+
+  --dominio-comida-campo: #121710;
+  --dominio-comida-luz: #9fc46a;   /* lo que crece, 9,7:1 */
+
+  --dominio-sueno-campo: #12131f;
+  --dominio-sueno-luz: #9aa5e8;    /* el índigo de antes del amanecer, 8,1:1 */
+
+  /* --- LA CARTA: la noche profunda. Más fría y más honda que la página. --- */
   --carta-fondo: #080b11;
   --carta-canto: #1a2230;
   --carta-estrella: #ffffff;
@@ -134,9 +171,19 @@
   --carta-futuro-nodo: #79859a;
   --carta-futuro-linea: #55637a;
 
-  /* Rampa luz: los patrones como NODO sobre la noche. Un color calibrado
-     para texto sobre papel blanco no puede ser el mismo que un punto de luz
-     sobre negro. Misma disciplina que la paleta de gráficos, extendida. */
+  /* Rampa de patrón. Un solo juego: sobre la noche, el color del nodo de la
+     carta y el color del glifo de la fila son el mismo problema. Mientras
+     hubo papel claro hacían falta dos rampas y las dos se desincronizaban. */
+  --color-empuje: #ff7a45;
+  --color-traccion: #38bdf8;
+  --color-piernas: #a3e635;
+  --color-core: #c084fc;
+  /* La bisagra entra en el hueco que quedaba en la rueda: naranja 22°, verde
+     82°, azul 199°, violeta 276°. El rosa profundo es el único lugar donde una
+     quinta cadena no se confunde con ninguna de las cuatro, ni siquiera con el
+     violeta del core, que es lo más cerca que está. */
+  --color-bisagra: #fb7185;
+
   --luz-empuje: #ff7a45;
   --luz-traccion: #38bdf8;
   --luz-piernas: #a3e635;
@@ -145,12 +192,12 @@
 
   /* Gráficos: mantienen su paleta propia, ya verificada. Un color pensado
      para iluminar un nodo de 7px no es un buen relleno de barra de 40px. */
-  --color-grafico-1: #9c4413;
-  --color-grafico-2: #0e6b8c;
-  --color-grafico-3: #3f5f10;
-  --color-grafico-4: #6b2fbd;
-  --color-grafico-5: #a3175c;
-  --color-grafico-grilla: #cdc7ba;
+  --color-grafico-1: #ff7a45;
+  --color-grafico-2: #38bdf8;
+  --color-grafico-3: #a3e635;
+  --color-grafico-4: #c084fc;
+  --color-grafico-5: #fb7185;
+  --color-grafico-grilla: #35302a;
 
   --font-cifra: 'Plex', ui-monospace, 'SF Mono', 'Roboto Mono', monospace;
   --font-lectura: 'Lectura', ui-serif, Georgia, 'Times New Roman', serif;
@@ -168,76 +215,26 @@
   --spacing: 4px;
 
   --curva: cubic-bezier(0.22, 0.61, 0.36, 1);
-
 }
 
 @layer theme {
   :root {
-    color-scheme: light dark;
-  }
-
-  @media (prefers-color-scheme: dark) {
-    :root:not([data-tema='claro']) {
-      --color-fondo: #100f0d;
-      --color-papel: #1b1915;
-      --color-tinta: #f2efe6;
-      --color-glosa: #a49b8c;
-      --color-regla: #35302a;
-      --color-regla-fuerte: #6b6459;
-      --color-vega: #ff7a45;
-      --color-ambar: #eeb43c;
-      --color-destructivo: #f08a7e;
-
-      --color-empuje: #ff7a45;
-      --color-traccion: #38bdf8;
-      --color-piernas: #a3e635;
-      --color-bisagra: #fb7185;
-      --color-core: #c084fc;
-
-      --color-grafico-1: #ff7a45;
-      --color-grafico-2: #38bdf8;
-      --color-grafico-3: #a3e635;
-      --color-grafico-4: #c084fc;
-      --color-grafico-5: #fb7185;
-      --color-grafico-grilla: #35302a;
-    }
-  }
-
-  :root[data-tema='oscuro'] {
-    --color-fondo: #100f0d;
-    --color-papel: #1b1915;
-    --color-tinta: #f2efe6;
-    --color-glosa: #a49b8c;
-    --color-regla: #35302a;
-    --color-regla-fuerte: #6b6459;
-    --color-vega: #ff7a45;
-    --color-ambar: #eeb43c;
-    --color-destructivo: #f08a7e;
-
-    --color-empuje: #ff7a45;
-    --color-traccion: #38bdf8;
-    --color-piernas: #a3e635;
-    --color-bisagra: #fb7185;
-    --color-core: #c084fc;
-
-    --color-grafico-1: #ff7a45;
-    --color-grafico-2: #38bdf8;
-    --color-grafico-3: #a3e635;
-    --color-grafico-4: #c084fc;
-    --color-grafico-5: #fb7185;
-    --color-grafico-grilla: #35302a;
+    /* Un solo esquema. El navegador pinta los controles nativos, la barra de
+       scroll y el autocompletado en oscuro sin que haya que tocarlos. */
+    color-scheme: dark;
   }
 
   /*
-   * ENTRENAR — la noche, siempre, en los dos temas.
-   * Blanco puro sobre #080b11 = 19.7:1, el par de mayor contraste que existe
+   * EL ESFUERZO Y EL CIERRE — la noche profunda.
+   *
+   * Blanco puro sobre #080b11 = 19,7:1, el par de mayor contraste que existe
    * en el sistema. Está justo donde la persona tiene el pulso a 140, el sol
    * de frente y las manos transpiradas.
    *
-   * Es un interruptor, no disciplina del desarrollador: la decoración se
-   * apaga por CSS. Ningún componente puede "olvidarse" de apagarse.
-   */
-  /*
+   * Ya no es un salto de mundo: la página entera es noche, y acá se hunde un
+   * paso más. Eso es lo que mata el flash de blanco a negro que había cada
+   * vez que empezaba una serie.
+   *
    * El cierre comparte la noche —es el mismo momento, con el pulso todavía
    * alto— pero NO comparte el apagado de decoración de más abajo. Ahí la
    * carta y la voz del motor son el contenido, no el adorno.
@@ -250,8 +247,6 @@
     --color-glosa: #8d99ad;
     --color-regla: #202b3a;
     --color-regla-fuerte: #55637a;
-    --color-vega: #ff7a45;
-    --color-ambar: #eeb43c;
   }
 }
 
@@ -535,20 +530,6 @@
     background-color: var(--tinta-patron, var(--color-glosa));
   }
 
-  .fila-pulsable {
-    transition: opacity 120ms linear;
-  }
-  .fila-pulsable:active {
-    opacity: 0.6;
-  }
-
-  /* Estado de carga: la fila vacía con las reglas ya dibujadas, quieta.
-     Sin skeleton pulsante — un elemento que late mientras esperás es ruido. */
-  .fila-vacia {
-    min-height: var(--fila);
-    border-bottom: 1px solid var(--color-regla);
-  }
-
   /* ------------------------------------------------------------------ *
    * 3. LA CARTA — banda de noche a sangre.
    *
@@ -770,33 +751,27 @@
     padding: 0 1rem;
     border-radius: 0;
     background-color: var(--color-vega);
-    color: #ffffff;
+    /* Tinta OSCURA sobre la barra naranja, siempre: #100f0d sobre #ff7a45 da
+       7,4:1 y blanco daría 2,6:1 — por debajo del mínimo. El CSS documentaba
+       esto desde hace meses y había cinco lugares que igual ponían #fff,
+       porque la regla vivía en tres selectores condicionales que había que
+       acordarse de copiar. Ahora es un token y no hay nada que recordar. */
+    color: var(--color-sobre-acento);
     font-family: var(--font-cifra);
     font-weight: 600;
     font-size: 1rem;
     letter-spacing: 0.06em;
     text-transform: uppercase;
-    transition: opacity 90ms linear;
+    transition:
+      background-color var(--dur-responder) var(--sal-responder),
+      transform var(--dur-responder) var(--sal-responder);
   }
   .accion:active {
-    opacity: 0.72;
+    background-color: color-mix(in oklab, var(--color-vega) 82%, #000);
   }
   .accion:disabled {
     background-color: var(--color-papel);
     color: var(--color-glosa);
-  }
-
-  /* En tema oscuro la barra naranja lleva texto oscuro: #100f0d sobre
-     #ff7a45 da 7.4:1, mientras que blanco sobre #ff7a45 daría 2.8:1. */
-  @media (prefers-color-scheme: dark) {
-    :root:not([data-tema='claro']) .accion {
-      color: #100f0d;
-    }
-  }
-  :root[data-tema='oscuro'] .accion,
-  :root[data-pantalla='entrenar'] .accion,
-  :root[data-pantalla='cierre'] .accion {
-    color: #100f0d;
   }
 
   /* La acción quieta: el cierre no te empuja a nada. Terminar es terminar. */
@@ -826,42 +801,178 @@
   }
 
   /* ------------------------------------------------------------------ *
-   * 7. MOVIMIENTO
+   * 7. MOVIMIENTO — una gramática de seis primitivas
    *
-   * Durante mucho tiempo esta sección decía "cinco animaciones en toda la
-   * aplicación; cualquier sexta es un bug", y la regla hizo su trabajo: cada
-   * cosa que se movió después tuvo que justificarse por escrito. La sexta fue
-   * la figura del ejercicio, con el argumento de que el movimiento ES la
-   * información. La séptima y la octava son Lyra, y no tienen ese argumento:
-   * un ser que no respira está muerto, y un ser muerto no acompaña a nadie.
+   * Antes de esto había ocho `@keyframes` numerados a mano, tres movimientos
+   * más en JS, y comentarios que se contradecían entre sí: dos archivos
+   * seguían diciendo "cinco animaciones en toda la app" mientras el propio
+   * CSS listaba ocho. Una lista numerada no es un sistema: crece por
+   * excepciones y nadie puede decir si lo próximo cabe o no.
    *
-   * Así que la regla cambia y queda escrita como cambió, en vez de erosionarse
-   * con excepciones sueltas. Lo que se conserva, que es lo que la hacía valer:
+   * Ahora hay SEIS PRIMITIVAS y todo lo que se mueva tiene que ser una de
+   * ellas o una composición de ellas. Si algo no entra, el movimiento está
+   * mal pensado, no falta una primitiva.
    *
-   *   · Nada se mueve durante el esfuerzo. `[data-pantalla='entrenar']` no
-   *     tiene Lyra, y no la va a tener.
-   *   · Los números siguen sin moverse. Nunca.
-   *   · Sigue sin haber confeti, medallas, monedas ni barras que se llenan.
-   *   · Con `prefers-reduced-motion` todo queda quieto, sin perder información.
+   *   entrar / salir   contenido que aparece y se retira
+   *   navegar          el pasaje entre pantallas (View Transitions, nativo)
+   *   responder        el acuse de recibo del toque
+   *   revelar          un dato que llega
+   *   trazar           un recorrido que se dibuja
+   *   latir            lo vivo — el ÚNICO `infinite` del sistema
+   *
+   * LO QUE SE CONSERVA, que es lo que hacía valer la regla vieja:
+   *
+   *   · Nada se mueve durante el esfuerzo. Está apagado por CSS más abajo,
+   *     no por disciplina: ningún componente puede olvidarse.
+   *   · Los números no se mueven. Nunca. No ruedan, no cuentan, no hacen
+   *     odómetro: un número en movimiento no se lee de reojo entre
+   *     respiraciones.
+   *   · El arco del descanso es lineal. Representa tiempo real; si acelera,
+   *     miente.
+   *   · Ni confeti, ni medallas, ni monedas, ni barras que se llenan.
+   *   · Con `prefers-reduced-motion` todo queda quieto SIN PERDER
+   *     INFORMACIÓN: el estado final es el estado visible.
+   *
+   * Y no entra ni un byte de librería. El resorte se escribe con `linear()`
+   * de CSS, que es nativo desde 2023. Importa más de lo que parece: el
+   * service worker precachea todos los trozos, así que 40 kB de librería de
+   * animación se bajan enteros en cada instalación y en cada actualización,
+   * sean lazy o no.
    * ------------------------------------------------------------------ */
 
-  /* (1) LA REGLA SE IMPRIME. Abre la pantalla de cierre: una hoja vacía y
-     un filete que se dibuja. Después, 700 ms de nada. Ese silencio es el
-     diseño: es lo que hace que lo que viene se sienta dicho, no gritado. */
-  .anim-regla {
-    transform: scaleX(0);
-    transform-origin: left;
-    animation: imprimir 700ms var(--curva) forwards;
+  /* --- Los tokens del tiempo. Cuatro duraciones y nada entre medio. --- */
+  :root {
+    --dur-instante: 90ms;   /* el toque: por debajo de 100 ms se siente físico */
+    --dur-breve: 190ms;     /* entrar y salir */
+    --dur-media: 320ms;     /* navegar */
+    --dur-larga: 700ms;     /* trazar, imprimir */
+
+    /* Salidas: acelera al irse, frena al llegar. Asimétricas a propósito —
+       lo que se va no merece el tiempo de lo que llega. */
+    --sal-salida: cubic-bezier(0.4, 0, 1, 1);
+    --sal-entrada: cubic-bezier(0, 0, 0.18, 1);
+    --sal-ambas: var(--curva);
+
+    /* El resorte, en `linear()`. Un muestreo de un oscilador amortiguado
+       real: sobrepasa 1 y vuelve, que es lo que hace que un toque se sienta
+       material en vez de calculado. Se usa SOLO en `responder`. */
+    --sal-resorte: linear(
+      0, 0.0063, 0.0247 2.2%, 0.0947 4.8%, 0.2063 7.6%, 0.4879 13.2%,
+      0.6315 16.1%, 0.7524, 0.8531 22.2%, 0.9298 25.4%, 0.9871 28.8%,
+      1.0257 32.4%, 1.0455 36%, 1.0497 38.3%, 1.0473 41%, 1.0295 47.1%,
+      1.0057 54.3%, 0.9933 60.2%, 0.9942 66.4%, 1.0003 79.2%, 1
+    );
+
+    --dur-responder: var(--dur-instante);
+    --sal-responder: var(--sal-resorte);
   }
-  @keyframes imprimir {
-    to {
-      transform: scaleX(1);
+
+  /* ── (1) ENTRAR / SALIR ─────────────────────────────────────────────
+     Aparición y retiro. Solo opacidad y un desplazamiento mínimo: 6 px, no
+     40. Un elemento que entra volando desde lejos le roba el ojo al que ya
+     estaba, y acá siempre hay algo que ya estaba. */
+  .entrar {
+    animation: entrar var(--dur-breve) var(--sal-entrada) both;
+  }
+  @keyframes entrar {
+    from { opacity: 0; transform: translateY(6px); }
+    to   { opacity: 1; transform: none; }
+  }
+
+  .salir {
+    animation: salir var(--dur-instante) var(--sal-salida) both;
+  }
+  @keyframes salir {
+    to { opacity: 0; transform: translateY(-4px); }
+  }
+
+  /* El escalonado: cuando entra una lista, las filas entran de a una con 35
+     ms de diferencia. Más que eso y la última llega tarde; menos y no se
+     percibe el orden. El índice lo pone el componente en `--orden`. */
+  .entrar-en-orden {
+    animation: entrar var(--dur-breve) var(--sal-entrada) both;
+    animation-delay: calc(var(--orden, 0) * 35ms);
+  }
+
+  /* ── (2) NAVEGAR ────────────────────────────────────────────────────
+     El pasaje entre pantallas, con la View Transitions API del navegador:
+     cero bytes de librería y el trabajo lo hace el compositor, no el hilo
+     principal. Donde no existe la API no pasa nada y la navegación es el
+     corte duro de siempre — que es exactamente el comportamiento viejo.
+
+     PROHIBIDA en Entrenar, en el Reloj y en el Cierre: a 140 pulsaciones,
+     320 ms de deslizamiento se perciben como una app trabada. El hook que
+     dispara la transición lo verifica antes de llamarla. */
+  @media (prefers-reduced-motion: no-preference) {
+    ::view-transition-old(root) {
+      animation: salir var(--dur-instante) var(--sal-salida) both;
+    }
+    ::view-transition-new(root) {
+      animation: entrar var(--dur-media) var(--sal-entrada) both;
     }
   }
 
-  /* (2) TRAZAR. El path lleva pathLength="1", así stroke-dasharray:1 y
-     stroke-dashoffset:1→0 funcionan en CSS puro, sin medir el path con
-     getTotalLength() y sin una línea de JS.
+  /* La barra de navegación NO participa del pasaje: es el marco, y un marco
+     que se desvanece en cada toque convierte la app en una presentación. */
+  .marco-fijo {
+    view-transition-name: marco;
+  }
+  ::view-transition-group(marco) { animation: none; }
+  ::view-transition-old(marco),
+  ::view-transition-new(marco) { animation: none; mix-blend-mode: normal; }
+
+  /* ── (3) RESPONDER ──────────────────────────────────────────────────
+     El acuse de recibo del toque. Reemplaza el `opacity: .6` que había en
+     todas partes, que es lo que hace una app sentirse de plástico: la
+     opacidad dice "me apagué", y lo que tiene que decir es "te sentí".
+
+     Hunde 2 px y vuelve con el resorte. Nunca crece: un elemento que se
+     agranda bajo el dedo queda tapado por el dedo. */
+  .responde {
+    transition:
+      transform var(--dur-responder) var(--sal-responder),
+      background-color var(--dur-responder) var(--sal-responder);
+  }
+  .responde:active {
+    transform: translateY(2px);
+  }
+
+  /* La fila del registro: no se puede mover (la regla de 1px se correría y
+     se vería el salto), así que responde cambiando de superficie. */
+  .fila-pulsable {
+    transition: background-color var(--dur-instante) var(--sal-ambas);
+  }
+  .fila-pulsable:active {
+    background-color: var(--color-papel);
+  }
+
+  /* Estado de carga: la fila vacía con las reglas ya dibujadas, quieta.
+     Sin esqueleto pulsante — un elemento que late mientras esperás es ruido. */
+  .fila-vacia {
+    min-height: var(--fila);
+    border-bottom: 1px solid var(--color-regla);
+  }
+
+  /* ── (4) REVELAR ────────────────────────────────────────────────────
+     Un dato que llega. Solo opacidad: el texto no entra volando, aparece
+     impreso. Es la que ya usaba el cierre, ahora con nombre de primitiva. */
+  .revelar {
+    opacity: 0;
+    animation: revelar 240ms linear forwards;
+  }
+  .revelar--1 { animation-delay: 1700ms; }
+  .revelar--2 { animation-delay: 2300ms; }
+  .revelar--3 { animation-delay: 2900ms; }
+  .revelar--4 { animation-delay: 3500ms; }
+  @keyframes revelar {
+    to { opacity: 1; }
+  }
+
+  /* ── (5) TRAZAR ─────────────────────────────────────────────────────
+     Un recorrido que se dibuja. El path lleva `pathLength="1"`, así
+     `stroke-dasharray: 1` y `stroke-dashoffset: 1 → 0` funcionan en CSS
+     puro, sin medir el path con getTotalLength() y sin una línea de JS.
+
      Arranca rápido y frena largo, como la aguja de un instrumento llegando
      a su marca. Se usa SOLO en Cierre cuando hubo salto de nodo. En Hoy
      jamás: Hoy se abre veinte veces por semana y una animación repetida
@@ -869,53 +980,38 @@
   .anim-trazo {
     stroke-dasharray: 1;
     stroke-dashoffset: 1;
-    animation: trazar 900ms var(--curva) 700ms forwards;
+    animation: trazar 900ms var(--sal-ambas) 700ms forwards;
   }
   @keyframes trazar {
-    to {
-      stroke-dashoffset: 0;
-    }
+    to { stroke-dashoffset: 0; }
   }
 
-  /* (3) ASENTAR. La luz aparece justo cuando la línea termina de llegar al
-     nodo. Sin rebote: la estrella se posa, no salta. Un overshoot elástico
-     convertiría un dato en un juguete. */
+  /* La misma primitiva en su versión recta: la regla que se imprime y abre
+     el cierre. Después, 700 ms de nada. Ese silencio es el diseño: es lo que
+     hace que lo que viene se sienta dicho, y no gritado. */
+  .anim-regla {
+    transform: scaleX(0);
+    transform-origin: left;
+    animation: imprimir var(--dur-larga) var(--sal-ambas) forwards;
+  }
+  @keyframes imprimir {
+    to { transform: scaleX(1); }
+  }
+
+  /* Y la llegada de la luz al final del trazo. Sin rebote: la estrella se
+     posa, no salta. Un overshoot elástico convertiría un dato en un juguete
+     — por eso `responder` tiene resorte y esto no. */
   .anim-estrella {
     opacity: 0;
     animation: asentar 420ms cubic-bezier(0.2, 0.8, 0.3, 1) 1460ms forwards;
   }
   @keyframes asentar {
-    from {
-      opacity: 0;
-      transform: scale(0.55);
-    }
-    to {
-      opacity: 1;
-      transform: scale(1);
-    }
+    from { opacity: 0; transform: scale(0.55); }
+    to   { opacity: 1; transform: scale(1); }
   }
 
-  /* (4) REVELAR. La pantalla de cierre aparece por etapas, solo opacidad:
-     el texto no entra volando, aparece impreso. */
-  .revelar {
-    opacity: 0;
-    animation: aparecer 240ms linear forwards;
-  }
-  .revelar--1 { animation-delay: 1700ms; }
-  .revelar--2 { animation-delay: 2300ms; }
-  .revelar--3 { animation-delay: 2900ms; }
-  .revelar--4 { animation-delay: 3500ms; }
-  @keyframes aparecer {
-    to {
-      opacity: 1;
-    }
-  }
-
-  /* (5) EL ARCO DEL DESCANSO. Lo que había antes latía a opacidad variable:
-     un elemento que late mientras tenés el pulso a 140 es estresante y
-     además hace ilegible el número que envuelve.
-     El descanso se muestra por VACIADO DE ARCO, en silencio y en lineal.
-     Lineal y no eased porque representa tiempo real: si acelera, miente.
+  /* El arco del descanso. No es decoración: es el reloj.
+     Lineal y no eased porque representa tiempo real.
      JS: elemento.style.setProperty('--resto', restante / total) */
   .arco-descanso {
     fill: none;
@@ -933,10 +1029,14 @@
     stroke-width: 2;
   }
 
-  /* (6) LYRA RESPIRA. Un flote lento y parejo, de tres punto cuatro segundos.
-     Es el único `infinite` del sistema junto con nada más, y existe para que
-     Lyra esté viva en vez de estampada. Se apaga sola con movimiento
-     reducido. */
+  /* ── (6) LATIR ──────────────────────────────────────────────────────
+     Lo vivo. Un flote lento y parejo de tres segundos y medio, y es el
+     ÚNICO `infinite` de todo el sistema. Si aparece un segundo, es un bug
+     — y ahora hay un portón que lo cuenta en vez de un comentario que lo
+     pide por favor.
+
+     Existe porque un ser que no respira está muerto, y un ser muerto no
+     acompaña a nadie. */
   .lyra {
     display: inline-block;
     position: relative;
@@ -945,26 +1045,28 @@
   }
   .lyra svg {
     overflow: visible;
-    filter: drop-shadow(0 3px 8px rgba(176, 58, 12, 0.35));
+    filter: drop-shadow(0 3px 8px rgba(255, 122, 69, 0.28));
   }
   .lyra--viva svg {
-    animation: respirar 3400ms ease-in-out infinite;
+    animation: latir 3400ms ease-in-out infinite;
   }
-  @keyframes respirar {
+  @keyframes latir {
     0%, 100% { transform: translateY(0); }
-    50% { transform: translateY(-3.5%); }
+    50%      { transform: translateY(-3.5%); }
   }
 
-  /* (7) EL REBOTE DEL TOQUE. Una sola vuelta, con un overshoot mínimo: es un
-     acuse de recibo, no una celebración. */
+  /* El rebote del toque: `responder` aplicado a Lyra, con una vuelta sola y
+     un overshoot mínimo. Es un acuse de recibo, no una celebración. */
   .lyra-rebote {
-    animation: respirar 3400ms ease-in-out infinite, rebotar 600ms cubic-bezier(0.34, 1.56, 0.64, 1);
+    animation:
+      latir 3400ms ease-in-out infinite,
+      rebotar 600ms cubic-bezier(0.34, 1.56, 0.64, 1);
   }
   @keyframes rebotar {
-    0% { scale: 1; rotate: 0deg; }
-    30% { scale: 1.16; rotate: -5deg; }
-    60% { scale: 0.96; rotate: 4deg; }
-    100% { scale: 1; rotate: 0deg; }
+    0%   { scale: 1;    rotate: 0deg; }
+    30%  { scale: 1.16; rotate: -5deg; }
+    60%  { scale: 0.96; rotate: 4deg; }
+    100% { scale: 1;    rotate: 0deg; }
   }
 
   /* Las chispas del toque: seis puntos que salen y se apagan. No caen, no se
@@ -987,21 +1089,8 @@
   }
   @keyframes chispear {
     from { opacity: 1; transform: rotate(var(--ang)) translateX(0) scale(1); }
-    to { opacity: 0; transform: rotate(var(--ang)) translateX(var(--lejos)) scale(0.2); }
+    to   { opacity: 0; transform: rotate(var(--ang)) translateX(var(--lejos)) scale(0.2); }
   }
-
-  /*
-   * QUÉ NO SE MUEVE, NUNCA:
-   *   · Los números. No cuentan hacia arriba, no ruedan, no hacen odómetro.
-   *     Un número en movimiento no se puede leer de reojo entre respiraciones.
-   *   · No hay transición entre pantallas. Corte duro: a 140 pulsaciones,
-   *     250 ms de deslizamiento se perciben como una app trabada.
-   *   · No hay hover con movimiento (es un teléfono).
-   *   · No hay confeti, ni "¡bien hecho!", ni barras que se llenan con brillo,
-   *     ni medallas, ni monedas. Nunca.
-   *   · El único `infinite` del sistema es el que hace respirar a Lyra. Si
-   *     aparece un segundo, es un bug.
-   */
 
   /* ------------------------------------------------------------------ *
    * 8. ENTRENAR — el interruptor de decoración.
@@ -1032,43 +1121,269 @@
     min-height: 4.5rem;
   }
 
+  /*
+   * Y EL INTERRUPTOR DE MOVIMIENTO, que hasta hoy era un comentario pidiendo
+   * por favor. Bajo el esfuerzo no corre NINGUNA animación: ni una que se
+   * agregue mañana, ni una que venga heredada de un componente compartido.
+   *
+   * `transition` queda viva a propósito y no es una excepción floja: el arco
+   * del descanso es el reloj, no un adorno, y la respuesta al toque es lo que
+   * dice que el dedo entró. Lo que se apaga es lo que se mueve solo.
+   */
+  [data-pantalla='entrenar'] *,
+  [data-pantalla='entrenar'] *::before,
+  [data-pantalla='entrenar'] *::after {
+    animation: none !important;
+  }
+
+  /* ------------------------------------------------------------------ *
+   * 9. LOS DOMINIOS — el mundo en el que estás
+   *
+   * Cuatro: fuerza, fuelle, comida y sueño. Se marcan con `data-dominio` en
+   * un contenedor y lo único que cambian es la ATMÓSFERA: el campo de fondo
+   * y la luz de los rótulos. Nunca el texto, que sigue siendo tinta y glosa
+   * en los cuatro —medido: 15,8:1 y 6,6:1 contra cualquiera de los cuatro
+   * campos—, y nunca un glifo de 8 px, que es territorio de las cadenas.
+   *
+   * El campo está a 1,04 de contraste contra el fondo de la app. Eso es
+   * deliberado y es el corazón de la idea: no es "un fondo más claro", es el
+   * mismo negro con otra temperatura. Se percibe sin poder nombrarlo, que es
+   * exactamente lo que tiene que hacer una atmósfera.
+   * ------------------------------------------------------------------ */
+
+  [data-dominio] {
+    --campo: var(--color-fondo);
+    --luz-dominio: var(--color-glosa);
+    background-color: var(--campo);
+  }
+  [data-dominio='fuerza'] { --campo: var(--dominio-fuerza-campo); --luz-dominio: var(--dominio-fuerza-luz); }
+  [data-dominio='fuelle'] { --campo: var(--dominio-fuelle-campo); --luz-dominio: var(--dominio-fuelle-luz); }
+  [data-dominio='comida'] { --campo: var(--dominio-comida-campo); --luz-dominio: var(--dominio-comida-luz); }
+  [data-dominio='sueno']  { --campo: var(--dominio-sueno-campo);  --luz-dominio: var(--dominio-sueno-luz); }
+
+  /* El campo a sangre: toca los dos bordes aunque el contenedor tenga
+     margen. Mismo recurso que la carta. */
+  .campo {
+    margin-inline: calc(50% - 50vw);
+    padding-inline: calc(50vw - 50%);
+  }
+
+  /* El rótulo del dominio lleva su luz. De 11 px para arriba y nunca en un
+     cuadrado de 8: ese tamaño ya está hablado. */
+  [data-dominio] > .rotulo,
+  .rotulo-dominio {
+    color: var(--luz-dominio);
+  }
+
+  /* La barra del dominio: 2 px de su luz colgados del borde de arriba. Es
+     todo lo que hace falta para decir en qué mundo estás, y no gasta ni una
+     aparición de Vega. */
+  .filete-dominio {
+    border-top: 2px solid var(--luz-dominio);
+  }
+
+  /* ------------------------------------------------------------------ *
+   * 10. EL SEGMENTO — la regleta de opciones
+   *
+   * Existe porque había CINCO copias de la misma regleta escritas con estilos
+   * en línea en cinco pantallas, y las cinco ponían `#fff` sobre Vega: 2,6:1,
+   * por debajo del mínimo legible. No fue descuido de nadie — la regla vivía
+   * en tres selectores condicionales de `.accion` que había que acordarse de
+   * copiar. Ahora es una clase y no hay nada que recordar.
+   * ------------------------------------------------------------------ */
+
+  .regleta {
+    display: flex;
+    gap: 1px;
+  }
+
+  .segmento {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 2.75rem;
+    padding: 0 0.75rem;
+    border: 1px solid var(--color-regla);
+    background-color: transparent;
+    color: var(--color-glosa);
+    font-family: var(--font-cifra);
+    font-size: 0.6875rem;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    transition:
+      background-color var(--dur-instante) var(--sal-ambas),
+      color var(--dur-instante) var(--sal-ambas),
+      border-color var(--dur-instante) var(--sal-ambas);
+  }
+
+  .segmento[aria-pressed='true'],
+  .segmento[data-elegido='true'] {
+    background-color: var(--color-vega);
+    border-color: var(--color-vega);
+    color: var(--color-sobre-acento);
+  }
+
+  /* La molestia puntual se elige en ámbar y no en Vega: no es una preferencia,
+     es la señal de que algo duele, y el ámbar es el techo de alarma del
+     sistema. Rojo no existe para nada del entrenamiento. */
+  .segmento[data-tono='ambar'][aria-pressed='true'] {
+    background-color: var(--color-ambar);
+    border-color: var(--color-ambar);
+    color: var(--color-sobre-acento);
+  }
+
+  /* ── EL PASO: el botón de más y de menos ──────────────────────────────
+     Es el control más tocado de toda la app —el de la predicción, el del
+     reloj, el de los discos, el del alta— y hasta hoy era un cuadrado con un
+     borde en línea, copiado diez veces, que respondía al toque exactamente
+     igual que todo lo demás: apagándose un poco.
+
+     Acá sí vale el resorte. `responder` es la primitiva: hunde dos píxeles y
+     vuelve con sobrepaso, y la superficie se llena. Es un `transition` y no un
+     `animation`, así que el interruptor del esfuerzo no lo toca — y está bien
+     que no lo toque: el acuse de recibo del dedo no es decoración, es la
+     diferencia entre saber y no saber si el toque entró. Con el pulso a 140 y
+     las manos transpiradas, eso es lo último que hay que apagar. */
+  .paso {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: var(--font-cifra);
+    font-variant-numeric: tabular-nums slashed-zero;
+    font-weight: 600;
+    border: 1px solid var(--color-regla);
+    color: var(--color-tinta);
+    transition:
+      transform var(--dur-responder) var(--sal-responder),
+      background-color var(--dur-instante) var(--sal-ambas),
+      border-color var(--dur-instante) var(--sal-ambas);
+  }
+  .paso:active {
+    transform: translateY(2px);
+    background-color: var(--color-papel);
+    border-color: var(--color-regla-fuerte);
+  }
+
+  /* El botón de contorno: la acción secundaria que no es una regleta.
+     Había dieciocho copias de esto escritas con estilo en línea, cada una con
+     su propio borde, y ninguna respondía al toque con otra cosa que el
+     `opacity: .6` genérico. Responde con la superficie, igual que la fila del
+     registro: un botón que se apaga dice "me apagué", y lo que tiene que
+     decir es "te sentí". */
+  .boton-contorno {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 2.75rem;
+    padding: 0 1rem;
+    border: 1px solid var(--color-regla);
+    font-family: var(--font-cifra);
+    font-size: 0.6875rem;
+    font-weight: 600;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--color-glosa);
+    transition:
+      background-color var(--dur-instante) var(--sal-ambas),
+      color var(--dur-instante) var(--sal-ambas),
+      border-color var(--dur-instante) var(--sal-ambas);
+  }
+  .boton-contorno:active {
+    background-color: var(--color-papel);
+    color: var(--color-tinta);
+  }
+  /* El que lleva el peso de los dos: borde fuerte y tinta plena. */
+  .boton-contorno-fuerte {
+    border-color: var(--color-regla-fuerte);
+    color: var(--color-tinta);
+  }
+
+  /* La variante del alta y del estado: más alta y con cifra tabular, porque
+     ahí los segmentos son números y tienen que alinearse. */
+  .segmento-cifra {
+    font-variant-numeric: tabular-nums slashed-zero;
+    min-height: 3rem;
+    font-size: 1rem;
+    letter-spacing: -0.015em;
+  }
+
 }
 
 /* ==========================================================================
    MOVIMIENTO REDUCIDO
 
-   La información NO se pierde, solo se congela. La diferencia importa: si
-   el trazado y la estrella simplemente no ocurrieran, la persona con
-   movimiento reducido no vería que avanzó de nodo — el dato dependería del
-   movimiento, que es exactamente el error que hay que evitar.
+   La información NO se pierde, solo se congela. La diferencia importa: si el
+   trazado y la estrella simplemente no ocurrieran, una persona con movimiento
+   reducido no vería que avanzó de nodo — el dato dependería del movimiento,
+   que es exactamente el error que hay que evitar.
+
+   La regla operativa, que el portón `movimiento.mjs` verifica elemento por
+   elemento: **el estado con movimiento reducido es el estado FINAL**, nunca el
+   inicial. Por eso cada primitiva se apaga declarando su `to`, y no con un
+   `animation: none` suelto que dejaría el `from` congelado.
    ========================================================================== */
 
 @media (prefers-reduced-motion: reduce) {
-  .anim-regla {
-    animation: none;
-    transform: scaleX(1);
-  }
-  .anim-trazo {
-    animation: none;
-    stroke-dashoffset: 0;
-  }
-  .anim-estrella {
+  /* entrar / salir */
+  .entrar,
+  .entrar-en-orden {
     animation: none;
     opacity: 1;
+    transform: none;
   }
+  .salir {
+    animation: none;
+  }
+
+  /* responder: el toque sigue acusando recibo, pero con la superficie y no
+     con el desplazamiento. El acuse no es decoración — sin él no se sabe si
+     el toque entró. */
+  .responde:active {
+    transform: none;
+    background-color: var(--color-papel);
+  }
+
+  /* revelar */
   .revelar {
     animation: none;
     opacity: 1;
   }
+
+  /* trazar, y sus dos formas */
+  .anim-trazo {
+    animation: none;
+    stroke-dashoffset: 0;
+  }
+  .anim-regla {
+    animation: none;
+    transform: scaleX(1);
+  }
+  .anim-estrella {
+    animation: none;
+    opacity: 1;
+    transform: none;
+  }
+
   /* El arco del descanso es información, no decoración: se sigue
      actualizando, pero salta de segundo a segundo en vez de deslizarse. */
   .arco-descanso {
     transition: none;
   }
-  /* Lyra queda quieta y entera: no pierde nada, deja de respirar. El
-     componente además no engancha el puntero ni el parpadeo. */
+
+  /* latir: Lyra queda quieta y entera. No pierde nada, deja de respirar. */
   .lyra--viva svg,
   .lyra-rebote {
+    animation: none;
+  }
+  .lyra-chispas {
+    display: none;
+  }
+
+  /* navegar: el pasaje no ocurre. La regla de arriba ya lo deja fuera con
+     `no-preference`, y esto lo cierra también para el navegador que aplique
+     las dos. */
+  ::view-transition-old(root),
+  ::view-transition-new(root) {
     animation: none;
   }
 
