@@ -74,9 +74,19 @@ const AIRE_MINIMO = 12
  *
  * Para contexto, lo mismo medido contra `origin/main`: 40 / 24 / 0. Esta
  * entrega mejoró los tres.
+ *
+ * Son el PEOR valor observado y no el último, y eso importa: el alto del
+ * descanso depende de cuánto envuelve la indicación de técnica del ejercicio
+ * que toque, así que la misma app mide distinto en dos corridas. Observado en
+ * 320×568: 3 px en una corrida y 27 en la siguiente, sin tocar una línea.
+ *
+ * Por eso el portón AVISA cuando mide menos que el techo en vez de bajarlo
+ * solo: bajarlo al número de una corrida afortunada haría un trinquete que
+ * falla la próxima vez que toque un ejercicio con la indicación más larga. El
+ * techo se baja a mano, cuando una mejora de verdad lo justifique.
  */
 const DESBORDE_ACEPTADO = {
-  '320×568': 3,
+  '320×568': 30,
   '360×640': 15,
   '390×844': 0,
 }

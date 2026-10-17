@@ -606,8 +606,13 @@ export function siguienteAvance(
    * `sesionesEnObjetivo` vuelve a cero porque el objetivo ES otro: sostener
    * veinte kilos tres sesiones no dice nada sobre sostener veintidós.
    */
-  const conDiscos = (kg: number, nueva: number, explicacion: string): Decision => ({
-    movimiento: 'subida',
+  const conDiscos = (
+    kg: number,
+    nueva: number,
+    explicacion: string,
+    movimiento: Movimiento,
+  ): Decision => ({
+    movimiento,
     cambioDeNivel: false,
     explicacion,
     avance: {
@@ -779,6 +784,7 @@ export function siguienteAvance(
           puestos === 0
             ? `Llegaste al final de la cadena de ${ctx.cadena.nombre} y a ${conUnidad(medida, cantidad)} por serie, que es donde sumar repeticiones deja de medir. Le ponemos ${nuevos} kg y volvemos a ${ventana.min}: la misma doble progresión, un escalón más arriba.`
             : `Dominaste ${actual.nombre} con ${puestos} kg. Subimos a ${nuevos} y volvés a ${ventana.min} por serie.`,
+          'subida',
         )
       }
 
@@ -826,12 +832,32 @@ export function siguienteAvance(
       const paso = pasoDeCarga(actual, ctx.barra)
       const nuevos = Math.max(0, puestos - paso)
       const medio = Math.round((ventana.min + ventana.max) / 2)
+      /*
+       * 'bajada', y el movimiento NO es una etiqueta decorativa.
+       *
+       * `conDiscos` tenía 'subida' escrito adentro, y la rama de bajada lo
+       * reusaba: sacarle un disco a alguien que viene cortándose quedaba
+       * registrado como una SUBIDA. La explicación decía "vienen saliendo
+       * cortas, sacamos un disco" y el movimiento decía que había subido.
+       *
+       * No es cosmético. `Cierre.tsx` mira este campo para decidir si usa la
+       * frase de reencuadre — la que existe justamente para que bajar de
+       * carga no se lea como "no servís para esto"—. Con la etiqueta
+       * equivocada, la app te sacaba peso de la barra y te felicitaba: el
+       * único momento que está diseñado para tratarse con cuidado, tratado
+       * como su opuesto. Y el historial guardaba "subida" el día que bajó.
+       *
+       * Lo encontró una prueba de refutación de la revisión, no mis tests:
+       * yo había verificado los kilos y las repeticiones de esta rama, y no
+       * el movimiento.
+       */
       return conDiscos(
         nuevos,
         medio,
         nuevos > 0
           ? `Vienen saliendo cortas. Sacamos un disco: ${nuevos} kg, ${conUnidad(medida, medio)} por serie. La técnica se recupera con menos peso, no con menos repeticiones.`
           : `Vienen saliendo cortas. Sacamos los discos y volvemos a ${actual.nombre} a peso corporal, ${conUnidad(medida, medio)} por serie.`,
+        'bajada',
       )
     }
 

@@ -215,6 +215,31 @@ describe('bajando: primero el peso, y las repeticiones al medio', () => {
     expect(d.avance.objetivoActual.cantidad).toBeGreaterThan(ultimo.ventana.min)
   })
 
+  it('sacar un disco se REGISTRA como bajada, no como subida', () => {
+    /*
+     * El campo `movimiento` no es una etiqueta decorativa: `Cierre.tsx` lo mira
+     * para decidir si usa la frase de reencuadre, la que existe justamente para
+     * que bajar de carga no se lea como "no servís para esto". Y el historial
+     * de la sesión lo guarda.
+     *
+     * `conDiscos` tenía 'subida' escrito adentro y la rama de bajada lo
+     * reusaba, así que la app te sacaba peso de la barra y te felicitaba: el
+     * único momento que está diseñado para tratarse con cuidado, tratado como
+     * su opuesto.
+     *
+     * Mis tests de esta rama verificaban los kilos y las repeticiones, y no
+     * esto. Lo encontró una prueba de refutación de la revisión adversarial.
+     */
+    const d = fallando(avanceEn(ultimo.id, ultimo.ventana.max, { kg: 10 }))
+    expect(d.movimiento).toBe('bajada')
+    expect(d.explicacion).toContain('Sacamos')
+  })
+
+  it('poner un disco sí es una subida', () => {
+    const d = cumpliendo(avanceEn(ultimo.id, 12, { kg: 10 }))
+    expect(d.movimiento).toBe('subida')
+  })
+
   it('el último disco deja el ejercicio a peso corporal, no en negativo', () => {
     const d = fallando(avanceEn(ultimo.id, 12, { kg: 2.5 }))
     expect(d.avance.objetivoActual.kg).toBe(0)
