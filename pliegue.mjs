@@ -512,13 +512,38 @@ for (const telefono of TELEFONOS) {
       await pagina.goto(`${BASE}/#/`, { waitUntil: 'networkidle' })
       await pagina.waitForTimeout(600)
 
-      // Que de verdad esté midiendo el caso alto. Sin esto, el portón pasa en
-      // verde midiendo tres filas y diciendo que midió cinco.
-      const filas = await pagina.locator('[data-prueba="plan-de-hoy"] > *').count()
-      if (filas < 5) {
+      /*
+       * Que de verdad esté midiendo el caso alto.
+       *
+       * Lo que se cuenta es la SESIÓN, no las filas: Hoy muestra como mucho
+       * cuatro —y tres cuando sobran, con el resto en una línea de rótulo—
+       * justamente para no romper el pliegue, así que contar filas visibles
+       * mediría el tope en vez del plan.
+       *
+       * La primera versión de esto exigía cinco filas visibles y fallaba con
+       * el arreglo puesto: pedía ver exactamente lo que el arreglo existe para
+       * no mostrar. Un portón que contradice al arreglo que lo hizo pasar está
+       * midiendo la implementación y no la propiedad.
+       *
+       * La propiedad es: la sesión de hoy tiene cinco ejercicios, y Hoy los
+       * CUENTA a todos aunque no los dibuje a todos.
+       */
+      const visibles = await pagina.locator('[data-prueba="plan-de-hoy"] > *').count()
+      const resto = await pagina
+        .locator('[data-prueba="resto-del-plan"]')
+        .innerText()
+        .catch(() => '')
+      const ocultos = Number(resto.match(/\d+/)?.[0] ?? 0)
+      if (visibles + ocultos < 5) {
         culpar(
           telefono,
-          `[${telefono.nombre}] Con la rutina por grupo Hoy dibujó ${filas} filas y el caso alto son 5. Falta la barra cargable, o el tope de filas se movió: lo que se midió no es el peor caso.`,
+          `[${telefono.nombre}] Con la rutina por grupo la sesión tiene ${visibles + ocultos} ejercicios (${visibles} dibujados + ${ocultos} contados) y el caso alto son 5. Falta la barra cargable: lo que se midió no es el peor caso.`,
+        )
+      }
+      if (visibles > 4) {
+        culpar(
+          telefono,
+          `[${telefono.nombre}] Hoy dibujó ${visibles} filas y el tope son 4. Con más, Empezar se va abajo de la barra: es la regla del pliegue, no una preferencia.`,
         )
       }
       await medirHoy(pagina, telefono, 'pecho y core')
