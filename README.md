@@ -23,6 +23,12 @@ muestra cada vez que decide algo. Nada de esperar a "sentirte listo".
   cadera— con 47 ejercicios, de la flexión en la pared a la flexión a una mano,
   y del remo australiano a la dominada a un brazo asistida.
 
+  Más cuatro movimientos de barra cargable que **no son eslabones de nada**:
+  press militar, remo con barra, peso muerto rumano y elevación de talones. Una
+  cadena progresa por palanca —el mismo gesto con cada vez menos ayuda— y estos
+  progresan por peso, que es otro mecanismo. Tapan los cuatro huecos que el mapa
+  muscular tenía medidos desde que existe.
+
   La bisagra entró última y por un hueco que era un desbalance, no un faltante
   de catálogo: los nueve ejercicios de piernas son todos dominantes de rodilla,
   así que isquiotibiales y glúteos quedaban sin entrenar. Termina en el curl
@@ -146,7 +152,8 @@ código viejo pidiendo trozos que el cache nuevo ya borró.
 src/
   dominio/       las reglas, sin nada de React ni de base de datos
     tipos.ts         el vocabulario de la app
-    biblioteca.ts    los 47 ejercicios y sus cinco cadenas
+    biblioteca.ts    los 47 ejercicios de las cinco cadenas, más los de barra
+    nutricion.ts     el diario: siete hábitos, cero calorías
     progresion.ts    el motor: cuándo subir, sostener o bajar
     adherencia.ts    lo que reemplaza a la racha
     estado.ts        el chequeo diario y su línea de base

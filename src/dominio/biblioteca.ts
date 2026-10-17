@@ -1166,7 +1166,229 @@ export const EJERCICIOS: Ejercicio[] = [
     ccr: 1.3,
     descansoSegundos: 180,
   },
+
+  /* ══════════════════════════════════════════════════════════════════════
+     LOS CUATRO DE LA BARRA CARGABLE
+
+     No son eslabones de ninguna cadena, y eso NO es una omisión: es el
+     modelo. Las cadenas progresan por PALANCA —flexión de rodillas, flexión,
+     flexión declinada, flexión a una mano: el mismo gesto con cada vez menos
+     ayuda— y estos cuatro progresan por PESO. Son dos mecanismos distintos y
+     mezclarlos rompe los dos.
+
+     Metido a la fuerza al final de la cadena de empuje, el press militar
+     diría que es más difícil que una flexión a una mano, que es falso: es
+     otro plano. Y el peso muerto rumano quedaría después del curl nórdico,
+     que es absurdo al revés.
+
+     Por eso existen `FUERA_DE_CADENA` y el motor de discos: estos cuatro son
+     biblioteca —técnica, errores, vector muscular, ficha— y su progresión es
+     agregar un disco, que es la que el motor ya sabe hacer.
+
+     Y tapan los cuatro huecos que el mapa muscular tenía MEDIDOS desde que
+     existe: deltoide lateral, remo horizontal cargado, bisagra de cadera con
+     peso, y flexión plantar.
+     ══════════════════════════════════════════════════════════════════════ */
+
+  {
+    id: 'press-militar-barra',
+    nombre: 'Press militar de pie',
+    patron: 'empuje',
+    medida: 'repeticiones',
+    nivel: 1,
+    resumen:
+      'De pie, la barra del pecho a arriba de la cabeza. Es el único empuje vertical de la app, y el único ejercicio que carga el hombro de costado: los cuarenta y siete de peso corporal empujan todos hacia adelante.',
+    tecnica: [
+      'Parado, pies al ancho de la cadera, la barra apoyada en la parte de arriba del pecho y las manos apenas más abiertas que los hombros.',
+      'Apretá glúteos y abdomen antes de empujar: lo que impide que la espalda se arquee es el torso, no los brazos.',
+      'Empujá hacia arriba y, en cuanto la barra pasa la frente, metela apenas atrás para que termine sobre la mitad del pie.',
+      'Arriba, estirá del todo y llevá la cabeza adelante hasta que las orejas queden entre los brazos.',
+      'Bajá controlado hasta el pecho. Si la barra baja sola, el peso es demasiado.',
+    ],
+    erroresComunes: [
+      'Arquear la espalda baja para ganar impulso. Eso convierte el press en un press inclinado de pie, y le pasa la cuenta a los lumbares.',
+      'Empujar la barra hacia adelante en vez de hacia arriba, y terminar con el peso lejos del cuerpo.',
+      'Ayudarse con las piernas. Si hay rebote de rodillas ya no es press militar estricto, y el hombro deja de ser el que trabaja.',
+      'Encoger los hombros en vez de estirar los codos.',
+    ],
+    ventana: { min: 6, max: 10 },
+    series: 4,
+    /* Un press militar estricto mueve alrededor de la mitad del peso corporal
+       cuando se hace con la barra vacía más discos; el `ccr` base es lo que
+       cuesta el gesto sin discos, que acá es poco — el valor real lo pone
+       `ccrEfectivo` sumando los kilos. */
+    ccr: 0.35,
+    descansoSegundos: 90,
+  },
+  {
+    id: 'remo-barra',
+    nombre: 'Remo con barra',
+    patron: 'traccion',
+    medida: 'repeticiones',
+    nivel: 1,
+    resumen:
+      'Torso inclinado a unos cuarenta y cinco grados, la barra del suelo al ombligo. Toda la tracción de la app es vertical salvo el remo australiano, que no se puede cargar: este es el que entrena la espalda media de verdad.',
+    tecnica: [
+      'Parado con la barra sobre la mitad del pie, agarrala un poco más ancho que los hombros.',
+      'Doblá las rodillas apenas y llevá la cadera atrás hasta que el torso quede a unos cuarenta y cinco grados, con la espalda recta.',
+      'Tirá la barra hacia el ombligo, llevando los codos atrás y juntando los omóplatos al final.',
+      'Bajá controlado hasta estirar los brazos, sin dejar que los hombros se vayan adelante.',
+    ],
+    erroresComunes: [
+      'Levantar el torso en cada repetición para ayudarse. Si el ángulo cambia, el peso es demasiado.',
+      'Tirar hacia el pecho en vez del ombligo: el codo se abre y el trabajo se va al hombro.',
+      'Redondear la espalda baja. Antes que corregirlo con el abdomen, bajá el peso.',
+      'Hacerlo con tirón de cadera, que es otro ejercicio y no este.',
+    ],
+    ventana: { min: 8, max: 12 },
+    series: 4,
+    ccr: 0.4,
+    descansoSegundos: 90,
+  },
+  {
+    id: 'peso-muerto-rumano',
+    nombre: 'Peso muerto rumano',
+    patron: 'bisagra',
+    medida: 'repeticiones',
+    nivel: 1,
+    resumen:
+      'La cadera va atrás y la barra baja pegada a la pierna, con las rodillas casi fijas. Es la bisagra cargada: el curl nórdico entrena el isquiotibial doblando la rodilla y este lo entrena estirando la cadera, que es el otro trabajo que hace.',
+    tecnica: [
+      'Parado con la barra apoyada en el muslo, pies al ancho de la cadera y rodillas apenas dobladas.',
+      'Llevá la cadera hacia atrás como si cerraras una puerta con la cola, dejando que la barra baje rozando la pierna.',
+      'Bajá hasta donde llegues SIN que la espalda baja se redondee. En la mayoría eso es a la mitad de la canilla, no al piso.',
+      'Volvé estirando la cadera y apretando los glúteos arriba, sin arquearte hacia atrás.',
+      'Bajá en tres segundos: acá el tiempo bajo tensión rinde más que el peso.',
+    ],
+    erroresComunes: [
+      'Doblar las rodillas para llegar más abajo. Eso lo convierte en un peso muerto convencional y el isquiotibial deja de estirarse.',
+      'Redondear la espalda baja en el último tramo. El rango lo define dónde la espalda se mantiene recta, y es distinto en cada persona.',
+      'Separar la barra de la pierna: cada centímetro de distancia es palanca sobre los lumbares.',
+      'Terminar arriba arqueándose hacia atrás en vez de parar en la línea.',
+    ],
+    ventana: { min: 8, max: 12 },
+    series: 4,
+    /* Una bisagra cargada mueve el torso más las piernas, que es alrededor del
+       48% del peso corporal antes de poner un solo disco. */
+    ccr: 0.48,
+    descansoSegundos: 120,
+  },
+  {
+    id: 'elevacion-talones-barra',
+    nombre: 'Elevación de talones',
+    patron: 'piernas',
+    medida: 'repeticiones',
+    nivel: 1,
+    resumen:
+      'Subir hasta las puntas de los pies con la barra sobre los hombros. Es el único ejercicio de la app que carga el gemelo: ni la sentadilla ni el salto lo entrenan con rango completo.',
+    tecnica: [
+      'Apoyá la barra sobre la parte de atrás de los hombros, no sobre el cuello, y recién después subite al escalón.',
+      'Parate con la mitad de adelante del pie en el borde del escalón y los talones al aire.',
+      'Bajá los talones todo lo que el tobillo permita, hasta sentir el estiramiento.',
+      'Subí hasta la punta del todo y frená un segundo arriba antes de bajar.',
+    ],
+    erroresComunes: [
+      'Cargarse la barra ya parado en el borde del escalón, que es la forma más fácil de irse para atrás con peso encima. La barra primero, el escalón después.',
+      'Rebotar abajo. El gemelo tiene un reflejo elástico enorme y el rebote se come la mitad del trabajo.',
+      'Hacer medio recorrido. Acá el rango completo es el ejercicio entero.',
+      'Doblar las rodillas para ayudarse: eso pasa el trabajo al sóleo y cambia el ejercicio.',
+    ],
+    /* 10 a 15 y no 12 a 20, que es lo que pide el manual de gimnasio: el
+       techo de ventana de esta app son quince repeticiones, y la regla está
+       medida — una ventana larguísima convierte la progresión en una prueba
+       de aguante y deja a alguien meses en el mismo eslabón sintiendo que no
+       avanza. Acá además no hace falta: con la barra cargable, el camino es
+       poner un disco, no sumar cinco repeticiones. El piso en diez y no en
+       doce es a propósito: pasadas las doce el índice de carga se satura por
+       el tope de Brzycki, así que de diez a doce es el único tramo donde
+       sumar una repetición todavía mide algo. */
+    ventana: { min: 10, max: 15 },
+    series: 3,
+    ccr: 0.85,
+    descansoSegundos: 60,
+  },
+
+  {
+    id: 'curl-barra',
+    nombre: 'Curl con barra',
+    patron: 'traccion',
+    medida: 'repeticiones',
+    nivel: 1,
+    resumen:
+      'De pie, la barra del muslo al pecho doblando el codo. Entra porque el bíceps tenía UN solo ejercicio que lo limitara en toda la app, y era la dominada a un brazo asistida: el anteúltimo eslabón de la cadena más difícil.',
+    tecnica: [
+      'Parado, la barra agarrada por abajo con las manos al ancho de los hombros y los brazos estirados.',
+      'Pegá los codos al costado del cuerpo y dejalos ahí: son una bisagra, no una palanca.',
+      'Subí la barra hasta el pecho doblando solo el codo, sin que el hombro se vaya adelante.',
+      'Bajá en dos o tres segundos hasta estirar del todo. El tramo de abajo es el que más cuesta y es el que más rinde.',
+    ],
+    erroresComunes: [
+      'Balancear el torso para arrancar la repetición. Si hace falta impulso, el peso es demasiado.',
+      'Adelantar los codos arriba, que convierte el final en un descanso en vez del tramo más duro.',
+      'No estirar del todo abajo. Media repetición es medio ejercicio.',
+    ],
+    ventana: { min: 8, max: 12 },
+    series: 3,
+    ccr: 0.2,
+    descansoSegundos: 60,
+  },
+  {
+    id: 'extension-triceps-barra',
+    nombre: 'Extensión de tríceps desde el piso',
+    patron: 'empuje',
+    medida: 'repeticiones',
+    nivel: 1,
+    resumen:
+      'Acostado en el piso, la barra baja hasta la frente y vuelve estirando el codo. Los dos ejercicios de tríceps que ya tenía la app —flexión diamante y flexión a una mano— están los dos arriba en la cadena: este es el que se puede hacer desde el día uno.',
+    tecnica: [
+      'Acostate boca arriba con las rodillas dobladas y la barra arriba del pecho, brazos estirados.',
+      'Llevá los brazos apenas hacia atrás, hasta que queden inclinados: así el tríceps no descansa arriba.',
+      'Doblá solo el codo y bajá la barra hasta rozar la frente o apenas por detrás de la cabeza.',
+      'Estirá el codo para volver, sin mover el hombro. Si el brazo entero se mueve, dejó de ser tríceps.',
+      'Desde el piso hay salida: si no sale, bajás la barra atrás de la cabeza y la apoyás.',
+    ],
+    erroresComunes: [
+      'Abrir los codos hacia los costados al bajar. Eso carga el hombro y descarga el tríceps.',
+      'Mover el brazo entero en vez del antebrazo: ahí se convirtió en un press.',
+      'Empezar con los brazos perpendiculares al piso. Arriba el tríceps queda sin tensión y la mitad del recorrido se regala.',
+      'Usar demasiado peso. El codo es una articulación chica y acá no hay dónde esconderse.',
+    ],
+    ventana: { min: 10, max: 15 },
+    series: 3,
+    ccr: 0.18,
+    descansoSegundos: 60,
+  },
 ]
+
+/**
+ * Los ejercicios que están en la biblioteca y NO en ninguna cadena.
+ *
+ * Es una lista declarada y no una ausencia silenciosa, igual que
+ * `SIN_DIBUJO_TODAVIA`: el test comprueba las dos direcciones, así que ni se
+ * puede olvidar un ejercicio afuera de una cadena por descuido ni esta lista
+ * puede quedarse vieja.
+ *
+ * ## Por qué existe la categoría
+ *
+ * Una cadena progresa por PALANCA: el mismo gesto con cada vez menos ayuda,
+ * de la flexión en la pared a la flexión a una mano. Estos progresan por
+ * PESO. Son dos mecanismos distintos, y forzar uno adentro del otro rompe los
+ * dos: metido al final de la cadena de empuje, el press militar afirmaría ser
+ * más difícil que una flexión a una mano —es otro plano, no otro escalón— y
+ * el peso muerto rumano quedaría después del curl nórdico, que es absurdo al
+ * revés.
+ *
+ * El motor ya sabe progresar por peso: es la rama de discos del último
+ * eslabón. Lo que hacía falta era dejar de mentir sobre el orden.
+ */
+export const FUERA_DE_CADENA = new Set([
+  'press-militar-barra',
+  'remo-barra',
+  'peso-muerto-rumano',
+  'elevacion-talones-barra',
+  'curl-barra',
+  'extension-triceps-barra',
+])
 
 export const CADENAS: Cadena[] = [
   {

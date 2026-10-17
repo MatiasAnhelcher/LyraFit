@@ -25,6 +25,7 @@ import {
   NOMBRE_MUSCULO,
   SIN_COBERTURA,
   loQueFalta,
+  musculosAlcanzables,
   patronDe,
   seriesPorMusculo,
   type Aporte,
@@ -104,6 +105,21 @@ export function Progreso() {
    * misma escala de tinta que la ficha de ejercicio y las dos pantallas se
    * leen igual.
    */
+  /**
+   * Los músculos que están en cero por falta de EQUIPO, no por cómo entrena.
+   *
+   * La distinción es la misma que hace `loQueFalta` y vale repetirla acá: un
+   * músculo en cero porque la persona no lo entrena es un consejo; un músculo
+   * en cero porque el único ejercicio que lo carga necesita una barra con
+   * discos es información sobre la app, y reclamárselo sería el peor consejo
+   * que esta pantalla puede dar.
+   */
+  const alcanzables = musculosAlcanzables(
+    preferencias.tieneBarra !== false,
+    (preferencias.cargaMaximaKg ?? 0) > 0,
+  )
+  const sinBarraCargable = MUSCULOS_CUBIERTOS.filter((m) => !alcanzables.has(m))
+
   const mapa: Partial<Record<Musculo, Aporte>> = {}
   if (techo > 0) {
     for (const { musculo, series } of ranking) {
@@ -117,6 +133,10 @@ export function Progreso() {
     hoy,
     rutina: rutinaActiva(preferencias),
     tieneBarra: preferencias.tieneBarra !== false,
+    // La barra con discos es otro equipo: sin ella el gemelo y el deltoide
+    // lateral quedan en cero para siempre, y reclamárselos a alguien que no
+    // los puede entrenar es el peor consejo que esta pantalla puede dar.
+    tieneBarraCargable: (preferencias.cargaMaximaKg ?? 0) > 0,
   })
 
   if (sesiones.length === 0) {
@@ -341,12 +361,35 @@ export function Progreso() {
 
         {/* Y lo que la app todavía no puede entrenar, que es un hueco del
             catálogo y no de la persona. Por eso se dice en otro renglón y con
-            otras palabras: no "lo entrenás poco" sino "no hay con qué". */}
-        <p className="mt-3 max-w-[40ch] text-xs leading-relaxed text-[var(--color-glosa)]">
-          {mayuscula(enLista(SIN_COBERTURA.map((x) => NOMBRE_MUSCULO[x.musculo].toLowerCase())))}{' '}
-          {SIN_COBERTURA.length === 1 ? 'no aparece' : 'no aparecen'}: no hay todavía ningún
-          ejercicio de {enLista(SIN_COBERTURA.map((x) => x.patronQueFalta), 'ni')} en la app.
-        </p>
+            otras palabras: no "lo entrenás poco" sino "no hay con qué".
+
+            La guarda del `length > 0` no es defensiva por las dudas: la lista
+            SE VACIÓ al entrar el press militar y la elevación de talones, y
+            sin guarda esta pantalla armaba la frase " no aparecen: no hay
+            todavía ningún ejercicio de en la app." — una oración rota, con
+            dos huecos y un espacio de más, en la pantalla donde la app
+            explica su propio mapa. */}
+        {SIN_COBERTURA.length > 0 && (
+          <p className="mt-3 max-w-[40ch] text-xs leading-relaxed text-[var(--color-glosa)]">
+            {mayuscula(enLista(SIN_COBERTURA.map((x) => NOMBRE_MUSCULO[x.musculo].toLowerCase())))}{' '}
+            {SIN_COBERTURA.length === 1 ? 'no aparece' : 'no aparecen'}: no hay todavía ningún
+            ejercicio de {enLista(SIN_COBERTURA.map((x) => x.patronQueFalta), 'ni')} en la app.
+          </p>
+        )}
+
+        {/* Lo que reemplaza a esa frase cuando no hay huecos de catálogo: los
+            huecos de EQUIPO, que son los que la persona sí puede resolver.
+            Sin barra cargable hay dos músculos que ningún ejercicio de peso
+            corporal alcanza, y decirlo es distinto de reclamárselos. */}
+        {sinBarraCargable.length > 0 && (
+          <p className="mt-3 max-w-[40ch] text-xs leading-relaxed text-[var(--color-glosa)]">
+            {mayuscula(enLista(sinBarraCargable.map((m) => NOMBRE_MUSCULO[m].toLowerCase())))}{' '}
+            {sinBarraCargable.length === 1 ? 'queda' : 'quedan'} en cero y no es por cómo
+            entrenás: {sinBarraCargable.length === 1 ? 'el único ejercicio que lo carga necesita' : 'los únicos ejercicios que los cargan necesitan'}{' '}
+            una barra con discos. Si la conseguís, cargala en Ajustes y{' '}
+            {sinBarraCargable.length === 1 ? 'aparece' : 'aparecen'}.
+          </p>
+        )}
       </section>
 
       {/* El historial, con la voz del motor adentro.

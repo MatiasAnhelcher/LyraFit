@@ -22,7 +22,7 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useLiveQuery } from 'dexie-react-hooks'
-import { NOMBRE_PATRON, POR_ID, buscarEjercicio, cadenaDe } from '@/dominio/biblioteca'
+import { NOMBRE_PATRON, POR_ID, cadenaDe } from '@/dominio/biblioteca'
 import {
   DIAS,
   NOMBRE_DIA,
@@ -34,9 +34,10 @@ import {
   proximoDia,
   rutinaActiva,
   semanaActiva,
+  advertenciaDe,
   tieneFuelle,
 } from '@/dominio/rutinas'
-import { DESCANSO_DE_BAJADA, bajadaDe, minutosDeSesion } from '@/dominio/bajada'
+import { DESCANSO_DE_BAJADA, bajadaDe, ejercicioDelBloque, minutosDeSesion } from '@/dominio/bajada'
 import {
   bloqueDeFuelle,
   minutosDelBloque,
@@ -116,6 +117,10 @@ export function Hoy() {
   }
 
   const rutina = rutinaActiva(preferencias)
+  // El costo de haber elegido partir por grupo, dicho en pantalla y no
+  // escondido en un comentario: cada músculo una vez por semana, cuando la
+  // evidencia favorece dos. Se dice y no se impide.
+  const advertencia = advertenciaDe(rutina)
   const semana = semanaActiva(preferencias)
   /**
    * Qué clase de día es: los dos ejes —fuerza y fuelle— en un solo valor.
@@ -138,28 +143,63 @@ export function Hoy() {
 
   const congeladas = cadenasCongeladas(estados, fecha)
 
+  const tieneBarraCargable = (preferencias.cargaMaximaKg ?? 0) > 0
+
   const bloques = rutina.bloques.flatMap((bloqueDelPlan) => {
     // Un bloque puede alternar entre dos patrones según el día. La resolución
     // vive en el dominio para que esta pantalla y `Entrenar` no puedan diferir.
     const bloque = { ...bloqueDelPlan, patron: patronDelBloque(bloqueDelPlan, semana, hoy) }
     const avance = avances.get(bloque.patron)
-    const ejercicio = avance ? buscarEjercicio(avance.ejercicioId) : undefined
-    if (!avance || !ejercicio) return []
+    // Tres clases de bloque —el eslabón del motor, volumen en el anterior, y
+    // un accesorio fijo con barra— resueltas en el dominio por el mismo
+    // motivo que `patronDelBloque`: si esta pantalla y `Entrenar` difirieran,
+    // Hoy anunciaría una sesión y la sesión sería otra.
+    const resuelto = ejercicioDelBloque(bloque, avance, POR_ID, cadenaDe(bloque.patron), {
+      tieneBarraCargable,
+    })
+    if (!resuelto) return []
+    const { ejercicio, objetivo, accesorio } = resuelto
+    if (!avance) return []
 
     // Si la sesión de hoy no mueve la progresión, no hay nada que anticipar:
     // el dato sería correcto y la promesa igual sería falsa.
     const cuenta =
       mueveElPlan(vuelve ? 'vuelta' : 'plan') && !ajuste.neutra && !congeladas.has(bloque.patron)
 
+    const antes = laVezPasada(sesiones, ejercicio.id, fecha)
     return [
       {
         patron: bloque.patron,
         avance,
         ejercicio,
+        /*
+         * El objetivo de un accesorio sale de la VARA, no de una tabla.
+         *
+         * Un accesorio no tiene avance —el motor no lo progresa, y no debe:
+         * `cerrarSesion` solo mueve un patrón "si se entrenó el ejercicio que
+         * tocaba"— así que su progresión la lleva la persona. La app le pone
+         * delante lo que hizo la última vez, que es exactamente la doble
+         * progresión escrita a mano: llegaste al techo de la ventana, subí el
+         * peso; no llegaste, repetilo.
+         *
+         * Acotado a la ventana para que una sesión excepcional no fije un
+         * objetivo que después no se sostiene.
+         */
+        objetivo:
+          accesorio && antes
+            ? {
+                series: objetivo.series,
+                cantidad: Math.min(Math.max(antes.mejor, ejercicio.ventana.min), ejercicio.ventana.max),
+                ...(antes.kg !== undefined ? { kg: antes.kg } : {}),
+              }
+            : objetivo,
+        accesorio,
         // Lo que hiciste la última vez que te tocó ESTE ejercicio. Si cambiaste
         // de eslabón la semana pasada no hay con qué comparar, y no se inventa.
-        antes: laVezPasada(sesiones, ejercicio.id, fecha),
-        abre: seAbreHoy(avance, cadenaDe(bloque.patron), POR_ID, cuenta),
+        antes,
+        // Un accesorio nunca abre un eslabón: no está en ninguna cadena, o es
+        // el anterior al que ya tenés. Anunciarlo sería una promesa falsa.
+        abre: accesorio ? null : seAbreHoy(avance, cadenaDe(bloque.patron), POR_ID, cuenta),
       },
     ]
   })
@@ -202,9 +242,11 @@ export function Hoy() {
   // primero, y el bloque cubriendo lo que falta para llegar a la duración
   // elegida. Si estas dos pantallas se separaran, la estimación diría una cosa
   // y la sesión duraría otra, que es peor que no estimar nada.
-  const entradas = bloques.flatMap(({ patron, avance, ejercicio }) => {
-    const duro = { ejercicio, objetivo: avance.objetivoActual }
-    if (!esDensa) return [duro]
+  const entradas = bloques.flatMap(({ patron, ejercicio, objetivo, accesorio }) => {
+    const duro = { ejercicio, objetivo }
+    // Un accesorio no lleva bajada: ya ES el trabajo liviano, o es un
+    // movimiento con barra que no tiene eslabón anterior del que bajar.
+    if (!esDensa || accesorio) return [duro]
     const abajo = bajadaDe(ejercicio, cadenaDe(patron), POR_ID)
     return abajo ? [duro, { ...abajo, descansoSegundos: DESCANSO_DE_BAJADA }] : [duro]
   })
@@ -257,6 +299,32 @@ export function Hoy() {
    * el mismo día es una lista, y una lista no anticipa nada.
    */
   const vispera = bloques.find((b) => b.abre)
+
+  /**
+   * CUÁNTAS FILAS ENTRAN EN HOY, Y POR QUÉ HAY UN TOPE.
+   *
+   * No es estético: es la regla del pliegue, y es el único lugar de la app
+   * donde una preferencia de la persona puede romperla.
+   *
+   * Medido en un Android de 360×640 un día de entrenar, `Empezar` queda con
+   * EXACTAMENTE doce píxeles de aire sobre la barra de navegación, que es el
+   * mínimo. Esa medición está hecha con la rutina por defecto, que tiene
+   * cuatro bloques. Las cuatro rutinas por grupo tienen CINCO, y cada fila
+   * mide 56 px: con la quinta, `Empezar` queda cuarenta y cuatro píxeles por
+   * debajo de la barra, o sea invisible hasta que alguien scrollee.
+   *
+   * Sería la cuarta vez que se rompe el pliegue, y esta vez ni siquiera haría
+   * falta tocar Hoy: alcanzaría con elegir otra rutina en Ajustes.
+   *
+   * El tope lo hace imposible. Las que no entran se cuentan en un renglón de
+   * dieciocho píxeles en vez de ocuparlas, y no se pierde información: la
+   * sesión completa está a un toque de distancia, que es lo que `Empezar`
+   * hace. `pliegue.mjs` mide esto con la rutina más alta, no con la que le
+   * toque correr.
+   */
+  const TOPE_DE_FILAS = 4
+  const filasVisibles = bloques.slice(0, TOPE_DE_FILAS)
+  const filasOcultas = bloques.length - filasVisibles.length
 
   /**
    * Las tres señales del día.
@@ -406,12 +474,12 @@ export function Hoy() {
             El botón se queda: entrenar un día de más está permitido. Lo que se
             va es la lista de lo que hoy no toca. */}
         {esDiaDeEntrenar && !esDiaDeFuelle && (
-        <div className="registro mt-3">
-          {bloques.map(({ patron, avance, ejercicio, antes }) => {
+        <div className="registro mt-3" data-prueba="plan-de-hoy">
+          {filasVisibles.map(({ patron, ejercicio, antes, objetivo, accesorio }, i) => {
             const cadena = cadenaDe(patron)
             const posicion = cadena.ejercicios.indexOf(ejercicio.id) + 1
             return (
-              <div key={patron}>
+              <div key={`${patron}-${ejercicio.id}`} className="entrar-en-orden" style={orden(i)}>
                 <span className="canal">
                   <Glifo patron={patron} />
                 </span>
@@ -428,7 +496,11 @@ export function Hoy() {
                       construye motivación en vez de erosionarla. Y sin ella la
                       segunda sesión se siente idéntica a la primera. */}
                   <span className="rotulo mt-0.5 block truncate">
-                    {NOMBRE_PATRON[patron]} · {posicion}/{cadena.ejercicios.length}
+                    {/* Un accesorio no tiene posición en la cadena —no está en
+                        ninguna, o es el eslabón de abajo— así que decir "3/9"
+                        sería inventar un lugar que no ocupa. */}
+                    {NOMBRE_PATRON[patron]}
+                    {accesorio ? ' · accesorio' : ` · ${posicion}/${cadena.ejercicios.length}`}
                     {antes && (
                       <>
                         {' · antes '}
@@ -441,13 +513,22 @@ export function Hoy() {
                   </span>
                 </span>
                 <Objetivo
-                  series={avance.objetivoActual.series}
-                  cantidad={Math.round(avance.objetivoActual.cantidad * ajuste.factor)}
+                  series={objetivo.series}
+                  cantidad={Math.round(objetivo.cantidad * ajuste.factor)}
                   medida={ejercicio.medida}
                 />
               </div>
             )
           })}
+          {filasOcultas > 0 && (
+            <div>
+              <span className="canal">+</span>
+              <span className="rotulo">
+                y {filasOcultas} {filasOcultas === 1 ? 'ejercicio más' : 'ejercicios más'}
+              </span>
+              <span />
+            </div>
+          )}
         </div>
         )}
 
@@ -518,6 +599,24 @@ export function Hoy() {
           Solo tengo 7 minutos
         </button>
       </div>
+
+      {/* El costo de haber partido por grupo.
+       *
+       * DEBAJO de la acción, y es la regla del pliegue otra vez: arriba son
+       * cuatro renglones de texto —unos 76 px— sobre una pantalla que ya tiene
+       * una fila más que la rutina por defecto. Medido: con la advertencia
+       * arriba y cinco bloques, `Empezar` se va abajo de la barra en un
+       * teléfono de 360×640.
+       *
+       * Y acá está mejor: el momento de decidir si partir por grupo conviene
+       * es cuando se elige la rutina, y ahí la advertencia está completa, en
+       * Ajustes, ANTES de las cuatro filas. Esto es el recordatorio, no la
+       * decisión. */}
+      {advertencia && (
+        <p className="mt-6 max-w-[42ch] text-xs leading-relaxed text-[var(--color-glosa)]">
+          {advertencia}
+        </p>
+      )}
 
       {/*
         EL DÍA: entrenaste · comiste · dormiste.

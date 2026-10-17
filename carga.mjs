@@ -18,6 +18,7 @@
  */
 
 import { chromium } from 'playwright'
+import { conLaBase } from './lib/portones.mjs'
 
 const BASE = 'http://localhost:4173'
 const CHROMIUM = process.env.CHROMIUM_PATH ?? '/opt/pw-browsers/chromium'
@@ -25,20 +26,6 @@ const CHROMIUM = process.env.CHROMIUM_PATH ?? '/opt/pw-browsers/chromium'
 const fallos = []
 const notas = []
 
-async function conLaBase(pagina, tablas, trabajo) {
-  return pagina.evaluate(
-    async ([tablas, cuerpo]) => {
-      const req = indexedDB.open('lyrafit')
-      const db = await new Promise((r) => { req.onsuccess = () => r(req.result) })
-      const tx = db.transaction(tablas, 'readonly')
-      const leer = (t) =>
-        new Promise((r) => { const q = tx.objectStore(t).getAll(); q.onsuccess = () => r(q.result) })
-      // eslint-disable-next-line no-new-func
-      return new Function('leer', `return (${cuerpo})(leer)`)(leer)
-    },
-    [tablas, trabajo.toString()],
-  )
-}
 
 async function alta(p) {
   await p.goto(`${BASE}/#/`, { waitUntil: 'networkidle' })
@@ -158,6 +145,45 @@ if (conKilos.length < 3) {
   fallos.push(`Solo ${conKilos.length} series quedaron con los 20 kg anotados, y fueron tres`)
 }
 notas.push(`Avances antes de cerrar: ${antes}.`)
+
+/*
+ * ── 4. La propuesta del motor llega a la pantalla ────────────────────────
+ *
+ * Desde que el motor puede decir "subí a 12,5 kg" al final de una cadena, ese
+ * número tiene que estar PUESTO cuando la persona llega a la serie. Si la
+ * pantalla siguiera mostrando el peso de la vez pasada, la propuesta quedaría
+ * en un texto del cierre que nadie va a seguir a mano, y el motor estaría
+ * hablando solo.
+ *
+ * Se escribe un objetivo con kilos directo en la base —es la forma de llegar
+ * a ese estado sin hacer quince sesiones— y se mira qué muestra Entrenar.
+ */
+{
+  await conLaBase(p, ['avances'], (leer, poner) => {
+    return new Promise((listo) => {
+      const pedido = leer('avances')
+      pedido.onsuccess = () => {
+        const avances = pedido.result
+        for (const a of avances) {
+          a.objetivoActual = { ...a.objetivoActual, kg: 12.5 }
+          poner('avances', a)
+        }
+        listo(avances.length)
+      }
+    })
+  })
+  await p.reload({ waitUntil: 'networkidle' })
+  await p.goto(`${BASE}/#/entrenar`, { waitUntil: 'networkidle' })
+  await p.waitForTimeout(900)
+  const puestos = await p.locator('[data-prueba="kilos"]').first().innerText().catch(() => '')
+  if (!puestos.includes('12')) {
+    fallos.push(
+      `El motor propuso 12,5 kg y la pantalla muestra "${puestos}": la propuesta no llega, y queda en un texto que nadie va a seguir a mano`,
+    )
+  } else {
+    console.log(`La propuesta del motor llega a la serie: ${puestos.replace(/\s+/g, ' ')}.`)
+  }
+}
 
 await navegador.close()
 

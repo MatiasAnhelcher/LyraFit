@@ -62,6 +62,16 @@ const SIN_DIBUJO_TODAVIA = new Set<string>([
   // es trabajo del motor de figuras y no de esta cadena.
   'puente-gluteos-pies-elevados',
   'puente-una-pierna-elevado',
+  // Los cuatro de la barra cargable. El motor de figuras no sabe dibujar una
+  // barra: necesita un objeto que la persona SOSTIENE, y hoy todas las
+  // escenas son el cuerpo contra el piso, una silla o una barra fija de la
+  // que se cuelga. Es trabajo del motor de figuras, no de estos ejercicios.
+  'press-militar-barra',
+  'remo-barra',
+  'peso-muerto-rumano',
+  'elevacion-talones-barra',
+  'curl-barra',
+  'extension-triceps-barra',
 ])
 
 describe('las figuras de los ejercicios', () => {

@@ -68,8 +68,29 @@ export function FichaEjercicio() {
   const primarios = porAporte.filter(([, a]) => a >= 1)
   const secundarios = porAporte.filter(([, a]) => a >= PISO_DE_DOSIS && a < 1)
 
+  /*
+   * ESTE EJERCICIO, ¿ES UN ESLABÓN?
+   *
+   * Los de la barra cargable no están en ninguna cadena, y sin esta pregunta
+   * la ficha decía cuatro cosas falsas sobre ellos, porque `indexOf` devuelve
+   * -1 y -1 se propaga como si fuera un lugar:
+   *
+   *   · «EMPUJE · 0 DE 11» — un lugar que no ocupa.
+   *   · «Ya pasaste por acá: está 8 eslabones atrás» — de una cadena en la
+   *     que no está.
+   *   · «EN LA CADENA → DESPUÉS: flexiones en la pared» — porque
+   *     `ejercicios[-1 + 1]` es el primero de todos.
+   *   · Y el peor: «Empezar la cadena de empuje acá», que al tocarlo le
+   *     escribe al avance de empuje un ejercicioId que no está en la cadena
+   *     de empuje. Eso no es un texto raro: es la base corrompida, y la app
+   *     se queda sin poder resolver el eslabón actual.
+   *
+   * Las cuatro salían del mismo -1 y se arreglan de una.
+   */
+  const esEslabon = posicion >= 0
+
   const anterior = posicion > 0 ? POR_ID.get(cadena.ejercicios[posicion - 1]!) : undefined
-  const siguiente = POR_ID.get(cadena.ejercicios[posicion + 1] ?? '')
+  const siguiente = esEslabon ? POR_ID.get(cadena.ejercicios[posicion + 1] ?? '') : undefined
 
   /**
    * A qué distancia estás de este ejercicio.
@@ -85,7 +106,8 @@ export function FichaEjercicio() {
    * sensación de escala y no le pide a nadie que le crea algo increíble.
    */
   const posicionActual = avance ? cadena.ejercicios.indexOf(avance.ejercicioId) : -1
-  const eslabonesDeDistancia = posicionActual >= 0 ? posicion - posicionActual : null
+  const eslabonesDeDistancia =
+    esEslabon && posicionActual >= 0 ? posicion - posicionActual : null
   const sesionesHasta =
     avance && eslabonesDeDistancia === 1
       ? proyectar(avance, { cadena, ejercicios: POR_ID }, ejercicio.id)
@@ -96,8 +118,8 @@ export function FichaEjercicio() {
       <div className="flex items-center gap-2">
         <Glifo patron={ejercicio.patron} />
         <Rotulo>
-          {NOMBRE_PATRON[ejercicio.patron].toUpperCase()} · {posicion + 1} DE{' '}
-          {cadena.ejercicios.length}
+          {NOMBRE_PATRON[ejercicio.patron].toUpperCase()}
+          {esEslabon ? ` · ${posicion + 1} DE ${cadena.ejercicios.length}` : ' · CON BARRA'}
         </Rotulo>
       </div>
       <h1 className="mt-3 text-3xl font-bold leading-tight tracking-tight">{ejercicio.nombre}</h1>
@@ -256,6 +278,27 @@ export function FichaEjercicio() {
         </ul>
       </section>
 
+      {!esEslabon && (
+        <section className="mt-8">
+          <Rotulo>CÓMO SE PROGRESA ACÁ</Rotulo>
+          <p className="mt-3 max-w-[42ch] text-sm leading-relaxed text-[var(--color-glosa)]">
+            Este no es un eslabón de ninguna cadena, y no es un olvido: una
+            cadena progresa por palanca —el mismo gesto con cada vez menos
+            ayuda— y esto progresa por peso.{' '}
+            <span className="text-[var(--color-tinta)]">
+              Cuando llegás al techo de la ventana en todas las series, subís un
+              disco y volvés al piso.
+            </span>{' '}
+            Es la misma doble progresión, con el peso en vez de la palanca.
+          </p>
+          <p className="mt-3 max-w-[42ch] text-xs leading-relaxed text-[var(--color-glosa)]">
+            La app te guarda los kilos y te los pone delante la próxima vez,
+            pero acá no mueve nada sola: el que decide cuándo subir sos vos.
+          </p>
+        </section>
+      )}
+
+      {esEslabon && (
       <section className="mt-8">
         <Rotulo>EN LA CADENA</Rotulo>
         <div className="registro mt-3">
@@ -281,8 +324,13 @@ export function FichaEjercicio() {
           )}
         </div>
       </section>
+      )}
 
-      {!esActual && (
+      {/* Y el botón de fijar el eslabón SOLO si es un eslabón. Con un ejercicio
+          de barra escribiría en el avance del patrón un id que no está en su
+          cadena, y a partir de ahí la app no puede resolver dónde estás: es
+          corrupción de datos, no un texto raro. */}
+      {!esActual && esEslabon && (
         <div className="mt-8 -mx-4">
           <AccionQuieta onClick={() => void fijarNivel(ejercicio.patron, ejercicio.id)}>
             Empezar la cadena de {NOMBRE_PATRON[ejercicio.patron].toLowerCase()} acá

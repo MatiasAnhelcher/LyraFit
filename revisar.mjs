@@ -10,6 +10,7 @@
  */
 
 import { chromium } from 'playwright'
+import { readFileSync } from 'node:fs'
 import { readFile } from 'node:fs/promises'
 import { mkdir } from 'node:fs/promises'
 
@@ -17,6 +18,23 @@ const BASE = 'http://localhost:4173'
 const SALIDA = 'capturas'
 
 const problemas = []
+
+/**
+ * Cuántos músculos declara cubiertos el dominio.
+ *
+ * Se lee del archivo en vez de escribirlo acá: este portón ya falló una vez
+ * por tener un 18 pineado a mano cuando el dominio pasó a 20, y el comentario
+ * que avisaba del riesgo estaba escrito justo arriba del número.
+ */
+const CUBIERTOS = (() => {
+  const fuente = readFileSync('src/dominio/musculos.ts', 'utf8')
+  const bloque = fuente.match(/MUSCULOS_CUBIERTOS: Musculo\[\] = \[([^\]]*)\]/s)?.[1]
+  if (!bloque) {
+    console.log('No se pudo leer MUSCULOS_CUBIERTOS de src/dominio/musculos.ts')
+    process.exit(2)
+  }
+  return (bloque.match(/'/g)?.length ?? 0) / 2
+})()
 
 async function capturar(pagina, nombre) {
   await pagina.waitForTimeout(450)
@@ -360,15 +378,25 @@ async function main() {
     if (!(await mapa.isVisible().catch(() => false))) {
       problemas.push(`No apareció el mapa muscular en Progreso (${tema})`)
     } else {
-      // Dieciocho filas, una por músculo cubierto. Si un día entra el empuje
+      // Una fila por músculo cubierto. El número sale de `MUSCULOS_CUBIERTOS`
+      // y no está escrito acá, que es el arreglo de lo que acaba de pasar:
+      // decía 18 con un comentario que avisaba "si un día entra el empuje
       // vertical y el deltoide lateral pasa a estar cubierto, esta cuenta
-      // cambia y hay que venir a decirlo.
+      // cambia y hay que venir a decirlo". Entró el empuje vertical, la cuenta
+      // cambió a 20 y el portón falló por tener razón sobre algo que ya no era
+      // cierto. Un número copiado a mano en un portón es deuda con fecha.
+      //
+      // Lo que se verifica sigue siendo lo mismo y es lo que importa: que la
+      // pantalla dibuje TODOS los músculos cubiertos y ninguno de más. Si un
+      // día la lista crece y la pantalla no, esto lo agarra igual.
       const filas = await pagina
         .locator('section', { has: pagina.getByText('QUÉ ESTÁS ENTRENANDO') })
         .locator('.registro > *')
         .count()
-      if (filas !== 18) {
-        problemas.push(`El mapa muscular tiene ${filas} filas y tenía que tener 18 (${tema})`)
+      if (filas !== CUBIERTOS) {
+        problemas.push(
+          `El mapa muscular tiene ${filas} filas y hay ${CUBIERTOS} músculos cubiertos (${tema})`,
+        )
       }
       // Y que diga algo: las cuatro salidas del diagnóstico son excluyentes, así
       // que siempre tiene que haber exactamente una.
@@ -384,6 +412,77 @@ async function main() {
       if (cuantos !== 1) {
         problemas.push(`El mapa muscular dijo ${cuantos} diagnósticos y tenía que decir 1 (${tema})`)
       }
+    }
+
+    /*
+     * EL DIARIO, con aserciones de contenido y no solo una captura.
+     *
+     * La primera versión de esta pantalla se publicó VACÍA —rayas y nada
+     * más— y pasó la revisión: `useLiveQuery` devuelve `undefined` mientras
+     * carga, `db.diario.get()` devuelve `undefined` cuando no hay fila, y la
+     * guarda contra el parpadeo confundía las dos cosas. O sea que se rompía
+     * exactamente en el caso más común: el primer día, antes de contestar
+     * nada.
+     *
+     * No lo agarró ningún test y no podía: es la unión de un hook de React
+     * con una consulta de Dexie. Lo agarró una captura mirada a ojo, y eso es
+     * un golpe de suerte, no un proceso. Estas tres líneas lo convierten en
+     * proceso.
+     */
+    /*
+     * LA FICHA DE UN EJERCICIO QUE NO ES ESLABÓN.
+     *
+     * Cuatro frases falsas salían del mismo -1 de `indexOf`, y la peor no era
+     * una frase: el botón "empezar la cadena de empuje acá" le escribía al
+     * avance de empuje un ejercicio que no está en la cadena de empuje. Eso
+     * deja la base en un estado del que la app no puede salir sola.
+     */
+    await pagina.goto(`${BASE}/#/biblioteca/press-militar-barra`, { waitUntil: 'networkidle' })
+    await pagina.waitForTimeout(400)
+    const textoFicha = (await pagina.locator('main').innerText()).toLowerCase()
+    for (const mentira of ['0 de 11', 'eslabones atrás', 'en la cadena']) {
+      if (textoFicha.includes(mentira)) {
+        problemas.push(
+          `La ficha del press militar dice "${mentira}", y no está en ninguna cadena (${tema})`,
+        )
+      }
+    }
+    if (await pagina.getByRole('button', { name: /Empezar la cadena/ }).isVisible().catch(() => false)) {
+      problemas.push(
+        `La ficha de un ejercicio fuera de cadena ofrece "empezar la cadena acá": eso corrompe el avance (${tema})`,
+      )
+    }
+    if (!textoFicha.includes('progresa por peso')) {
+      problemas.push(`La ficha del press militar no explica cómo se progresa sin cadena (${tema})`)
+    }
+    await capturar(pagina, `7c-ficha-barra-${tema}`)
+    await revisarDesborde(pagina, `Ficha de un ejercicio con barra (${tema})`)
+
+    await pagina.goto(`${BASE}/#/diario`, { waitUntil: 'networkidle' })
+    await pagina.waitForTimeout(500)
+    for (const texto of ['¿Cuánto dormiste anoche?', '¿En cuántas comidas de hoy hubo proteína?']) {
+      if (!(await pagina.getByText(texto).isVisible().catch(() => false))) {
+        problemas.push(`El diario no dibuja "${texto}" (${tema}): la pantalla quedó vacía.`)
+      }
+    }
+    const segmentos = await pagina.locator('main .segmento').count()
+    if (segmentos < 20) {
+      problemas.push(`El diario tiene ${segmentos} opciones para elegir y tendría que tener más de 20 (${tema})`)
+    }
+    await capturar(pagina, `9a-diario-${tema}`)
+    await revisarDesborde(pagina, `El diario (${tema})`)
+
+    // Y que lo que se toca quede guardado, que es lo único que esta pantalla
+    // tiene que hacer bien. Sin esto podría dibujarse entera y no escribir nada.
+    await pagina.getByRole('button', { name: '7-8', exact: true }).click()
+    await pagina.waitForTimeout(400)
+    await pagina.reload({ waitUntil: 'networkidle' })
+    await pagina.waitForTimeout(600)
+    const elegido = await pagina
+      .getByRole('button', { name: '7-8', exact: true })
+      .getAttribute('aria-pressed')
+    if (elegido !== 'true') {
+      problemas.push(`El diario no recuerda lo que se anotó: después de recargar, 7-8 quedó en ${elegido} (${tema})`)
     }
 
     await pagina.goto(`${BASE}/#/ajustes`, { waitUntil: 'networkidle' })

@@ -35,7 +35,8 @@
  * cosa" dura hasta que alguien cambia esa otra función.
  */
 
-import type { Cadena, Ejercicio, Objetivo } from './tipos'
+import type { Avance, BloqueRutina, Cadena, Ejercicio, Objetivo } from './tipos'
+import { NECESITAN_BARRA_CARGABLE } from './musculos'
 
 /**
  * Cuántas series de bajada.
@@ -122,3 +123,61 @@ export function minutosDeSesion(
 // `metabolico.ts`, convertidos en una prescripción fija. La razón está escrita
 // allá: "que la sesión dure una hora" era el objetivo equivocado, y en un día
 // de fuelle producía ochenta y cuatro vueltas de saltos encadenados.
+
+/**
+ * El ejercicio concreto de un bloque, según de qué clase sea.
+ *
+ * Tres clases y una sola función que las resuelve, porque `Hoy` y `Entrenar`
+ * tienen que coincidir exactamente: si una pantalla anuncia cuatro ejercicios
+ * y la otra arma cinco, la estimación de duración miente y la sesión no es la
+ * que se prometió. Ya pasó con `patronDelBloque` y por eso ese también vive
+ * en el dominio.
+ *
+ *   · bloque con `ejercicioId` → ese ejercicio, fijo. Un accesorio.
+ *   · bloque con `volumen`     → el eslabón anterior del patrón.
+ *   · bloque pelado            → el eslabón que el motor eligió.
+ *
+ * Devuelve `null` cuando el bloque no se puede armar: un accesorio que
+ * necesita una barra que la persona no tiene, o un bloque de volumen sobre un
+ * patrón donde está en el primer eslabón y no hay nada abajo. Las dos son
+ * situaciones normales, no errores, y la pantalla simplemente no dibuja la
+ * fila.
+ */
+export function ejercicioDelBloque(
+  bloque: BloqueRutina,
+  avance: Avance | undefined,
+  ejercicios: Map<string, Ejercicio>,
+  cadena: Cadena,
+  opciones: { tieneBarraCargable: boolean },
+): { ejercicio: Ejercicio; objetivo: Objetivo; accesorio: boolean } | null {
+  if (bloque.ejercicioId) {
+    const fijo = ejercicios.get(bloque.ejercicioId)
+    if (!fijo) return null
+    // Sin barra cargable el accesorio no existe, y la rutina sigue andando
+    // con los bloques de cadena. Ofrecer un press militar a quien no tiene
+    // barra es la clase de promesa que hace que una app se cierre.
+    if (!opciones.tieneBarraCargable && NECESITAN_BARRA_CARGABLE.has(fijo.id)) return null
+    return {
+      ejercicio: fijo,
+      // El piso de la ventana. La vara de la vez pasada la pone la pantalla:
+      // acá no hay historial, y meterlo haría que esta función dependiera de
+      // la base de datos.
+      objetivo: { series: fijo.series, cantidad: fijo.ventana.min },
+      accesorio: true,
+    }
+  }
+
+  if (!avance) return null
+
+  if (bloque.volumen) {
+    const actual = ejercicios.get(avance.ejercicioId)
+    if (!actual) return null
+    const abajo = bajadaDe(actual, cadena, ejercicios)
+    if (!abajo) return null
+    return { ejercicio: abajo.ejercicio, objetivo: abajo.objetivo, accesorio: true }
+  }
+
+  const ejercicio = ejercicios.get(avance.ejercicioId)
+  if (!ejercicio) return null
+  return { ejercicio, objetivo: avance.objetivoActual, accesorio: false }
+}

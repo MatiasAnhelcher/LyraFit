@@ -43,7 +43,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { useLiveQuery } from 'dexie-react-hooks'
-import { NOMBRE_PATRON, POR_ID, buscarEjercicio, cadenaDe } from '@/dominio/biblioteca'
+import { NOMBRE_PATRON, POR_ID, cadenaDe } from '@/dominio/biblioteca'
 import { claseDeDia, patronDelBloque, rutinaActiva, semanaActiva } from '@/dominio/rutinas'
 import type { ClaseDeDia } from '@/dominio/rutinas'
 import { ajusteDelDia, bandaSostenida, cadenasCongeladas } from '@/dominio/estado'
@@ -60,7 +60,7 @@ import {
 import { callar, configurarVoz, decir } from '@/voz'
 import { Lyra } from '@/componentes/lyra'
 import { Arco } from '@/componentes/arco'
-import { DESCANSO_DE_BAJADA, bajadaDe, minutosDeSesion } from '@/dominio/bajada'
+import { DESCANSO_DE_BAJADA, bajadaDe, ejercicioDelBloque, minutosDeSesion } from '@/dominio/bajada'
 import {
   bloqueDeFuelle,
   minutosDelBloque,
@@ -517,11 +517,35 @@ export function Entrenar() {
         patron: patronDelBloque(bloqueDelPlan, semana, new Date()),
       }
       const avance = avances.get(bloque.patron)
-      const ejercicio = avance ? buscarEjercicio(avance.ejercicioId) : undefined
-      if (!avance || !ejercicio) return []
+      // La misma resolución que hace `Hoy`, desde el dominio: tres clases de
+      // bloque —el eslabón del motor, volumen en el anterior, y un accesorio
+      // fijo con barra—. Si las dos pantallas difirieran, Hoy anunciaría una
+      // sesión y la sesión sería otra, que es exactamente el bug que
+      // `patronDelBloque` ya había evitado una vez.
+      const resuelto = ejercicioDelBloque(bloque, avance, POR_ID, cadenaDe(bloque.patron), {
+        tieneBarraCargable: (preferencias?.cargaMaximaKg ?? 0) > 0,
+      })
+      if (!resuelto || !avance) return []
+      const { ejercicio, objetivo: delBloque, accesorio } = resuelto
+      // La vara de la vez pasada manda en un accesorio: el motor no lo
+      // progresa —y no debe— así que la doble progresión la lleva la persona,
+      // con el número de la última vez delante.
+      const varaAccesoria = accesorio
+        ? laVezPasada(historial ?? [], ejercicio.id, fechaISO())
+        : null
+      const base = varaAccesoria
+        ? {
+            series: delBloque.series,
+            cantidad: Math.min(
+              Math.max(varaAccesoria.mejor, ejercicio.ventana.min),
+              ejercicio.ventana.max,
+            ),
+            ...(varaAccesoria.kg !== undefined ? { kg: varaAccesoria.kg } : {}),
+          }
+        : delBloque
       // La sesión corta es un ejercicio por cadena y una serie de cada uno.
-      const series = esCorta ? 1 : avance.objetivoActual.series
-      const cantidad = Math.max(1, Math.round(avance.objetivoActual.cantidad * factor))
+      const series = esCorta ? 1 : base.series
+      const cantidad = Math.max(1, Math.round(base.cantidad * factor))
       // La vez pasada de ESTE ejercicio, para poner una vara adentro de cada
       // casillero. Es lo que hace que la segunda sesión no se sienta idéntica
       // a la primera: los casilleros vacíos ya no están vacíos.
@@ -533,14 +557,19 @@ export function Entrenar() {
         mueveElPlan(tipo) &&
         !ajusteDelDia(bandaSostenida(estados ?? [], fechaISO())).neutra &&
         !cadenasCongeladas(estados ?? [], fechaISO()).has(bloque.patron)
-      const abre = seAbreHoy(avance, cadenaDe(bloque.patron), POR_ID, cuenta)
+      // Un accesorio nunca abre un eslabón: no está en ninguna cadena, o es el
+      // anterior al que ya tenés. Anunciarlo sería una promesa falsa.
+      const abre = accesorio ? null : seAbreHoy(avance, cadenaDe(bloque.patron), POR_ID, cuenta)
       const duro = {
         ejercicio,
-        objetivo: { series, cantidad },
+        objetivo: { series, cantidad, ...(base.kg !== undefined ? { kg: base.kg } : {}) },
         antes,
         abre,
         descansoSegundos: ejercicio.descansoSegundos,
-        bajada: false,
+        // Un accesorio ocupa el lugar de una bajada: marcarlo como tal lo deja
+        // fuera de la curva de fuerza y del cálculo de rendimiento, que es
+        // donde no tiene nada que hacer.
+        bajada: accesorio,
       }
 
       // Y, en las sesiones densas, volumen en el eslabón anterior.
@@ -549,7 +578,9 @@ export function Entrenar() {
       // pida —"solo progresa el patrón si se entrenó el ejercicio que tocaba"—
       // y la curva de fuerza se queda con el máximo del día, así que tampoco
       // puede hundirla. Las dos cosas tienen su test en `bajada.test.ts`.
-      if (!esDensa) return [duro]
+      // Un accesorio no lleva bajada encima: ya ES el trabajo liviano, o es un
+      // movimiento con barra sin eslabón anterior del que bajar.
+      if (!esDensa || accesorio) return [duro]
       const abajo = bajadaDe(ejercicio, cadenaDe(bloque.patron), POR_ID)
       if (!abajo) return [duro]
       return [
@@ -611,9 +642,17 @@ export function Entrenar() {
      el estado inicial porque el ejercicio cambia sin que el componente se
      vuelva a montar, y arrancar siempre en cero costaría ocho toques por
      ejercicio y por sesión para volver a veinte kilos. */
-  /* Los kilos del ejercicio en curso, derivados: lo que se tocó en esta
-     sesión y, si no se tocó nada, lo que se usó la vez pasada. */
-  const kg = kgPuestos[ejercicio.id] ?? antes?.kg ?? 0
+  /* Los kilos del ejercicio en curso, derivados, y el ORDEN importa:
+     lo que tocaste hoy, después lo que el MOTOR propuso, y recién después lo
+     que usaste la vez pasada.
+
+     El del medio es el que faltaba. Desde que el motor puede decir "subí a
+     12,5 kg" al llegar al final de una cadena, ese número tiene que estar
+     puesto cuando la persona llega a la serie: si no, el motor propone un
+     disco, lo escribe en la explicación del cierre, y al día siguiente la
+     pantalla muestra callada el peso viejo. La propuesta quedaría en un texto
+     que nadie va a seguir a mano. */
+  const kg = kgPuestos[ejercicio.id] ?? objetivo.kg ?? antes?.kg ?? 0
   const ponerKg = (valor: number) =>
     setKgPuestos((previos) => ({ ...previos, [ejercicio.id]: valor }))
 

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { CADENAS, EJERCICIOS, POR_ID } from './biblioteca'
+import { CADENAS, EJERCICIOS, FUERA_DE_CADENA, POR_ID } from './biblioteca'
 import { RUTINA_POR_ID } from './rutinas'
 import {
   APORTE,
@@ -17,6 +17,7 @@ import {
   SIN_PRIMARIO,
   loQueFalta,
   musculosAlcanzables,
+  NECESITAN_BARRA_CARGABLE,
   musculosDe,
   musculosDelPatron,
   patronesDe,
@@ -47,7 +48,18 @@ const vector = (id: string) => APORTE[id] ?? {}
 const entradas = (id: string) => Object.entries(vector(id)) as [Musculo, Aporte][]
 const dosisDe = (id: string) => entradas(id).filter(([, a]) => a >= PISO_DE_DOSIS)
 const primariosDe = (id: string) => entradas(id).filter(([, a]) => a === 1).map(([m]) => m)
-const deLaCadena = (patron: Patron) => EJERCICIOS.filter((e) => e.patron === patron).map((e) => e.id)
+/*
+ * Los ids de una CADENA, que no es lo mismo que los de un patrón.
+ *
+ * Antes era `filter(e => e.patron === patron)`, y daba igual porque todo
+ * ejercicio estaba en una cadena. Con los cuatro de la barra cargable deja de
+ * dar igual: comparten patrón con los eslabones y no comparten la regla —el
+ * remo con barra es tracción y no es lat-dominante, la elevación de talones
+ * es piernas y no es cuádriceps-dominante—. Filtrar por patrón los metía
+ * adentro de reglas escritas para una progresión por palanca.
+ */
+const deLaCadena = (patron: Patron) =>
+  EJERCICIOS.filter((e) => e.patron === patron && !FUERA_DE_CADENA.has(e.id)).map((e) => e.id)
 
 describe('la matriz, por dentro', () => {
   it('los cuarenta y siete tienen vector, y ningún vector sobra', () => {
@@ -194,9 +206,40 @@ describe('la matriz, contra la fisiología', () => {
       bisagra: ['gluteo-mayor', 'isquiotibial'],
       core: ['recto-abdominal', 'oblicuos', 'psoas', 'dorsal'],
     }
+    /*
+     * Los cuatro de la barra cargable tienen su propia lista, y no es un
+     * agujero en la de arriba: son los que ENSANCHAN cada patrón, que es
+     * exactamente para lo que entraron.
+     *
+     * El press militar mete el empuje vertical en un patrón que hasta hoy era
+     * todo horizontal; el remo con barra mete la tracción horizontal cargada;
+     * la elevación de talones mete la flexión plantar en un patrón de piernas
+     * que era todo cuádriceps. Si compartieran lista con los eslabones, la
+     * regla de arriba quedaría tan ancha que no agarraría el error que existe
+     * para agarrar — un vector copiado a la cadena equivocada.
+     *
+     * El deltoide lateral NO está acá: en el press militar es secundario, que
+     * es lo correcto. Un press está limitado por el deltoide anterior y el
+     * tríceps.
+     */
+    const PERMITIDOS_CON_BARRA: Record<Patron, Musculo[]> = {
+      // El tríceps como primario del empuje ya estaba permitido arriba
+      // (flexión diamante, flexión a una mano) y el bíceps como primario de
+      // tracción también (dominada a un brazo asistida). Lo que agregan el
+      // curl y la extensión no es un músculo nuevo: es ACCESO — los dos
+      // ejercicios que los limitaban están casi al final de sus cadenas.
+      empuje: ['deltoide-anterior', 'triceps'],
+      traccion: ['espalda-media', 'dorsal', 'biceps'],
+      piernas: ['gemelo'],
+      bisagra: ['gluteo-mayor', 'isquiotibial'],
+      core: [],
+    }
     for (const ejercicio of EJERCICIOS) {
+      const lista = FUERA_DE_CADENA.has(ejercicio.id)
+        ? PERMITIDOS_CON_BARRA[ejercicio.patron]
+        : PERMITIDOS[ejercicio.patron]
       for (const musculo of primariosDe(ejercicio.id)) {
-        expect(PERMITIDOS[ejercicio.patron], `${ejercicio.id} · ${musculo}`).toContain(musculo)
+        expect(lista, `${ejercicio.id} · ${musculo}`).toContain(musculo)
       }
     }
   })
@@ -383,6 +426,23 @@ describe('lo que se puede entrenar sin barra', () => {
     // recomendar para siempre algo que no puede hacer.
     expect(musculosAlcanzables(true).has('antebrazo')).toBe(true)
     expect(musculosAlcanzables(false).has('antebrazo')).toBe(false)
+  })
+
+  it('los que necesitan barra cargable son exactamente los que no están en una cadena', () => {
+    /*
+     * Hoy las dos listas coinciden y no es casualidad: todo lo que progresa
+     * por peso necesita una barra con discos, y todo lo que necesita una barra
+     * con discos progresa por peso.
+     *
+     * Son dos listas igual porque responden preguntas distintas
+     * —`FUERA_DE_CADENA` es "¿tiene eslabón anterior?" y
+     * `NECESITAN_BARRA_CARGABLE` es "¿puedo hacerlo con lo que tengo?"— y la
+     * que importa acá es la segunda: al agregar el curl y la extensión me
+     * olvidé de esta lista, y el resultado fue que la app daba por entrenable
+     * el antebrazo de alguien que no tiene una barra con discos. Lo agarró el
+     * test del agarre y por eso este existe.
+     */
+    expect([...NECESITAN_BARRA_CARGABLE].sort()).toEqual([...FUERA_DE_CADENA].sort())
   })
 
   it('sin barra igual se puede entrenar la espalda', () => {

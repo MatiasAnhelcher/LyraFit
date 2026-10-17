@@ -278,6 +278,26 @@ export async function cerrarSesion(entrada: CierreDeSesion): Promise<ResumenSesi
 
   const decisiones: ResumenSesion['decisiones'] = []
 
+  /**
+   * La barra cargable, o nada.
+   *
+   * Los tres campos o ninguno: sin el peso corporal los kilos no se traducen a
+   * la escala del motor, sin el tope la app propondría un peso que no existe
+   * en la casa de la persona, y sin el paso de disco propondría 1,8 kg, que no
+   * se puede poner con discos de 2,5. Mientras falte cualquiera, el motor se
+   * comporta exactamente como antes de que existieran los kilos — que es el
+   * caso de quien entrena con el piso y una barra de dominadas, o sea el caso
+   * por defecto.
+   */
+  const barra =
+    preferencias.pesoCorporalKg && preferencias.cargaMaximaKg && preferencias.pasoDeDiscoKg
+      ? {
+          pesoCorporalKg: preferencias.pesoCorporalKg,
+          cargaMaximaKg: preferencias.cargaMaximaKg,
+          pasoDeDiscoKg: preferencias.pasoDeDiscoKg,
+        }
+      : undefined
+
   for (const registro of conSeries) {
     const ejercicio = POR_ID.get(registro.ejercicioId)
     if (!ejercicio) continue
@@ -327,7 +347,7 @@ export async function cerrarSesion(entrada: CierreDeSesion): Promise<ResumenSesi
         protegida: ajuste.protegida,
         ...(animo !== undefined ? { animo } : {}),
       },
-      { cadena: cadenaDe(ejercicio.patron), ejercicios: POR_ID },
+      { cadena: cadenaDe(ejercicio.patron), ejercicios: POR_ID, ...(barra ? { barra } : {}) },
     )
 
     decisiones.push({ patron: ejercicio.patron, decision })

@@ -41,6 +41,36 @@ Por eso el plan de abajo no es "la app más unas pesas": es la app completa.
 
 ---
 
+## Cuatro rutinas por grupo, adentro de la app
+
+Aparte del plan en papel de abajo, la app ahora trae las cuatro rutinas por
+grupo armadas: **Pecho y core**, **Espalda**, **Piernas** y **Brazos**. Están
+en Ajustes → *Rutina* → *Por grupo muscular*, y cada una arma cuatro o cinco
+ejercicios por sesión en vez de uno por cadena.
+
+Cada día mezcla tres clases de ejercicio:
+
+- **El eslabón que te toca**, que el motor elige y progresa solo.
+- **Volumen en el eslabón anterior**, que es más liviano y sube con vos el día
+  que cambiás de eslabón.
+- **Accesorios con barra**, que no son eslabones de nada y cuya progresión la
+  llevás vos con el peso.
+
+Si no cargaste la barra en Ajustes, los accesorios no aparecen y las rutinas
+siguen andando con los otros dos.
+
+> **El costo, dicho de frente.** Partir por grupo y hacer una por semana
+> entrena cada músculo **una vez cada siete días**, y con el mismo volumen
+> semanal la evidencia favorece dos. Lo que mejor funciona si vas a usarlas es
+> **alternar dos de las cuatro por semana** — por ejemplo pecho y espalda una
+> semana, piernas y brazos la otra, o directamente dos de cada una. La app te
+> lo dice en pantalla cuando elegís.
+>
+> El plan de abajo —torso / pierna / torso / pierna— no tiene ese problema:
+> cada músculo cae dos veces por semana. Si podés elegir, elegí ese.
+
+---
+
 ## La estructura: torso / pierna / torso / pierna
 
 Cuatro días, cada músculo dos veces por semana. Es la frecuencia que más rinde
@@ -77,7 +107,7 @@ roba al otro, y la sesión entra en 45 minutos en vez de 70.
 | --- | --- | --- | --- |
 | A | **Peso muerto rumano** con barra, bajada de 3 s | 4 × 8-10 | 2 min |
 | B1 | **Búlgara con barra** (pie de atrás en la silla) | 3 × 8-10 por pierna | 60 s → B2 |
-| B2 | **Elevación de talones** con barra | 3 × 15-20 | 60 s → B1 |
+| B2 | **Elevación de talones** con barra | 3 × 12-15 | 60 s → B1 |
 | C | **Puente de glúteos con barra**, en el piso | 3 × 12-15 | 60 s |
 | D | **Core anti-rotación** | 3 series | 45 s |
 | E | **Tabata** en el reloj de la app: sentadillas o burpees | 4 min | — |
@@ -102,7 +132,7 @@ roba al otro, y la sesión entra en 45 minutos en vez de 70.
 | B | **Peso muerto** convencional, con 2 s de pausa abajo | 3 × 6-8 | 2 min |
 | C1 | **Zancadas caminando** con barra | 3 × 10 por pierna | 60 s → C2 |
 | C2 | **Curl de isquiotibiales con la pelota** | 3 × 10-15 | 60 s → C1 |
-| D | **Elevación de talones** | 3 × 15-20 | 45 s |
+| D | **Elevación de talones** | 3 × 12-15 | 45 s |
 | E | **Tabata**: lo que te quede en el tanque | 4 min | — |
 
 ---
@@ -154,18 +184,40 @@ estricto es bastante más de lo que parece.
 
 ---
 
-## Lo que falta del lado de la app
+## Del lado de la app: ya está
 
-Hoy LyraFit no sabe guardar kilos: todo su motor mide capacidad en peso
-corporal. **Hasta que lo agregue, no anotes las series con barra adentro de la
-app** — si las anotás, el motor las va a leer como si hubieran sido a peso
-corporal y te va a mover eslabones que no corresponden. Anotalas aparte estos
-días.
+Las tres cosas que faltaban cuando escribí esta página ya están adentro.
 
-Lo que estoy construyendo para que eso deje de ser cierto:
+**1. Los kilos entran en la cuenta.** Una serie puede llevar discos y el motor
+los suma al peso corporal movido en vez de ignorarlos. Cargá tu peso en
+Ajustes → *Tu peso y la barra* y hasta cuántos kilos le podés poner; sin ese
+número la app no puede convertir "veinte kilos" a su escala y por eso no te
+ofrece discos hasta que lo pongas.
 
-1. Que una serie pueda llevar kilos, y que el índice de carga los sume al peso
-   corporal movido en vez de ignorarlos.
-2. Los ejercicios de arriba, con su técnica, sus errores comunes y su vector
-   muscular, adentro de la biblioteca.
-3. Esta rutina como preset elegible, con sus cuatro días ya armados.
+**2. El motor propone el disco.** Cuando llegás al final de una cadena y
+pasás las doce repeticiones, la app deja de decirte "seguí sumando" —que es lo
+que decía antes, para siempre— y te dice cuánto peso poner. Es la misma doble
+progresión de arriba, automática: llegás al techo de la ventana, sube un
+disco, volvés al piso. Y bajando es al revés a propósito: primero sale el
+disco y las repeticiones van al medio de la ventana, porque la técnica se
+recupera con menos peso y no con menos repeticiones.
+
+**3. Los cuatro movimientos están en la biblioteca**, con su técnica, sus
+errores comunes y su mapa muscular: press militar de pie, remo con barra, peso
+muerto rumano y elevación de talones. Aparecen en *Cadenas* → **CON LA BARRA**,
+en cuanto cargás la barra en Ajustes.
+
+No son eslabones de ninguna cadena, y eso es a propósito: una cadena progresa
+por palanca —el mismo gesto con cada vez menos ayuda— y estos progresan por
+peso. Meter el press militar al final de la cadena de empuje diría que es más
+difícil que una flexión a una mano, y no es más difícil: es otro plano.
+
+### Un número que cambió desde la primera versión de esta página
+
+La elevación de talones decía **3 × 15-20**, que es lo que dice cualquier
+manual, y en la app la ventana es **10-15**. Gana la app, y las tablas de
+arriba ya están corregidas: el techo de ventana de LyraFit son quince
+repeticiones y la regla está medida — una ventana larguísima convierte la
+progresión en una prueba de aguante y deja a alguien meses en el mismo
+ejercicio sintiendo que no avanza. Acá además no hace falta, porque con la
+barra el camino es poner un disco y no sumar cinco repeticiones.

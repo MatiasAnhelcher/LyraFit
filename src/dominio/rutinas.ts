@@ -89,7 +89,128 @@ export const RUTINAS: Rutina[] = [
     dias: [2, 5],
     bloques: [{ patron: 'traccion' }, { patron: 'empuje' }],
   },
+
+  /* ══════════════════════════════════════════════════════════════════════
+     LAS CUATRO POR GRUPO MUSCULAR
+
+     Un pedido explícito del dueño, dos veces: "rutinas específicas para
+     grupos musculares, priorizá pecho completo y core, espalda y piernas,
+     brazos también, con los ejercicios específicos para explotar la cadena
+     muscular elegida".
+
+     ## Lo que hay que decir antes, porque es el costo
+
+     Partir por grupo en cuatro días significa que **cada grupo se entrena UNA
+     vez por semana**, y la evidencia favorece dos cuando el volumen semanal
+     es el mismo. No es una diferencia enorme, pero es real y va en contra de
+     esta elección, así que la app lo dice EN PANTALLA —en `advertenciaDe`, no
+     escondido en este comentario— en vez de vender el split como si fuera
+     mejor.
+
+     Lo que el split sí da, y por lo que vale la pena cuando alguien lo pide:
+     mucho más volumen por grupo en la sesión, y una sesión que se siente de
+     algo en vez de un poco de todo. Si el objetivo es que la cosa se sostenga
+     seis meses, que la persona quiera entrar al día siguiente también cuenta.
+
+     ## Cómo están armadas
+
+     Tres clases de bloque, y las tres hacían falta:
+
+       · `patron` solo          → el eslabón que el motor eligió. Progresa solo.
+       · `volumen: true`        → el eslabón ANTERIOR del mismo patrón. Es el
+                                  trabajo de volumen, más liviano, y se escala
+                                  solo cuando la persona sube de eslabón.
+       · `ejercicioId`          → un accesorio fijo con barra. No mueve la
+                                  cadena y su progresión la lleva la persona
+                                  con la vara de la vez pasada.
+
+     Los accesorios con barra solo aparecen si la persona declaró tener una
+     barra cargable: `Hoy` y `Entrenar` los filtran. Sin barra, estas cuatro
+     rutinas siguen funcionando con los bloques de cadena y de volumen.
+     ══════════════════════════════════════════════════════════════════════ */
+
+  {
+    id: 'grupo-pecho-core',
+    nombre: 'Pecho y core',
+    descripcion:
+      'El día de empuje completo: el eslabón que te toca, volumen en el anterior, el empuje por encima de la cabeza que ninguna cadena cubre, y core al final. Es el primero de las cuatro rutinas por grupo.',
+    dias: [1, 2, 4, 5],
+    bloques: [
+      { patron: 'empuje', nota: 'Lo más duro primero, con el cuerpo entero.' },
+      { patron: 'empuje', volumen: true, nota: 'Volumen en el eslabón de abajo: acá se junta el trabajo.' },
+      { patron: 'empuje', ejercicioId: 'press-militar-barra', nota: 'Por encima de la cabeza: el hombro de costado no lo entrena nada más.' },
+      { patron: 'empuje', ejercicioId: 'extension-triceps-barra' },
+      { patron: 'core', nota: 'Al final: si lo hacés antes, te sabotea el resto.' },
+    ],
+  },
+  {
+    id: 'grupo-espalda',
+    nombre: 'Espalda',
+    descripcion:
+      'Tracción vertical y horizontal en la misma sesión, que es lo que ninguna rutina de peso corporal puede dar sola: las dominadas tiran de arriba y el remo con barra tira de adelante.',
+    dias: [1, 2, 4, 5],
+    bloques: [
+      { patron: 'traccion', nota: 'Vertical primero: es lo que más cuesta.' },
+      { patron: 'traccion', volumen: true, nota: 'Volumen en el eslabón de abajo.' },
+      { patron: 'traccion', ejercicioId: 'remo-barra', nota: 'Horizontal y cargado: la espalda media no la entrena la dominada.' },
+      { patron: 'bisagra', ejercicioId: 'peso-muerto-rumano', nota: 'La cadena de atrás entera, de los gemelos a la espalda baja.' },
+      { patron: 'traccion', ejercicioId: 'curl-barra' },
+    ],
+  },
+  {
+    id: 'grupo-piernas',
+    nombre: 'Piernas',
+    descripcion:
+      'Adelante y atrás del muslo en la misma sesión, más el gemelo, que ningún ejercicio de peso corporal entrena con rango completo.',
+    dias: [1, 2, 4, 5],
+    bloques: [
+      { patron: 'piernas', nota: 'Sentadilla primero, que es la que pide el cuerpo entero.' },
+      { patron: 'piernas', volumen: true, nota: 'Volumen en el eslabón de abajo.' },
+      { patron: 'bisagra', nota: 'La mitad de atrás, que la sentadilla casi no toca.' },
+      { patron: 'piernas', ejercicioId: 'elevacion-talones-barra' },
+      { patron: 'core' },
+    ],
+  },
+  {
+    id: 'grupo-brazos',
+    nombre: 'Brazos',
+    descripcion:
+      'Bíceps y tríceps directos, más el volumen de las dos cadenas que los usan. Es el día que la app no podía armar: hasta ahora el bíceps tenía un solo ejercicio que lo limitara, y estaba al final de la cadena más difícil.',
+    dias: [1, 2, 4, 5],
+    bloques: [
+      { patron: 'traccion', ejercicioId: 'curl-barra', nota: 'Directo, y primero: es lo que vinimos a hacer.' },
+      { patron: 'empuje', ejercicioId: 'extension-triceps-barra' },
+      { patron: 'traccion', volumen: true, nota: 'Tracción liviana: el bíceps otra vez, con el codo en otro ángulo.' },
+      { patron: 'empuje', volumen: true, nota: 'Empuje liviano: el tríceps otra vez.' },
+      { patron: 'core' },
+    ],
+  },
 ]
+
+/** Las rutinas que parten la semana por grupo muscular. */
+export const RUTINAS_POR_GRUPO = new Set([
+  'grupo-pecho-core',
+  'grupo-espalda',
+  'grupo-piernas',
+  'grupo-brazos',
+])
+
+/**
+ * La advertencia que va en pantalla cuando alguien elige partir por grupo.
+ *
+ * No es letra chica y no es opcional: es el costo de la decisión, dicho en el
+ * momento de tomarla. Partir en cuatro días significa entrenar cada grupo una
+ * vez por semana, y con el mismo volumen semanal la evidencia favorece dos.
+ *
+ * Se dice y no se impide. El dueño pidió esto dos veces, sabe lo que quiere y
+ * hay razones legítimas para elegirlo — más volumen por sesión, y una sesión
+ * que se siente de algo. Lo que la app no puede hacer es callarse el costo y
+ * después mostrar una curva que no sube tanto como debería.
+ */
+export function advertenciaDe(rutina: Rutina): string | null {
+  if (!RUTINAS_POR_GRUPO.has(rutina.id)) return null
+  return 'Partida por grupo, cada músculo se entrena una vez por semana. Con el mismo volumen semanal, dos veces rinde más: si podés, alterná estas cuatro de a dos por semana en vez de una cada una.'
+}
 
 export const RUTINA_POR_ID = new Map(RUTINAS.map((r) => [r.id, r]))
 

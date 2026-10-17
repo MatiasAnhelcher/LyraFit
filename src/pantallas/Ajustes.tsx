@@ -7,6 +7,7 @@ import {
   NOMBRE_CLASE,
   NOMBRE_DIA,
   RUTINAS,
+  RUTINAS_POR_GRUPO,
   revisarSemana,
   rutinaActiva,
   tieneFuelle,
@@ -120,8 +121,12 @@ export function Ajustes() {
 
       <section className="entrar-en-orden mt-6" style={orden(0)}>
         <Rotulo>RUTINA</Rotulo>
+        {/* Las de cuerpo entero primero y las de grupo después, con un corte
+            entre medio. No es orden alfabético ni de llegada: son dos clases
+            de decisión distintas y mezclarlas haría parecer que "Brazos" y
+            "Cuerpo completo" son opciones del mismo tipo. */}
         <div className="registro mt-3">
-          {RUTINAS.map((rutina) => (
+          {RUTINAS.filter((r) => !RUTINAS_POR_GRUPO.has(r.id)).map((rutina) => (
             <button
               key={rutina.id}
               onClick={() => elegirPreset(rutina.id)}
@@ -142,6 +147,52 @@ export function Ajustes() {
                       ? DIA_CORTO[d]!.toLowerCase()
                       : `${DIA_CORTO[d]}${clase === 'fuelle' ? '·f' : clase === 'ambos' ? '·+' : ''}`
                   }).join(' ')}
+                </span>
+              </span>
+              <span className="cifra-fila">{rutina.dias.length}</span>
+            </button>
+          ))}
+        </div>
+
+        <p className="rotulo mt-6">POR GRUPO MUSCULAR</p>
+        {/*
+          El costo, dicho ACÁ y no después de elegir.
+          Partir en cuatro días entrena cada grupo una vez por semana, y con el
+          mismo volumen semanal la evidencia favorece dos. Es un argumento en
+          contra de lo que estas cuatro filas ofrecen, y por eso va antes de
+          las filas: una advertencia que aparece una vez elegido no es una
+          advertencia, es una excusa.
+
+          Y se dice, no se impide. Hay razones legítimas para elegirlo —mucho
+          más volumen por grupo en la sesión, y una sesión que se siente de
+          algo en vez de un poco de todo— y si la cosa se sostiene seis meses
+          porque dan ganas de entrar, eso también cuenta.
+        */}
+        <p className="mt-2 max-w-[42ch] text-xs leading-relaxed text-[var(--color-glosa)]">
+          Cada una entrena un grupo por sesión, con cuatro o cinco ejercicios en
+          vez de uno. El costo: si hacés una por semana, cada músculo se entrena
+          una vez, y con el mismo volumen semanal dos veces rinde más.{' '}
+          <span className="text-[var(--color-tinta)]">
+            Lo que mejor funciona es alternar dos de estas cuatro por semana.
+          </span>
+        </p>
+        <div className="registro mt-3">
+          {RUTINAS.filter((r) => RUTINAS_POR_GRUPO.has(r.id)).map((rutina) => (
+            <button
+              key={rutina.id}
+              onClick={() => elegirPreset(rutina.id)}
+              className="fila-pulsable"
+            >
+              <span className="canal">
+                {rutina.id === preferencias.rutinaActivaId ? '◆' : '◇'}
+              </span>
+              <span className="min-w-0">
+                <span className="nombre block">{rutina.nombre}</span>
+                <span className="rotulo mt-0.5 block truncate">
+                  {/* Qué trae, que es lo que la persona quiere saber al
+                      elegirla: los ejercicios, no los días. Los días de estas
+                      cuatro son los mismos. */}
+                  {rutina.bloques.length} ejercicios
                 </span>
               </span>
               <span className="cifra-fila">{rutina.dias.length}</span>

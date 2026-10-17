@@ -121,6 +121,19 @@ export function Reloj() {
     // toca— y perderlo para ganar alfabeto sería un mal cambio. Sin barra, los
     // diez que cuelgan de una no se ofrecen: un reloj que propone dominadas a
     // alguien que no tiene dónde colgarse es un reloj que no escuchó.
+    //
+    // RECORRE LAS CADENAS Y NO `EJERCICIOS`, Y ESO ES DELIBERADO.
+    //
+    // Los cuatro de la barra cargable quedan afuera, y tienen que quedar
+    // afuera. Un tabata es veinte segundos al fallo contra un reloj, y un peso
+    // muerto rumano con discos al fallo contra un reloj es la receta exacta de
+    // una lesión de espalda baja: el intervalo empuja a sostener el ritmo
+    // cuando la técnica ya se fue, que es justo lo contrario de lo que pide un
+    // patrón de bisagra cargado.
+    //
+    // Hoy esto sale gratis porque no están en ninguna cadena. Si mañana alguien
+    // "arregla" esto recorriendo `EJERCICIOS` para que no falte nada, el reloj
+    // va a ofrecerlos. El test de `reloj.test.ts` lo agarra.
     const puestos = new Set(tuyos.map((o) => o.id))
     const resto: Opcion[] = todos
       ? CADENAS.flatMap((cadena) =>

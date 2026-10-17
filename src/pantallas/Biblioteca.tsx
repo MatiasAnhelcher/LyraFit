@@ -1,7 +1,7 @@
 import { Link } from 'react-router-dom'
 import { useLiveQuery } from 'dexie-react-hooks'
-import { CADENAS, NOMBRE_PATRON, POR_ID } from '@/dominio/biblioteca'
-import { leerAvances } from '@/datos/repositorio'
+import { CADENAS, EJERCICIOS, FUERA_DE_CADENA, NOMBRE_PATRON, POR_ID } from '@/dominio/biblioteca'
+import { leerAvances, leerPreferencias } from '@/datos/repositorio'
 import { Cargando, Glifo, Objetivo, Rotulo } from '@/componentes/ui'
 import { IconoFuerza, IconoReloj } from '@/componentes/iconos'
 import { orden } from '@/componentes/movimiento'
@@ -16,7 +16,11 @@ import { orden } from '@/componentes/movimiento'
  */
 export function Biblioteca() {
   const avances = useLiveQuery(leerAvances, [])
-  if (!avances) return <Cargando filas={6} />
+  const preferencias = useLiveQuery(leerPreferencias, [])
+  if (!avances || !preferencias) return <Cargando filas={6} />
+
+  const hayBarraCargable = (preferencias.cargaMaximaKg ?? 0) > 0
+  const deLaBarra = EJERCICIOS.filter((e) => FUERA_DE_CADENA.has(e.id))
 
   return (
     /*
@@ -117,6 +121,59 @@ export function Biblioteca() {
           </section>
         )
       })}
+
+      {/*
+        LOS DE LA BARRA CARGABLE.
+        Van en su propia sección y al final, y las dos cosas son decisiones.
+
+        En su propia sección porque NO son eslabones: no tienen un ejercicio
+        anterior ni uno siguiente, y su progresión es agregar un disco, no
+        bajar la ayuda. Meterlos adentro de una cadena diría que el press
+        militar es más difícil que una flexión a una mano, que es falso — es
+        otro plano, no otro escalón.
+
+        Al final porque la app sigue siendo de peso corporal: cuarenta y siete
+        ejercicios no necesitan comprar nada, y estos cuatro sí.
+
+        Y solo aparecen si la persona dijo que tiene la barra. Un catálogo que
+        ofrece lo que no se puede hacer no es generoso, es ruido — es la misma
+        regla por la que las cadenas que necesitan barra de dominadas se
+        filtran en el alta.
+      */}
+      {hayBarraCargable && deLaBarra.length > 0 && (
+        <section className="entrar-en-orden mt-10" style={orden(CADENAS.length)}>
+          <div className="flex items-center gap-2">
+            <span className="glifo" style={{ backgroundColor: 'var(--color-vega)' }} aria-hidden />
+            <Rotulo>CON LA BARRA</Rotulo>
+          </div>
+          <p className="mt-2 max-w-[42ch] text-sm leading-relaxed text-[var(--color-glosa)]">
+            Cuatro movimientos que no son eslabones de nada: acá no se progresa
+            bajando la ayuda sino poniendo un disco. Tapan los cuatro huecos que
+            el peso corporal no llega a cubrir — el hombro de costado, el remo
+            horizontal con peso, la bisagra de cadera cargada y el gemelo.
+          </p>
+          <div className="registro mt-3">
+            {deLaBarra.map((ejercicio) => (
+              <Link key={ejercicio.id} to={`/biblioteca/${ejercicio.id}`} className="fila-pulsable">
+                <span className="canal">
+                  <Glifo patron={ejercicio.patron} />
+                </span>
+                <span className="min-w-0">
+                  <span className="nombre block truncate">{ejercicio.nombre}</span>
+                  <span className="rotulo mt-0.5 block truncate">
+                    {NOMBRE_PATRON[ejercicio.patron]} · con discos
+                  </span>
+                </span>
+                <Objetivo
+                  series={ejercicio.series}
+                  cantidad={ejercicio.ventana.max}
+                  medida={ejercicio.medida}
+                />
+              </Link>
+            ))}
+          </div>
+        </section>
+      )}
     </div>
   )
 }

@@ -23,6 +23,7 @@
  */
 
 import { chromium } from 'playwright'
+import { conLaBase } from './lib/portones.mjs'
 
 const BASE = 'http://localhost:4173'
 const CHROMIUM = process.env.CHROMIUM_PATH ?? '/opt/pw-browsers/chromium'
@@ -52,22 +53,6 @@ const VOZ_FALSA = () => {
   }
 }
 
-/** Lee la base sin pasar por la interfaz. */
-async function conLaBase(pagina, tablas, trabajo) {
-  return pagina.evaluate(
-    async ([tablas, cuerpo]) => {
-      const req = indexedDB.open('lyrafit')
-      const db = await new Promise((r) => { req.onsuccess = () => r(req.result) })
-      const tx = db.transaction(tablas, 'readwrite')
-      const leer = (t) =>
-        new Promise((r) => { const q = tx.objectStore(t).getAll(); q.onsuccess = () => r(q.result) })
-      const poner = (t, v) => tx.objectStore(t).put(v)
-      // eslint-disable-next-line no-new-func
-      return new Function('leer', 'poner', `return (${cuerpo})(leer, poner)`)(leer, poner)
-    },
-    [tablas, trabajo.toString()],
-  )
-}
 
 async function alta(p) {
   await p.goto(`${BASE}/#/`, { waitUntil: 'networkidle' })

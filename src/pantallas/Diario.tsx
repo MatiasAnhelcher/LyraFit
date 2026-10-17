@@ -94,11 +94,23 @@ function Pregunta({ children, porque }: { children: React.ReactNode; porque?: st
 }
 
 export function Diario() {
-  const dia = useLiveQuery(() => leerDiaDelDiario(), [])
+  /**
+   * El `?? null` no es un adorno, es el arreglo de un bug que hacía que esta
+   * pantalla no existiera.
+   *
+   * `useLiveQuery` devuelve `undefined` mientras la consulta está en vuelo, y
+   * `db.diario.get(fecha)` devuelve `undefined` cuando NO HAY FILA. Los dos
+   * casos llegaban acá como el mismo valor, así que la guarda de abajo —que
+   * está para evitar el parpadeo del primer render— se quedaba trabada para
+   * siempre en el caso más común de todos: el primer día, antes de contestar
+   * nada.
+   *
+   * El resultado era una pantalla de rayas vacías. Lo agarró una captura, no
+   * un test: ningún test de dominio puede ver esto y la pantalla no tenía
+   * aserción de contenido en `revisar.mjs`. Ahora la tiene.
+   */
+  const dia = useLiveQuery(async () => (await leerDiaDelDiario()) ?? null, [])
 
-  // `undefined` es "todavía no cargó" y `null`/fila-sin-campos es "no contestó
-  // nada". La diferencia importa: sin ella la pantalla parpadea mostrando
-  // todo vacío medio segundo antes de dibujar lo que ya estaba anotado.
   if (dia === undefined) return <Cargando filas={5} />
 
   const actual: DiaDelDiario = dia ?? { fecha: '', actualizadoEn: 0 }

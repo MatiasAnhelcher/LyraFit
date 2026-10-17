@@ -18,6 +18,7 @@ import {
   vueltasSinContar,
   type Tramo,
 } from './reloj'
+import { CADENAS, FUERA_DE_CADENA } from './biblioteca'
 
 const tabata = FORMATO_POR_ID.get('tabata')!
 const emom = FORMATO_POR_ID.get('emom')!
@@ -345,5 +346,28 @@ describe('lo que se guarda', () => {
     expect(registros.map((r) => r.ejercicioId)).toEqual(['flexion-completa', 'sentadilla-completa'])
     expect(registros[0]!.series.map((s) => s.logrado)).toEqual([12, 11, 10, 9])
     expect(registros[1]!.series.map((s) => s.logrado)).toEqual([24, 22, 20, 18])
+  })
+})
+
+describe('lo que el reloj NO puede ofrecer', () => {
+  it('ningún ejercicio de barra cargable entra en un intervalo', () => {
+    /*
+     * Es una regla de seguridad, no de catálogo.
+     *
+     * Un tabata son veinte segundos al fallo contra un reloj. Un peso muerto
+     * rumano con discos al fallo contra un reloj es la receta exacta de una
+     * lesión de espalda baja: el intervalo empuja a sostener el ritmo cuando
+     * la técnica ya se fue, que es justo lo contrario de lo que pide una
+     * bisagra cargada.
+     *
+     * Hoy la pantalla los excluye porque recorre `CADENAS` y estos cuatro no
+     * están en ninguna. Eso es correcto y es frágil: alguien puede "arreglar"
+     * esa lista recorriendo `EJERCICIOS` para que no falte nada. Este test
+     * fija la regla donde no depende de cómo esté escrita la pantalla.
+     */
+    const enCadenas = new Set(CADENAS.flatMap((c) => c.ejercicios))
+    for (const id of FUERA_DE_CADENA) {
+      expect(enCadenas.has(id), `${id} entró a una cadena y el reloj lo va a ofrecer`).toBe(false)
+    }
   })
 })

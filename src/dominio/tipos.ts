@@ -332,6 +332,34 @@ export interface BloqueRutina {
    * dos veces. Alternar no cuesta ni un píxel.
    */
   alterna?: Patron
+  /**
+   * Un ejercicio FIJO, en vez del eslabón que el motor eligió.
+   *
+   * Existe para las rutinas por grupo muscular, donde un día de pecho no es
+   * "una serie de empuje" sino el eslabón de empuje MÁS el press militar MÁS
+   * volumen: cuatro bloques del mismo grupo con ejercicios distintos. Con
+   * solo `patron`, los cuatro bloques traerían el mismo ejercicio cuatro
+   * veces.
+   *
+   * Lo que un bloque fijo NO hace es mover la cadena, y eso ya estaba
+   * resuelto sin tocar nada: `cerrarSesion` solo progresa un patrón "si se
+   * entrenó el ejercicio que tocaba", y un accesorio nunca es el que tocaba.
+   * Su progresión la lleva la persona con la vara de la vez pasada, que es la
+   * misma doble progresión escrita a mano.
+   */
+  ejercicioId?: string
+  /**
+   * Volumen: el eslabón ANTERIOR de este patrón, no el actual.
+   *
+   * Es lo que permite que un día de pecho tenga pecho de verdad sin pedirle a
+   * nadie cuatro series al fallo del ejercicio más duro que puede hacer. Usa
+   * `bajadaDe`, que ya existe y está testeada: siempre es el eslabón
+   * inmediatamente anterior de la misma cadena y siempre pide menos carga.
+   *
+   * Se escala solo con la persona, que es la ventaja sobre un accesorio fijo:
+   * el día que suba de eslabón, el bloque de volumen sube con ella.
+   */
+  volumen?: true
 }
 
 /**

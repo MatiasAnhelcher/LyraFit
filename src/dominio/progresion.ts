@@ -426,6 +426,74 @@ interface Contexto {
   cadena: Cadena
   /** Los ejercicios de la cadena, indexados por id. */
   ejercicios: Map<string, Ejercicio>
+  /**
+   * La barra cargable, si la hay. Sin esto el motor se comporta exactamente
+   * como antes de que existieran los kilos, que es el caso de quien entrena
+   * con el piso y una barra de dominadas.
+   */
+  barra?: Barra
+}
+
+/**
+ * Lo que hace falta saber para que el motor pueda proponer discos.
+ *
+ * Los tres juntos o ninguno: sin el peso corporal los kilos no se pueden
+ * traducir a la escala del motor, sin el tope la app propondría algo que no
+ * existe en la casa de la persona, y sin el paso de disco propondría 1,8 kg,
+ * que no se puede poner con discos de 2,5.
+ */
+export interface Barra {
+  pesoCorporalKg: number
+  cargaMaximaKg: number
+  pasoDeDiscoKg: number
+}
+
+/**
+ * El paso de carga, cuantizado al disco más chico que la persona tiene.
+ *
+ * NO es un porcentaje del peso ni el 25% de la escalera de eslabones, que es
+ * lo que la fórmula pediría: es el disco. Una app que propone subir 1,8 kg a
+ * alguien que tiene discos de 2,5 está pidiendo algo imposible, y lo que pasa
+ * entonces no es que la persona redondee — es que deja de creerle al número.
+ *
+ * Los dos pasos de `docs/fuerza-con-barra.md` salen de acá: 2,5 kg en lo que
+ * empuja o tracciona con los brazos y 5 en lo que mueve la cadera. La cadera
+ * lleva el doble porque un paso de 2,5 kg sobre un peso muerto es ruido.
+ */
+export function pasoDeCarga(ejercicio: Ejercicio, barra: Barra): number {
+  const dobla = ejercicio.patron === 'piernas' || ejercicio.patron === 'bisagra'
+  return barra.pasoDeDiscoKg * (dobla ? 2 : 1)
+}
+
+/**
+ * ¿Este eslabón admite discos?
+ *
+ * La pregunta no es si se puede atar un disco a cualquier cosa —se puede— sino
+ * si el motor puede LEER la carga. Dos condiciones:
+ *
+ *   1. Hay con qué: peso corporal, tope de barra y paso de disco.
+ *   2. El índice de carga está saturado, o sea que la persona ya pasó las doce
+ *      repeticiones. Por debajo de eso sumar una repetición sí mueve el
+ *      índice, y repeticiones son gratis mientras sirvan.
+ *
+ * La segunda es la que importa y es la que arregla el agujero: pasadas las
+ * doce, `fraccionDelMaximo` se satura por el tope de Brzycki y el índice queda
+ * CONGELADO. El motor seguía diciendo "seguís sumando" para siempre, la curva
+ * de fuerza quedaba horizontal y los hechos dejaban de encontrar subidas,
+ * mientras la persona hacía veinte repeticiones de algo que ya dominaba.
+ */
+export function admiteDiscos(
+  ejercicio: Ejercicio,
+  cantidad: number,
+  barra: Barra | undefined,
+): barra is Barra {
+  if (!barra) return false
+  if (barra.pesoCorporalKg <= 0 || barra.cargaMaximaKg <= 0 || barra.pasoDeDiscoKg <= 0) return false
+  // Los isométricos no llevan discos en esta app: cargarle peso a una plancha
+  // cambia el ejercicio, no su intensidad, y el motor no tiene forma de saber
+  // si lo que se cargó fue el abdomen o la espalda baja.
+  if (ejercicio.medida === 'segundos') return false
+  return cantidad >= TOPE_BRZYCKI
 }
 
 function ejercicioDe(ctx: Contexto, id: string): Ejercicio {
@@ -503,6 +571,19 @@ export function siguienteAvance(
     },
   })
 
+  /**
+   * Mover la cantidad, sobre el mismo ejercicio y con los mismos discos.
+   *
+   * El `...avance.objetivoActual` del principio no es cosmético: sin él, la
+   * persona que llegaba al tope de su barra con 45 kg puestos volvía en
+   * silencio a peso corporal, porque esta función reconstruía el objetivo
+   * desde cero y se dejaba los kilos afuera. Lo agarró un test que verificaba
+   * el mensaje, no el dato — el mensaje decía "45 kg" y el objetivo decía
+   * nada.
+   *
+   * Todos los que llaman acá son cambios sobre el MISMO ejercicio, así que
+   * conservar la carga es correcto en los cuatro.
+   */
   const ajustar = (nueva: number, explicacion: string, movimiento: Movimiento): Decision => ({
     movimiento,
     cambioDeNivel: false,
@@ -510,7 +591,29 @@ export function siguienteAvance(
     avance: {
       ...base,
       ejercicioId: actual.id,
-      objetivoActual: { series: avance.objetivoActual.series, cantidad: nueva },
+      objetivoActual: { ...avance.objetivoActual, series: avance.objetivoActual.series, cantidad: nueva },
+      sesionesEnObjetivo: 0,
+    },
+  })
+
+  /**
+   * Cambiar los discos, que es un movimiento de carga y no de eslabón.
+   *
+   * `cambioDeNivel` queda en false a propósito: el ejercicio es el mismo, y
+   * las pantallas que celebran un eslabón nuevo no tienen nada que celebrar
+   * acá. Lo que cambió es cuánto pesa, y eso lo dice la explicación.
+   *
+   * `sesionesEnObjetivo` vuelve a cero porque el objetivo ES otro: sostener
+   * veinte kilos tres sesiones no dice nada sobre sostener veintidós.
+   */
+  const conDiscos = (kg: number, nueva: number, explicacion: string): Decision => ({
+    movimiento: 'subida',
+    cambioDeNivel: false,
+    explicacion,
+    avance: {
+      ...base,
+      ejercicioId: actual.id,
+      objetivoActual: { series: avance.objetivoActual.series, cantidad: nueva, kg },
       sesionesEnObjetivo: 0,
     },
   })
@@ -612,10 +715,30 @@ export function siguienteAvance(
       // salto es neutro o baja la carga —que es lo normal, y es lo que hace que
       // la curva de progreso no se corte— sigue pasando aunque la persona la
       // esté pasando mal, porque postergarlo ahí no le baja ninguna exigencia.
+      //
+      // Y la comparación se hace CON LOS DISCOS PUESTOS. Medido sobre los 35
+      // pares de eslabones de repeticiones que tiene la app: con 20 kg encima
+      // sobre una persona de 75, el signo de esta comparación se da vuelta en
+      // 5 de los 35, y siempre en la misma dirección — sin carga el freno
+      // dispara, con carga no debería. Los cinco son
+      // remo-australiano-alto→medio, dominada-arquera→un-brazo-asistida,
+      // sentadilla-completa→zancada, puente-una-pierna→bisagra-una-pierna y
+      // curl-nordico-negativo→curl-nordico.
+      //
+      // Hoy este caso no se puede alcanzar: los discos solo existen en el
+      // último eslabón de una cadena, donde no hay `siguiente`, y bajando se
+      // sacan antes de retroceder. O sea que esto no arregla un bug vivo: lo
+      // previene para cuando entren eslabones con carga en medio de una
+      // cadena, que es exactamente lo que viene. Decirlo así importa — un
+      // comentario que afirma haber arreglado algo que nunca pasó es peor que
+      // ninguno.
+      const carga = ctx.barra
+        ? { kg: avance.objetivoActual.kg ?? 0, pesoCorporalKg: ctx.barra.pesoCorporalKg }
+        : undefined
       if (
         evaluacion.animo !== undefined &&
         evaluacion.animo < 0 &&
-        indiceDeCarga(siguiente, nueva) > indiceDeCarga(actual, cantidad)
+        indiceDeCarga(siguiente, nueva, carga) > indiceDeCarga(actual, cantidad, carga)
       ) {
         return sostener(
           `Llegaste al techo de ${actual.nombre}, pero las últimas sesiones se te hicieron cuesta arriba y el paso a ${siguiente.nombre} pide más. Lo dejamos listo para cuando estés mejor.`,
@@ -630,7 +753,47 @@ export function siguienteAvance(
       )
     }
 
-    // Último eslabón: no hay adónde subir, así que se suma volumen.
+    /*
+     * ÚLTIMO ESLABÓN. Acá estaba el agujero más grande que dejó la barra.
+     *
+     * Lo que había era "no hay adónde subir, así que se suma volumen", para
+     * siempre. Y pasadas las doce repeticiones `fraccionDelMaximo` se satura
+     * por el tope de Brzycki, así que el índice de carga queda CONGELADO: la
+     * persona suma repeticiones sin fin, la curva de fuerza queda horizontal y
+     * los hechos dejan de encontrar subidas. Estaba haciendo veinte
+     * repeticiones de algo que dominaba y la app no tenía nada que decirle.
+     *
+     * El lugar natural de los kilos es exactamente este. En vez de "seguís
+     * sumando": subí un disco y volvé al piso de la ventana, que es la misma
+     * doble progresión que la app aplica en todos lados, un nivel más arriba.
+     */
+    if (admiteDiscos(actual, cantidad, ctx.barra)) {
+      const puestos = avance.objetivoActual.kg ?? 0
+      const paso = pasoDeCarga(actual, ctx.barra)
+      const nuevos = puestos + paso
+
+      if (nuevos <= ctx.barra.cargaMaximaKg) {
+        return conDiscos(
+          nuevos,
+          ventana.min,
+          puestos === 0
+            ? `Llegaste al final de la cadena de ${ctx.cadena.nombre} y a ${conUnidad(medida, cantidad)} por serie, que es donde sumar repeticiones deja de medir. Le ponemos ${nuevos} kg y volvemos a ${ventana.min}: la misma doble progresión, un escalón más arriba.`
+            : `Dominaste ${actual.nombre} con ${puestos} kg. Subimos a ${nuevos} y volvés a ${ventana.min} por serie.`,
+        )
+      }
+
+      // La barra se quedó corta. No es un final: es el momento de los recursos
+      // que no son discos —una pierna por vez, tempo, pausa—, y la app lo dice
+      // en vez de quedarse muda o proponer un peso que no existe.
+      return ajustar(
+        cantidad + incremento(medida, cantidad),
+        `Llegaste al tope de tu barra: ${ctx.barra.cargaMaximaKg} kg sobre ${actual.nombre}. Seguimos sumando repeticiones, pero a partir de acá rinde más bajar despacio o hacer una pausa abajo que agregar otra serie.`,
+        'subida',
+      )
+    }
+
+    // Sin barra —o todavía por debajo de las doce, donde una repetición más sí
+    // mueve el índice— se suma volumen, que es lo que esta app hizo siempre.
     return ajustar(
       cantidad + incremento(medida, cantidad),
       `Llegaste al final de la cadena de ${ctx.cadena.nombre}. Seguís sumando sobre ${actual.nombre}.`,
@@ -640,6 +803,38 @@ export function siguienteAvance(
 
   // ── Baja ───────────────────────────────────────────────────────────────
   if (senal <= BAJA) {
+    /*
+     * CON DISCOS PUESTOS, LO PRIMERO QUE BAJA ES EL PESO.
+     *
+     * La asimetría con la subida es deliberada y es la parte de esto que más
+     * fácil sería hacer mal. Subiendo, los kilos son lo ÚLTIMO: primero se
+     * agotan las repeticiones porque son gratis. Bajando son lo PRIMERO, por
+     * dos razones distintas:
+     *
+     *   1. Un disco de menos es un escalón de carga grande y limpio. Bajar de
+     *      diez a nueve repeticiones con veinticinco kilos encima no arregla
+     *      una serie que se está yendo: la alarga.
+     *   2. Es lo que hace cualquiera en un gimnasio y por el motivo correcto
+     *      — la técnica se recupera con menos peso, no con menos volumen.
+     *
+     * Y las repeticiones van al MEDIO de la ventana, no al piso: con el peso
+     * ya bajado, mandar también las repeticiones abajo del todo sería bajar
+     * dos escalones de una por una sola mala racha.
+     */
+    const puestos = avance.objetivoActual.kg ?? 0
+    if (puestos > 0 && ctx.barra) {
+      const paso = pasoDeCarga(actual, ctx.barra)
+      const nuevos = Math.max(0, puestos - paso)
+      const medio = Math.round((ventana.min + ventana.max) / 2)
+      return conDiscos(
+        nuevos,
+        medio,
+        nuevos > 0
+          ? `Vienen saliendo cortas. Sacamos un disco: ${nuevos} kg, ${conUnidad(medida, medio)} por serie. La técnica se recupera con menos peso, no con menos repeticiones.`
+          : `Vienen saliendo cortas. Sacamos los discos y volvemos a ${actual.nombre} a peso corporal, ${conUnidad(medida, medio)} por serie.`,
+      )
+    }
+
     if (cantidad > ventana.min) {
       const nueva = Math.max(cantidad - incremento(medida, cantidad), ventana.min)
       return ajustar(

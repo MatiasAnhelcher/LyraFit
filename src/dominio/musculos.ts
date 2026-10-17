@@ -54,10 +54,10 @@ export type Vector = Partial<Record<Musculo, Aporte>>
 
 /** Los 18 que al menos un ejercicio carga con 0,5 o más. En orden de pantalla. */
 export const MUSCULOS_CUBIERTOS: Musculo[] = [
-  'pectoral', 'deltoide-anterior', 'triceps', 'serrato',
+  'pectoral', 'deltoide-anterior', 'deltoide-lateral', 'triceps', 'serrato',
   'dorsal', 'espalda-media', 'deltoide-posterior', 'biceps', 'antebrazo',
   'recto-abdominal', 'oblicuos', 'psoas', 'erectores',
-  'cuadriceps', 'isquiotibial', 'gluteo-mayor', 'gluteo-medio', 'aductor',
+  'cuadriceps', 'isquiotibial', 'gluteo-mayor', 'gluteo-medio', 'aductor', 'gemelo',
 ]
 
 /**
@@ -66,8 +66,21 @@ export const MUSCULOS_CUBIERTOS: Musculo[] = [
  * todavía no cubre este patrón", con el patrón nombrado.
  */
 export const SIN_COBERTURA: { musculo: Musculo; patronQueFalta: string }[] = [
-  { musculo: 'deltoide-lateral', patronQueFalta: 'empuje vertical' },
-  { musculo: 'gemelo', patronQueFalta: 'flexión plantar y salto' },
+  /*
+   * VACÍA, y eso es una noticia.
+   *
+   * Durante toda la vida de la app esta lista tuvo dos entradas: el deltoide
+   * lateral, porque no había un solo empuje por encima de la cabeza, y el
+   * gemelo, porque no había flexión plantar. Eran huecos reales del peso
+   * corporal: ningún ejercicio de piso los carga con rango completo.
+   *
+   * Los cierran el press militar y la elevación de talones. Queda vacía a
+   * propósito en vez de borrarse: el día que entre un músculo nuevo a la
+   * matriz sin un ejercicio que lo entrene, acá es donde hay que declararlo, y
+   * los consumidores ya saben leer una lista vacía — `Progreso` tiene una
+   * guarda explícita para este caso, que antes no tenía y por eso armaba la
+   * frase " no aparecen: no hay todavía ningún ejercicio de en la app."
+   */
 ]
 
 /**
@@ -78,12 +91,30 @@ export const SIN_COBERTURA: { musculo: Musculo; patronQueFalta: string }[] = [
  * eslabón para eso: no hay. Lo que hay es trabajo unilateral.
  */
 export const SIN_PRIMARIO: Musculo[] = [
+  // El deltoide lateral entra acá al sumarse el press militar: pasa de "no lo
+  // entrena nada" a "lo entrena algo, pero ningún ejercicio está limitado por
+  // él". Es un hueco más chico y de otra clase, y la pantalla lo dice
+  // distinto — no hay elevación lateral en esta app y no debería proponerla.
+  'deltoide-lateral',
+  // Los erectores siguen acá: el peso muerto rumano y el remo los cargan a
+  // 0,5 cada uno, pero ningún ejercicio de la app está LIMITADO por la
+  // espalda baja. Sacarlos fue mi primer impulso al sumar el rumano y el test
+  // lo corrigió: tener cobertura y ser el limitante son cosas distintas.
   'deltoide-posterior', 'antebrazo', 'erectores', 'gluteo-medio', 'aductor',
 ]
 
 /** Cubiertos por UN solo ejercicio. Si ese eslabón no se hace, la cobertura es cero. */
 export const COBERTURA_FRAGIL: { musculo: Musculo; unico: string }[] = [
-  { musculo: 'erectores', unico: 'bisagra-una-pierna' },
+  // Los erectores SALEN: ya no cuelgan de `bisagra-una-pierna`. El remo con
+  // barra y el peso muerto rumano los cargan los dos a 0,5, así que saltarse
+  // un eslabón ya no deja la espalda baja en cero.
+  //
+  // Y entran dos, que es la contracara honesta de haber cerrado
+  // `SIN_COBERTURA`: el deltoide lateral y el gemelo pasaron de "no los
+  // entrena nada" a "los entrena UN ejercicio". Es mejor que antes y sigue
+  // siendo frágil, y la app tiene que poder decir las dos cosas.
+  { musculo: 'deltoide-lateral', unico: 'press-militar-barra' },
+  { musculo: 'gemelo', unico: 'elevacion-talones-barra' },
 ]
 
 export const NOMBRE_MUSCULO: Record<Musculo, string> = {
@@ -406,6 +437,66 @@ export const APORTE: Record<string, Vector> = {
   'curl-nordico': {
     isquiotibial: 1, 'gluteo-mayor': 0.5, 'recto-abdominal': 0.5, erectores: 0.25,
   },
+
+  // ─── Los cuatro de la barra cargable ─────────────────────────────────
+  //
+  // Tapan los cuatro huecos que esta matriz tenía MEDIDOS y nombrados desde
+  // que existe. No están en ninguna cadena —progresan por peso y no por
+  // palanca, ver `FUERA_DE_CADENA`— pero el mapa muscular no distingue: lo que
+  // cuenta es qué carga cada ejercicio, y estos cargan.
+
+  // El único empuje por encima de la cabeza de toda la app. El deltoide
+  // lateral entra como SECUNDARIO y no primario, que es lo correcto y además
+  // lo único que `PERMITIDOS` deja: el press militar está limitado por el
+  // deltoide anterior y el tríceps, no por el lateral. Que siga sin primario
+  // es un dato real —no hay elevación lateral en esta app— y por eso pasa de
+  // `SIN_COBERTURA` a `SIN_PRIMARIO`, que es un hueco distinto y más chico.
+  'press-militar-barra': {
+    'deltoide-anterior': 1, triceps: 1, 'deltoide-lateral': 0.5,
+    serrato: 0.5, 'recto-abdominal': 0.5, 'espalda-media': 0.25, erectores: 0.25,
+  },
+
+  // El único remo horizontal cargable. El australiano también es horizontal,
+  // pero su carga la fija el ángulo del cuerpo y se termina ahí.
+  'remo-barra': {
+    // Los dos primarios, y no es un empate de compromiso: un remo inclinado
+    // está limitado por el dorsal tanto como por la espalda media, y por eso
+    // el fallo aparece como "no puedo terminar de llevar el codo atrás" y no
+    // como "no puedo juntar los omóplatos".
+    'espalda-media': 1, dorsal: 1, biceps: 0.5,
+    'deltoide-posterior': 0.5, erectores: 0.5, antebrazo: 0.5,
+  },
+
+  // La bisagra cargada. El curl nórdico entrena el isquiotibial doblando la
+  // rodilla; este lo entrena estirando la cadera, que es el otro trabajo que
+  // hace y el que la app no tenía con peso.
+  'peso-muerto-rumano': {
+    isquiotibial: 1, 'gluteo-mayor': 1, erectores: 0.5, antebrazo: 0.5,
+    'espalda-media': 0.25,
+  },
+
+  // La única flexión plantar. Ni la sentadilla ni el salto entrenan el gemelo
+  // con rango completo, y era el otro hueco declarado.
+  'elevacion-talones-barra': {
+    gemelo: 1, isquiotibial: 0.25,
+  },
+
+  // Los dos de brazo. No tapan un hueco de cobertura —el bíceps y el tríceps
+  // ya figuraban cubiertos— sino uno de ACCESO: el bíceps tenía un solo
+  // ejercicio que lo limitara en toda la app y era la dominada a un brazo
+  // asistida, el anteúltimo eslabón de la cadena más difícil. O sea que en la
+  // práctica nadie entrenaba bíceps como primario durante los primeros dos
+  // años. El tríceps estaba mejor pero igual arriba: flexión diamante y
+  // flexión a una mano.
+  //
+  // El antebrazo entra a 0,5 en el curl y no más: la barra se sostiene, pero
+  // el que falla es el bíceps.
+  'curl-barra': {
+    biceps: 1, antebrazo: 0.5, 'deltoide-anterior': 0.25,
+  },
+  'extension-triceps-barra': {
+    triceps: 1, 'deltoide-anterior': 0.25,
+  },
 }
 
 /**
@@ -538,12 +629,16 @@ export function musculosDe(ejercicioId: string): Musculo[] {
  * que lo entrenan cuelgan de una. Un mapa que no mire esto le va a recomendar
  * para siempre algo que no puede hacer, que es la peor clase de consejo.
  */
-export function musculosAlcanzables(tieneBarra: boolean): Set<Musculo> {
+export function musculosAlcanzables(
+  tieneBarra: boolean,
+  tieneBarraCargable = false,
+): Set<Musculo> {
   const alcanzables = new Set<Musculo>()
   for (const [id, vector] of Object.entries(APORTE)) {
     const ejercicio = POR_ID.get(id)
     if (!ejercicio) continue
     if (!tieneBarra && NECESITAN_BARRA.has(id)) continue
+    if (!tieneBarraCargable && NECESITAN_BARRA_CARGABLE.has(id)) continue
     for (const [musculo, aporte] of Object.entries(vector) as [Musculo, Aporte][]) {
       if (aporte >= PISO_DE_DOSIS) alcanzables.add(musculo)
     }
@@ -559,6 +654,28 @@ export function musculosAlcanzables(tieneBarra: boolean): Set<Musculo> {
  * dato antes de saber si hace falta. El test comprueba que la lista coincida
  * con lo que el alta filtra.
  */
+/**
+ * Los que necesitan una BARRA CARGABLE, que no es la misma barra.
+ *
+ * `NECESITAN_BARRA` es la de dominadas: una barra fija de la que colgarse.
+ * Esta es una barra con discos, que es otro equipo, otro precio y otra casa.
+ * Tenerlas en una sola lista haría que a quien tiene barra de dominadas la
+ * app le prometa un press militar que no puede hacer, y al revés.
+ *
+ * Importa más de lo que parece: `musculosAlcanzables` decide si un músculo en
+ * cero es un problema de la persona o del equipo que tiene. Sin este segundo
+ * eje, a quien entrena con el piso y una barra fija la app le reclamaría para
+ * siempre un gemelo que no puede entrenar.
+ */
+export const NECESITAN_BARRA_CARGABLE = new Set([
+  'press-militar-barra',
+  'remo-barra',
+  'peso-muerto-rumano',
+  'elevacion-talones-barra',
+  'curl-barra',
+  'extension-triceps-barra',
+])
+
 export const NECESITAN_BARRA = new Set([
   'dominada-negativa',
   'dominada-asistida',
@@ -618,8 +735,10 @@ export function loQueFalta(entrada: {
   hoy: string
   rutina: Rutina
   tieneBarra: boolean
+  /** La barra con discos, que es otro equipo. Ausente: no la tiene. */
+  tieneBarraCargable?: boolean
 }): LoQueFalta {
-  const { sesiones, hoy, rutina, tieneBarra } = entrada
+  const { sesiones, hoy, rutina, tieneBarra, tieneBarraCargable = false } = entrada
   const dentro = enLaVentana(sesiones, hoy)
 
   // Con dos sesiones, "te falta piernas" es ruido. La doctrina del documento de
@@ -652,7 +771,7 @@ export function loQueFalta(entrada: {
   //    los limite. Proponer "entrená glúteo medio" no sirve: no hay ejercicio
   //    para eso, hay trabajo unilateral. Esos quedan en el mapa, no en el
   //    consejo.
-  const alcanzables = musculosAlcanzables(tieneBarra)
+  const alcanzables = musculosAlcanzables(tieneBarra, tieneBarraCargable)
   const candidatos = MUSCULOS_CUBIERTOS.filter(
     (m) => alcanzables.has(m) && !SIN_PRIMARIO.includes(m) && !NO_SE_PROPONE.includes(m),
   )

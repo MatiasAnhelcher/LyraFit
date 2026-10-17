@@ -7,7 +7,7 @@
  */
 
 import { describe, expect, it } from 'vitest'
-import { CADENAS, EJERCICIOS, POR_ID } from './biblioteca'
+import { CADENAS, EJERCICIOS, FUERA_DE_CADENA, POR_ID } from './biblioteca'
 
 /**
  * Salto máximo de carga entre dos eslabones consecutivos.
@@ -34,8 +34,26 @@ describe('integridad de las cadenas', () => {
     const enCadenas = CADENAS.flatMap((c) => c.ejercicios)
     expect(new Set(enCadenas).size).toBe(enCadenas.length)
     for (const ejercicio of EJERCICIOS) {
+      if (FUERA_DE_CADENA.has(ejercicio.id)) continue
       expect(enCadenas, ejercicio.id).toContain(ejercicio.id)
     }
+  })
+
+  it('los que están fuera de cadena están DECLARADOS fuera de cadena', () => {
+    // Las dos direcciones, que es lo que convierte una excepción en una
+    // decisión: ni se puede dejar un ejercicio suelto por descuido, ni la
+    // lista puede quedarse vieja cuando uno entre a una cadena.
+    const enCadenas = new Set(CADENAS.flatMap((c) => c.ejercicios))
+    const sueltos = EJERCICIOS.filter((e) => !enCadenas.has(e.id)).map((e) => e.id)
+    expect(sueltos.sort(), 'sueltos y sin declarar').toEqual([...FUERA_DE_CADENA].sort())
+    expect(
+      [...FUERA_DE_CADENA].filter((id) => enCadenas.has(id)),
+      'ya están en una cadena: sacalos de FUERA_DE_CADENA',
+    ).toEqual([])
+    expect(
+      [...FUERA_DE_CADENA].filter((id) => !POR_ID.has(id)),
+      'declarados fuera de cadena y no existen',
+    ).toEqual([])
   })
 
   it('cada ejercicio pertenece al patrón de su cadena', () => {

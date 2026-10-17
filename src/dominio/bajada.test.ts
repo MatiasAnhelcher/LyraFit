@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { CADENAS, EJERCICIOS, POR_ID, cadenaDe } from './biblioteca'
+import { CADENAS, EJERCICIOS, FUERA_DE_CADENA, POR_ID, cadenaDe } from './biblioteca'
 import { curvaDeFuerza } from './estadisticas'
 import {
   DESCANSO_DE_BAJADA,
@@ -41,6 +41,14 @@ describe('la bajada', () => {
       const cadena = cadenaDe(ejercicio.patron)
       const abajo = bajadaDe(ejercicio, cadena, POR_ID)
       const posicion = cadena.ejercicios.indexOf(ejercicio.id)
+      // Los de la barra cargable no están en ninguna cadena, así que no tienen
+      // eslabón anterior del que bajar. Bajar ahí es sacar un disco, y eso lo
+      // decide el motor, no esta función.
+      if (FUERA_DE_CADENA.has(ejercicio.id)) {
+        expect(posicion, `${ejercicio.id} no debería estar en una cadena`).toBe(-1)
+        expect(abajo, `${ejercicio.id} está fuera de cadena: no hay bajada`).toBeNull()
+        continue
+      }
       if (posicion === 0) {
         expect(abajo, `${ejercicio.id} es el primero: no hay dónde bajar`).toBeNull()
         continue

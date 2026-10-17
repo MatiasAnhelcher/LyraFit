@@ -139,7 +139,56 @@ async function ponerDiaDeEntrenar(p) {
   return /LAS DOS/i.test(await fila.innerText().catch(() => ''))
 }
 
-async function medirHoy(p, telefono) {
+/**
+ * Poner la rutina MÁS ALTA antes de medir Hoy.
+ *
+ * Hasta acá este portón medía con la rutina por defecto, que tiene cuatro
+ * bloques. Las cuatro rutinas por grupo muscular tienen cinco, y cada fila de
+ * Hoy mide 56 px: con la quinta, `Empezar` quedaría cuarenta y cuatro píxeles
+ * por debajo de la barra de navegación.
+ *
+ * O sea que la regla del pliegue —que ya se rompió tres veces— pasó a poder
+ * romperse SIN TOCAR UNA LÍNEA DE HOY: alcanzaría con elegir otra rutina en
+ * Ajustes. Un portón que solo mide la rutina por defecto no habría visto nada.
+ *
+ * Hoy tiene un tope de cuatro filas y cuenta el resto en un renglón, y esto es
+ * lo que verifica que ese tope esté puesto y alcance.
+ */
+async function ponerLaRutinaMasAlta(p) {
+  await p.goto(`${BASE}/#/ajustes`, { waitUntil: 'networkidle' })
+  await p.waitForTimeout(500)
+
+  // LA BARRA PRIMERO, Y ESTO NO ES UN DETALLE.
+  //
+  // Dos de los cinco bloques de la rutina por grupo son accesorios con barra
+  // cargable, y sin barra la pantalla no los dibuja —correctamente—. O sea
+  // que elegir la rutina "alta" sin cargar la barra da TRES filas, no cinco,
+  // y el portón mediría el caso fácil creyendo que mide el difícil. Lo
+  // descubrí mirando una captura: la rutina estaba puesta y había tres filas.
+  //
+  // Un portón que cree medir el peor caso y mide otro es peor que no tenerlo.
+  // `waitFor` y no `isVisible`: la fila de la barra solo aparece DESPUÉS de
+  // que el peso esté cargado, y eso viaja por `liveQuery`. La primera versión
+  // de esto esperaba 250 ms fijos y a veces llegaba tarde, así que el portón
+  // medía tres filas creyendo medir cinco — justo el error que vino a evitar.
+  const subir = async (titulo) => {
+    const boton = p.getByRole('button', { name: `Subir ${titulo}` })
+    await boton.waitFor({ state: 'visible', timeout: 5000 })
+    await boton.click()
+    await p.waitForTimeout(150)
+  }
+  // El peso arranca "sin decir" y sube desde 35; la barra, desde 0 de a 5.
+  await subir('tu peso')
+  await subir('barra cargable')
+
+  const boton = p.getByRole('button', { name: /Pecho y core/ })
+  if (!(await boton.isVisible().catch(() => false))) return false
+  await boton.click()
+  await p.waitForTimeout(400)
+  return true
+}
+
+async function medirHoy(p, telefono, rutina) {
   // El ofrecimiento del fuelle se cierra: su fila también ocupa alto, y se mide
   // el estado en el que la app se abre veinte veces por semana, no el del
   // primer día.
@@ -156,20 +205,22 @@ async function medirHoy(p, telefono) {
 
   const empezar = await p.getByRole('button', { name: /^Empezar$/ }).boundingBox()
   if (!empezar) {
-    culpar(telefono, `[${telefono.nombre}] No se encontró el botón Empezar en Hoy.`)
+    culpar(telefono, `[${telefono.nombre}] No se encontró el botón Empezar en Hoy (${rutina}).`)
     return
   }
   // El piso es la barra de navegación; si no hay, el borde de la pantalla.
   const nav = await p.locator('nav').first().boundingBox()
   const piso = nav ? nav.y : telefono.height
   const aire = piso - (empezar.y + empezar.height)
-  medidas.push(`[${telefono.nombre}] Hoy · Empezar termina en ${Math.round(empezar.y + empezar.height)}, la barra arranca en ${Math.round(piso)}: ${Math.round(aire)} px de aire.`)
+  medidas.push(
+    `[${telefono.nombre}] Hoy (${rutina}) · Empezar termina en ${Math.round(empezar.y + empezar.height)}, la barra arranca en ${Math.round(piso)}: ${Math.round(aire)} px de aire.`,
+  )
   // Medio píxel de tolerancia: el alto real es fraccionario y sin esto un aire
   // de 11,996 se imprime como 12 y falla, que es la peor clase de portón.
   if (aire + 0.5 < AIRE_MINIMO) {
     culpar(
       telefono,
-      `[${telefono.nombre}] "Empezar" quedó a ${Math.round(aire)} px de la barra (hacen falta ${AIRE_MINIMO}). Es la regresión que ya pasó dos veces: algún renglón nuevo lo empujó.`,
+      `[${telefono.nombre}] con la rutina "${rutina}", "Empezar" quedó a ${Math.round(aire)} px de la barra (hacen falta ${AIRE_MINIMO}). Es la regresión que ya pasó tres veces: algo nuevo lo empujó.`,
     )
   }
 }
@@ -431,9 +482,33 @@ for (const telefono of TELEFONOS) {
         `[${telefono.nombre}] No se pudo poner hoy como día de entrenar, así que lo que se midió en Hoy no es el caso alto.`,
       )
     }
+    // Primero con la rutina por defecto, que es la que usa casi todo el mundo.
     await pagina.goto(`${BASE}/#/`, { waitUntil: 'networkidle' })
     await pagina.waitForTimeout(600)
-    await medirHoy(pagina, telefono)
+    await medirHoy(pagina, telefono, 'cuerpo completo')
+
+    // Y después con la más alta, que es la que puede romperlo.
+    if (!(await ponerLaRutinaMasAlta(pagina))) {
+      culpar(
+        telefono,
+        `[${telefono.nombre}] No se pudo elegir la rutina por grupo, así que el caso alto de Hoy quedó sin medir.`,
+      )
+    } else {
+      await pagina.goto(`${BASE}/#/`, { waitUntil: 'networkidle' })
+      await pagina.waitForTimeout(600)
+
+      // Que de verdad esté midiendo el caso alto. Sin esto, el portón pasa en
+      // verde midiendo tres filas y diciendo que midió cinco.
+      const filas = await pagina.locator('[data-prueba="plan-de-hoy"] > *').count()
+      if (filas < 5) {
+        culpar(
+          telefono,
+          `[${telefono.nombre}] Con la rutina por grupo Hoy dibujó ${filas} filas y el caso alto son 5. Falta la barra cargable, o el tope de filas se movió: lo que se midió no es el peor caso.`,
+        )
+      }
+      await medirHoy(pagina, telefono, 'pecho y core')
+    }
+
     await medirSemana(pagina, telefono)
     await pagina.goto(`${BASE}/#/`, { waitUntil: 'networkidle' })
     await pagina.waitForTimeout(400)
