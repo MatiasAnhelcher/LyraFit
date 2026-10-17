@@ -66,6 +66,21 @@ function culpar(telefono, texto) {
 /** Cuánto aire tiene que quedar entre la acción y la barra. Medido, no elegido. */
 const AIRE_MINIMO = 12
 
+/**
+ * Cuánto se le permite salirse al ÚLTIMO descanso, por teléfono. Es deuda
+ * declarada, no un objetivo: los tres números son lo que mide hoy, y el
+ * portón falla si alguno sube. Cuando bajen, hay que bajarlos acá — el propio
+ * portón lo avisa cuando detecta una mejora sin trabar.
+ *
+ * Para contexto, lo mismo medido contra `origin/main`: 40 / 24 / 0. Esta
+ * entrega mejoró los tres.
+ */
+const DESBORDE_ACEPTADO = {
+  '320×568': 3,
+  '360×640': 15,
+  '390×844': 0,
+}
+
 const fallos = []
 const deudas = []
 const medidas = []
@@ -320,27 +335,42 @@ async function medirDescanso(p, telefono) {
   )
 
   /*
-   * La aserción que importa, y por qué NO es "que los botones entren".
+   * LA ASERCIÓN DEL DESCANSO: un trinquete, y por qué dejó de ser relativa.
    *
-   * No entran, y no entraban antes de esta entrega: el descanso del medio
-   * termina en 690 de 568 en el teléfono más chico, empujado por la indicación
-   * de técnica de tres renglones. Poner "que entren" haría un portón que nace
-   * en rojo y que por lo tanto nadie mira, que es peor que no tenerlo.
+   * Los botones del descanso no entran enteros en los teléfonos chicos, y no
+   * entraban antes de esta entrega. Exigir "que entren" haría un portón que
+   * nace en rojo y que por lo tanto nadie mira, que es peor que no tenerlo.
    *
-   * Lo que sí se puede exigir es que lo agregado no empeore lo que había: el
-   * último descanso —el que lleva el aviso— no puede irse MÁS abajo del borde
-   * de lo que ya se iba el del medio, que nadie tocó. Es una vara que se
-   * calibra sola, sin número mágico, y se rompe exactamente cuando alguien
-   * agrega un renglón de más acá.
+   * La versión anterior comparaba el último descanso contra el del medio en
+   * vivo: "lo que agregaste no puede empeorar lo que había". Sonaba bien y
+   * tenía un defecto que tardó en aparecer — **la vara se mueve**. Medido
+   * contra `origin/main` compilado aparte, en 360×640:
    *
-   * Se compara lo que se sale, no el alto: en un teléfono donde las dos
-   * pantallas entran enteras, doce píxeles más de alto no le hacen daño a
-   * nadie, y hacer fallar el portón por eso sería medir la cosa equivocada.
+   *     main   · medio se iba 55 px, último se iba 24 px  → pasaba
+   *     ahora  · medio se iba  0 px, último se iba 15 px  → fallaba
+   *
+   * O sea que las DOS pantallas mejoraron —el descanso del medio 64 px, el
+   * último 9— y la regla falló igual, porque el medio mejoró más que lo que
+   * la regla estaba cuidando. Una vara que se calibra sola se aprieta sola, y
+   * una regla que se rompe cuando todo mejora no está midiendo lo que dice.
+   *
+   * Ahora es un TRINQUETE: un número escrito, que solo puede bajar. Dice la
+   * verdad incómoda —el último descanso se va 15 px abajo del borde en
+   * 360×640, y eso es deuda— sin pretender que está arreglado, y agarra
+   * cualquier renglón nuevo que lo empeore.
    */
   const seVa = (fondo) => Math.max(0, fondo - telefono.height)
-  if (seVa(ultimo) > seVa(medio)) {
-    fallos.push(
-      `[${telefono.nombre}] El último descanso se va ${Math.round(seVa(ultimo))} px abajo del borde, y el del medio se iba ${Math.round(seVa(medio))}. Lo que se agregó ahí empeoró una pantalla que ya estaba al borde.`,
+  const desborde = seVa(ultimo)
+  const tope = DESBORDE_ACEPTADO[telefono.nombre] ?? 0
+  if (desborde > tope) {
+    culpar(
+      telefono,
+      `[${telefono.nombre}] El último descanso se va ${Math.round(desborde)} px abajo del borde y el tope aceptado es ${tope}. Algo nuevo lo empujó: o se saca, o se baja el tope con el número medido.`,
+    )
+  }
+  if (desborde < tope) {
+    deudas.push(
+      `[${telefono.nombre}] El último descanso ahora se va ${Math.round(desborde)} px en vez de ${tope}: bajá DESBORDE_ACEPTADO a ${Math.round(desborde)} para que la mejora quede trabada.`,
     )
   }
 
