@@ -323,7 +323,27 @@ export function Hoy() {
    * toque correr.
    */
   const TOPE_DE_FILAS = 4
-  const filasVisibles = bloques.slice(0, TOPE_DE_FILAS)
+  /*
+   * Y cuando sobran, se muestra UNA MENOS, no el tope.
+   *
+   * La primera versión de esto cortaba en cuatro y ponía el renglón del resto
+   * como una quinta fila del registro. Una fila del registro mide 56 px de
+   * mínimo, así que cuatro filas más el renglón ocupan lo mismo que CINCO:
+   * exactamente lo que el tope venía a evitar. Medido por `pliegue.mjs` en un
+   * Android de 360×640: `Empezar` quedó a **−44 px** de la barra, o sea
+   * tapado. Habría sido la cuarta vez que se rompe el pliegue, y la primera
+   * causada por el arreglo del pliegue.
+   *
+   * Ahora el renglón del resto no es una fila: es una línea de rótulo de unos
+   * 20 px, fuera del registro. Con tres filas más esa línea la pantalla queda
+   * 36 px MÁS CORTA que con las cuatro de la rutina por defecto, así que la
+   * rutina más alta tiene más aire que la común en vez de menos.
+   *
+   * Y con cuatro bloques o menos no se corta nada: la rutina por defecto
+   * sigue mostrando sus cuatro filas y sus 12 px de aire, sin cambios.
+   */
+  const corta = bloques.length > TOPE_DE_FILAS
+  const filasVisibles = bloques.slice(0, corta ? TOPE_DE_FILAS - 1 : TOPE_DE_FILAS)
   const filasOcultas = bloques.length - filasVisibles.length
 
   /**
@@ -520,16 +540,16 @@ export function Hoy() {
               </div>
             )
           })}
-          {filasOcultas > 0 && (
-            <div>
-              <span className="canal">+</span>
-              <span className="rotulo">
-                y {filasOcultas} {filasOcultas === 1 ? 'ejercicio más' : 'ejercicios más'}
-              </span>
-              <span />
-            </div>
-          )}
         </div>
+        )}
+
+        {/* El resto, en una línea y NO en una fila del registro: una fila mide
+            56 px de mínimo y acá no hay 56 px para gastar. Ver el comentario
+            de `TOPE_DE_FILAS`. */}
+        {esDiaDeEntrenar && !esDiaDeFuelle && filasOcultas > 0 && (
+          <p className="rotulo mt-2" data-prueba="resto-del-plan">
+            + {filasOcultas} {filasOcultas === 1 ? 'ejercicio más' : 'ejercicios más'} en la sesión
+          </p>
         )}
 
         {vispera?.abre && (
