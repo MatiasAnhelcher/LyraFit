@@ -443,12 +443,27 @@ export async function ubicarDesdePrueba(
 // ─── Copia de seguridad ──────────────────────────────────────────────────
 
 export interface Respaldo {
-  version: 2
+  version: 3
   exportadoEn: string
   sesiones: Sesion[]
   avances: Avance[]
   estados: Estado[]
   preferencias: Preferencias
+  /**
+   * El diario de comida y sueño.
+   *
+   * Entra en la versión 3 y llega tarde: la tabla se agregó en la v4 de la
+   * base y esta interfaz se quedó en cuatro tablas, así que durante un tiempo
+   * ninguna copia —ni la manual ni la automática— contenía una sola fila del
+   * diario. Meses de sueño, proteína y cafeína que no estaban en ningún
+   * archivo, sin servidor del que recuperarlos, justo en la función cuyo
+   * comentario dice ser "la forma de no perderlos nunca".
+   *
+   * La regla que esto deja escrita: **cada tabla nueva de Dexie entra acá en
+   * el mismo commit que la crea.** No hay ningún mecanismo que lo recuerde,
+   * así que lo recuerda el test de ida y vuelta.
+   */
+  diario: DiaDelDiario[]
 }
 
 /**
@@ -457,14 +472,23 @@ export interface Respaldo {
  * de no perderlos nunca, que importa más.
  */
 export async function exportarTodo(): Promise<Respaldo> {
-  const [sesiones, avances, estados, preferencias] = await Promise.all([
+  const [sesiones, avances, estados, preferencias, diario] = await Promise.all([
     db.sesiones.toArray(),
     db.avances.toArray(),
     db.estados.toArray(),
     leerPreferencias(),
+    db.diario.toArray(),
   ])
 
-  return { version: 2, exportadoEn: new Date().toISOString(), sesiones, avances, estados, preferencias }
+  return {
+    version: 3,
+    exportadoEn: new Date().toISOString(),
+    sesiones,
+    avances,
+    estados,
+    preferencias,
+    diario,
+  }
 }
 
 /** Errores de importación que le sirven a la persona, no al programador. */
@@ -477,19 +501,23 @@ export function validarRespaldo(dato: unknown): Respaldo {
 
   const posible = dato as Omit<Partial<Respaldo>, 'version'> & { version?: number }
 
-  if (posible.version !== 1 && posible.version !== 2) {
+  if (posible.version !== 1 && posible.version !== 2 && posible.version !== 3) {
     throw new RespaldoInvalido('La copia es de una versión que esta app todavía no entiende.')
   }
   if (!Array.isArray(posible.sesiones) || !Array.isArray(posible.avances)) {
     throw new RespaldoInvalido('A la copia le faltan las sesiones o los avances.')
   }
 
-  // Una copia de la versión 1 se puede leer igual: le falta el chequeo diario
-  // y el tipo de sesión, y las dos cosas tienen un valor por defecto sensato.
+  // Una copia vieja se puede leer igual, y acá está qué le falta a cada una:
+  // a la v1 el chequeo diario y el tipo de sesión; a la v2 el diario de comida
+  // y sueño. Las tres cosas tienen un valor por defecto sensato —vacío— así
+  // que restaurar una copia vieja funciona y simplemente no trae lo que no
+  // existía cuando se hizo.
   return {
     ...posible,
-    version: 2,
+    version: 3,
     estados: posible.estados ?? [],
+    diario: posible.diario ?? [],
     sesiones: posible.sesiones.map((s) => ({ ...s, tipo: s.tipo ?? 'plan' })),
   } as Respaldo
 }
@@ -501,13 +529,18 @@ export function validarRespaldo(dato: unknown): Respaldo {
 export async function importarTodo(respaldo: Respaldo): Promise<void> {
   await db.transaction(
     'rw',
-    [db.sesiones, db.avances, db.estados, db.preferencias, db.pendientes, db.curso],
+    [db.sesiones, db.avances, db.estados, db.preferencias, db.pendientes, db.curso, db.diario],
     async () => {
       await Promise.all([
         db.sesiones.clear(),
         db.avances.clear(),
         db.estados.clear(),
         db.preferencias.clear(),
+        // El diario también se limpia, y no es una formalidad: sin esto,
+        // restaurar una copia sobre un teléfono que ya venía usando la app
+        // dejaba las filas viejas del diario pegadas a un historial ajeno, con
+        // el sueño de una línea de tiempo y las sesiones de otra.
+        db.diario.clear(),
         // Y el borrador: viene de un plan que la copia que se está restaurando
         // no conoce, así que retomarlo sería anotar contra otro historial.
         db.curso.clear(),
@@ -515,6 +548,7 @@ export async function importarTodo(respaldo: Respaldo): Promise<void> {
       await db.sesiones.bulkPut(respaldo.sesiones)
       await db.avances.bulkPut(respaldo.avances)
       if (respaldo.estados?.length) await db.estados.bulkPut(respaldo.estados)
+      if (respaldo.diario?.length) await db.diario.bulkPut(respaldo.diario)
       if (respaldo.preferencias) await db.preferencias.put(respaldo.preferencias)
     },
   )
@@ -523,7 +557,7 @@ export async function importarTodo(respaldo: Respaldo): Promise<void> {
 export async function borrarTodo(): Promise<void> {
   await db.transaction(
     'rw',
-    [db.sesiones, db.avances, db.estados, db.preferencias, db.pendientes, db.curso],
+    [db.sesiones, db.avances, db.estados, db.preferencias, db.pendientes, db.curso, db.diario],
     async () => {
       await Promise.all([
         db.sesiones.clear(),
@@ -532,6 +566,11 @@ export async function borrarTodo(): Promise<void> {
         db.preferencias.clear(),
         db.pendientes.clear(),
         db.curso.clear(),
+        // El diario. Sin esto, "Listo. No quedó nada" era mentira: quedaba el
+        // registro de qué comió, cuánto durmió y cuánto tomó cada día. De
+        // todas las tablas, la que alguien que toca "borrar todo" más quiere
+        // que desaparezca.
+        db.diario.clear(),
       ])
     },
   )

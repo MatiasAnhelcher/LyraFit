@@ -248,32 +248,104 @@ describe('bajando: primero el peso, y las repeticiones al medio', () => {
 })
 
 describe('la invariante que hace que todo esto sea seguro', () => {
-  it('no se puede salir de un eslabón con discos puestos', () => {
-    /*
-     * Es la propiedad de la que dependen las otras dos cuentas del motor.
-     *
-     * `recalibrar` traduce la carga entre dos eslabones y NO sabe de kilos; el
-     * freno por ánimo compara dos índices y hasta hoy tampoco sabía. Las dos
-     * serían incorrectas si un cambio de eslabón pudiera arrastrar discos.
-     *
-     * No puede, y por construcción: hacia arriba los discos solo aparecen en
-     * el último eslabón, donde no hay siguiente; hacia abajo, la rama de
-     * discos corre ANTES que la de retroceso, así que el peso llega a cero
-     * antes de que se pueda cambiar de ejercicio. Si alguien reordena esas dos
-     * ramas, este test lo agarra.
-     */
-    let avance = avanceEn(ultimoDe('traccion').id, 12, { kg: 10 })
-    for (let i = 0; i < 12; i++) {
+  const ult = ultimoDe('traccion')
+
+  /**
+   * Una sesión MEDIANA, con los números puestos a mano y no derivados.
+   *
+   * Y eso es deliberado, porque derivarlos fue mi error. Mi primer intento
+   * armaba las series al 80% del objetivo y dejaba que `rendimientoDeSesion`
+   * calculara: con la cantidad en 2 —que es donde `conDiscos` deja el
+   * objetivo— el 80% de 2 redondea a 2, o sea una sesión PERFECTA. El test
+   * medía el camino de la subida creyendo medir el de la meseta, y pasaba
+   * igual con la guarda sacada. Lo verifiqué sacándola dos veces.
+   *
+   * Un rendimiento de 0,80 sostenido es justo la banda que rompía: queda
+   * arriba de BAJA (0,75), así que la rama que saca discos NUNCA corre, y
+   * abajo del punto medio de la meseta (0,85), así que a las pocas sesiones
+   * el motor decide que el objetivo es optimista y retrocede de eslabón.
+   */
+  const RENDIMIENTO_MEDIANO = 0.8
+
+  function mediocre(avance: Avance) {
+    return siguienteAvance(
+      avance,
+      { rendimiento: RENDIMIENTO_MEDIANO, tipico: avance.objetivoActual.cantidad },
+      ctxDe(ejercicio(avance.ejercicioId).patron),
+    )
+  }
+
+  it('no se puede salir de un eslabón con discos puestos, FALLANDO', () => {
+    let avance = avanceEn(ult.id, 12, { kg: 10 })
+    for (let i = 0; i < 15; i++) {
       const d = fallando(avance)
       if (d.avance.ejercicioId !== avance.ejercicioId) {
-        expect(
-          avance.objetivoActual.kg ?? 0,
-          'cambió de eslabón con discos todavía puestos',
-        ).toBe(0)
+        expect(avance.objetivoActual.kg ?? 0, 'cambió de eslabón con discos puestos').toBe(0)
         return
       }
       avance = d.avance
     }
-    expect.fail('en doce sesiones fallando nunca retrocedió de eslabón')
+    expect.fail('en quince sesiones fallando nunca retrocedió de eslabón')
+  })
+
+  it('no se puede salir de un eslabón con discos puestos, EN LA MESETA', () => {
+    /*
+     * El camino que de verdad rompía. Antes de la guarda, acá el motor
+     * retrocedía de eslabón y `cambiarDeNivel` armaba el objetivo nuevo sin
+     * `kg`: los 20 kg del dueño desaparecían y la explicación no los
+     * mencionaba.
+     *
+     * El estado de arranque es el que deja `conDiscos` —cantidad en el piso
+     * de la ventana, discos puestos—, que es desde donde se mesetea de
+     * verdad.
+     */
+    // Cinco kilos —dos discos— y no veinte. Con veinte el escenario es el
+    // mismo pero tarda cerca de cien sesiones: el motor saca un disco, vuelve
+    // al medio de la ventana, y baja de a una repetición con tres sesiones de
+    // consolidación entre cada paso. Son unas doce sesiones por disco. Lento
+    // a propósito —es carga, no repeticiones— pero inviable para un test, y
+    // la invariante es la misma con dos discos que con ocho.
+    let avance = avanceEn(ult.id, ult.ventana.min, { kg: 5 })
+    let retrocedio = false
+
+    /*
+     * Sesenta sesiones, y el número sale de la traza y no de la intuición.
+     *
+     * Con la guarda puesta hacen falta unas doce sesiones por disco, así que
+     * dos discos entran holgados y ocho no entrarían. El bucle original era
+     * de veinte y terminaba antes de llegar al retroceso: la aserción final
+     * —la que exige que el escenario se haya REPRODUCIDO— lo dijo en vez de
+     * dejar pasar un test verde que no probaba nada. Esa aserción es la que
+     * más vale de este archivo.
+     */
+    for (let i = 0; i < 60; i++) {
+      const antes = avance.objetivoActual.kg ?? 0
+      const d = mediocre(avance)
+      const despues = d.avance.objetivoActual.kg ?? 0
+
+      if (d.avance.ejercicioId !== avance.ejercicioId) {
+        retrocedio = true
+        expect(antes, `sesión ${i}: cambió a ${d.avance.ejercicioId} con ${antes} kg puestos`).toBe(0)
+        break
+      }
+      if (despues < antes) {
+        expect(d.explicacion, `sesión ${i}: de ${antes} a ${despues} kg sin decirlo`).toMatch(
+          /kg|disco|peso corporal/,
+        )
+      }
+      avance = d.avance
+    }
+
+    // Y que el escenario de verdad haya llegado hasta el retroceso: si no,
+    // este test no estaría probando nada, que es exactamente lo que le pasó
+    // a su primera versión.
+    expect(retrocedio, 'en veinte sesiones medianas nunca llegó a retroceder: el escenario no se reprodujo').toBe(true)
+  })
+
+  it('retroceder con discos saca peso en vez de cambiar de ejercicio', () => {
+    const d = fallando(avanceEn(ult.id, ult.ventana.min, { kg: 5 }))
+    expect(d.avance.ejercicioId).toBe(ult.id)
+    expect(d.avance.objetivoActual.kg).toBe(2.5)
+    expect(d.movimiento).toBe('bajada')
   })
 })

@@ -650,6 +650,44 @@ export function siguienteAvance(
    * demasiado, volver a probarlo la semana que viene es perder el mes.
    */
   const retroceder = (destino: Ejercicio, cruda: number, explicacion: string): Decision => {
+    /*
+     * CON DISCOS PUESTOS NO SE RETROCEDE: PRIMERO SE SACAN.
+     *
+     * Y la guarda vive acá adentro, en el único lugar por el que pasan todos
+     * los retrocesos, a propósito. La versión anterior razonaba sobre qué
+     * caminos podían llegar con kilos —"los discos solo existen en el último
+     * eslabón, y bajando se sacan antes de retroceder"— y el razonamiento era
+     * incompleto: con la señal sostenida en 0,80 la rama de bajada NUNCA
+     * corre (0,80 > BAJA = 0,75) y a las cuatro sesiones entra la meseta, que
+     * retrocede por su cuenta. `cambiarDeNivel` arma el objetivo nuevo sin
+     * `kg`, así que los 20 kg del dueño desaparecían sin que la explicación
+     * los mencionara.
+     *
+     * Tenía un test que afirmaba justo esto —"no se puede salir de un eslabón
+     * con discos puestos"— y usaba el camino que NO rompe: empujaba la señal
+     * abajo de BAJA, que es donde la rama de discos sí corre. Probé el camino
+     * seguro y di por probado el otro.
+     *
+     * Por eso ahora es una guarda estructural y no una cadena de razonamientos
+     * sobre alcanzabilidad: cualquier retroceso, venga de donde venga, saca un
+     * disco en vez de cambiar de ejercicio. Si quedan discos, el eslabón se
+     * mantiene; recién con la barra vacía se puede retroceder.
+     */
+    const puestos = avance.objetivoActual.kg ?? 0
+    if (puestos > 0 && ctx.barra) {
+      const paso = pasoDeCarga(actual, ctx.barra)
+      const nuevos = Math.max(0, puestos - paso)
+      const medioDeAca = Math.round((ventana.min + ventana.max) / 2)
+      return conDiscos(
+        nuevos,
+        medioDeAca,
+        nuevos > 0
+          ? `${actual.nombre} te está costando hace varias sesiones. Antes de cambiar de ejercicio sacamos peso: ${nuevos} kg, ${conUnidad(medida, medioDeAca)} por serie.`
+          : `${actual.nombre} te está costando hace varias sesiones. Sacamos los discos y lo hacemos a peso corporal, ${conUnidad(medida, medioDeAca)} por serie. Si sigue costando, el próximo paso es volver un eslabón.`,
+        'bajada',
+      )
+    }
+
     const medio = Math.round((destino.ventana.min + destino.ventana.max) / 2)
     const nueva = acotar(Math.min(cruda, medio), destino.ventana.min, destino.ventana.max)
     const decision = cambiarDeNivel(destino, nueva, explicacion, 'nivel-abajo')
