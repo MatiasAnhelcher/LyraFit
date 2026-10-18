@@ -18,7 +18,7 @@
  */
 
 import { chromium } from 'playwright'
-import { conLaBase, revisarQueSirvaLoCompilado } from './lib/portones.mjs'
+import { completarUnaSesion, conLaBase, revisarQueSirvaLoCompilado } from './lib/portones.mjs'
 
 const BASE = 'http://localhost:4173'
 const CHROMIUM = process.env.CHROMIUM_PATH ?? '/opt/pw-browsers/chromium'
@@ -131,8 +131,15 @@ const anotarSerie = async () => {
 for (let i = 0; i < 3; i++) await anotarSerie()
 
 // ── 4. Y el motor no lo lee como un fracaso ───────────────────────────────
-const antes = await conLaBase(p, ['avances'], async (leer) =>
-  JSON.stringify((await leer('avances')).map((a) => [a.patron, a.objetivoActual.cantidad, a.senal])))
+const senalesDe = (p) =>
+  conLaBase(p, ['avances'], async (leer) =>
+    Object.fromEntries((await leer('avances')).map((a) => [a.patron, a.senal])))
+
+const antesDeCerrar = await senalesDe(p)
+const antes = JSON.stringify(
+  await conLaBase(p, ['avances'], async (leer) =>
+    (await leer('avances')).map((a) => [a.patron, a.objetivoActual.cantidad, a.senal])),
+)
 
 const siguiente = p.getByRole('button', { name: 'Siguiente ejercicio', exact: true })
 if (await siguiente.isVisible().catch(() => false)) {
@@ -155,6 +162,49 @@ if (conKilos.length < 3) {
   fallos.push(`Solo ${conKilos.length} series quedaron con los 20 kg anotados, y fueron tres`)
 }
 notas.push(`Avances antes de cerrar: ${antes}.`)
+
+/*
+ * Y ACÁ ESTABA EL AGUJERO: el título de esta sección prometía algo que la
+ * sección no medía.
+ *
+ * Decía «y el motor no lo lee como un fracaso», que es la afirmación que
+ * importa de toda la carga externa: una serie hecha CON DISCOS cumple el
+ * objetivo igual que una sin ellos, y si el motor la leyera como un fracaso
+ * le bajaría el objetivo a alguien que cumplió. Es el daño más caro que
+ * puede hacer el motor, porque se acumula en silencio.
+ *
+ * Lo que había era `notas.push('Avances antes de cerrar: …')` y nada más:
+ * la sesión no se cerraba, el después no se leía, y no había UNA sola
+ * aserción. Las notas se imprimen con `console.log` y no tocan `fallos`, así
+ * que el portón salía con 0 pasara lo que pasara.
+ *
+ * Ahora la sesión se termina de verdad y se comparan las señales de los dos
+ * lados. Anotar el objetivo propuesto es cumplirlo, así que ninguna señal
+ * tiene derecho a bajar; la que baje delata que las series con kilos se
+ * leyeron mal.
+ */
+{
+  const porQueNo = await completarUnaSesion(p)
+  if (porQueNo) {
+    fallos.push(
+      `No se pudo cerrar la sesión con discos puestos (${porQueNo}), así que no se midió si el motor los lee como un fracaso.`,
+    )
+  } else {
+    const despuesDeCerrar = await senalesDe(p)
+    notas.push(`Señales antes: ${JSON.stringify(antesDeCerrar)} · después: ${JSON.stringify(despuesDeCerrar)}.`)
+    const bajaron = Object.entries(despuesDeCerrar).filter(
+      ([patron, senal]) => senal < (antesDeCerrar[patron] ?? 0) - 1e-9,
+    )
+    for (const [patron, senal] of bajaron) {
+      fallos.push(
+        `Cerrada una sesión cumplida CON DISCOS, la señal de ${patron} bajó de ${antesDeCerrar[patron]} a ${senal}: el motor está leyendo la carga externa como un fracaso y le va a bajar el objetivo a alguien que cumplió.`,
+      )
+    }
+    if (Object.keys(despuesDeCerrar).length === 0) {
+      fallos.push('Después de cerrar la sesión no hay ningún avance que mirar: esta comprobación no midió nada.')
+    }
+  }
+}
 
 /*
  * ── 4. La propuesta del motor llega a la pantalla ────────────────────────
