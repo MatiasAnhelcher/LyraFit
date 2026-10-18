@@ -10,7 +10,7 @@
  */
 
 import { chromium } from 'playwright'
-import { revisarQueSirvaLoCompilado } from './lib/portones.mjs'
+import { alta, revisarQueSirvaLoCompilado } from './lib/portones.mjs'
 import { readFileSync } from 'node:fs'
 import { mkdir } from 'node:fs/promises'
 
@@ -530,7 +530,19 @@ async function main() {
     locale: 'es-AR',
   })
   const paginaClara = await enClaro.newPage()
-  await paginaClara.goto(`${BASE}/#/`, { waitUntil: 'networkidle' })
+  /*
+   * EL ALTA TAMBIÉN ACÁ, Y SIN ESTO LOS DOS ÚLTIMOS CONTEXTOS NO VEÍAN LA APP.
+   *
+   * Son contextos nuevos: IndexedDB arranca vacío, `altaCompletadaEn` no
+   * existe, y el portero de `App.tsx` redirige CUALQUIER ruta a `/alta`. Los
+   * dos bloques de abajo medían la pantalla de bienvenida creyendo medir la
+   * app — comprobado: `url` daba `/alta` en los dos.
+   *
+   * Con el fondo zafaba de casualidad, porque lo pinta `body` y es global.
+   * Con el escritorio no: «la app en 1280 no queda rota» era, literalmente,
+   * el desborde de la pantalla de alta a 1280.
+   */
+  await alta(paginaClara)
   const fondo = await paginaClara.evaluate(() => getComputedStyle(document.body).backgroundColor)
   if (fondo !== 'rgb(16, 15, 13)') {
     problemas.push(
@@ -546,7 +558,7 @@ async function main() {
     locale: 'es-AR',
   })
   const escritorio = await ancho.newPage()
-  await escritorio.goto(`${BASE}/#/`, { waitUntil: 'networkidle' })
+  await alta(escritorio)
   await escritorio.screenshot({ path: `${SALIDA}/10-escritorio.png` })
   await revisarDesborde(escritorio, 'escritorio')
   await ancho.close()
