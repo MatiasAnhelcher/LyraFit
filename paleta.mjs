@@ -188,12 +188,88 @@ async function medirPantalla(pagina, nombre) {
   }
 }
 
+/**
+ * Esperar a que la pantalla se quede QUIETA antes de medirla.
+ *
+ * Esto nació de seis hallazgos falsos. Desde que el portón compone la
+ * opacidad de los ancestros, medir a los 260 ms de entrar a una ruta es medir
+ * la animación de entrada a mitad de camino: `entrar-en-orden` va de opacidad
+ * 0 a 1 con retraso escalonado, así que el portón veía el "×" de Cadenas al
+ * 0,46 cuando en reposo está al 0,55, y cuatro rótulos de Ajustes al 0,76
+ * cuando en reposo están al 1.
+ *
+ * Seis fallas de contraste que no existen, y —peor— la certeza de que si
+ * alguna vez hay una de verdad va a estar mezclada con ruido que cambia en
+ * cada corrida. Un portón que mide un estado transitorio no mide la pantalla:
+ * mide el reloj.
+ *
+ * `latir` se excluye porque es infinita y nunca termina: es Lyra respirando y
+ * es el único infinito del sistema (lo verifica `movimiento.mjs`). Si después
+ * del plazo sigue habiendo algo corriendo, eso se DICE en vez de medirse
+ * igual: medir una pantalla que no se asentó es exactamente lo que acaba de
+ * pasar, y la próxima vez tiene que avisar.
+ */
+async function asentarse(p, nombre) {
+  const quieta = () =>
+    p.evaluate(() =>
+      document
+        .getAnimations()
+        .filter((a) => a.effect?.getTiming?.().iterations !== Infinity)
+        .filter((a) => a.playState === 'running')
+        .map((a) => a.animationName ?? a.transitionProperty ?? '(sin nombre)'),
+    )
+
+  const limite = Date.now() + 5000
+  let corriendo = await quieta()
+  while (corriendo.length > 0 && Date.now() < limite) {
+    await p.waitForTimeout(100)
+    corriendo = await quieta()
+  }
+  // Un respiro después de la última: el estilo calculado se actualiza al
+  // siguiente cuadro, no al terminar la animación.
+  await p.waitForTimeout(150)
+  corriendo = await quieta()
+  if (corriendo.length > 0) {
+    problemas.push(
+      `[${nombre}] la pantalla no se quedó quieta en 5 s: sigue corriendo ${[...new Set(corriendo)].join(', ')}. Lo que se mida acá es la animación, no la pantalla.`,
+    )
+  }
+}
+
 /* ── El recorrido ──────────────────────────────────────────────────────── */
 
 async function main() {
   await revisarQueSirvaLoCompilado(BASE)
 
-  const { navegador, pagina } = await abrir({ fallos: problemas })
+  /*
+   * SE MIDE CON MOVIMIENTO REDUCIDO, Y NO ES UN ATAJO.
+   *
+   * Con las animaciones corriendo, este portón medía la entrada a mitad de
+   * camino: `entrar-en-orden` va de opacidad 0 a 1 con retraso escalonado y
+   * en Cadenas, con veinte eslabones, el escalonado dura más que cualquier
+   * espera razonable. Las primeras seis fallas que reportó eran todas eso —
+   * el "×" al 0,46 cuando en reposo está al 0,55— y esperar a que terminara
+   * daba una lista todavía más larga de números que no existen.
+   *
+   * Con `prefers-reduced-motion` no hay nada que esperar, y lo que se ve es
+   * el estado FINAL: `movimiento.mjs` verifica justamente eso —"con
+   * movimiento reducido la información se congela, no desaparece"— así que
+   * los dos portones se sostienen. Si alguien rompe esa promesa, movimiento
+   * lo dice; mientras la promesa valga, esto mide la pantalla en reposo.
+   *
+   * Y lo que importa no se pierde: una opacidad ESCRITA en una regla —el
+   * 0,55 del "×", el 0,55 del guion de EL DÍA que este portón dejó pasar—
+   * sigue ahí con movimiento reducido. Lo único que desaparece es el ruido.
+   */
+  const { navegador, contexto, pagina } = await abrir({ fallos: problemas })
+  await contexto.addInitScript(() => {
+    const real = window.matchMedia.bind(window)
+    window.matchMedia = (q) =>
+      q.includes('prefers-reduced-motion: reduce')
+        ? { matches: true, media: q, addEventListener() {}, removeEventListener() {}, addListener() {}, removeListener() {}, onchange: null, dispatchEvent: () => false }
+        : real(q)
+  })
+  await pagina.emulateMedia({ reducedMotion: 'reduce' })
   await alta(pagina)
 
   // (1) Los tokens, leídos de la app viva y no del archivo: así lo que se mide
@@ -252,7 +328,7 @@ async function main() {
     ['/reloj', 'El reloj'],
   ]) {
     await pagina.goto(`${BASE}/#${ruta}`, { waitUntil: 'networkidle' })
-    await pagina.waitForTimeout(260)
+    await asentarse(pagina, nombre)
     await medirPantalla(pagina, nombre)
   }
 

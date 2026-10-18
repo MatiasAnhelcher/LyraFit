@@ -151,9 +151,26 @@ async function quienDesborda(p) {
  */
 async function ponerDiaDeEntrenar(p) {
   const DIAS = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado']
-  const hoy = DIAS[new Date().getDay()]
+  /*
+   * QUÉ DÍA ES HOY LO DICE EL NAVEGADOR, NO NODE.
+   *
+   * El contexto está fijado a América/Buenos_Aires y el proceso corre en UTC.
+   * Entre medianoche y las tres de la mañana UTC son días distintos, así que
+   * `new Date().getDay()` de Node devolvía "Domingo" mientras la app mostraba
+   * "sábado": este portón ponía el domingo en "las dos" y después medía el
+   * sábado, que estaba en descanso.
+   *
+   * Y la pantalla de descanso no tiene plan, así que lo que se medía no era
+   * Hoy con cinco filas sino Hoy sin ninguna —con muchísimo aire y en verde—.
+   * El portón del pliegue estuvo tres horas midiendo la pantalla equivocada.
+   *
+   * La semana se guarda con la clave del día del navegador. La fuente de la
+   * hora tiene que ser la misma que la que usa la app o se escribe en una
+   * fila y se lee otra.
+   */
   await p.goto(`${BASE}/#/ajustes`, { waitUntil: 'networkidle' })
   await p.waitForTimeout(500)
+  const hoy = DIAS[await p.evaluate(() => new Date().getDay())]
   const fila = p.getByRole('button', { name: new RegExp(hoy) })
   // El ciclo es descanso → fuerza → las dos → fuelle, así que en tres toques se
   // llega desde cualquier estado. Se para en "las dos", que es el más alto.
