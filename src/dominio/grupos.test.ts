@@ -13,7 +13,7 @@
 
 import { describe, expect, it } from 'vitest'
 import { CADENAS, EJERCICIOS, FUERA_DE_CADENA, POR_ID, cadenaDe } from './biblioteca'
-import { ejercicioDelBloque } from './bajada'
+import { bajadaDe, ejercicioDelBloque, sinEjerciciosRepetidos } from './bajada'
 import { RUTINAS, RUTINAS_POR_GRUPO, RUTINA_POR_ID, advertenciaDe } from './rutinas'
 import { avanceInicial } from './progresion'
 import { curvaDeFuerza, laVezPasada } from './estadisticas'
@@ -86,6 +86,38 @@ describe('las cuatro existen y dicen lo que cuestan', () => {
   })
 })
 
+/**
+ * La sesión como la arma una pantalla DE VERDAD, con la bajada del día denso.
+ *
+ * La versión anterior de estos tests llamaba a `ejercicioDelBloque` bloque por
+ * bloque y nada más. Eso es media sesión: en un día marcado como "las dos",
+ * `Entrenar` y `Hoy` le agregan a cada bloque de cadena su BAJADA —el eslabón
+ * anterior— y es justo ahí donde nacía el duplicado, porque el bloque de
+ * volumen de la misma rutina resuelve a ese mismo eslabón.
+ *
+ * O sea que el test afirmaba "ningún ejercicio aparece dos veces" y pasaba en
+ * verde mientras la sesión real repetía uno. Modelar la bajada es lo que lo
+ * convierte en una afirmación sobre la app y no sobre una función suelta.
+ */
+function armarComoLaPantalla(
+  rutinaId: string,
+  avances: Map<Patron, Avance>,
+  { barra = true, densa = false } = {},
+) {
+  const rutina = RUTINA_POR_ID.get(rutinaId)!
+  const crudas = rutina.bloques.flatMap((b) => {
+    const r = ejercicioDelBloque(b, avances.get(b.patron), POR_ID, cadenaDe(b.patron), {
+      tieneBarraCargable: barra,
+    })
+    if (!r) return []
+    const duro = { ejercicio: r.ejercicio, objetivo: r.objetivo, bajada: false }
+    if (!densa || r.accesorio) return [duro]
+    const abajo = bajadaDe(r.ejercicio, cadenaDe(b.patron), POR_ID)
+    return abajo ? [duro, { ejercicio: abajo.ejercicio, objetivo: abajo.objetivo, bajada: true }] : [duro]
+  })
+  return sinEjerciciosRepetidos(crudas)
+}
+
 describe('cada día trae ejercicios DISTINTOS', () => {
   it('ningún ejercicio aparece dos veces en la misma sesión', () => {
     // Es la razón de ser de las dos clases de bloque nuevas. Sin ellas, los
@@ -100,6 +132,47 @@ describe('cada día trae ejercicios DISTINTOS', () => {
         }
       }
     }
+  })
+
+  it('tampoco en un día DENSO, que es donde se repetía', () => {
+    /*
+     * El caso que rompía y que el test de arriba no veía.
+     *
+     * No es solo una fila repetida: `Entrenar` guarda las series en un
+     * `Record` indexado por id de ejercicio mientras el plan es posicional,
+     * así que las dos entradas comparten el mismo arreglo. Se anotan una vez,
+     * aparecen hechas en las dos, y la sesión se guarda con el ejercicio
+     * duplicado.
+     */
+    for (const r of porGrupo) {
+      for (const avances of [avancesEnElMedio(), avancesAlPrincipio()]) {
+        for (const barra of [true, false]) {
+          const armada = armarComoLaPantalla(r.id, avances, { barra, densa: true })
+          const ids = armada.map((x) => x.ejercicio.id)
+          expect(
+            new Set(ids).size,
+            `${r.id} (denso, barra=${barra}) repite: ${ids.join(', ')}`,
+          ).toBe(ids.length)
+        }
+      }
+    }
+  })
+
+  it('y lo que se saca es la bajada automática, no el bloque que la rutina declara', () => {
+    // Si se quedara la bajada en vez del bloque de volumen, la persona
+    // perdería la vara de la vez pasada —que es la única progresión que esos
+    // bloques tienen— y la rutina dejaría de decir lo que dice que hace.
+    const avances = avancesEnElMedio()
+    const armada = armarComoLaPantalla('grupo-pecho-core', avances, { densa: true })
+    const empujeAbajo = bajadaDe(
+      POR_ID.get(avances.get('empuje')!.ejercicioId)!,
+      cadenaDe('empuje'),
+      POR_ID,
+    )
+    if (!empujeAbajo) return
+    const entrada = armada.find((x) => x.ejercicio.id === empujeAbajo.ejercicio.id)
+    expect(entrada, 'el eslabón de volumen desapareció de la sesión').toBeDefined()
+    expect(entrada!.bajada, 'quedó la bajada automática en vez del bloque declarado').toBe(false)
   })
 
   it('en el medio de las cadenas, cada día trae al menos cuatro ejercicios', () => {

@@ -60,7 +60,13 @@ import {
 import { callar, configurarVoz, decir } from '@/voz'
 import { Lyra } from '@/componentes/lyra'
 import { Arco } from '@/componentes/arco'
-import { DESCANSO_DE_BAJADA, bajadaDe, ejercicioDelBloque, minutosDeSesion } from '@/dominio/bajada'
+import {
+  DESCANSO_DE_BAJADA,
+  bajadaDe,
+  ejercicioDelBloque,
+  minutosDeSesion,
+  sinEjerciciosRepetidos,
+} from '@/dominio/bajada'
 import {
   bloqueDeFuelle,
   minutosDelBloque,
@@ -528,7 +534,12 @@ export function Entrenar() {
   /** Los ejercicios concretos de la sesión, según el avance de cada patrón. */
   const plan = useMemo(() => {
     if (!rutina || !semana || !avances) return []
-    return rutina.bloques.flatMap((bloqueDelPlan) => {
+    // El `sinEjerciciosRepetidos` de afuera no es higiene: en un día denso con
+    // una rutina por grupo, el mismo ejercicio entraba dos veces —la bajada
+    // del bloque de cadena y el bloque de volumen resuelven al mismo eslabón—
+    // y las dos entradas compartían el arreglo de series, porque `hechas` se
+    // indexa por id de ejercicio y el plan es posicional.
+    return sinEjerciciosRepetidos(rutina.bloques.flatMap((bloqueDelPlan) => {
       const bloque = {
         ...bloqueDelPlan,
         patron: patronDelBloque(bloqueDelPlan, semana, new Date()),
@@ -611,7 +622,7 @@ export function Entrenar() {
           bajada: true,
         },
       ]
-    })
+    }))
   }, [rutina, semana, avances, esCorta, esDensa, factor, historial, estados, tipo, tieneBarraCargable])
 
   /**

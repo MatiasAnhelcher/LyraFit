@@ -29,6 +29,21 @@ const fallos = []
  * problema, no veinte. La primera corrida de esto escupió la misma línea
  * cuatro veces seguidas y el informe dejó de leerse.
  */
+/**
+ * Los elementos cuyo estado final hay que verificar con movimiento reducido.
+ *
+ * Arriba y no adentro del `evaluate`, para que el portón pueda contar cuántos
+ * encontró y plantarse si no encontró ninguno.
+ */
+const SOSPECHOSAS = [
+  '.entrar',
+  '.entrar-en-orden',
+  '.revelar',
+  '.anim-estrella',
+  '.anim-regla',
+  '.anim-trazo',
+]
+
 const dichos = new Set()
 const anotar = (linea) => {
   if (dichos.has(linea)) return
@@ -81,11 +96,26 @@ async function main() {
       )
     }
 
-    // Y el descanso, que es donde más tentador es meter algo: se entra a una
-    // serie, se anota, y se mira el descanso con el arco andando.
-    const anotar = pagina.getByRole('button', { name: 'Anotar serie' })
-    if (await anotar.isVisible().catch(() => false)) {
-      await anotar.click()
+    /*
+     * Y el descanso, que es donde más tentador es meter algo.
+     *
+     * El botón se llama `botonAnotar` y no `anotar`, y el nombre importa: la
+     * versión anterior lo declaraba como `const anotar` en ESTE mismo bloque,
+     * donde más arriba se llama a la función `anotar` del módulo. Por `const`
+     * y zona muerta temporal, aquellas llamadas resolvían al locator y tiraban
+     * `ReferenceError: Cannot access 'anotar' before initialization`.
+     *
+     * O sea que este portón explotaba exactamente cuando ENCONTRABA algo, y
+     * pasaba en verde cuando no encontraba nada. La regla 1 —"nada se mueve
+     * durante el esfuerzo"— nunca se reportó una sola vez.
+     *
+     * Y me engañó dos veces: cuando probé este portón por mutación, lo que
+     * mutaba lo agarraba la sección 2, que está en otro bloque y no tenía el
+     * problema. Vi el portón fallar y di por probada la sección equivocada.
+     */
+    const botonAnotar = pagina.getByRole('button', { name: 'Anotar serie' })
+    if (await botonAnotar.isVisible().catch(() => false)) {
+      await botonAnotar.click()
       await pagina.waitForTimeout(1600)
       const enDescanso = (await corriendo(pagina)).filter(
         (a) => a.tipo === 'CSSAnimation' && a.estado === 'running',
@@ -156,14 +186,31 @@ async function main() {
     await pagina.emulateMedia({ reducedMotion: 'reduce' })
     await alta(pagina)
 
+    /*
+     * LAS RUTAS, Y POR QUÉ ESTA LISTA NO ES LA OBVIA.
+     *
+     * La versión anterior recorría Hoy, Cadenas, Progreso y el Reloj, y
+     * buscaba seis selectores de los cuales CUATRO solo existen en el cierre:
+     * `.revelar`, `.anim-regla`, `.anim-trazo` y `.anim-estrella` son la
+     * coreografía de esa pantalla y de ninguna otra. El bloque que el propio
+     * comentario llama «la que de verdad importa» barría cuatro pantallas
+     * donde no había nada que mirar.
+     *
+     * Así que se verifica que al menos un selector esté presente en algún
+     * lado: un portón que no encuentra su objeto no está en verde, está
+     * ciego, y la diferencia tiene que ser visible.
+     */
+    let vistos = 0
     for (const [ruta, nombre] of [
       ['/', 'Hoy'],
       ['/biblioteca', 'Cadenas'],
       ['/progreso', 'Progreso'],
       ['/reloj', 'El reloj'],
+      ['/diario', 'El diario'],
     ]) {
       await pagina.goto(`${BASE}/#${ruta}`, { waitUntil: 'networkidle' })
       await pagina.waitForTimeout(800)
+      vistos += await pagina.locator(SOSPECHOSAS.join(', ')).count()
 
       const vivas = (await corriendo(pagina)).filter(
         (a) => a.tipo === 'CSSAnimation' && a.estado === 'running',
@@ -173,8 +220,7 @@ async function main() {
       }
 
       // Y nada quedó invisible por haberse apagado a mitad de camino.
-      const invisibles = await pagina.evaluate(() => {
-        const sospechosas = ['.entrar', '.entrar-en-orden', '.revelar', '.anim-estrella', '.anim-regla', '.anim-trazo']
+      const invisibles = await pagina.evaluate((sospechosas) => {
         const salida = []
         for (const sel of sospechosas) {
           for (const el of document.querySelectorAll(sel)) {
@@ -184,18 +230,27 @@ async function main() {
             if (sel === '.anim-regla' && e.transform.includes('matrix') && e.transform.startsWith('matrix(0')) {
               salida.push('.anim-regla quedó en scaleX(0): la regla no se imprimió nunca')
             }
-            if (sel === '.anim-trazo' && Number(e.strokeDashoffset) > 0.01) {
+            // `parseFloat` y no `Number`: Chrome serializa la propiedad
+            // calculada con unidad —"1px"— y `Number('1px')` es NaN, así que
+            // `NaN > 0.01` era SIEMPRE falso. La comprobación existía, se
+            // leía bien, y no podía disparar nunca.
+            if (sel === '.anim-trazo' && parseFloat(e.strokeDashoffset) > 0.01) {
               salida.push(`.anim-trazo quedó con dashoffset ${e.strokeDashoffset}: el camino no se dibujó`)
             }
           }
         }
         return salida
-      })
+      }, SOSPECHOSAS)
       for (const i of invisibles) {
         anotar(
           `[${nombre}, movimiento reducido] ${i}. Con movimiento reducido la información se CONGELA, no desaparece: el estado tiene que ser el final.`,
         )
       }
+    }
+    if (vistos === 0) {
+      anotar(
+        `Con movimiento reducido no se encontró NI UNO de los elementos que este bloque mide (${SOSPECHOSAS.join(', ')}). No está en verde: está ciego.`,
+      )
     }
     await navegador.close()
   }

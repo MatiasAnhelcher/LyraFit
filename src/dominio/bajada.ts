@@ -181,3 +181,47 @@ export function ejercicioDelBloque(
   if (!ejercicio) return null
   return { ejercicio, objetivo: avance.objetivoActual, accesorio: false }
 }
+
+/**
+ * El plan sin ejercicios repetidos.
+ *
+ * ## Por qué hace falta
+ *
+ * Las rutinas por grupo tienen, a propósito, un bloque de cadena y otro de
+ * volumen sobre el MISMO patrón: así un día de pecho es pecho de verdad y no
+ * una serie de pecho. En un día denso eso choca — el bloque de cadena agrega
+ * su bajada, que es el eslabón anterior, y el bloque de volumen resuelve a
+ * ESE MISMO eslabón. El ejercicio entra dos veces.
+ *
+ * Y no es una fila repetida y nada más. `Entrenar` guarda las series en un
+ * `Record` indexado por **id de ejercicio** mientras el plan es posicional:
+ * las dos entradas comparten el mismo arreglo. Se anotan una vez, aparecen
+ * hechas en las dos, y la sesión se guarda con el ejercicio duplicado.
+ *
+ * ## Qué se queda
+ *
+ * El bloque que la rutina DECLARA, no la bajada que agrega la densidad. La
+ * bajada es un extra automático; el bloque de volumen está escrito en la
+ * rutina, y además llega con la vara de la vez pasada, que es lo que deja a
+ * la persona progresarlo a mano.
+ *
+ * Vive en el dominio y no en cada pantalla por el mismo motivo que
+ * `ejercicioDelBloque`: si `Hoy` y `Entrenar` dedupearan distinto, Hoy
+ * anunciaría una sesión y la sesión sería otra.
+ */
+export function sinEjerciciosRepetidos<T extends { ejercicio: Ejercicio; bajada?: boolean }>(
+  entradas: T[],
+): T[] {
+  // Lo que alguna entrada declara por derecho propio, o sea sin ser bajada.
+  const declarados = new Set(entradas.filter((e) => !e.bajada).map((e) => e.ejercicio.id))
+  const puestos = new Set<string>()
+
+  return entradas.filter((e) => {
+    const id = e.ejercicio.id
+    // Una bajada cuyo ejercicio ya está declarado en otro bloque sobra.
+    if (e.bajada && declarados.has(id)) return false
+    if (puestos.has(id)) return false
+    puestos.add(id)
+    return true
+  })
+}

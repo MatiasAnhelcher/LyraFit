@@ -137,6 +137,26 @@ export const PREFERENCIAS_POR_DEFECTO: Preferencias = {
   encuadre: 'logrado',
   estadoActivo: false,
   prediccionActiva: true,
+  /**
+   * El disco más chico, con valor por defecto, y esto era un bug entero.
+   *
+   * El motor de discos exige los TRES datos —peso corporal, tope de barra y
+   * paso de disco— para encenderse. Los dos primeros se piden en Ajustes con
+   * una fila que empieza vacía y se nota que está vacía. El tercero mostraba
+   * `vacio="2,5"`: el texto de relleno tenía el mismo formato que un valor
+   * real, salvo un rombo hueco en vez de lleno.
+   *
+   * O sea que alguien cargaba su peso y su barra, leía "2,5 kg" en la fila
+   * del disco, y no tocaba el stepper porque ya decía lo que quería. Y como
+   * nunca se escribía nada, `barra` quedaba indefinida y el motor de discos
+   * —toda la función de progresión por carga— no corría jamás. La app
+   * mostraba un número que no existía.
+   *
+   * Dos cinco es el disco más común y el que la documentación ya usaba en
+   * sus ejemplos, así que ponerlo acá no inventa nada: hace verdad el texto
+   * que la pantalla ya mostraba.
+   */
+  pasoDeDiscoKg: 2.5,
 }
 
 /** Registra la escritura en la cola de sincronización. */

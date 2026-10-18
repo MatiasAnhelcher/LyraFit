@@ -17,7 +17,7 @@
  */
 
 import { describe, expect, it } from 'vitest'
-import { db } from './db'
+import { PREFERENCIAS_POR_DEFECTO, db } from './db'
 import { RespaldoInvalido, validarRespaldo } from './repositorio'
 
 const BASE = {
@@ -94,5 +94,34 @@ describe('la forma del respaldo no se puede quedar corta', () => {
 
     const sobran = [...DECLARADAS].filter((t) => !tablas.includes(t))
     expect(sobran, `declaradas en el respaldo y sin tabla: ${sobran.join(', ')}`).toEqual([])
+  })
+})
+
+describe('los valores por defecto que encienden funciones', () => {
+  it('el paso de disco viene puesto: sin él el motor de carga no existe', () => {
+    /*
+     * El motor de discos exige peso corporal, tope de barra y paso de disco.
+     * Los dos primeros los pide Ajustes con una fila que se ve vacía; el
+     * tercero mostraba "2,5" como texto de relleno, con el mismo formato que
+     * un valor real.
+     *
+     * Así que alguien cargaba peso y barra, leía "2,5 kg", no tocaba nada —ya
+     * decía lo que quería— y la progresión por carga no se encendía nunca. La
+     * función titular de la entrega, muerta por un placeholder que parecía un
+     * dato.
+     *
+     * Este test no cuida un número: cuida que la app no muestre un valor que
+     * no tiene guardado.
+     */
+    expect(PREFERENCIAS_POR_DEFECTO.pasoDeDiscoKg).toBe(2.5)
+  })
+
+  it('y los otros dos NO vienen puestos, que también es a propósito', () => {
+    // El peso corporal es el interruptor maestro y la app no puede inventarlo:
+    // con un peso equivocado, toda la escala de carga del motor miente. Que
+    // falte es lo que hace que no se ofrezcan discos hasta que la persona lo
+    // diga.
+    expect(PREFERENCIAS_POR_DEFECTO.pesoCorporalKg).toBeUndefined()
+    expect(PREFERENCIAS_POR_DEFECTO.cargaMaximaKg).toBeUndefined()
   })
 })

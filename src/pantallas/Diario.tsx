@@ -67,8 +67,17 @@ function Seccion({
   i: number
 }) {
   return (
-    <section className="entrar-en-orden mt-8 first:mt-0" style={orden(i)} data-dominio={dominio}>
-      <div className="campo filete-dominio pt-3 pb-4">
+    /* `campo` va en el MISMO elemento que `data-dominio`, no en un hijo.
+       Separados, el hijo se estiraba a sangre con su `margin-inline` negativo
+       y el fondo lo pintaba el padre, que no se estiró: el campo quedaba 16 px
+       más angosto que el contenido de cada lado, con el texto saliéndose del
+       color. */
+    <section
+      className="campo entrar-en-orden mt-8 first:mt-0"
+      style={orden(i)}
+      data-dominio={dominio}
+    >
+      <div className="filete-dominio pt-3 pb-4">
         <p className="rotulo-dominio rotulo flex items-center gap-2">
           <Icono className="h-4 w-4" />
           {titulo}

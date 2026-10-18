@@ -19,7 +19,7 @@
  *   con nodos dice de dónde viniste, dónde estás y qué falta.
  */
 
-import { useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { NOMBRE_PATRON, POR_ID, cadenaDe } from '@/dominio/biblioteca'
@@ -37,14 +37,26 @@ import {
   advertenciaDe,
   tieneFuelle,
 } from '@/dominio/rutinas'
-import { DESCANSO_DE_BAJADA, bajadaDe, ejercicioDelBloque, minutosDeSesion } from '@/dominio/bajada'
+import {
+  DESCANSO_DE_BAJADA,
+  bajadaDe,
+  ejercicioDelBloque,
+  minutosDeSesion,
+  sinEjerciciosRepetidos,
+} from '@/dominio/bajada'
 import {
   bloqueDeFuelle,
   minutosDelBloque,
   minutosDelDiaDeFuelle,
   type Densidad,
 } from '@/dominio/metabolico'
-import { adherencia, esVuelta, proximoHito, sesionesDeVida } from '@/dominio/adherencia'
+import {
+  RECORTE_DE_VUELTA,
+  adherencia,
+  esVuelta,
+  proximoHito,
+  sesionesDeVida,
+} from '@/dominio/adherencia'
 import { laVezPasada } from '@/dominio/estadisticas'
 import { bandaSostenida, ajusteDelDia, cadenasCongeladas } from '@/dominio/estado'
 import { seAbreHoy } from '@/dominio/anticipacion'
@@ -142,6 +154,18 @@ export function Hoy() {
   const vuelve = esVuelta(sesiones, fecha)
 
   const congeladas = cadenasCongeladas(estados, fecha)
+
+  /**
+   * El factor con el que se anuncia el objetivo, y tiene que ser EL MISMO que
+   * aplica la sesión.
+   *
+   * Hoy usaba solo `ajuste.factor` y `Entrenar` usa `ajuste.factor *
+   * RECORTE_DE_VUELTA`. En una sesión de vuelta —después de faltar— Hoy
+   * ponía el encabezado "SESIÓN DE VUELTA", el botón "Volver a empezar", y al
+   * lado anunciaba el objetivo entero: la pantalla prometía 10 y la sesión
+   * pedía 7. El recorte es lo correcto; lo que estaba mal era no decirlo.
+   */
+  const factorDelDia = ajuste.factor * (vuelve ? RECORTE_DE_VUELTA : 1)
 
   const tieneBarraCargable = (preferencias.cargaMaximaKg ?? 0) > 0
 
@@ -242,14 +266,21 @@ export function Hoy() {
   // primero, y el bloque cubriendo lo que falta para llegar a la duración
   // elegida. Si estas dos pantallas se separaran, la estimación diría una cosa
   // y la sesión duraría otra, que es peor que no estimar nada.
-  const entradas = bloques.flatMap(({ patron, ejercicio, objetivo, accesorio }) => {
-    const duro = { ejercicio, objetivo }
-    // Un accesorio no lleva bajada: ya ES el trabajo liviano, o es un
-    // movimiento con barra que no tiene eslabón anterior del que bajar.
-    if (!esDensa || accesorio) return [duro]
-    const abajo = bajadaDe(ejercicio, cadenaDe(patron), POR_ID)
-    return abajo ? [duro, { ...abajo, descansoSegundos: DESCANSO_DE_BAJADA }] : [duro]
-  })
+  // La MISMA cuenta que arma `Entrenar`, deduplicada igual: en un día denso
+  // con una rutina por grupo el mismo ejercicio salía dos veces, y acá eso
+  // inflaba la estimación de minutos que Hoy anuncia antes de empezar.
+  const entradas = sinEjerciciosRepetidos(
+    bloques.flatMap(({ patron, ejercicio, objetivo, accesorio }) => {
+      const duro = { ejercicio, objetivo, bajada: false }
+      // Un accesorio no lleva bajada: ya ES el trabajo liviano, o es un
+      // movimiento con barra que no tiene eslabón anterior del que bajar.
+      if (!esDensa || accesorio) return [duro]
+      const abajo = bajadaDe(ejercicio, cadenaDe(patron), POR_ID)
+      return abajo
+        ? [duro, { ...abajo, descansoSegundos: DESCANSO_DE_BAJADA, bajada: true }]
+        : [duro]
+    }),
+  )
 
   const segundosDeFuelle =
     densidadDelDia === 'apagada'
@@ -281,8 +312,23 @@ export function Hoy() {
         ? 'constancia'
         : 'abrir'
 
-  const dijo = fraseDe(momento, azar, dichas)
-  if (dijo) dichas = recordar(dichas, dijo.texto)
+  /*
+   * La frase, calculada UNA vez y recordada DESPUÉS del render.
+   *
+   * Lo que había era `const dijo = fraseDe(...)` seguido de `dichas =
+   * recordar(...)` en el cuerpo del componente: una mutación de estado de
+   * módulo durante el render. `fraseDe` descarta lo que ya está en `dichas`,
+   * así que el segundo render con el mismo azar no podía devolver la frase
+   * del primero — la frase de Lyra cambiaba sola en cada repintado, sin que
+   * nadie tocara nada.
+   *
+   * El `useMemo` la fija por momento y por azar, y el `useEffect` la anota
+   * cuando el render ya terminó, que es donde los efectos van.
+   */
+  const dijo = useMemo(() => fraseDe(momento, azar, dichas), [momento, azar])
+  useEffect(() => {
+    if (dijo) dichas = recordar(dichas, dijo.texto)
+  }, [dijo])
 
   /**
    * La víspera: el eslabón que se abre hoy si esta sesión se cumple.
@@ -534,7 +580,7 @@ export function Hoy() {
                 </span>
                 <Objetivo
                   series={objetivo.series}
-                  cantidad={Math.round(objetivo.cantidad * ajuste.factor)}
+                  cantidad={Math.max(1, Math.round(objetivo.cantidad * factorDelDia))}
                   medida={ejercicio.medida}
                 />
               </div>
@@ -679,9 +725,14 @@ export function Hoy() {
                 <span className="nombre block">{fila.titulo}</span>
                 <span className="rotulo mt-0.5 block truncate">{fila.detalle}</span>
               </span>
+              {/* Sin `opacity`: la glosa YA ES el apagado de este sistema, y
+                  poner 0,55 encima la bajaba a 2,89:1 — por debajo del piso
+                  de 4,5 que la propia paleta declara. Medido. Lo que falta se
+                  dice en glosa y nada más; doblar el apagado lo vuelve
+                  ilegible en vez de discreto. */}
               <span
                 className="cifra-fila"
-                style={fila.valor === null ? { color: 'var(--color-glosa)', opacity: 0.55 } : undefined}
+                style={fila.valor === null ? { color: 'var(--color-glosa)' } : undefined}
               >
                 {fila.valor ?? '—'}
               </span>

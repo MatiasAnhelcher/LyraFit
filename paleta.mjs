@@ -132,9 +132,29 @@ async function medirPantalla(pagina, nombre) {
       if (e.visibility === 'hidden' || e.opacity === '0') continue
       const px = parseFloat(e.fontSize)
       const negrita = parseInt(e.fontWeight, 10) >= 700
+
+      /*
+       * LA OPACIDAD ACUMULADA, que es lo que este portón no miraba.
+       *
+       * Descartaba `opacity: 0` y daba por bueno todo lo demás, así que un
+       * `opacity: 0.55` sobre un color que solo da 6,97:1 pasaba como 6,97
+       * cuando lo que se ve en pantalla son 2,89 — por debajo del piso. Pasó
+       * de verdad, en el guion de "EL DÍA" en Hoy, y este portón imprimió
+       * «Paleta verificada» mientras estaba ahí.
+       *
+       * Se multiplica por la cadena entera de ancestros porque la opacidad se
+       * compone: un 0,8 adentro de un 0,7 se ve al 0,56.
+       */
+      let opacidad = 1
+      for (let n = el; n && n !== document.documentElement; n = n.parentElement) {
+        opacidad *= Number(getComputedStyle(n).opacity)
+      }
+      if (opacidad < 0.005) continue
+
       salida.push({
         texto: propio.slice(0, 40),
         color: e.color,
+        opacidad,
         fondo: fondoDe(el),
         grande: px >= 24 || (px >= 18.66 && negrita),
         px: Math.round(px),
@@ -147,17 +167,23 @@ async function medirPantalla(pagina, nombre) {
   const vistos = new Set()
   for (const m of malos) {
     const fondo = aRGB(m.fondo, [16, 15, 13])
-    const color = aRGB(m.color, fondo)
-    if (!fondo || !color) continue
+    const crudo = aRGB(m.color, fondo)
+    if (!fondo || !crudo) continue
+    // El color COMO SE VE: la opacidad acumulada lo mezcla con el fondo antes
+    // de medir, que es lo que hace el ojo y lo que este portón no hacía.
+    const color =
+      m.opacidad >= 0.999
+        ? crudo
+        : crudo.map((c, i) => Math.round(c * m.opacidad + fondo[i] * (1 - m.opacidad)))
     const r = contraste(color, fondo)
     const minimo = m.grande ? 3 : 4.5
     if (r >= minimo) continue
     // Un mismo componente repetido veinte veces es un problema, no veinte.
-    const clave = `${m.etiqueta}|${m.color}|${m.fondo}`
+    const clave = `${m.etiqueta}|${m.color}|${m.opacidad.toFixed(2)}|${m.fondo}`
     if (vistos.has(clave)) continue
     vistos.add(clave)
     problemas.push(
-      `[${nombre}] "${m.texto}" (${m.etiqueta}, ${m.px}px) da ${r.toFixed(2)}:1 y necesita ${minimo}:1 — ${m.color} sobre ${m.fondo}.`,
+      `[${nombre}] "${m.texto}" (${m.etiqueta}, ${m.px}px) da ${r.toFixed(2)}:1 y necesita ${minimo}:1 — ${m.color}${m.opacidad < 0.999 ? ` a opacidad ${m.opacidad.toFixed(2)}` : ''} sobre ${m.fondo}.`,
     )
   }
 }

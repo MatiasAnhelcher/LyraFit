@@ -29,6 +29,7 @@
  */
 
 import { chromium } from 'playwright'
+import { revisarQueSirvaLoCompilado } from './lib/portones.mjs'
 
 const BASE = 'http://localhost:4173'
 const CHROMIUM = process.env.CHROMIUM_PATH ?? '/opt/pw-browsers/chromium'
@@ -510,6 +511,16 @@ async function medirReloj(p, telefono) {
   await p.getByRole('button', { name: 'Salir', exact: true }).click()
   await p.waitForTimeout(300)
 }
+
+/*
+ * Que lo que se mide sea el código que está en disco.
+ *
+ * Esta llamada faltaba, y faltaba justo acá. El guardián se escribió DESPUÉS
+ * de que este portón midiera un build viejo y reportara una rotura que ya
+ * estaba arreglada en `src/` — y se guardó en `lib/portones.mjs`, que este
+ * archivo no importaba. El seguro no cubría al portón para el que se hizo.
+ */
+await revisarQueSirvaLoCompilado(BASE)
 
 const navegador = await chromium.launch({ executablePath: CHROMIUM })
 
