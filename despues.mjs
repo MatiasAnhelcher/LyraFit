@@ -252,7 +252,32 @@ if (!(await filaDeVoz.isVisible().catch(() => false))) {
   })
   await p.goto(`${BASE}/#/entrenar`, { waitUntil: 'networkidle' })
   await p.waitForTimeout(800)
-  for (let i = 0; i < 4; i++) {
+
+  /*
+   * HASTA COMPLETAR UN EJERCICIO, QUE ES EL ÚNICO MOMENTO EN QUE LA APP HABLA.
+   *
+   * Acá había un bucle de cuatro vueltas, y un ejercicio son tres series más
+   * los descansos de por medio: nunca llegaba a completarse. O sea que el
+   * único instante en que la app habla —el que la sección 4, veinte líneas
+   * más arriba, acaba de medir— no ocurría, `window.__dicho` seguía vacío
+   * porque nadie lo había llenado, y `conVozApagada > 0` era código muerto.
+   *
+   * «Con la voz apagada no habla ni una vez» salía en verde midiendo cero
+   * oportunidades de hablar. Comprobado por mutación: con `decir()` ignorando
+   * el interruptor —el interruptor de Ajustes directamente no apagando nada—
+   * este portón salía con 0.
+   *
+   * Ahora se completa un ejercicio de verdad, y si no se llega a completar
+   * eso se reporta: una comprobación que no tuvo ocasión de fallar no es un
+   * verde, es una ausencia de medición.
+   */
+  let completo = false
+  for (let i = 0; i < 24 && !completo; i++) {
+    const siguiente = p.getByRole('button', { name: 'Siguiente ejercicio', exact: true })
+    if (await siguiente.isVisible().catch(() => false)) {
+      completo = true
+      break
+    }
     const saltear = p.getByRole('button', { name: 'Saltear', exact: true })
     if (await saltear.isVisible().catch(() => false)) {
       await saltear.click()
@@ -260,6 +285,12 @@ if (!(await filaDeVoz.isVisible().catch(() => false))) {
       continue
     }
     await anotarSerie(p)
+  }
+  await p.waitForTimeout(400)
+  if (!completo) {
+    fallos.push(
+      'Con la voz apagada no se llegó a completar un ejercicio, que es el único momento en que la app habla. Esta comprobación no midió nada.',
+    )
   }
   const conVozApagada = await p.evaluate(() => window.__dicho.length)
   if (conVozApagada > 0) {
