@@ -18,7 +18,7 @@
  * hay una cascada o un `!important` de por medio.
  */
 
-import { BASE, abrir, alta, revisarQueSirvaLoCompilado } from './lib/portones.mjs'
+import { BASE, abrir, alta, completarUnaSesion, revisarQueSirvaLoCompilado } from './lib/portones.mjs'
 
 const fallos = []
 
@@ -35,14 +35,27 @@ const fallos = []
  * Arriba y no adentro del `evaluate`, para que el portón pueda contar cuántos
  * encontró y plantarse si no encontró ninguno.
  */
-const SOSPECHOSAS = [
-  '.entrar',
-  '.entrar-en-orden',
-  '.revelar',
-  '.anim-estrella',
-  '.anim-regla',
-  '.anim-trazo',
-]
+/*
+ * Van en DOS grupos porque viven en dos lugares distintos, y confundirlos fue
+ * el defecto.
+ *
+ * `.entrar-en-orden` está en Hoy, Cadenas, Progreso y el Diario: cualquier
+ * ruta lo encuentra. Las otras cuatro existen ÚNICAMENTE en el cierre y en la
+ * carta que el cierre dibuja, y al cierre no se llega navegando: hay que
+ * entrenar la sesión entera.
+ *
+ * Con los seis en una sola lista, el guardián «¿encontré alguno?» se
+ * satisfacía con los diez `.entrar-en-orden` de las rutas comunes mientras
+ * las cuatro del cierre daban CERO en todas. Medía 10 y creía medir 6 clases.
+ * Por eso ahora se cuenta por selector y se nombra el que falta.
+ *
+ * `.entrar` no está en ninguno de los dos grupos y no es un olvido: la regla
+ * existe en `estilos.css` pero ningún componente aplica esa clase. Pedirla
+ * haría fallar el portón para siempre por una línea de CSS sin usar.
+ */
+const DE_ENTRADA = ['.entrar-en-orden']
+const DEL_CIERRE = ['.revelar', '.anim-estrella', '.anim-regla', '.anim-trazo']
+const SOSPECHOSAS = [...DE_ENTRADA, ...DEL_CIERRE]
 
 const dichos = new Set()
 const anotar = (linea) => {
@@ -113,7 +126,33 @@ async function main() {
      * mutaba lo agarraba la sección 2, que está en otro bloque y no tenía el
      * problema. Vi el portón fallar y di por probada la sección equivocada.
      */
-    const botonAnotar = pagina.getByRole('button', { name: 'Anotar serie' })
+    /*
+     * «VOY» PRIMERO, Y ESTE BLOQUE NO CORRIÓ NUNCA HASTA ACÁ.
+     *
+     * La primera serie de cada ejercicio arranca con la predicción del motor,
+     * y el botón que la cierra se llama «Voy». Hasta que no se toca, «Anotar
+     * serie» NO EXISTE en el árbol: los botones de la pantalla son SALIR,
+     * CÓMO SE HACE, −, +, VOY y SALTEAR ESTE EJERCICIO.
+     *
+     * O sea que el `isVisible()` de abajo daba false, el `if` no entraba, y
+     * las líneas que miden el descanso no se ejecutaban jamás. La regla «nada
+     * se mueve durante el descanso» y la comprobación de que el arco sigue
+     * vivo estuvieron declaradas y sin medir desde que se escribieron.
+     *
+     * Y es el segundo defecto distinto en el MISMO bloque: antes era un
+     * `const anotar` que pisaba la función del módulo. Arreglé aquel, vi el
+     * portón en verde, y di por medido un bloque que seguía sin ejecutarse.
+     *
+     * Por eso ahora, si después de «Voy» tampoco aparece «Anotar serie», eso
+     * se REPORTA. Un bloque que no puede medir no está en verde: está ciego,
+     * y la diferencia tiene que llegar a la salida.
+     */
+    const voy = pagina.getByRole('button', { name: 'Voy', exact: true })
+    if (await voy.isVisible().catch(() => false)) {
+      await voy.click()
+      await pagina.waitForTimeout(250)
+    }
+    const botonAnotar = pagina.getByRole('button', { name: 'Anotar serie', exact: true })
     if (await botonAnotar.isVisible().catch(() => false)) {
       await botonAnotar.click()
       await pagina.waitForTimeout(1600)
@@ -129,6 +168,10 @@ async function main() {
       if (hayArco === 0) {
         fallos.push('En el descanso no hay arco: el interruptor de movimiento se llevó puesto el reloj.')
       }
+    } else {
+      fallos.push(
+        'No se pudo anotar una serie, así que el DESCANSO quedó sin medir. Este bloque no está en verde: está ciego.',
+      )
     }
 
     await navegador.close()
@@ -200,17 +243,20 @@ async function main() {
      * lado: un portón que no encuentra su objeto no está en verde, está
      * ciego, y la diferencia tiene que ser visible.
      */
-    let vistos = 0
-    for (const [ruta, nombre] of [
-      ['/', 'Hoy'],
-      ['/biblioteca', 'Cadenas'],
-      ['/progreso', 'Progreso'],
-      ['/reloj', 'El reloj'],
-      ['/diario', 'El diario'],
-    ]) {
-      await pagina.goto(`${BASE}/#${ruta}`, { waitUntil: 'networkidle' })
-      await pagina.waitForTimeout(800)
-      vistos += await pagina.locator(SOSPECHOSAS.join(', ')).count()
+    /*
+     * Cuántas veces se vio CADA selector, no cuántos elementos en total.
+     *
+     * El guardián anterior sumaba todo en un contador y preguntaba si era
+     * cero. Los diez `.entrar-en-orden` de las rutas comunes lo dejaban en
+     * diez, así que nunca disparaba — mientras las cuatro primitivas del
+     * cierre, que son las que el comentario de arriba llama «la que de verdad
+     * importa», daban cero en las cinco rutas. El guardián que puse para que
+     * este bloque no quedara ciego estaba ciego él mismo.
+     */
+    const vistos = Object.fromEntries(SOSPECHOSAS.map((s) => [s, 0]))
+
+    const mirar = async (nombre) => {
+      for (const sel of SOSPECHOSAS) vistos[sel] += await pagina.locator(sel).count()
 
       const vivas = (await corriendo(pagina)).filter(
         (a) => a.tipo === 'CSSAnimation' && a.estado === 'running',
@@ -247,9 +293,73 @@ async function main() {
         )
       }
     }
-    if (vistos === 0) {
+
+    for (const [ruta, nombre] of [
+      ['/', 'Hoy'],
+      ['/biblioteca', 'Cadenas'],
+      ['/progreso', 'Progreso'],
+      ['/reloj', 'El reloj'],
+      ['/diario', 'El diario'],
+    ]) {
+      await pagina.goto(`${BASE}/#${ruta}`, { waitUntil: 'networkidle' })
+      await pagina.waitForTimeout(800)
+      await mirar(nombre)
+    }
+
+    /*
+     * Y EL CIERRE, que es donde viven las cuatro que importan.
+     *
+     * No hay ruta: hay que entrenar la sesión entera. Eso es lo que hace
+     * `completarUnaSesion`, y si no llega lo dice en vez de devolver una
+     * pantalla cualquiera — que es exactamente cómo este bloque venía
+     * midiendo cero elementos y saliendo en verde.
+     *
+     * Y de paso el descanso, que es la pantalla donde más tiempo está la
+     * vista —unos veinte minutos por sesión— y que con movimiento reducido
+     * también tiene que quedar quieta. Se mide al pasar, con el gancho, y
+     * después se saltea: esperarla de verdad son minutos y el recorrido no
+     * llegaría nunca al cierre.
+     */
+    /*
+     * Y POR QUÉ MÁS DE UNA SESIÓN.
+     *
+     * Dos de las cuatro —`.anim-estrella` y `.anim-trazo`— cuelgan de
+     * `animar={huboSalto}` en `Cierre.tsx:139`: solo se dibujan el día que el
+     * motor te sube de eslabón. Una sola sesión desde cero nunca produce eso,
+     * así que el cierre de la primera trae `.revelar` y `.anim-regla` y nada
+     * más — y justamente `.anim-trazo` es donde vivía el `NaN > 0.01` que no
+     * podía disparar nunca. Medir el cierre sin salto deja esa comprobación
+     * tan sin ejercitar como estaba.
+     *
+     * Así que se entrena hasta que el salto pase: el objetivo sube solo
+     * mientras se cumple, y al llegar al techo el motor consolida dos
+     * sesiones y cambia de eslabón. El tope existe para que el portón termine
+     * aunque algo cambie en el motor; si se agota, lo dice.
+     */
+    const TOPE_DE_SESIONES = 14
+    let sesiones = 0
+    let porQueNo = null
+    while (sesiones < TOPE_DE_SESIONES) {
+      porQueNo = await completarUnaSesion(pagina, {
+        alVerElDescanso: sesiones === 0 ? () => mirar('El descanso') : null,
+      })
+      sesiones++
+      if (porQueNo) break
+      await mirar(`El cierre (sesión ${sesiones})`)
+      if (DEL_CIERRE.every((sel) => vistos[sel] > 0)) break
+      await pagina.goto(`${BASE}/#/`, { waitUntil: 'networkidle' })
+      await pagina.waitForTimeout(400)
+    }
+    if (porQueNo) {
+      fallos.push(
+        `No se llegó al cierre con movimiento reducido (${porQueNo}), así que las cuatro primitivas que solo existen ahí quedaron sin medir.`,
+      )
+    }
+
+    const nuncaVistos = SOSPECHOSAS.filter((s) => vistos[s] === 0)
+    if (nuncaVistos.length > 0) {
       anotar(
-        `Con movimiento reducido no se encontró NI UNO de los elementos que este bloque mide (${SOSPECHOSAS.join(', ')}). No está en verde: está ciego.`,
+        `Con movimiento reducido no apareció NI UNO de ${nuncaVistos.join(', ')} en ninguna pantalla. O el recorrido no pasa por donde viven, o la clase dejó de usarse: en los dos casos este bloque no está en verde, está ciego.`,
       )
     }
     await navegador.close()

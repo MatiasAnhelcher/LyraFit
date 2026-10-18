@@ -10,8 +10,8 @@
  */
 
 import { chromium } from 'playwright'
+import { revisarQueSirvaLoCompilado } from './lib/portones.mjs'
 import { readFileSync } from 'node:fs'
-import { readFile } from 'node:fs/promises'
 import { mkdir } from 'node:fs/promises'
 
 const BASE = 'http://localhost:4173'
@@ -98,32 +98,23 @@ async function forzarVispera(pagina, patron) {
   }, patron)
 }
 
-/**
- * Que lo que se está revisando sea lo que está en disco.
+/*
+ * EL GUARDIÁN DEL BUILD VIVE EN `lib/portones.mjs`, Y ACÁ HABÍA UNA COPIA.
  *
- * `vite preview` se deja abierto entre corridas y puede quedar sirviendo un
- * build viejo. Pasó, y produjo el peor resultado posible: una revisión en verde
- * sobre código que no era el compilado — incluida una prueba por mutación que
- * "pasó" con la mutación puesta—. Un guion que puede revisar el archivo
- * equivocado sin decirlo es peor que no tener guion.
+ * Esta copia cotejaba el bundle servido contra el de disco y atrapaba un
+ * caso: "el servidor quedó con un build viejo". No atrapaba el otro —
+ * **compilar nunca**—, porque con `dist/` viejo y el servidor sirviendo ese
+ * mismo `dist/` los dos hashes coinciden y la comprobación pasa feliz.
  *
- * Cotejar el hash del bundle contra `dist/index.html` cuesta una línea.
+ * Ese segundo caso lo arreglé ayer comparando fechas de modificación, y puse
+ * el arreglo en la librería. Esta copia quedó atrás: el portón que más
+ * pantallas mira era el que peor protegido estaba, y ya había producido una
+ * revisión en verde sobre código que no era el compilado, con una prueba por
+ * mutación que "pasó" con la mutación puesta.
+ *
+ * Una función duplicada no es dos copias de lo mismo: es una que se arregla
+ * y otra que no. Por eso ahora se importa.
  */
-async function revisarQueSirvaLoCompilado(base) {
-  const enDisco = (await readFile('dist/index.html', 'utf8')).match(/assets\/index-[^"']+\.js/)?.[0]
-  const servido = (await (await fetch(`${base}/`)).text()).match(/assets\/index-[^"']+\.js/)?.[0]
-  if (!enDisco || !servido) {
-    console.log('No se pudo comparar el build servido con el de disco.')
-    process.exit(2)
-  }
-  if (enDisco !== servido) {
-    console.log('EL SERVIDOR ESTÁ SIRVIENDO UN BUILD VIEJO.')
-    console.log(`  en disco:  ${enDisco}`)
-    console.log(`  sirviendo: ${servido}`)
-    console.log('Reiniciá `npm run preview` después de compilar; si no, esto revisa otro código.')
-    process.exit(2)
-  }
-}
 
 async function main() {
   await revisarQueSirvaLoCompilado(BASE)

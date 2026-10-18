@@ -42,6 +42,7 @@
  */
 
 import { chromium } from 'playwright'
+import { revisarQueSirvaLoCompilado } from './lib/portones.mjs'
 
 const BASE = 'http://localhost:4173'
 const CHROMIUM = process.env.CHROMIUM_PATH ?? '/opt/pw-browsers/chromium'
@@ -125,6 +126,16 @@ const textoDelAviso = async (p) => {
   if (!(await aviso.isVisible().catch(() => false))) return null
   return (await aviso.innerText()).replace(/^después ·\s*/i, '').trim()
 }
+
+/*
+ * EL BUILD, ANTES DE MEDIR NADA.
+ *
+ * Este portón no lo llamaba. Dos veces en esta sesión un portón midió un
+ * `dist/` más viejo que `src/` y reportó en verde —una de ellas con una
+ * mutación puesta—, que es el peor resultado posible: la comprobación
+ * confirma lo contrario de lo que pasa. Cuesta una línea.
+ */
+await revisarQueSirvaLoCompilado(BASE)
 
 const navegador = await chromium.launch({ executablePath: CHROMIUM })
 const contexto = await navegador.newContext({
