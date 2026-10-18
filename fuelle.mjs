@@ -28,26 +28,25 @@
  */
 
 import { chromium } from 'playwright'
-import { readFile } from 'node:fs/promises'
+import { revisarQueSirvaLoCompilado } from './lib/portones.mjs'
 
 const BASE = 'http://localhost:4173'
 const fallos = []
 
-/** Que lo que se está revisando sea lo que está en disco. Ver `rescate.mjs`. */
-async function revisarQueSirvaLoCompilado(base) {
-  const enDisco = (await readFile('dist/index.html', 'utf8')).match(/assets\/index-[^"']+\.js/)?.[0]
-  const servido = (await (await fetch(`${base}/`)).text()).match(/assets\/index-[^"']+\.js/)?.[0]
-  if (!enDisco || !servido) {
-    console.log('No se pudo comparar el build servido con el de disco.')
-    process.exit(2)
-  }
-  if (enDisco !== servido) {
-    console.log('EL SERVIDOR ESTÁ SIRVIENDO UN BUILD VIEJO.')
-    console.log(`  en disco:  ${enDisco}`)
-    console.log(`  sirviendo: ${servido}`)
-    process.exit(2)
-  }
-}
+/*
+ * EL GUARDIÁN DEL BUILD SE IMPORTA, Y ACÁ HABÍA UNA COPIA.
+ *
+ * La copia cotejaba el bundle servido contra el de disco y atrapaba un caso:
+ * «el servidor quedó con un build viejo». No atrapaba el otro —**compilar
+ * nunca**—, porque con `dist/` viejo y el servidor sirviendo ese mismo
+ * `dist/` los dos hashes coinciden y pasa sin decir una palabra.
+ *
+ * Ese segundo caso se arregló comparando fechas de modificación, y el
+ * arreglo quedó en `lib/portones.mjs`. Esta copia no se enteró: es la cuarta
+ * vez en esta sesión que un portón podía medir código que ya no existe.
+ * Una función duplicada no son dos copias de lo mismo: es una que se arregla
+ * y otra que no.
+ */
 
 await revisarQueSirvaLoCompilado(BASE)
 
