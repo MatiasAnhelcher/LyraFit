@@ -19,7 +19,7 @@
  *   con nodos dice de dónde viniste, dónde estás y qué falta.
  */
 
-import { useEffect, useMemo, useState } from 'react'
+import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { NOMBRE_PATRON, POR_ID, cadenaDe } from '@/dominio/biblioteca'
@@ -90,6 +90,16 @@ import { Accion, Cargando, Glifo, Glosa, Objetivo, Rotulo, Tira } from '@/compon
  * frase se mostró, es un precio que esto no vale.
  */
 let dichas: string[] = []
+
+/**
+ * El último sorteo, para que la frase no se vuelva a sortear en cada render.
+ *
+ * Vive al lado de `dichas` y por el mismo motivo: los dos son memoria de
+ * módulo y no estado del componente, porque `Hoy` se monta y se desmonta cada
+ * vez que se navega y la gracia es que Lyra no se repita entre idas y
+ * vueltas.
+ */
+let ultimoSorteo: { azar: number; momento: Momento; dijo: ReturnType<typeof fraseDe> } | null = null
 
 const FORMATO_FECHA = new Intl.DateTimeFormat('es-AR', {
   weekday: 'long',
@@ -313,22 +323,35 @@ export function Hoy() {
         : 'abrir'
 
   /*
-   * La frase, calculada UNA vez y recordada DESPUÉS del render.
+   * La frase, sorteada UNA vez por (momento, azar) y no en cada render.
    *
    * Lo que había era `const dijo = fraseDe(...)` seguido de `dichas =
-   * recordar(...)` en el cuerpo del componente: una mutación de estado de
-   * módulo durante el render. `fraseDe` descarta lo que ya está en `dichas`,
-   * así que el segundo render con el mismo azar no podía devolver la frase
-   * del primero — la frase de Lyra cambiaba sola en cada repintado, sin que
-   * nadie tocara nada.
+   * recordar(...)` en el cuerpo del componente. `fraseDe` descarta lo que ya
+   * está en `dichas`, así que el segundo render con el mismo azar no podía
+   * devolver la frase del primero: la frase de Lyra cambiaba sola en cada
+   * repintado, sin que nadie tocara nada.
    *
-   * El `useMemo` la fija por momento y por azar, y el `useEffect` la anota
-   * cuando el render ya terminó, que es donde los efectos van.
+   * ## Por qué un memo de módulo y no `useMemo`
+   *
+   * Porque acá no se puede poner un hook. Este punto del componente está
+   * DESPUÉS de los returns tempranos que esperan a `useLiveQuery`, y un hook
+   * después de un return es el error #310 de React: la pantalla entera se
+   * cae. Lo hice igual en el primer intento de este mismo arreglo, y es la
+   * segunda vez en esta sesión que cometo exactamente este error —la primera
+   * fue en `Entrenar`—. Lo agarró `revisar.mjs` en las dos.
+   *
+   * El memo de módulo hace el trabajo del `useMemo` sin ser un hook: mientras
+   * el sorteo no cambie, devuelve lo mismo, y `dichas` se escribe una sola
+   * vez por sorteo en vez de una por render. Sigue siendo una escritura
+   * durante el render, pero ahora es IDEMPOTENTE, que es la propiedad que
+   * importa: dos renders seguidos dan el mismo resultado.
    */
-  const dijo = useMemo(() => fraseDe(momento, azar, dichas), [momento, azar])
-  useEffect(() => {
-    if (dijo) dichas = recordar(dichas, dijo.texto)
-  }, [dijo])
+  if (!ultimoSorteo || ultimoSorteo.azar !== azar || ultimoSorteo.momento !== momento) {
+    const sorteada = fraseDe(momento, azar, dichas)
+    if (sorteada) dichas = recordar(dichas, sorteada.texto)
+    ultimoSorteo = { azar, momento, dijo: sorteada }
+  }
+  const dijo = ultimoSorteo.dijo
 
   /**
    * La víspera: el eslabón que se abre hoy si esta sesión se cumple.
