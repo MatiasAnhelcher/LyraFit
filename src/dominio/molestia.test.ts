@@ -97,6 +97,25 @@ describe('de dónde sale la molestia de hoy', () => {
     expect(molestiasDeLaSesion([soloMolestia('empuje')], HOY)).toEqual(new Set(['empuje']))
     expect(molestiasDeLaSesion([], HOY).size).toBe(0)
   })
+
+  it('una sesión que cruzó la medianoche suma la molestia que se avisa después', () => {
+    // La sesión es del 19 (su día manda en todo lo demás), pero avisar una
+    // molestia pasada la medianoche la escribe en la fila del 20. Si la
+    // sesión mirara solo la del 19, Hoy anunciaría la cadena bajada y la
+    // sesión retomada la pediría entera.
+    const AYER = '2026-10-19'
+    const delDia = soloMolestia('core', AYER)
+    const nueva = soloMolestia('traccion', HOY)
+    expect(molestiasDeLaSesion([delDia, nueva], AYER, [], HOY)).toEqual(
+      new Set(['core', 'traccion']),
+    )
+    // La del día de la sesión sigue valiendo aunque el reloj ya esté en otro.
+    expect(molestiasDeLaSesion([delDia], AYER, [], HOY)).toEqual(new Set(['core']))
+    // Una fila que no es ni la del día de la sesión ni la de hoy no entra.
+    expect(molestiasDeLaSesion([soloMolestia('empuje', '2026-10-18')], AYER, [], HOY).size).toBe(0)
+    // Sin reloj aparte, es el día de la sesión y nada más, como antes.
+    expect(molestiasDeLaSesion([delDia, nueva], AYER)).toEqual(new Set(['core']))
+  })
 })
 
 describe('la cadena con molestia baja un eslabón o se saltea', () => {

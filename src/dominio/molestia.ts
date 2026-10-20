@@ -72,13 +72,25 @@ export function molestiasDeHoy(estados: readonly Estado[], hoy: string): Set<Pat
  * guardaría: trabajo perdido en silencio. Al revés no hace falta nada: una
  * molestia nueva entra sola por la fila de hoy, y lo ya empezado lo cuida
  * `yaEmpezado`.
+ *
+ * `hoy` es el día de la sesión, que Entrenar fija al arrancar. `ahora` es el
+ * día del reloj, y solo es otro cuando la sesión cruzó la medianoche: avisar
+ * una molestia en ese rato la escribe en la fila del día nuevo
+ * (`guardarMolestiaDeHoy`), y sin mirarla la sesión retomada pedía entera la
+ * cadena que Hoy ya anunciaba bajada. La molestia es una señal de cómo está
+ * el cuerpo ahora, no del día que se planificó.
  */
 export function molestiasDeLaSesion(
   estados: readonly Estado[],
   hoy: string,
   delBorrador: readonly Patron[] = [],
+  ahora: string = hoy,
 ): Set<Patron> {
-  return new Set([...molestiasDeHoy(estados, hoy), ...delBorrador])
+  return new Set([
+    ...molestiasDeHoy(estados, hoy),
+    ...molestiasDeHoy(estados, ahora),
+    ...delBorrador,
+  ])
 }
 
 export type CambioPorMolestia = 'baja' | 'saltea'
