@@ -27,9 +27,15 @@ import {
   mueveElPlan,
   rendimientoDeSesion,
   siguienteAvance,
-  ubicarEnCadena,
   type Decision,
 } from '@/dominio/progresion'
+import {
+  bajarDeLoColgado,
+  bajarPorRequisito,
+  eslabonesCerrados,
+  ubicarDesdeElAlta,
+  type PruebaDelAlta,
+} from '@/dominio/apertura'
 import { ajusteDelDia, bandaSostenida, cadenasCongeladas } from '@/dominio/estado'
 import { animoReciente } from '@/dominio/vitalidad'
 
@@ -347,7 +353,21 @@ export async function cerrarSesion(entrada: CierreDeSesion): Promise<ResumenSesi
         protegida: ajuste.protegida,
         ...(animo !== undefined ? { animo } : {}),
       },
-      { cadena: cadenaDe(ejercicio.patron), ejercicios: POR_ID, ...(barra ? { barra } : {}) },
+      {
+        cadena: cadenaDe(ejercicio.patron),
+        ejercicios: POR_ID,
+        ...(barra ? { barra } : {}),
+        // Lo que el motor no puede abrir aunque se cumpla: lo colgado sin
+        // barra, y la palanca frontal antes de las 3 series de 8 dominadas
+        // completas. Se calcula con los avances de antes de esta sesión, así
+        // que un objetivo de dominadas que llega a 8 hoy abre la palanca
+        // desde la próxima.
+        cerrados: eslabonesCerrados(
+          cadenaDe(ejercicio.patron),
+          avances,
+          preferencias.tieneBarra !== false,
+        ),
+      },
     )
 
     decisiones.push({ patron: ejercicio.patron, decision })
@@ -422,22 +442,114 @@ export async function ajustarObjetivo(patron: Patron, objetivo: Objetivo): Promi
 }
 
 /**
+ * La barra de dominadas, que se cambia en Ajustes.
+ *
+ * Apagarla no es solo una preferencia: lo que estaba colgado baja al último
+ * eslabón que no cuelga (`bajarDeLoColgado`), en la misma transacción. Si no,
+ * el interruptor diría que el plan no pide nada colgado mientras Hoy sigue
+ * mostrando dominadas. Prenderla no mueve nada: el motor sube solo cuando
+ * corresponde.
+ *
+ * El borrador de una sesión a medio hacer no se toca, a diferencia de
+ * `fijarNivel`: tirarlo perdería las series de todos los demás ejercicios por
+ * uno que, sin barra, no se podía hacer.
+ */
+export async function cambiarBarraDeDominadas(tieneBarra: boolean): Promise<void> {
+  await db.transaction('rw', db.preferencias, db.avances, db.pendientes, async () => {
+    await guardarPreferencias({ tieneBarra })
+    if (tieneBarra) return
+    const ahora = Date.now()
+    for (const avance of await db.avances.toArray()) {
+      const abajo = bajarDeLoColgado(avance, ahora)
+      if (abajo) await guardarAvance(abajo)
+    }
+  })
+}
+
+/**
  * Guarda el punto de partida que salió del test de nivel del alta.
  *
  * Es la única escritura del alta y es lo que evita que alguien que ya hace
- * quince flexiones abra la app y le proponga la pared.
+ * quince flexiones abra la app y le proponga la pared. La cuenta, con sus
+ * techos, es la misma que el alta muestra: `ubicarDesdeElAlta`.
+ *
+ * Deja escrita también la revisión de los requisitos, vacía: el alta ya ubica
+ * con los requisitos de ahora, así que no hay nada que revisar, y sin esto la
+ * revisión correría igual en el primer arranque después del alta.
  */
 export async function ubicarDesdePrueba(
-  pruebas: { patron: Patron; ejercicioId: string; logrado: number }[],
+  pruebas: PruebaDelAlta[],
+  tieneBarra: boolean,
 ): Promise<void> {
   const ahora = Date.now()
-  const avances = pruebas.map(({ patron, ejercicioId, logrado }) =>
-    ubicarEnCadena(cadenaDe(patron), POR_ID, ejercicioId, logrado, ahora),
-  )
+  const avances = ubicarDesdeElAlta(pruebas, tieneBarra, ahora)
 
-  await db.transaction('rw', db.avances, db.pendientes, async () => {
+  await db.transaction('rw', db.avances, db.preferencias, db.pendientes, async () => {
     for (const avance of avances) await guardarAvance(avance)
+    await guardarPreferencias({ revisionDeRequisitos: { en: ahora, bajadas: [] } })
   })
+}
+
+/**
+ * El alta sin prueba: "Prefiero arrancar desde cero".
+ *
+ * También deja escrita la revisión de los requisitos, vacía, por lo mismo que
+ * `ubicarDesdePrueba`: es una instalación nueva y la regla vieja nunca la
+ * tocó. Sin esto la revisión corría en el segundo arranque, y a quien entre
+ * tanto se hubiera puesto en la palanca a mano desde la ficha —"el motor
+ * decide solo, pero vos mandás"— lo bajaba con un aviso que habla de una
+ * regla vieja que nunca le tocó.
+ */
+export async function saltearElAlta(tieneBarra: boolean): Promise<void> {
+  const ahora = Date.now()
+  await guardarPreferencias({
+    altaCompletadaEn: ahora,
+    tieneBarra,
+    revisionDeRequisitos: { en: ahora, bajadas: [] },
+  })
+}
+
+/**
+ * La revisión única de los eslabones con requisito. Corre al abrir la app.
+ *
+ * La palanca frontal pide ahora 3 series de 8 dominadas completas, y antes se
+ * abría con llegar a ellas; el alta, además, llegó a ubicar ahí a gente con
+ * cero dominadas. Quien quedó sentado en la palanca sin cumplir baja una vez
+ * al último eslabón abierto (`bajarPorRequisito`), y Hoy le dice por qué
+ * hasta la próxima sesión (`avisosDeLaRevision`).
+ *
+ * Una sola vez por instalación, y eso lo decide `revisionDeRequisitos`: si
+ * corriera en cada arranque, un mal día de dominadas que baja el objetivo de
+ * 8 echaría de la palanca a quien ya la venía haciendo. Todo en una
+ * transacción: o baja y queda anotado, o no pasa nada y se vuelve a intentar
+ * en el próximo arranque.
+ *
+ * No corre antes del alta —no hay nada que revisar, y el alta escribe la
+ * revisión vacía— ni con una sesión a medio hacer: cambiar el core en medio de
+ * la sesión dejaría huérfanas las series ya anotadas. Espera al próximo
+ * arranque, que es lo mismo que hace la persona.
+ */
+export async function revisarRequisitosUnaVez(): Promise<void> {
+  await db.transaction(
+    'rw',
+    [db.preferencias, db.avances, db.pendientes, db.curso],
+    async () => {
+      const preferencias = await leerPreferencias()
+      if (!preferencias.altaCompletadaEn || preferencias.revisionDeRequisitos) return
+
+      const ahora = Date.now()
+      const borrador = await db.curso.get('actual')
+      if (borrador && ahora - borrador.actualizadoEn <= VIGENCIA_DEL_BORRADOR) return
+
+      const { avances, bajadas } = bajarPorRequisito(
+        await leerAvances(),
+        preferencias.tieneBarra !== false,
+        ahora,
+      )
+      for (const avance of avances) await guardarAvance(avance)
+      await guardarPreferencias({ revisionDeRequisitos: { en: ahora, bajadas } })
+    },
+  )
 }
 
 // ─── Copia de seguridad ──────────────────────────────────────────────────

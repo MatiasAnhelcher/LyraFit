@@ -44,8 +44,18 @@ muestra cada vez que decide algo. Nada de esperar a "sentirte listo".
   eslabón para todo el mundo: el puente de glúteos no le queda grande a nadie, y
   del otro lado de esa cadena está el curl nórdico, donde entrar de más es la
   única forma de lastimarse.
+
+  Ninguna prueba te ubica en algo que no midió. Desde la plancha, el core llega
+  como mucho a la elevación de piernas en el suelo, porque aguantar dos minutos
+  no dice nada de colgarse de una barra; y a la palanca frontal no se entra
+  desde el alta. Sin barra, el plan te dice hasta dónde llega cada cadena.
 - **Motor de progresión** que ajusta el objetivo sesión a sesión y explica en
-  una frase por qué cambió.
+  una frase por qué cambió. Y no sube a ciegas: sin barra frena en
+  el último eslabón que no cuelga (si conseguís una, se cambia en Ajustes; si
+  la dejás de tener, apagarla ahí baja lo que estaba colgado), y la
+  palanca frontal —primero la agrupada, después la negativa— espera a que
+  llegues a 3 series de 8 dominadas completas. Si ya estabas en la palanca
+  sin eso, la app te baja una sola vez a lo último abierto y te dice por qué.
 - **Registro de series** con predicción previa, temporizador de descanso que no
   se atrasa aunque bloquees el teléfono, y la pantalla siempre encendida.
 - **Chequeo diario opcional** de tres preguntas, que sirve sobre todo para que
@@ -145,6 +155,7 @@ node pliegue.mjs   # que nada quede abajo del pliegue, medido en tres teléfonos
 node paleta.mjs    # contraste de cada par del sistema y de cada texto en pantalla
 node movimiento.mjs # que nada se mueva en el esfuerzo y que haya un solo infinito
 node carga.mjs     # los discos: que se ofrezcan con qué, y que lleguen a la base
+node colgado.mjs   # sin barra, nada colgado; y la palanca frontal, recién con 3×8 dominadas
 node logo.mjs     # regenera el favicon y los íconos desde el componente de Lyra
 ```
 
@@ -218,6 +229,7 @@ src/
     biblioteca.ts    los 47 ejercicios de las cinco cadenas, más los de barra
     nutricion.ts     el diario: siete hábitos, cero calorías
     progresion.ts    el motor: cuándo subir, sostener o bajar
+    apertura.ts      qué eslabones están cerrados: sin barra, o sin dominadas
     adherencia.ts    lo que reemplaza a la racha
     estado.ts        el chequeo diario y su línea de base
     vitalidad.ts     el delta de energía y la calibración
