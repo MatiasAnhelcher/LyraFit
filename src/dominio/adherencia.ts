@@ -24,6 +24,7 @@
  * pueda quedar desincronizado con la realidad.
  */
 
+import { diaDeLaSemana } from './rutinas'
 import type { Sesion } from './tipos'
 
 /** Días de la ventana rodante. Cuatro semanas: entra un mes de vida real. */
@@ -45,6 +46,18 @@ export function diasEntre(desde: string, hasta: string): number {
 }
 
 /**
+ * La fecha AAAA-MM-DD que cae `n` días después (antes, con `n` negativo), en
+ * hora local. Se suma con el calendario y al mediodía, lejos de cualquier
+ * cambio de hora: sumar 86.400.000 ms cruzando uno puede caer en otro día.
+ */
+function sumarDias(iso: string, n: number): string {
+  const fecha = new Date(`${iso}T12:00:00`)
+  fecha.setDate(fecha.getDate() + n)
+  const dd = (k: number) => String(k).padStart(2, '0')
+  return `${fecha.getFullYear()}-${dd(fecha.getMonth() + 1)}-${dd(fecha.getDate())}`
+}
+
+/**
  * Las sesiones que caen dentro de la ventana rodante que termina hoy.
  *
  * Estaba escrito adentro de `adherencia()` y se sacó acá cuando el mapa
@@ -63,9 +76,12 @@ export function enLaVentana(sesiones: Sesion[], hoy: string, dias = VENTANA_DIAS
 }
 
 export interface Adherencia {
-  /** Sesiones hechas dentro de la ventana. */
+  /** Días con sesión dentro de la ventana. */
   hechas: number
-  /** Cuántas correspondían según la meta semanal. */
+  /**
+   * Cuántas correspondían: los días del plan que ya pasaron desde la primera
+   * sesión, con tope de 28. Cero sin historial, porque no hay nada que medir.
+   */
   meta: number
   /** Créditos de perdón disponibles. */
   creditos: number
@@ -83,15 +99,56 @@ export interface Adherencia {
  * ni se muestran como una moneda: es simplemente el margen que el sistema da
  * por descontado, porque nadie entrena cuatro semanas seguidas sin faltar y
  * una app que finja lo contrario está midiendo mal.
+ *
+ * Qué días se miden. Antes la meta era siempre de cuatro semanas y la ventana
+ * terminaba hoy, y la barra le avisaba faltas a quien no había faltado: con
+ * lunes, miércoles y viernes sin fallar nunca, el día 7 decía "3 de 12", el
+ * día 8 antes de entrenar ya decía "Un día cubierto con tus créditos", y con
+ * diez semanas perfectas lo seguía diciendo cada día de entrenar antes de la
+ * sesión. Era el mismo error que tenía la racha. Ahora:
+ *
+ * - **Hoy entra cuando ya entrenaste.** Antes de la sesión, la ventana termina
+ *   ayer: el día todavía no pasó, así que no puede ser un hueco. Se resuelve
+ *   acá y no en `enLaVentana`, que también usa el mapa muscular.
+ * - **La meta son los días del plan que pasaron desde la primera sesión,** con
+ *   tope de veintiocho. Quien lleva una semana no se mide contra cuatro.
+ * - **El día de la primera sesión cuenta como día del plan** aunque no lo sea:
+ *   es el día que la persona eligió para empezar. Sin esto, quien arranca un
+ *   martes con un plan de lunes, miércoles y viernes leería "2 de 1".
+ *
+ * Con las tres juntas, los créditos solo tapan algo si de verdad pasó un día
+ * del plan sin sesión: si cada uno tuvo la suya, las hechas llegan a la meta.
+ * Entrenar el martes en vez del lunes tampoco cuenta como faltar.
+ *
+ * `diasDelPlan` son los días de la semana que el plan pide entrenar, de 1
+ * (lunes) a 7 (domingo), como los da `diasDe`. Se usa el plan de hoy para toda
+ * la ventana: si la persona lo cambió hace poco, la cuenta es aproximada.
  */
 export function adherencia(
   sesiones: Sesion[],
   hoy: string,
-  metaSemanal: number,
+  diasDelPlan: readonly number[],
 ): Adherencia {
-  const meta = Math.max(1, Math.round((metaSemanal * VENTANA_DIAS) / 7))
+  const primera = primeraFecha(sesiones)
+  if (primera === null) {
+    return { hechas: 0, meta: 0, creditos: 0, cubiertos: 0, porcentaje: 0 }
+  }
 
-  const hechas = new Set(enLaVentana(sesiones, hoy).map((s) => s.fecha)).size
+  const hasta = sesiones.some((s) => s.fecha === hoy) ? hoy : sumarDias(hoy, -1)
+  const inicioDeLaVentana = sumarDias(hasta, -(VENTANA_DIAS - 1))
+  const desde = primera > inicioDeLaVentana ? primera : inicioDeLaVentana
+
+  // Por cantidad de días y no "mientras la fecha no pase de `hasta`": así el
+  // lazo termina siempre, aunque una suma de días cayera en el mismo día.
+  const plan = new Set(diasDelPlan)
+  const largo = diasEntre(desde, hasta)
+  let meta = 0
+  for (let i = 0; i <= largo; i++) {
+    const fecha = sumarDias(desde, i)
+    if (fecha === primera || plan.has(diaDeLaSemana(aFecha(fecha)))) meta++
+  }
+
+  const hechas = new Set(enLaVentana(sesiones, hasta).map((s) => s.fecha)).size
 
   const semanasActivas = semanasDeUso(sesiones, hoy)
   const creditos = Math.min(CREDITOS_MAXIMOS, Math.floor(semanasActivas))
@@ -102,14 +159,21 @@ export function adherencia(
     meta,
     creditos,
     cubiertos,
-    porcentaje: Math.min(100, Math.round(((hechas + cubiertos) / meta) * 100)),
+    porcentaje: meta === 0 ? 0 : Math.min(100, Math.round(((hechas + cubiertos) / meta) * 100)),
   }
+}
+
+function primeraFecha(sesiones: Sesion[]): string | null {
+  return sesiones.reduce<string | null>(
+    (min, s) => (min === null || s.fecha < min ? s.fecha : min),
+    null,
+  )
 }
 
 /** Cuántas semanas hace que la persona viene usando la app. */
 export function semanasDeUso(sesiones: Sesion[], hoy: string): number {
-  if (sesiones.length === 0) return 0
-  const primera = sesiones.reduce((min, s) => (s.fecha < min ? s.fecha : min), sesiones[0]!.fecha)
+  const primera = primeraFecha(sesiones)
+  if (primera === null) return 0
   return Math.max(0, diasEntre(primera, hoy) / 7)
 }
 
