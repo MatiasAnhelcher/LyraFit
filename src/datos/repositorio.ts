@@ -38,6 +38,13 @@ import {
 } from '@/dominio/apertura'
 import { ajusteDelDia, bandaSostenida, cadenasCongeladas } from '@/dominio/estado'
 import { animoReciente } from '@/dominio/vitalidad'
+import {
+  cambiarDeNivelLaTira,
+  cierreDelBorrador,
+  destinoDelBorrador,
+  quedaPorCerrar,
+} from '@/dominio/borrador'
+import { revisarCopia } from '@/dominio/copia'
 
 /** Fecha local en formato AAAA-MM-DD, sin arrastrar la zona horaria de UTC. */
 export function fechaISO(fecha: Date = new Date()): string {
@@ -118,24 +125,57 @@ export async function leerEstadoDeHoy(): Promise<Estado | undefined> {
 // ─── La sesión a medio hacer ─────────────────────────────────────────────
 
 /**
- * Cuánto vale un borrador antes de considerarlo abandonado.
+ * El borrador que haya, vigente o no, sin decidir nada.
  *
- * Seis horas cubre cualquier sesión real con sus interrupciones. Más que eso y
- * lo que se restaura ya no es "la sesión de la que me sacó un llamado": es la
- * de ayer, y retomarla en silencio sería peor que perderla.
+ * Antes uno vencido —seis horas sin tocar "Cerrar la sesión"— se borraba acá
+ * de paso, sin mostrárselo a nadie, aunque tuviera la sesión entera adentro.
+ * Ahora qué hacer con él lo decide `destinoDelBorrador`, en el dominio, y
+ * esto solo lee: por eso también se puede usar desde `useLiveQuery`.
  */
-export const VIGENCIA_DEL_BORRADOR = 6 * 60 * 60 * 1000
-
-/** El borrador vigente, o null. Uno vencido se borra de paso. */
 export async function leerSesionEnCurso(): Promise<SesionEnCurso | null> {
-  const borrador = await db.curso.get('actual')
+  return (await db.curso.get('actual')) ?? null
+}
+
+/**
+ * El borrador vencido que hay que ofrecerle a la persona, o null.
+ *
+ * Es el que Hoy muestra con "Guardarla" y "Descartarla". Solo lee: la hora
+ * entra en la decisión, pero no escribe nada.
+ */
+export async function leerSesionSinCerrar(): Promise<SesionEnCurso | null> {
+  const borrador = await leerSesionEnCurso()
+  return borrador && destinoDelBorrador(borrador, Date.now()) === 'ofrecer' ? borrador : null
+}
+
+/**
+ * "Guardarla": el borrador vencido se cierra como cualquier otra sesión.
+ *
+ * Es el mismo camino que "Cerrar la sesión" —`cerrarSesion`, con el borrador
+ * borrado en la misma transacción— así que mueve el motor igual que si se
+ * hubiera cerrado esa noche. La sesión queda con el día en que se hizo, no
+ * con el de hoy, y sin las tres preguntas del final: contestarlas al día
+ * siguiente mediría el día siguiente.
+ *
+ * Devuelve null si ya no había borrador (otra pestaña lo cerró o lo descartó).
+ */
+export async function guardarSesionSinCerrar(): Promise<ResumenSesion | null> {
+  const borrador = await leerSesionEnCurso()
   if (!borrador) return null
 
-  if (Date.now() - borrador.actualizadoEn > VIGENCIA_DEL_BORRADOR) {
-    await db.curso.delete('actual')
-    return null
-  }
-  return borrador
+  const [avances, historial] = await Promise.all([leerAvances(), leerSesiones()])
+  const cierre = cierreDelBorrador(borrador, {
+    historial,
+    objetivoDe: (ejercicioId) =>
+      [...avances.values()].find((a) => a.ejercicioId === ejercicioId)?.objetivoActual,
+  })
+  // La energía de antes sale del chequeo de ESE día, igual que en Entrenar.
+  const vitalidadPre = (await db.estados.get(cierre.fecha))?.energia
+
+  return cerrarSesion({
+    ...cierre,
+    ...(vitalidadPre !== undefined ? { vitalidadPre } : {}),
+    cierraElBorrador: true,
+  })
 }
 
 export async function guardarSesionEnCurso(
@@ -235,6 +275,24 @@ export interface CierreDeSesion {
   rafagas?: RegistroRafaga[]
   /** True si fue una sesión densa. */
   densa?: true
+  /**
+   * El día de la sesión, AAAA-MM-DD. Si falta, hoy.
+   *
+   * Hace falta porque una sesión puede cerrarse otro día del que se hizo: la
+   * que cruzó la medianoche, o un borrador vencido que se guarda a la mañana
+   * siguiente. La sesión es del día en que se entrenó.
+   */
+  fecha?: string
+  /**
+   * Si esta sesión es la del borrador de Entrenar. Entonces el borrador se
+   * borra adentro de la misma transacción que guarda la sesión.
+   *
+   * Antes se borraba después, afuera: si el teléfono mataba la app justo en
+   * el medio quedaban la sesión guardada y el borrador vivo, y al volver la
+   * sesión se cerraba otra vez y la progresión se aplicaba dos veces. El
+   * Reloj no lo pide: su sesión no tiene nada que ver con el borrador.
+   */
+  cierraElBorrador?: true
 }
 
 /**
@@ -252,9 +310,11 @@ export async function cerrarSesion(entrada: CierreDeSesion): Promise<ResumenSesi
   const conSeries = entrada.registros.filter((r) => r.series.some((s) => s.logrado > 0))
   const tipo: TipoSesion = entrada.tipo ?? 'plan'
 
+  const dia = entrada.fecha ?? fechaISO()
+
   const sesion: Sesion = {
     id: nuevoId(),
-    fecha: fechaISO(),
+    fecha: dia,
     finalizadaEn: Date.now(),
     duracionSegundos: entrada.duracionSegundos,
     registros: conSeries,
@@ -277,9 +337,9 @@ export async function cerrarSesion(entrada: CierreDeSesion): Promise<ResumenSesi
     leerPreferencias(),
   ])
 
-  const hoy = fechaISO()
-  const ajuste = ajusteDelDia(bandaSostenida(estados, hoy))
-  const congeladas = cadenasCongeladas(estados, hoy)
+  // El estado del día de la sesión, que es el que Entrenar usó para armarla.
+  const ajuste = ajusteDelDia(bandaSostenida(estados, dia))
+  const congeladas = cadenasCongeladas(estados, dia)
   const animo = entrada.animo ?? animoReciente(historial)
 
   const decisiones: ResumenSesion['decisiones'] = []
@@ -386,12 +446,21 @@ export async function cerrarSesion(entrada: CierreDeSesion): Promise<ResumenSesi
     }))
   }
 
-  await db.transaction('rw', db.sesiones, db.avances, db.pendientes, async () => {
+  const tablas = [
+    db.sesiones,
+    db.avances,
+    db.pendientes,
+    ...(entrada.cierraElBorrador ? [db.curso] : []),
+  ]
+  await db.transaction('rw', tablas, async () => {
     await db.sesiones.put(sesion)
     await marcarPendiente('sesiones', sesion.id)
     for (const { decision } of decisiones) {
       await guardarAvance(decision.avance)
     }
+    // Adentro y no después: o quedan la sesión guardada y el borrador borrado,
+    // o no queda ninguna de las dos cosas y la sesión sigue en pantalla.
+    if (entrada.cierraElBorrador) await db.curso.delete('actual')
   })
 
   return { sesion, decisiones, numeroDeSesion: historial.length + 1 }
@@ -425,12 +494,16 @@ export async function fijarNivel(patron: Patron, ejercicioId: string): Promise<A
   }
 
   await guardarAvance(avance)
-  // Y se tira el borrador, si había uno. Las series a medio anotar están
-  // indexadas por id de ejercicio, y `cerrarSesion` solo mira los ejercicios
-  // del plan de hoy: cambiar de eslabón deja huérfanas las que ya se hicieron y
-  // desaparecen sin que nadie avise. Perder trabajo en silencio es peor que
+  // Y se tira el borrador de la sesión que todavía se retoma. Las series a
+  // medio anotar están indexadas por id de ejercicio, y Entrenar la rearma con
+  // el plan de ahora: cambiar de eslabón deja huérfanas las que ya se hicieron
+  // y desaparecen sin que nadie avise. Perder trabajo en silencio es peor que
   // perderlo con un cartel, así que se descarta acá, que es donde se sabe.
-  await descartarSesionEnCurso()
+  // La vencida que Hoy ofrece guardar no: se guarda con su propio plan, así
+  // que no pierde nada, y tirarla era borrarla sin mostrarla
+  // (`cambiarDeNivelLaTira`).
+  const borrador = await leerSesionEnCurso()
+  if (borrador && cambiarDeNivelLaTira(borrador, Date.now())) await descartarSesionEnCurso()
   return avance
 }
 
@@ -525,8 +598,10 @@ export async function saltearElAlta(tieneBarra: boolean): Promise<void> {
  * en el próximo arranque.
  *
  * No corre antes del alta —no hay nada que revisar, y el alta escribe la
- * revisión vacía— ni con una sesión a medio hacer: cambiar el core en medio de
- * la sesión dejaría huérfanas las series ya anotadas. Espera al próximo
+ * revisión vacía— ni con una sesión por cerrar (`quedaPorCerrar`): cambiar el
+ * core en medio de la sesión dejaría huérfanas las series ya anotadas, y con
+ * una vencida que Hoy ofrece guardar, bajaría el core justo antes de que
+ * "Guardarla" sumara las dominadas que lo mantenían. Espera al próximo
  * arranque, que es lo mismo que hace la persona.
  */
 export async function revisarRequisitosUnaVez(): Promise<void> {
@@ -539,7 +614,12 @@ export async function revisarRequisitosUnaVez(): Promise<void> {
 
       const ahora = Date.now()
       const borrador = await db.curso.get('actual')
-      if (borrador && ahora - borrador.actualizadoEn <= VIGENCIA_DEL_BORRADOR) return
+      // Espera a la sesión que se retoma y también a la vencida que Hoy ofrece
+      // guardar: "Guardarla" la cierra con el motor de esa noche, y si esa
+      // sesión llevaba las dominadas a 3×8, la palanca ya no tiene por qué
+      // cerrarse. Además, guardarla después de la bajada apagaría el aviso
+      // de por qué bajó. Una vencida y vacía no frena nada.
+      if (borrador && quedaPorCerrar(borrador, ahora)) return
 
       const { avances, bajadas } = bajarPorRequisito(
         await leerAvances(),
@@ -606,37 +686,29 @@ export async function exportarTodo(): Promise<Respaldo> {
 /** Errores de importación que le sirven a la persona, no al programador. */
 export class RespaldoInvalido extends Error {}
 
+/**
+ * Revisa un archivo fila por fila y lo devuelve en la forma de hoy.
+ *
+ * La revisión entera está en `revisarCopia`, en el dominio. Antes acá solo se
+ * miraba la versión y que hubiera dos listas, y una sesión sin `registros`
+ * pasaba y dejaba Hoy y Progreso en blanco para siempre. Una copia vieja se
+ * sigue pudiendo leer: lo que no existía cuando se hizo entra vacío.
+ */
 export function validarRespaldo(dato: unknown): Respaldo {
-  if (typeof dato !== 'object' || dato === null) {
-    throw new RespaldoInvalido('El archivo no tiene el formato de una copia de LyraFit.')
-  }
-
-  const posible = dato as Omit<Partial<Respaldo>, 'version'> & { version?: number }
-
-  if (posible.version !== 1 && posible.version !== 2 && posible.version !== 3) {
-    throw new RespaldoInvalido('La copia es de una versión que esta app todavía no entiende.')
-  }
-  if (!Array.isArray(posible.sesiones) || !Array.isArray(posible.avances)) {
-    throw new RespaldoInvalido('A la copia le faltan las sesiones o los avances.')
-  }
-
-  // Una copia vieja se puede leer igual, y acá está qué le falta a cada una:
-  // a la v1 el chequeo diario y el tipo de sesión; a la v2 el diario de comida
-  // y sueño. Las tres cosas tienen un valor por defecto sensato —vacío— así
-  // que restaurar una copia vieja funciona y simplemente no trae lo que no
-  // existía cuando se hizo.
-  return {
-    ...posible,
-    version: 3,
-    estados: posible.estados ?? [],
-    diario: posible.diario ?? [],
-    sesiones: posible.sesiones.map((s) => ({ ...s, tipo: s.tipo ?? 'plan' })),
-  } as Respaldo
+  const revision = revisarCopia(dato)
+  if ('problema' in revision) throw new RespaldoInvalido(revision.problema)
+  return revision.copia
 }
 
 /**
- * Importa una copia reemplazando lo que haya. Se pide confirmación explícita
- * en la pantalla antes de llamar acá: esto pisa los datos.
+ * Importa una copia reemplazando lo que haya. Todo o nada: si algo falla, la
+ * base queda como estaba.
+ *
+ * No pregunta nada: esto pisa los datos y la que pregunta es la pantalla.
+ * Ajustes muestra lo que trae el archivo al lado de lo que se reemplaza, pide
+ * confirmación y guarda antes una copia automática de lo que había
+ * (`respaldarAntesDeRestaurar`). Quien llame acá desde otro lado tiene que
+ * hacer lo mismo.
  */
 export async function importarTodo(respaldo: Respaldo): Promise<void> {
   await db.transaction(
@@ -666,7 +738,51 @@ export async function importarTodo(respaldo: Respaldo): Promise<void> {
   )
 }
 
+/**
+ * La carpeta de las copias automáticas, en el almacenamiento privado del
+ * sitio. Vive acá y no en `respaldo.ts` porque `borrarTodo` la tiene que
+ * borrar, y `respaldo.ts` ya depende de este archivo.
+ */
+export const CARPETA_DE_COPIAS = 'respaldos'
+
+/**
+ * Borra la carpeta de las copias automáticas entera.
+ *
+ * Sin sistema de archivos privado —o si el navegador no deja abrirlo— tampoco
+ * pudo haber copias: se escriben por el mismo camino. Que la carpeta no
+ * exista es el resultado buscado, no un error. Cualquier otra falla se
+ * propaga, para que la pantalla no diga "Listo" sobre algo que quedó.
+ */
+async function borrarCopiasAutomaticas(): Promise<void> {
+  type Raiz = { removeEntry(nombre: string, opciones?: { recursive?: boolean }): Promise<void> }
+  const almacen = (globalThis.navigator as { storage?: { getDirectory?: () => Promise<Raiz> } })
+    ?.storage
+  if (!almacen?.getDirectory) return
+
+  let raiz: Raiz
+  try {
+    raiz = await almacen.getDirectory()
+  } catch {
+    return
+  }
+  try {
+    await raiz.removeEntry(CARPETA_DE_COPIAS, { recursive: true })
+  } catch (error) {
+    if ((error as { name?: string } | null)?.name !== 'NotFoundError') throw error
+  }
+}
+
+/**
+ * "Borrar todos mis datos": la base y las copias automáticas.
+ *
+ * Las copias primero. Antes no se tocaban: la carpeta `respaldos` quedaba con
+ * el historial, los niveles y las preferencias adentro, y la pantalla decía
+ * "No quedó nada". Y van primero por una razón práctica: borrar la base
+ * manda al alta en el acto, así que si algo falla tiene que fallar antes,
+ * con la persona todavía en Ajustes para leer el error.
+ */
 export async function borrarTodo(): Promise<void> {
+  await borrarCopiasAutomaticas()
   await db.transaction(
     'rw',
     [db.sesiones, db.avances, db.estados, db.preferencias, db.pendientes, db.curso, db.diario],

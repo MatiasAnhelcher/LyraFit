@@ -11,9 +11,11 @@
  * contuvo una sola fila del diario, en la función cuyo comentario dice ser
  * "la forma de no perderlos nunca, que importa más".
  *
- * La parte de Dexie se verifica aparte, en `respaldo.mjs`, que hace la vuelta
- * entera contra una base real. Acá está lo que se puede medir sin navegador:
- * que una copia vieja entre, y que la forma declarada sea la completa.
+ * La parte de Dexie se verifica aparte, en `datos.mjs`, que restaura contra
+ * una base real y mira que antes se confirme y quede una copia automática.
+ * Acá está lo que se puede medir sin navegador: que una copia vieja entre, que
+ * una rota no, y que la forma declarada sea la completa. La revisión fila por
+ * fila tiene sus casos en `src/dominio/copia.test.ts`.
  */
 
 import { describe, expect, it } from 'vitest'
@@ -42,7 +44,18 @@ describe('una copia vieja se puede restaurar', () => {
   it('la v1 también, que es la más vieja que existió', () => {
     const { estados, ...v1 } = BASE
     void estados
-    const r = validarRespaldo({ ...v1, version: 1, sesiones: [{ tipo: undefined }] })
+    // Una sesión v1 completa, sin el tipo que todavía no existía. La fila
+    // tiene que estar entera: desde que la copia se revisa fila por fila, una
+    // sesión sin fecha ni ejercicios es una fila rota, no una fila vieja.
+    const sesionV1 = {
+      id: 'v1',
+      fecha: '2026-01-05',
+      finalizadaEn: 1,
+      duracionSegundos: 600,
+      registros: [],
+      tipo: undefined,
+    }
+    const r = validarRespaldo({ ...v1, version: 1, sesiones: [sesionV1] })
     expect(r.estados).toEqual([])
     expect(r.diario).toEqual([])
     // El tipo de sesión no existía en la v1 y todas eran del plan.
@@ -62,6 +75,17 @@ describe('una copia vieja se puede restaurar', () => {
   it('un archivo que no es una copia se rechaza', () => {
     expect(() => validarRespaldo(null)).toThrow(RespaldoInvalido)
     expect(() => validarRespaldo({ version: 2 })).toThrow(RespaldoInvalido)
+  })
+
+  it('una sesión sin registros rechaza el archivo entero, diciendo cuál', () => {
+    // El caso medido: esta copia pasaba, la app decía "Listo: 1 sesiones
+    // restauradas" y Hoy y Progreso quedaban en blanco para siempre.
+    const rota = {
+      ...BASE,
+      sesiones: [{ id: 'x', fecha: '2026-03-10', finalizadaEn: 1, duracionSegundos: 60 }],
+    }
+    expect(() => validarRespaldo(rota)).toThrow(RespaldoInvalido)
+    expect(() => validarRespaldo(rota)).toThrow(/sesión 1/)
   })
 })
 
