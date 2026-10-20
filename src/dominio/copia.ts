@@ -23,6 +23,7 @@
  */
 
 import { esDiaValido } from './borrador'
+import { contestoElChequeo } from './estado'
 import type { DiaDelDiario } from './nutricion'
 import type { Avance, Estado, Patron, Preferencias, Sesion, TipoSesion } from './tipos'
 
@@ -153,7 +154,15 @@ function avanceDeHoy(a: Fila): Avance {
 function estadoRoto(e: unknown): string | null {
   if (!esFila(e)) return 'no es un chequeo'
   if (!esDiaValido(e.fecha)) return 'la fecha no es válida'
-  if (!esNumero(e.sueno) || !esNumero(e.energia) || !esNumero(e.musculos)) {
+  // Una molestia avisada con el chequeo apagado deja una fila con la molestia
+  // sola, sin las tres respuestas (`guardarMolestiaDeHoy`). Esa fila está sana:
+  // rechazarla dejaría sin poder restaurar su propia copia a quien avisó una
+  // molestia. Lo que la app no escribe nunca es una fila con algunas
+  // respuestas y otras no, o sin respuestas y sin molestia.
+  const respuestas = [e.sueno, e.energia, e.musculos]
+  const soloLaMolestia =
+    PATRONES.has(e.molestia as Patron) && respuestas.every((x) => x === undefined)
+  if (!soloLaMolestia && !respuestas.every(esNumero)) {
     return 'le falta una de las tres respuestas'
   }
   if (!opcional(e.molestia, (m) => PATRONES.has(m as Patron))) return 'la molestia no es una cadena'
@@ -271,7 +280,7 @@ export interface ResumenDeCopia {
   sesiones: number
   /** Días del diario con algo anotado. */
   diario: number
-  /** Chequeos diarios. */
+  /** Chequeos diarios contestados. Una molestia avisada sola no es uno. */
   chequeos: number
   /** El primer y el último día con algo guardado, AAAA-MM-DD, o null si no hay nada. */
   desde: string | null
@@ -289,7 +298,9 @@ export function resumenDeCopia(
   return {
     sesiones: copia.sesiones.length,
     diario: copia.diario.length,
-    chequeos: copia.estados.length,
+    // Una fila con la molestia sola no es un chequeo: no se contestó nada.
+    // Entra en el rango de días, porque es algo guardado ese día.
+    chequeos: copia.estados.filter(contestoElChequeo).length,
     desde: dias[0] ?? null,
     hasta: dias.at(-1) ?? null,
   }
