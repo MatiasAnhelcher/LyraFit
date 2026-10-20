@@ -21,7 +21,8 @@
  *    "Guardarla" y "Descartarla", Entrenar no la pisa, y guardarla deja la
  *    sesión con todas sus series. Si guardarla falla, se dice y la sesión
  *    sigue ofrecida. Un borrador viejo, sin el día ni el plan, también se
- *    ofrece, y descartarlo lo borra.
+ *    ofrece; cambiar de nivel a mano desde una ficha no lo borra, y
+ *    descartarlo sí.
  * 3. **El archivo roto.** Una copia con una sesión sin registros se rechaza
  *    con un mensaje y la base queda intacta.
  * 4. **Restaurar una copia vieja.** Aparece un resumen y una confirmación,
@@ -362,6 +363,35 @@ const errores = (lista, caso) => {
   if (!textoViejo?.includes('del martes 20/10, con 2 series')) {
     fallos.push(`[${caso}] Un borrador viejo, sin el día, no se ofrece bien: ${JSON.stringify(textoViejo)}`)
   }
+
+  // Cambiar de nivel a mano desde una ficha no la borra. Antes "Empezar la
+  // cadena acá" tiraba el borrador siempre, y la sesión vencida desaparecía
+  // sin mostrarse; se guarda con lo que se anotó, así que no pierde nada.
+  {
+    const { avances } = await laBase(p)
+    const empuje = avances.find((a) => a.patron === 'empuje')?.ejercicioId
+    const destino = empuje === 'flexion-pared' ? 'flexion-inclinada-alta' : 'flexion-pared'
+    await p.goto(`${BASE}/#/biblioteca/${destino}`, { waitUntil: 'networkidle' })
+    await p.waitForTimeout(800)
+    if (!(await tocar(p, 'Empezar la cadena de empuje acá'))) {
+      fallos.push(`[${caso}] La ficha de ${destino} no ofrece empezar la cadena ahí.`)
+    }
+    await p.waitForTimeout(600)
+    const { curso, avances: despues } = await laBase(p)
+    if (despues.find((a) => a.patron === 'empuje')?.ejercicioId !== destino) {
+      fallos.push(`[${caso}] "Empezar la cadena acá" no movió empuje a ${destino}.`)
+    }
+    const hechasDelViejo = { [ejercicio]: [{ logrado: 6 }, { logrado: 5 }] }
+    if (JSON.stringify(curso[0]?.hechas) !== JSON.stringify(hechasDelViejo)) {
+      fallos.push(`[${caso}] Cambiar de nivel a mano borró la sesión vencida que Hoy ofrecía guardar.`)
+    }
+    await p.goto(`${BASE}/#/`, { waitUntil: 'networkidle' })
+    await p.waitForTimeout(800)
+    if (!(await sePuede(oferta))) {
+      fallos.push(`[${caso}] Después de cambiar de nivel a mano, Hoy dejó de ofrecer la sesión vencida.`)
+    }
+  }
+
   await tocar(p, 'Descartarla')
   await p.waitForTimeout(800)
   {
