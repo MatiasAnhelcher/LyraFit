@@ -17,6 +17,7 @@ import {
   diaLocal,
   esDiaValido,
   fechaDelDia,
+  quedaPorCerrar,
   registrosDeLaSesion,
   textoDeSinCerrar,
   textoDelBorradorAlRestaurar,
@@ -126,6 +127,21 @@ describe('qué hacer con el borrador', () => {
     // Una serie anotada en cero no es trabajo: `cerrarSesion` tampoco la guarda.
     const b = borrador({ hechas: { 'puente-gluteos': [{ logrado: 0 }] } })
     expect(destinoDelBorrador(b, b.actualizadoEn + VIGENCIA_DEL_BORRADOR + 1)).toBe('descartar')
+  })
+
+  it('queda una sesión por cerrar mientras se retoma o se ofrece, y no si se descarta', () => {
+    // Lo pregunta la revisión de la palanca frontal antes de mover un avance:
+    // una vencida con series todavía se puede guardar como esa noche, y bajar
+    // el core antes le cambiaría el resultado.
+    const conSeries = borrador()
+    expect(quedaPorCerrar(conSeries, conSeries.actualizadoEn + 60_000)).toBe(true)
+    expect(quedaPorCerrar(conSeries, conSeries.actualizadoEn + VIGENCIA_DEL_BORRADOR + 1)).toBe(
+      true,
+    )
+
+    const vacio = borrador({ hechas: {} })
+    expect(quedaPorCerrar(vacio, vacio.actualizadoEn + 60_000)).toBe(true)
+    expect(quedaPorCerrar(vacio, vacio.actualizadoEn + VIGENCIA_DEL_BORRADOR + 1)).toBe(false)
   })
 
   it('cambiar de nivel a mano no tira la sesión vencida que Hoy ofrece guardar', () => {

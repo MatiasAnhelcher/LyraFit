@@ -116,6 +116,28 @@ export function destinoDelBorrador(
 }
 
 /**
+ * Si queda una sesión por cerrar: una que todavía se retoma, o una vencida
+ * con trabajo adentro que espera "Guardarla" o "Descartarla".
+ *
+ * Para lo que mueve el plan por debajo, las dos son lo mismo: una sesión que
+ * todavía puede cerrarse. "Guardarla" la cierra como si se hubiera cerrado esa
+ * noche, con el motor de esa noche, así que mover un avance antes de que la
+ * persona decida le cambia el resultado. Lo pregunta la revisión única de la
+ * palanca frontal (`revisarRequisitosUnaVez`): si corriera con una vencida en
+ * espera, bajaría el core por no tener 3 series de 8 dominadas justo antes de
+ * que "Guardarla" sumara la sesión que las daba, y esa sesión, al guardarse,
+ * apagaría el aviso de por qué bajó.
+ *
+ * Una vencida y vacía no cuenta: no hay nada que cerrar, y Entrenar la tira.
+ */
+export function quedaPorCerrar(
+  borrador: Pick<SesionEnCurso, 'actualizadoEn' | 'hechas' | 'rafagas'>,
+  ahora: number,
+): boolean {
+  return destinoDelBorrador(borrador, ahora) !== 'descartar'
+}
+
+/**
  * Si mover un nivel a mano (`fijarNivel`, "Empezar la cadena acá" en una
  * ficha) tiene que tirar el borrador.
  *
