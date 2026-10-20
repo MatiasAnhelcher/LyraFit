@@ -19,13 +19,17 @@
  * 2. **El borrador vencido.** Una sesión entera hasta "Antes de cerrar", sin
  *    tocar "Cerrar la sesión"; siete horas después Hoy la ofrece con
  *    "Guardarla" y "Descartarla", Entrenar no la pisa, y guardarla deja la
- *    sesión con todas sus series. Un borrador viejo, sin el día ni el plan,
- *    también se ofrece, y descartarlo lo borra.
+ *    sesión con todas sus series. Si guardarla falla, se dice y la sesión
+ *    sigue ofrecida. Un borrador viejo, sin el día ni el plan, también se
+ *    ofrece, y descartarlo lo borra.
  * 3. **El archivo roto.** Una copia con una sesión sin registros se rechaza
  *    con un mensaje y la base queda intacta.
- * 4. **Restaurar una copia vieja.** Aparece un resumen y una confirmación;
- *    "Mejor no" no toca nada; "Sí, reemplazar" deja antes una copia
- *    automática con lo que había.
+ * 4. **Restaurar una copia vieja.** Aparece un resumen y una confirmación,
+ *    que nombra la sesión a medio hacer que también se borraría; "Mejor no"
+ *    no toca nada; "Sí, reemplazar" deja antes una copia automática con lo
+ *    que había. Si esa copia no se puede guardar, lo dice y no reemplaza
+ *    hasta un segundo toque; si el reemplazo falla, la base queda como
+ *    estaba.
  * 5. **Borrar todo.** Si borrar las copias falla, se dice y no aparece
  *    "Listo"; si sale bien, la base y la carpeta de copias quedan vacías y el
  *    "Listo" aparece recién entonces.
@@ -68,7 +72,8 @@ async function tocar(p, nombre) {
 function trampas() {
   const poner = IDBObjectStore.prototype.put
   IDBObjectStore.prototype.put = function (...args) {
-    if (globalThis.__fallar === 'sesiones' && this.name === 'sesiones') {
+    const tabla = globalThis.__fallar
+    if ((tabla === 'sesiones' || tabla === 'avances') && this.name === tabla) {
       throw new DOMException('Simulado: no hay lugar', 'QuotaExceededError')
     }
     return poner.apply(this, args)
@@ -81,6 +86,15 @@ function trampas() {
     return borrar.apply(this, args)
   }
   if (globalThis.FileSystemDirectoryHandle) {
+    // Sin poder abrir la carpeta de copias: lo que pasa en un navegador sin
+    // sistema de archivos privado, o en modo privado.
+    const abrirCarpeta = FileSystemDirectoryHandle.prototype.getDirectoryHandle
+    FileSystemDirectoryHandle.prototype.getDirectoryHandle = function (...args) {
+      if (globalThis.__fallar === 'guardar-copia') {
+        return Promise.reject(new DOMException('Simulado', 'NotAllowedError'))
+      }
+      return abrirCarpeta.apply(this, args)
+    }
     const quitar = FileSystemDirectoryHandle.prototype.removeEntry
     FileSystemDirectoryHandle.prototype.removeEntry = function (...args) {
       if (globalThis.__fallar === 'copias') {
@@ -282,6 +296,26 @@ const errores = (lista, caso) => {
 
   await p.goto(`${BASE}/#/`, { waitUntil: 'networkidle' })
   await p.waitForTimeout(800)
+
+  // Si guardarla falla, se dice, y la sesión sigue ahí para probar de nuevo.
+  await fallar(p, 'sesiones')
+  await tocar(p, 'Guardarla')
+  await p.waitForTimeout(1000)
+  {
+    const dice = await p.getByRole('alert').allInnerTexts()
+    const { sesiones, curso } = await laBase(p)
+    if (!dice.some((t) => t.includes('No se pudo guardar'))) {
+      fallos.push(`[${caso}] Si "Guardarla" falla, Hoy no lo dice: ${JSON.stringify(dice)}`)
+    }
+    if (sesiones.length !== 0) fallos.push(`[${caso}] "Guardarla" falló y quedaron ${sesiones.length} sesiones.`)
+    if (JSON.stringify(curso[0]?.hechas) !== JSON.stringify(borrador?.hechas)) {
+      fallos.push(`[${caso}] "Guardarla" falló y el borrador no sigue entero.`)
+    }
+    if (!(await sePuede(oferta))) fallos.push(`[${caso}] "Guardarla" falló y Hoy dejó de ofrecer la sesión.`)
+    notas.push(`${caso}: si guardarla falla, Hoy dice "${dice.join(' ')}".`)
+  }
+  await fallar(p, null)
+
   await tocar(p, 'Guardarla')
   await p.waitForTimeout(1500)
   {
@@ -382,33 +416,112 @@ const errores = (lista, caso) => {
 
   // 4. Restaurar una copia vieja.
   caso = '4 · restaurar'
+  // Con una sesión a medio hacer: restaurar la borra y no va en ninguna copia,
+  // así que la confirmación tiene que nombrarla. Se escribe parado en Ajustes,
+  // donde nada reescribe el borrador.
+  await p.evaluate(async (enCurso) => {
+    const req = indexedDB.open('lyrafit')
+    const db = await new Promise((r) => (req.onsuccess = () => r(req.result)))
+    await new Promise((r) => {
+      const tx = db.transaction('curso', 'readwrite')
+      tx.objectStore('curso').put({ ...enCurso, arrancadaEn: Date.now(), actualizadoEn: Date.now() })
+      tx.oncomplete = () => r()
+    })
+    db.close()
+  }, {
+    id: 'actual',
+    duracionAcumulada: 300,
+    corta: false,
+    indice: 0,
+    etapa: 'series',
+    hechas: { [ejercicio]: [{ logrado: 7 }, { logrado: 6 }, { logrado: 6 }, { logrado: 5 }] },
+  })
   const vieja = copiaCon([])
   await elegir('lyrafit-2026-09-01.json', vieja)
   const resumen = (await sePuede(confirmar)) ? await confirmar.innerText() : null
   if (!resumen) {
     fallos.push(`[${caso}] Elegir una copia vieja no mostró ninguna confirmación.`)
-  } else if (!resumen.includes('Vas a reemplazar 1 sesión por 0')) {
-    fallos.push(`[${caso}] El resumen no dice qué se reemplaza: "${resumen.replace(/\s+/g, ' ')}"`)
+  } else {
+    if (!resumen.includes('Vas a reemplazar 1 sesión por 0')) {
+      fallos.push(`[${caso}] El resumen no dice qué se reemplaza: "${resumen.replace(/\s+/g, ' ')}"`)
+    }
+    if (!resumen.includes('que quedó sin cerrar, con 4 series, también se borra')) {
+      fallos.push(`[${caso}] La confirmación no avisa que la sesión a medio hacer también se borra: "${resumen.replace(/\s+/g, ' ')}"`)
+    }
   }
   if ((await laBase(p)).sesiones.length !== 1) fallos.push(`[${caso}] Se reemplazó antes de confirmar.`)
   await tocar(p, 'Mejor no')
   if (await sePuede(confirmar)) fallos.push(`[${caso}] "Mejor no" no cerró la confirmación.`)
-  if ((await laBase(p)).sesiones.length !== 1) fallos.push(`[${caso}] "Mejor no" cambió la base.`)
+  {
+    const { sesiones, curso } = await laBase(p)
+    if (sesiones.length !== 1) fallos.push(`[${caso}] "Mejor no" cambió la base.`)
+    if (curso.length !== 1) fallos.push(`[${caso}] "Mejor no" borró la sesión a medio hacer.`)
+  }
 
+  // Si la copia de antes no se puede guardar, no reemplaza en silencio.
   await elegir('lyrafit-2026-09-01.json', vieja)
+  await fallar(p, 'guardar-copia')
+  await tocar(p, 'Sí, reemplazar')
+  await p.waitForTimeout(1000)
+  await fallar(p, null)
+  {
+    const dice = await p.getByRole('alert').allInnerTexts()
+    const { sesiones, curso } = await laBase(p)
+    if (!dice.some((t) => t.includes('No pude guardar una copia automática'))) {
+      fallos.push(`[${caso}] Sin poder guardar la copia de antes, no lo dice: ${JSON.stringify(dice)}`)
+    }
+    if (!(await sePuede(boton(p, 'Reemplazar sin copia')))) {
+      fallos.push(`[${caso}] Sin poder guardar la copia de antes, el botón no dice que va sin copia.`)
+    }
+    if (sesiones.length !== 1 || curso.length !== 1) {
+      fallos.push(`[${caso}] Sin poder guardar la copia de antes, reemplazó igual en el primer toque.`)
+    }
+    notas.push(`${caso}: sin copia de antes, dice "${dice.join(' ').replace(/\s+/g, ' ')}".`)
+  }
+  await tocar(p, 'Mejor no')
+
+  // Si el reemplazo falla a mitad de camino, la base queda como estaba.
+  await elegir('lyrafit-2026-09-01.json', vieja)
+  await fallar(p, 'avances')
+  await tocar(p, 'Sí, reemplazar')
+  await p.waitForTimeout(1500)
+  await fallar(p, null)
+  {
+    const dice = await p.getByRole('status').allInnerTexts()
+    const { sesiones, avances, curso } = await laBase(p)
+    if (!dice.some((t) => t.includes('No se pudo restaurar. Tus datos quedaron como estaban.'))) {
+      fallos.push(`[${caso}] Si el reemplazo falla, no lo dice: ${JSON.stringify(dice)}`)
+    }
+    if (
+      sesiones.length !== 1 ||
+      curso.length !== 1 ||
+      JSON.stringify(avances) !== JSON.stringify(antes.avances)
+    ) {
+      fallos.push(
+        `[${caso}] El reemplazo falló y la base quedó a medias: ${sesiones.length} sesiones, ` +
+          `${avances.length} niveles, ${curso.length} borradores.`,
+      )
+    }
+  }
+
+  // Y ahora sí: se prueba de nuevo desde la misma confirmación.
   await tocar(p, 'Sí, reemplazar')
   await p.waitForTimeout(1500)
   {
     const { sesiones } = await laBase(p)
     const copias = (await lasCopias(p)) ?? []
     const previa = copias.find((c) => c.nombre.includes('antes-de-restaurar'))
+    const avisoFinal = await p.getByRole('status').allInnerTexts()
     if (sesiones.length !== 0) fallos.push(`[${caso}] Después de confirmar hay ${sesiones.length} sesiones y la copia traía 0.`)
+    if (!avisoFinal.some((t) => t.includes('Listo: 0 sesiones restauradas.'))) {
+      fallos.push(`[${caso}] Después de reemplazar no dice "Listo": ${JSON.stringify(avisoFinal)}`)
+    }
     if (!previa) {
       fallos.push(`[${caso}] No quedó una copia automática antes de reemplazar: ${JSON.stringify(copias)}`)
     } else if (previa.sesiones !== 1) {
       fallos.push(`[${caso}] La copia de antes tiene ${previa.sesiones} sesiones y tenía que tener lo que había: 1.`)
     }
-    notas.push(`${caso}: resumen "${resumen?.split('\n').slice(-4, -3).join('')}", copia previa ${previa?.nombre} con ${previa?.sesiones} sesión.`)
+    notas.push(`${caso}: resumen "${resumen?.split('\n').find((l) => l.startsWith('Vas a reemplazar')) ?? ''}", copia previa ${previa?.nombre} con ${previa?.sesiones} sesión.`)
   }
 
   // 5. Borrar todo.

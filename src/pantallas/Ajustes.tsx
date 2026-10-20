@@ -17,8 +17,9 @@ import {
   siguienteClase,
 } from '@/dominio/rutinas'
 import type { ClaseDeDia } from '@/dominio/rutinas'
-import type { Preferencias } from '@/dominio/tipos'
+import type { Preferencias, SesionEnCurso } from '@/dominio/tipos'
 import {
+  avisoDeRestaurada,
   cuantasSesiones,
   detalleDelResumen,
   fechaCorta,
@@ -26,7 +27,7 @@ import {
   resumenDeCopia,
   type ResumenDeCopia,
 } from '@/dominio/copia'
-import { diaLocal } from '@/dominio/borrador'
+import { diaLocal, textoDelBorradorAlRestaurar, tieneTrabajo } from '@/dominio/borrador'
 import {
   RespaldoInvalido,
   borrarTodo,
@@ -34,6 +35,7 @@ import {
   guardarPreferencias,
   importarTodo,
   leerPreferencias,
+  leerSesionEnCurso,
   validarRespaldo,
   type Respaldo,
 } from '@/datos/repositorio'
@@ -53,12 +55,16 @@ import { avisarEnElAlta } from './Alta'
  *
  * `sinCopia` se prende si la copia automática de lo que hay falló: entonces no
  * se reemplaza nada sin decirlo, y el botón pasa a decir que va sin copia.
+ *
+ * `borrador` es la sesión a medio hacer, si tiene algo hecho: restaurar la
+ * borra y no va en ninguna copia, así que se nombra antes de confirmar.
  */
 interface Restauracion {
   copia: Respaldo
   deLaCopia: ResumenDeCopia
   actual: ResumenDeCopia
   sinCopia: boolean
+  borrador: SesionEnCurso | null
 }
 
 export function Ajustes() {
@@ -149,12 +155,13 @@ export function Ajustes() {
     setRestauracion(null)
     try {
       const copia = validarRespaldo(JSON.parse(await entrada.text()))
-      const actual = await exportarTodo()
+      const [actual, borrador] = await Promise.all([exportarTodo(), leerSesionEnCurso()])
       setRestauracion({
         copia,
         deLaCopia: resumenDeCopia(copia),
         actual: resumenDeCopia(actual),
         sinCopia: false,
+        borrador: borrador && tieneTrabajo(borrador) ? borrador : null,
       })
     } catch (error) {
       setAviso(
@@ -184,10 +191,7 @@ export function Ajustes() {
       }
       await importarTodo(r.copia)
       setRestauracion(null)
-      setAviso(
-        `Listo: ${cuantasSesiones(r.copia.sesiones.length)} restauradas.` +
-          (r.sinCopia ? '' : ' Lo que tenías quedó en una copia automática.'),
-      )
+      setAviso(avisoDeRestaurada(r.copia.sesiones.length, !r.sinCopia))
       void estadoDeAlmacenamiento().then(setAlmacenamiento)
     } catch {
       setAviso('No se pudo restaurar. Tus datos quedaron como estaban.')
@@ -663,6 +667,11 @@ export function Ajustes() {
                 ? ''
                 : 'Antes de reemplazar guardo una copia automática de lo que tenés ahora.'}
             </p>
+            {restauracion.borrador && (
+              <p className="mt-3 max-w-[42ch] text-xs leading-relaxed text-[var(--color-ambar)]">
+                {textoDelBorradorAlRestaurar(restauracion.borrador, diaLocal(Date.now()))}
+              </p>
+            )}
             {restauracion.sinCopia && (
               <p
                 role="alert"
@@ -714,7 +723,13 @@ export function Ajustes() {
               <Accion deshabilitado={borrando} onClick={() => void borrarDeVerdad()}>
                 {borrando ? 'Borrando…' : 'Sí, borrar todo'}
               </Accion>
-              <AccionQuieta deshabilitado={borrando} onClick={() => setConfirmando(false)}>
+              <AccionQuieta
+                deshabilitado={borrando}
+                onClick={() => {
+                  setConfirmando(false)
+                  setErrorAlBorrar(null)
+                }}
+              >
                 Mejor no
               </AccionQuieta>
             </div>

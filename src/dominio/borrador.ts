@@ -199,6 +199,8 @@ export function cierreDelBorrador(
 
 const enPlural = (n: number, uno: string, varios: string) => `${n} ${n === 1 ? uno : varios}`
 
+type BorradorQueSeNombra = Pick<SesionEnCurso, 'dia' | 'arrancadaEn' | 'hechas' | 'rafagas'>
+
 /**
  * La frase con la que Hoy ofrece un borrador vencido.
  *
@@ -206,10 +208,32 @@ const enPlural = (n: number, uno: string, varios: string) => `${n} ${n === 1 ? u
  * decidir. "De hoy" y "de ayer" antes que la fecha: es como lo diría una
  * persona, y la fecha sola obliga a hacer la cuenta.
  */
-export function textoDeSinCerrar(
-  borrador: Pick<SesionEnCurso, 'dia' | 'arrancadaEn' | 'hechas' | 'rafagas'>,
+export function textoDeSinCerrar(borrador: BorradorQueSeNombra, hoy: string): string {
+  const { cuando, trabajo } = cuandoYCuanto(borrador, hoy)
+  return `Quedó sin cerrar una sesión ${cuando}, con ${trabajo}.`
+}
+
+/**
+ * Lo que se dice antes de restaurar una copia si hay una sesión a medio hacer.
+ *
+ * Restaurar borra el borrador —viene de un plan que la copia no conoce— y el
+ * borrador no va en ninguna copia, tampoco en la automática que se guarda
+ * antes de reemplazar. Sin esta frase, restaurar era la última forma de
+ * perder una sesión con series sin que nadie la mostrara.
+ */
+export function textoDelBorradorAlRestaurar(borrador: BorradorQueSeNombra, hoy: string): string {
+  const { cuando, trabajo } = cuandoYCuanto(borrador, hoy)
+  return (
+    `La sesión ${cuando} que quedó sin cerrar, con ${trabajo}, también se borra: ` +
+    'no entra en ninguna copia. Si la querés, guardala antes.'
+  )
+}
+
+/** De cuándo es la sesión del borrador y cuánto trabajo tiene, dicho como se dice. */
+function cuandoYCuanto(
+  borrador: BorradorQueSeNombra,
   hoy: string,
-): string {
+): { cuando: string; trabajo: string } {
   const dia = diaDelBorrador(borrador)
   const hace = diasEntre(dia, hoy)
   const [, mes, numero] = dia.split('-').map(Number)
@@ -227,5 +251,5 @@ export function textoDeSinCerrar(
     ...(rafagas > 0 ? [enPlural(rafagas, 'ráfaga', 'ráfagas')] : []),
   ].join(' y ')
 
-  return `Quedó sin cerrar una sesión ${cuando}, con ${trabajo}.`
+  return { cuando, trabajo }
 }

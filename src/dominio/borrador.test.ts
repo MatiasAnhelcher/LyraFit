@@ -18,6 +18,7 @@ import {
   fechaDelDia,
   registrosDeLaSesion,
   textoDeSinCerrar,
+  textoDelBorradorAlRestaurar,
 } from './borrador'
 import { RUTINA_POR_ID, diaDeLaSemana, patronDelBloque, semanaDe } from './rutinas'
 import type { SesionEnCurso } from './tipos'
@@ -248,6 +249,21 @@ describe('cómo lo ofrece Hoy', () => {
     })
     expect(textoDeSinCerrar(b, '2026-10-22')).toBe(
       'Quedó sin cerrar una sesión de ayer, con 1 serie y 2 ráfagas.',
+    )
+  })
+})
+
+describe('cómo lo avisa Ajustes antes de restaurar', () => {
+  it('dice que la sesión a medio hacer también se borra, de cuándo es y cuánto tiene', () => {
+    // Restaurar vacía el borrador y el borrador no va en ninguna copia: era la
+    // última forma de perder series sin que nadie las mostrara.
+    const b = borrador({ dia: '2026-10-21' })
+    expect(textoDelBorradorAlRestaurar(b, '2026-10-22')).toBe(
+      'La sesión de ayer que quedó sin cerrar, con 3 series, también se borra: ' +
+        'no entra en ninguna copia. Si la querés, guardala antes.',
+    )
+    expect(textoDelBorradorAlRestaurar(b, '2026-10-24')).toContain(
+      'La sesión del miércoles 21/10 que quedó sin cerrar',
     )
   })
 })

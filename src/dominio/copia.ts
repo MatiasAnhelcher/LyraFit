@@ -338,3 +338,13 @@ export function fraseDelReemplazo(deLaCopia: ResumenDeCopia, actual: ResumenDeCo
   }
   return `Vas a reemplazar ${cuantasSesiones(actual.sesiones)} por ${deLaCopia.sesiones}.`
 }
+
+/**
+ * El aviso de después de restaurar. Antes se armaba en la pantalla con el
+ * número delante y el plural fijo, y con una sola sesión decía "1 sesión
+ * restauradas".
+ */
+export function avisoDeRestaurada(sesiones: number, conCopia: boolean): string {
+  const cuantas = `${cuantasSesiones(sesiones)} ${sesiones === 1 ? 'restaurada' : 'restauradas'}`
+  return `Listo: ${cuantas}.${conCopia ? ' Lo que tenías quedó en una copia automática.' : ''}`
+}

@@ -11,6 +11,7 @@
 
 import { describe, expect, it } from 'vitest'
 import {
+  avisoDeRestaurada,
   cuantasSesiones,
   detalleDelResumen,
   fechaCorta,
@@ -238,5 +239,13 @@ describe('el resumen antes de confirmar', () => {
     expect(fechaCorta('2026-09-01')).toBe('1/9/2026')
     expect(cuantasSesiones(1)).toBe('1 sesión')
     expect(cuantasSesiones(2)).toBe('2 sesiones')
+  })
+
+  it('el aviso de después concuerda con el número, también con una sola', () => {
+    expect(avisoDeRestaurada(1, true)).toBe(
+      'Listo: 1 sesión restaurada. Lo que tenías quedó en una copia automática.',
+    )
+    expect(avisoDeRestaurada(12, false)).toBe('Listo: 12 sesiones restauradas.')
+    expect(avisoDeRestaurada(0, false)).toBe('Listo: 0 sesiones restauradas.')
   })
 })
