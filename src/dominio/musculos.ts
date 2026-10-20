@@ -649,9 +649,11 @@ export function musculosAlcanzables(
 /**
  * Los diez ejercicios que cuelgan de una barra.
  *
- * Vive acá y no en la biblioteca porque es lo único que lo necesita hoy, y
- * agregarle un campo a los cuarenta y siete por un consumidor sería mover el
- * dato antes de saber si hace falta. El test comprueba que la lista coincida
+ * Vive acá y no en la biblioteca porque nació para el mapa muscular, y
+ * agregarle un campo a los cuarenta y siete por un consumidor era mover el
+ * dato antes de saber si hacía falta. Ahora también la leen el Reloj y
+ * `apertura.ts`, que es lo que impide que el alta o el motor manden a alguien
+ * sin barra a un ejercicio colgado. El test comprueba que la lista coincida
  * con lo que el alta filtra.
  */
 /**

@@ -188,6 +188,7 @@ async function main() {
       ['/progreso', 'Progreso'],
       ['/ajustes', 'Ajustes'],
       ['/estado', 'Estado'],
+      ['/molestia', 'Molestia'],
       ['/reloj', 'El reloj'],
     ]) {
       await pagina.goto(`${BASE}/#${ruta}`, { waitUntil: 'networkidle' })

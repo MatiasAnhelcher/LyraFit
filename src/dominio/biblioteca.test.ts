@@ -7,7 +7,8 @@
  */
 
 import { describe, expect, it } from 'vitest'
-import { CADENAS, EJERCICIOS, FUERA_DE_CADENA, POR_ID } from './biblioteca'
+import { CADENAS, EJERCICIOS, FUERA_DE_CADENA, POR_ID, REQUISITOS, cadenaDe } from './biblioteca'
+import { requisitoDicho } from './progresion'
 
 /**
  * Salto máximo de carga entre dos eslabones consecutivos.
@@ -84,6 +85,93 @@ describe('integridad de las cadenas', () => {
         expect(salto, `${previo.id} → ${actual.id} salta ${Math.round(salto * 100)}%`)
           .toBeLessThanOrEqual(permitido)
       }
+    }
+  })
+})
+
+describe('la palanca frontal', () => {
+  // Estuvieron al revés: la negativa en el nivel 8, con ccr 1,0, y la
+  // agrupada en el 9, con 1,15. La propia negativa dice que no se empieza
+  // "sin tener firmes la palanca agrupada y las dominadas completas". Se
+  // pinean los dos datos que se dieron vuelta, el nivel y la carga, porque
+  // los tests genéricos de arriba pasaban igual con el orden equivocado.
+  const core = cadenaDe('core').ejercicios
+  const agrupada = POR_ID.get('palanca-frontal-agrupada')!
+  const negativa = POR_ID.get('palanca-frontal-negativa')!
+
+  it('la agrupada va antes que la negativa, en la cadena y en el nivel', () => {
+    expect(core.slice(-3)).toEqual([
+      'elevacion-piernas-colgado',
+      'palanca-frontal-agrupada',
+      'palanca-frontal-negativa',
+    ])
+    expect(agrupada.nivel).toBe(8)
+    expect(negativa.nivel).toBe(9)
+  })
+
+  it('la carga relativa sigue el mismo orden', () => {
+    expect(agrupada.ccr).toBe(1.0)
+    expect(negativa.ccr).toBe(1.15)
+    expect(POR_ID.get('elevacion-piernas-colgado')!.ccr).toBeLessThan(agrupada.ccr)
+  })
+
+  it('el texto de la negativa pide la agrupada antes, y ahora el orden le hace caso', () => {
+    expect(negativa.erroresComunes.join(' ')).toContain('palanca agrupada')
+    expect(core.indexOf(agrupada.id)).toBeLessThan(core.indexOf(negativa.id))
+  })
+
+  it('las dos piden 3 series de 8 dominadas completas antes de abrirse', () => {
+    // El 3×8 del rol de calistenia. Llegar a las dominadas completas no
+    // alcanza: se entra con 3 por serie.
+    for (const id of [agrupada.id, negativa.id]) {
+      expect(REQUISITOS.get(id), id).toEqual({
+        patron: 'traccion',
+        ejercicioId: 'dominada-completa',
+        minimo: { series: 3, cantidad: 8 },
+        porque: 'así se cuida el codo',
+      })
+    }
+  })
+})
+
+describe('requisitos cruzados', () => {
+  it('cada requisito une dos cadenas distintas con eslabones que existen', () => {
+    for (const [cerrado, { patron, ejercicioId }] of REQUISITOS) {
+      const ejercicio = POR_ID.get(cerrado)
+      expect(ejercicio, `${cerrado} no existe`).toBeDefined()
+      expect(cadenaDe(ejercicio!.patron).ejercicios, cerrado).toContain(cerrado)
+      expect(patron, `${cerrado} pide algo de su propia cadena`).not.toBe(ejercicio!.patron)
+      expect(cadenaDe(patron).ejercicios, `${cerrado} pide ${ejercicioId}`).toContain(ejercicioId)
+    }
+  })
+
+  it('el mínimo es alcanzable en el eslabón pedido y pide más que entrar', () => {
+    // Un mínimo por encima del techo de la ventana no se cumpliría nunca en
+    // ese eslabón; uno en el piso sería lo mismo que llegar.
+    for (const [cerrado, { ejercicioId, minimo }] of REQUISITOS) {
+      if (!minimo) continue
+      const pedido = POR_ID.get(ejercicioId)!
+      expect(minimo.cantidad, cerrado).toBeGreaterThan(pedido.ventana.min)
+      expect(minimo.cantidad, cerrado).toBeLessThanOrEqual(pedido.ventana.max)
+      expect(minimo.series, cerrado).toBeGreaterThanOrEqual(1)
+      expect(minimo.series, cerrado).toBeLessThanOrEqual(pedido.series)
+    }
+  })
+
+  it('la ficha del eslabón cerrado dice el mismo requisito que el dato', () => {
+    // La ficha lo dice en "Lo que sale mal". Si alguien cambia el mínimo y no
+    // el texto, la ficha diría una cosa y el motor otra.
+    for (const [cerrado, { ejercicioId, minimo }] of REQUISITOS) {
+      const texto = POR_ID.get(cerrado)!.erroresComunes.join(' ')
+      expect(texto, cerrado).toContain(requisitoDicho(POR_ID.get(ejercicioId)!, minimo))
+    }
+  })
+
+  it('cada requisito dice por qué existe, en pocas palabras y sin punto', () => {
+    for (const [cerrado, { porque }] of REQUISITOS) {
+      expect(porque.length, cerrado).toBeGreaterThan(5)
+      expect(porque.length, cerrado).toBeLessThanOrEqual(40)
+      expect(porque, cerrado).not.toMatch(/\.$/)
     }
   })
 })

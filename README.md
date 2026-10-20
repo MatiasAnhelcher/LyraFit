@@ -44,12 +44,27 @@ muestra cada vez que decide algo. Nada de esperar a "sentirte listo".
   eslabón para todo el mundo: el puente de glúteos no le queda grande a nadie, y
   del otro lado de esa cadena está el curl nórdico, donde entrar de más es la
   única forma de lastimarse.
+
+  Ninguna prueba te ubica en algo que no midió. Desde la plancha, el core llega
+  como mucho a la elevación de piernas en el suelo, porque aguantar dos minutos
+  no dice nada de colgarse de una barra; y a la palanca frontal no se entra
+  desde el alta. Sin barra, el plan te dice hasta dónde llega cada cadena.
 - **Motor de progresión** que ajusta el objetivo sesión a sesión y explica en
-  una frase por qué cambió.
+  una frase por qué cambió. Y no sube a ciegas: sin barra frena en
+  el último eslabón que no cuelga (si conseguís una, se cambia en Ajustes; si
+  la dejás de tener, apagarla ahí baja lo que estaba colgado), y la
+  palanca frontal —primero la agrupada, después la negativa— espera a que
+  llegues a 3 series de 8 dominadas completas. Si ya estabas en la palanca
+  sin eso, la app te baja una sola vez a lo último abierto y te dice por qué.
 - **Registro de series** con predicción previa, temporizador de descanso que no
   se atrasa aunque bloquees el teléfono, y la pantalla siempre encendida.
 - **Chequeo diario opcional** de tres preguntas, que sirve sobre todo para que
   el motor no te baje el objetivo por dos días malos.
+- **Avisar una molestia**, a un toque desde Hoy, con el chequeo prendido o
+  apagado y con los músculos como estén, la bisagra incluida. Ese día la
+  cadena baja un eslabón —o se saltea si ya está en el primero—, la sesión lo
+  dice en una línea, las ráfagas no la cargan y el motor no se entera: no es
+  un fallo ni un progreso. La app pregunta dónde, nunca por qué.
 - **Progreso** con una curva de fuerza que no se corta cuando cambiás de
   ejercicio, y el mapa de dónde estás en cada cadena.
 - **Una figura que se mueve** en cada ejercicio, de una postura a la otra. Lo
@@ -148,12 +163,15 @@ node pliegue.mjs   # que nada quede abajo del pliegue, medido en tres teléfonos
 node paleta.mjs    # contraste de cada par del sistema y de cada texto en pantalla
 node movimiento.mjs # que nada se mueva en el esfuerzo y que haya un solo infinito
 node carga.mjs     # los discos: que se ofrezcan con qué, y que lleguen a la base
+node colgado.mjs   # sin barra, nada colgado; y la palanca frontal, recién con 3×8 dominadas
+node datos.mjs     # que ningún dato se pierda sin que la persona lo vea y lo decida
+node molestia.mjs  # avisar una molestia baja la cadena, se dice, y el motor no se entera
 node textos.mjs    # lo que se lee en pantalla: sin hora de acostarse inventada, sin género, sin "rinde más"
 node logo.mjs     # regenera el favicon y los íconos desde el componente de Lyra
 ```
 
 `paleta.mjs` mide el contraste de cada par del sistema y de **todo el texto de
-seis pantallas**, contra el fondo efectivo —el primer ancestro opaco— y no
+siete pantallas**, contra el fondo efectivo —el primer ancestro opaco— y no
 contra el declarado. El proyecto afirmaba tener un validador de paleta desde
 hacía meses y nunca existió; mientras tanto cinco regletas ponían texto blanco
 sobre el acento, que da 2,6:1, mientras el propio CSS documentaba dos secciones
@@ -187,6 +205,16 @@ arranque después de la ráfaga en vez de contenerla— así que esto anota una
 serie, espera a que el tramo termine y lee el reloj. Y comprueba contra la base
 real que el motor haya decidido una vez por cadena y no una por registro, que es
 lo que separa "volumen extra" de "mentirle al motor".
+
+`datos.mjs` corre con el reloj de Playwright en la mano y comprueba contra la
+base real las cinco formas en que la app perdía datos sin avisar: la sesión que
+cruza la medianoche y se rearmaba con el plan del día siguiente; el borrador
+que vencía a las seis horas y se borraba solo; el archivo de restauración que
+pasaba con una fila rota y reemplazaba todo sin preguntar; el cierre que fallaba
+sin decir nada; y "Borrar todo" que dejaba las copias automáticas y decía
+"Listo" igual. Para las fallas no espera a que ocurran: las provoca, rompiendo
+a propósito la escritura en IndexedDB o en la carpeta de copias, y mira que la
+pantalla lo diga y que no se pierda nada.
 
 Los dibujos de los ejercicios se revisan aparte, porque los tests comprueban que
 la geometría cierre pero no que la postura se parezca al ejercicio. Eso hay que
@@ -222,8 +250,10 @@ src/
     biblioteca.ts    los 47 ejercicios de las cinco cadenas, más los de barra
     nutricion.ts     el diario: siete hábitos, cero calorías
     progresion.ts    el motor: cuándo subir, sostener o bajar
+    apertura.ts      qué eslabones están cerrados: sin barra, o sin dominadas
     adherencia.ts    lo que reemplaza a la racha
     estado.ts        el chequeo diario y su línea de base
+    molestia.ts      lo que cambia el día que avisás una molestia
     vitalidad.ts     el delta de energía y la calibración
     rutinas.ts       qué clase de día es cada día, y qué patrones toca
     siguiente.ts     qué viene después, y cómo se escribe y se dice
@@ -231,6 +261,8 @@ src/
     metabolico.ts    el fuelle: qué ráfaga entra en cada hueco, y cuánta
     bajada.ts        el volumen que el motor no mira, y cuánto dura la sesión
     estadisticas.ts  la curva de fuerza, récords, semanas
+    borrador.ts      de qué día es la sesión a medias, y qué hacer con ella
+    copia.ts         la copia de seguridad, revisada fila por fila
   datos/         la persistencia
     db.ts            el esquema de IndexedDB y sus migraciones
     repositorio.ts   la única puerta entre la app y la base
@@ -280,6 +312,17 @@ no una:
   pedido, así que se trata como diagnóstico—;
 - y el aviso en **Ajustes → Tus datos** cuando la app no está instalada, que es
   lo que de verdad la protege en iPhone.
+
+Y como es la única, nada se borra ni se reemplaza sin que lo veas y lo decidas:
+
+- una sesión que quedó sin cerrar se retoma durante seis horas; pasadas, Hoy la
+  ofrece para **guardarla** o **descartarla**, en vez de borrarla sola;
+- la sesión es del día en que empezó, aunque se cierre pasada la medianoche;
+- restaurar un archivo lo revisa fila por fila y, si algo está roto, no toca
+  nada; si está sano, muestra qué trae al lado de lo que vas a reemplazar, pide
+  confirmación y guarda antes una copia automática de lo que había;
+- **Borrar todo** borra también las copias automáticas del teléfono, y dice
+  "Listo" solo cuando terminó.
 
 Cada escritura además deja una marca en la tabla `pendientes`. Hoy nadie las
 lee: es la costura por donde va a entrar la sincronización.

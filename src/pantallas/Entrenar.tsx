@@ -47,7 +47,16 @@ import { NOMBRE_PATRON, POR_ID, cadenaDe } from '@/dominio/biblioteca'
 import { claseDeDia, patronDelBloque, rutinaActiva, semanaActiva } from '@/dominio/rutinas'
 import type { ClaseDeDia } from '@/dominio/rutinas'
 import { ajusteDelDia, bandaSostenida, cadenasCongeladas } from '@/dominio/estado'
+import {
+  avisosDeMolestia,
+  bloqueConMolestia,
+  fueraDeLaMolestia,
+  lineaDeMolestia,
+  molestiasDeLaSesion,
+  type CambioPorMolestia,
+} from '@/dominio/molestia'
 import { seAbreHoy } from '@/dominio/anticipacion'
+import { eslabonesCerrados } from '@/dominio/apertura'
 import { mueveElPlan } from '@/dominio/progresion'
 import { dichoDelDescanso, type Expresion } from '@/dominio/frases'
 import {
@@ -78,13 +87,27 @@ import {
   type Rafaga,
 } from '@/dominio/metabolico'
 import { esVuelta, RECORTE_DE_VUELTA } from '@/dominio/adherencia'
+import {
+  destinoDelBorrador,
+  diaDelBorrador,
+  fechaDelDia,
+  registrosDeLaSesion,
+} from '@/dominio/borrador'
 import { haceCuanto, laVezPasada } from '@/dominio/estadisticas'
-import type { RegistroEjercicio, RegistroRafaga, Serie, TipoSesion } from '@/dominio/tipos'
+import type {
+  PasoDelBorrador,
+  Patron,
+  RegistroRafaga,
+  Serie,
+  SesionEnCurso,
+  TipoSesion,
+} from '@/dominio/tipos'
 import {
   cerrarSesion,
   descartarSesionEnCurso,
   fechaISO,
   guardarSesionEnCurso,
+  guardarSesionSinCerrar,
   leerSesionEnCurso,
   leerAvances,
   leerEstados,
@@ -98,6 +121,7 @@ import { useModoDePantalla, usePantallaDespierta } from '@/hooks/usePantalla'
 import { configurarHaptica, configurarSonido, despertarAudio, sonar, tocar } from '@/respuesta'
 import { Accion, AccionQuieta, Rotulo, nombreUnidad } from '@/componentes/ui'
 import { ComoSeHace } from '@/componentes/comoSeHace'
+import { SesionSinCerrar } from '@/componentes/sinCerrar'
 import { Cierre } from './Cierre'
 
 type Etapa = 'series' | 'fuelle' | 'cierre-serie' | 'preguntas'
@@ -205,6 +229,37 @@ export function Entrenar() {
    */
   const [arrancadaEn, setArrancadaEn] = useState<number | undefined>()
   const [retomada, setRetomada] = useState(false)
+  /**
+   * El día de la sesión, fijo desde que arranca.
+   *
+   * Todo lo que depende del día —la clase del día, qué patrón toca en el
+   * bloque que alterna, el estado sostenido, la vara de la vez pasada— se
+   * calcula con esto y nunca con el reloj. Antes era `new Date()`, y una
+   * sesión arrancada el miércoles a las 23:40 y retomada a las 00:05 se
+   * rearmaba como del jueves: otro ejercicio en el tercer bloque, las series
+   * hechas afuera, y la pantalla igual decía "sesión retomada". Sin recargar
+   * pasaba lo mismo: alcanzaba con que algo hiciera rearmar el plan después
+   * de la medianoche. Se guarda en el borrador en un campo propio.
+   */
+  const [dia, setDia] = useState(() => fechaISO())
+  const fechaDeLaSesion = useMemo(() => fechaDelDia(dia), [dia])
+  /**
+   * Un borrador vencido con trabajo adentro, si se llegó acá directo sin pasar
+   * por Hoy. Mientras esté, no se arranca nada: arrancar escribiría el
+   * borrador nuevo encima del viejo, que es perderlo sin que nadie lo vea.
+   */
+  const [sinCerrar, setSinCerrar] = useState<SesionEnCurso | null>(null)
+  /** Lo que salió mal al cerrar, dicho en la pantalla de las preguntas. */
+  const [errorAlCerrar, setErrorAlCerrar] = useState<string | null>(null)
+  /**
+   * Prendido mientras se cierra la sesión, para que nada vuelva a escribir el
+   * borrador. Guardar la sesión refresca el historial, el historial rearma el
+   * plan, y el plan dispara el efecto que guarda el borrador: si eso llegaba
+   * antes que `resumen`, el borrador que la transacción acababa de borrar
+   * volvía a aparecer, y al abrir Entrenar la sesión se cerraba dos veces.
+   * Lo encontró `datos.mjs` con la prueba por mutación.
+   */
+  const cerrando = useRef(false)
 
   const rutina = preferencias ? rutinaActiva(preferencias) : null
   const semana = preferencias ? semanaActiva(preferencias) : null
@@ -222,7 +277,7 @@ export function Entrenar() {
         ? 'ambos'
         : semana
           ? (() => {
-              const hoy = claseDeDia(semana, new Date())
+              const hoy = claseDeDia(semana, fechaDeLaSesion)
               return hoy === 'descanso' ? 'fuerza' : hoy
             })()
           : 'fuerza'
@@ -286,8 +341,28 @@ export function Entrenar() {
    * medición no es media respuesta, es una respuesta inventada.
    */
   const vitalidadPre = useMemo(
-    () => estados?.find((e) => e.fecha === fechaISO())?.energia,
-    [estados],
+    () => estados?.find((e) => e.fecha === dia)?.energia,
+    [estados, dia],
+  )
+
+  /**
+   * Las cadenas con una molestia avisada hoy, con el chequeo prendido o
+   * apagado. Bajan un eslabón o se saltean, y ninguna ráfaga las carga.
+   *
+   * Más las que la sesión ya traía en el borrador: retirar la molestia a mitad
+   * de camino no puede devolver el eslabón de siempre y dejar afuera las
+   * series anotadas en el de abajo.
+   *
+   * "Hoy" es el día de la sesión, como en todo lo demás de esta pantalla: una
+   * sesión que cruza la medianoche se sigue armando con la molestia del día en
+   * que empezó. Y además con la que se avise pasada la medianoche, que queda
+   * en la fila del día nuevo: es cómo está el cuerpo ahora, y Hoy ya la está
+   * anunciando. Avisarla escribe en `estados`, así que el memo se rehace solo.
+   */
+  const [molestiasRetomadas, setMolestiasRetomadas] = useState<Patron[]>([])
+  const molestias = useMemo(
+    () => molestiasDeLaSesion(estados ?? [], dia, molestiasRetomadas, fechaISO()),
+    [estados, dia, molestiasRetomadas],
   )
 
   /**
@@ -331,17 +406,26 @@ export function Entrenar() {
    * entra directamente donde se había quedado y en silencio: la persona no
    * eligió perder la sesión, así que tampoco tiene que elegir recuperarla. El
    * único aviso es el renglón de abajo, que además ofrece la salida.
+   *
+   * Uno vencido con trabajo adentro no se retoma ni se borra: se muestra, con
+   * "Guardarla" y "Descartarla", igual que en Hoy. Uno vencido y vacío no
+   * tiene nada que perder y se tira. Lo decide `destinoDelBorrador`.
    */
   useEffect(() => {
     let vivo = true
     void leerSesionEnCurso()
       .then((borrador) => {
         if (!vivo) return
-        if (borrador) {
+        const destino = borrador ? destinoDelBorrador(borrador, Date.now()) : null
+        if (borrador && destino === 'ofrecer') {
+          setSinCerrar(borrador)
+          setArrancadaEn(Date.now())
+        } else if (borrador && destino === 'retomar') {
           setIndice(borrador.indice)
           setHechas(borrador.hechas)
           setEtapa(borrador.etapa)
           setRafagas(borrador.rafagas ?? [])
+          setMolestiasRetomadas(borrador.molestias ?? [])
           // Se re-ancla el arranque a lo que se llevaba entrenado, no a la
           // hora original: el hueco entre que te fuiste y volviste no es
           // tiempo de entrenamiento.
@@ -349,8 +433,12 @@ export function Entrenar() {
           if (borrador.corta) setCortaRetomada(true)
           if (borrador.diaDeFuelle) setFuelleRetomado(true)
           if (borrador.densa) setDensaRetomada(true)
+          // El día de la sesión, no el de hoy: es lo que mantiene el mismo
+          // plan aunque el reloj haya pasado la medianoche.
+          setDia(diaDelBorrador(borrador))
           setRetomada(true)
         } else {
+          if (borrador) void descartarSesionEnCurso()
           // El arranque es ahora, no la primera serie anotada: entre abrir la
           // pantalla y anotar hay una entrada en calor que también es la sesión.
           setArrancadaEn(Date.now())
@@ -363,38 +451,6 @@ export function Entrenar() {
       vivo = false
     }
   }, [])
-
-  /**
-   * Y guardarlo, después de cada cambio.
-   *
-   * Se escribe en IndexedDB y no en `sessionStorage` a propósito: iOS descarta
-   * el sessionStorage de una pestaña reciclada, que es justamente el caso que
-   * esto tiene que sobrevivir.
-   *
-   * No se guarda una sesión vacía. Un borrador sin una sola serie anotada no
-   * tiene nada que restaurar, y dejarlo escrito haría que abrir la pantalla y
-   * salir cuente como "sesión a medio hacer" para siempre.
-   */
-  useEffect(() => {
-    if (!listo || resumen) return
-    const algo =
-      Object.values(hechas).some((series) => series.length > 0) || rafagas.length > 0
-    if (!algo) return
-    const desde = arrancadaEn ?? Date.now()
-    void guardarSesionEnCurso({
-      arrancadaEn: desde,
-      // Se recalcula acá y no se toma del cronómetro para no meter `duracion`
-      // como dependencia del efecto: escribiría en la base una vez por segundo.
-      duracionAcumulada: Math.max(0, Math.round((Date.now() - desde) / 1000)),
-      corta: esCorta,
-      diaDeFuelle: esDiaDeFuelle,
-      densa: esDiaDenso,
-      indice,
-      etapa,
-      hechas,
-      ...(rafagas.length > 0 ? { rafagas } : {}),
-    })
-  }, [listo, resumen, hechas, indice, etapa, arrancadaEn, esCorta, esDiaDeFuelle, esDiaDenso, rafagas])
 
   /**
    * Los tres últimos segundos del descanso, en la piel.
@@ -479,10 +535,10 @@ export function Entrenar() {
         ? 'fuelle'
         : esCorta
           ? 'corta'
-          : esVuelta(historial ?? [], fechaISO())
+          : esVuelta(historial ?? [], dia)
             ? 'vuelta'
             : 'plan',
-    [esDiaDeFuelle, esCorta, historial],
+    [esDiaDeFuelle, esCorta, historial, dia],
   )
 
   /**
@@ -509,10 +565,10 @@ export function Entrenar() {
   /** El factor del día: estado sostenido y sesión de vuelta se multiplican. */
   const factor = useMemo(() => {
     if (!estados || !historial) return 1
-    const ajuste = ajusteDelDia(bandaSostenida(estados, fechaISO()))
-    const vuelta = esVuelta(historial, fechaISO()) ? RECORTE_DE_VUELTA : 1
+    const ajuste = ajusteDelDia(bandaSostenida(estados, dia))
+    const vuelta = esVuelta(historial, dia) ? RECORTE_DE_VUELTA : 1
     return ajuste.factor * vuelta
-  }, [estados, historial])
+  }, [estados, historial, dia])
 
   /**
    * Si hay barra con discos, que es lo que decide si los accesorios existen.
@@ -530,19 +586,25 @@ export function Entrenar() {
    * tocado el sonido sería peor que el bug.
    */
   const tieneBarraCargable = (preferencias?.cargaMaximaKg ?? 0) > 0
+  /** La de dominadas, por el mismo motivo: un booleano y en las dependencias. */
+  const tieneBarra = preferencias?.tieneBarra !== false
 
-  /** Los ejercicios concretos de la sesión, según el avance de cada patrón. */
-  const plan = useMemo(() => {
-    if (!rutina || !semana || !avances) return []
+  /**
+   * Los ejercicios concretos de la sesión, según el avance de cada patrón, y
+   * lo que la molestia de hoy le cambió a cada cadena, para decirlo.
+   */
+  const { plan, avisos } = useMemo(() => {
+    if (!rutina || !semana || !avances) return { plan: [], avisos: [] }
+    const cambios: { patron: Patron; cambio: CambioPorMolestia }[] = []
     // El `sinEjerciciosRepetidos` de afuera no es higiene: en un día denso con
     // una rutina por grupo, el mismo ejercicio entraba dos veces —la bajada
     // del bloque de cadena y el bloque de volumen resuelven al mismo eslabón—
     // y las dos entradas compartían el arreglo de series, porque `hechas` se
     // indexa por id de ejercicio y el plan es posicional.
-    return sinEjerciciosRepetidos(rutina.bloques.flatMap((bloqueDelPlan) => {
+    const entradas = sinEjerciciosRepetidos(rutina.bloques.flatMap((bloqueDelPlan) => {
       const bloque = {
         ...bloqueDelPlan,
-        patron: patronDelBloque(bloqueDelPlan, semana, new Date()),
+        patron: patronDelBloque(bloqueDelPlan, semana, fechaDeLaSesion),
       }
       const avance = avances.get(bloque.patron)
       // La misma resolución que hace `Hoy`, desde el dominio: tres clases de
@@ -554,12 +616,29 @@ export function Entrenar() {
         tieneBarraCargable,
       })
       if (!resuelto || !avance) return []
-      const { ejercicio, objetivo: delBloque, accesorio } = resuelto
+      // La molestia de hoy, con la misma función que usa `Hoy`. Lo que ya
+      // tiene series anotadas en esta sesión no se toca: cambiarlo a mitad de
+      // camino dejaría esas series fuera del plan, y el cierre no las
+      // guardaría.
+      const conMolestia = bloqueConMolestia(
+        resuelto,
+        molestias,
+        POR_ID,
+        cadenaDe(bloque.patron),
+        { yaEmpezado: (hechas[resuelto.ejercicio.id]?.length ?? 0) > 0 },
+      )
+      if (conMolestia.cambio === 'saltea') {
+        cambios.push({ patron: bloque.patron, cambio: 'saltea' })
+        return []
+      }
+      const porMolestia = conMolestia.cambio === 'baja'
+      if (porMolestia) cambios.push({ patron: bloque.patron, cambio: 'baja' })
+      const { ejercicio, objetivo: delBloque, accesorio } = conMolestia
       // La vara de la vez pasada manda en un accesorio: el motor no lo
       // progresa —y no debe— así que la doble progresión la lleva la persona,
       // con el número de la última vez delante.
       const varaAccesoria = accesorio
-        ? laVezPasada(historial ?? [], ejercicio.id, fechaISO())
+        ? laVezPasada(historial ?? [], ejercicio.id, dia)
         : null
       const base = varaAccesoria
         ? {
@@ -577,17 +656,33 @@ export function Entrenar() {
       // La vez pasada de ESTE ejercicio, para poner una vara adentro de cada
       // casillero. Es lo que hace que la segunda sesión no se sienta idéntica
       // a la primera: los casilleros vacíos ya no están vacíos.
-      const antes = historial ? laVezPasada(historial, ejercicio.id, fechaISO()) : null
+      // En el eslabón bajado por una molestia, no: la vez pasada de ese
+      // eslabón puede ser su techo, y un 12 adentro del casillero invita a
+      // buscar 12 justo en la zona que avisó, con el objetivo pidiendo el piso.
+      // Es lo mismo que hace la bajada, que tampoco lleva vara.
+      const antes =
+        historial && !porMolestia ? laVezPasada(historial, ejercicio.id, dia) : null
       // Y si esta sesión, cumplida, abre el eslabón siguiente. Solo cuando la
       // sesión de verdad mueve la progresión: en una corta, una de vuelta o una
       // cadena congelada el dato sigue siendo correcto y la promesa sería falsa.
       const cuenta =
         mueveElPlan(tipo) &&
-        !ajusteDelDia(bandaSostenida(estados ?? [], fechaISO())).neutra &&
-        !cadenasCongeladas(estados ?? [], fechaISO()).has(bloque.patron)
+        !ajusteDelDia(bandaSostenida(estados ?? [], dia)).neutra &&
+        !cadenasCongeladas(estados ?? [], dia).has(bloque.patron)
       // Un accesorio nunca abre un eslabón: no está en ninguna cadena, o es el
-      // anterior al que ya tenés. Anunciarlo sería una promesa falsa.
-      const abre = accesorio ? null : seAbreHoy(avance, cadenaDe(bloque.patron), POR_ID, cuenta)
+      // anterior al que ya tenés. Anunciarlo sería una promesa falsa. El
+      // eslabón bajado por una molestia, tampoco: no es el del motor. Y un
+      // eslabón cerrado tampoco: el motor no lo va a abrir aunque cumplas.
+      const abre =
+        accesorio || porMolestia
+          ? null
+          : seAbreHoy(
+              avance,
+              cadenaDe(bloque.patron),
+              POR_ID,
+              cuenta,
+              eslabonesCerrados(cadenaDe(bloque.patron), avances, tieneBarra),
+            )
       const duro = {
         ejercicio,
         objetivo: { series, cantidad, ...(base.kg !== undefined ? { kg: base.kg } : {}) },
@@ -596,8 +691,10 @@ export function Entrenar() {
         descansoSegundos: ejercicio.descansoSegundos,
         // Un accesorio ocupa el lugar de una bajada: marcarlo como tal lo deja
         // fuera de la curva de fuerza y del cálculo de rendimiento, que es
-        // donde no tiene nada que hacer.
-        bajada: accesorio,
+        // donde no tiene nada que hacer. El eslabón bajado por una molestia,
+        // lo mismo: hacer el de abajo no es haber perdido fuerza.
+        bajada: accesorio || porMolestia,
+        porMolestia,
       }
 
       // Y, en las sesiones densas, volumen en el eslabón anterior.
@@ -607,8 +704,9 @@ export function Entrenar() {
       // y la curva de fuerza se queda con el máximo del día, así que tampoco
       // puede hundirla. Las dos cosas tienen su test en `bajada.test.ts`.
       // Un accesorio no lleva bajada encima: ya ES el trabajo liviano, o es un
-      // movimiento con barra sin eslabón anterior del que bajar.
-      if (!esDensa || accesorio) return [duro]
+      // movimiento con barra sin eslabón anterior del que bajar. Una cadena
+      // con molestia tampoco: ya bajó, y no se carga dos veces.
+      if (!esDensa || accesorio || porMolestia) return [duro]
       const abajo = bajadaDe(ejercicio, cadenaDe(bloque.patron), POR_ID)
       if (!abajo) return [duro]
       return [
@@ -620,10 +718,107 @@ export function Entrenar() {
           abre: null,
           descansoSegundos: DESCANSO_DE_BAJADA,
           bajada: true,
+          porMolestia: false,
         },
       ]
     }))
-  }, [rutina, semana, avances, esCorta, esDensa, factor, historial, estados, tipo, tieneBarraCargable])
+    return {
+      plan: entradas,
+      avisos: avisosDeMolestia(
+        cambios,
+        entradas.map((e) => e.ejercicio.patron),
+      ),
+    }
+  }, [
+    rutina,
+    semana,
+    avances,
+    esCorta,
+    esDensa,
+    factor,
+    historial,
+    estados,
+    tipo,
+    tieneBarraCargable,
+    tieneBarra,
+    dia,
+    fechaDeLaSesion,
+    molestias,
+    hechas,
+  ])
+
+  /**
+   * Lo que el plan pide de cada ejercicio, en la forma en que lo guarda el
+   * borrador. Es lo que permite guardar un borrador vencido días después tal
+   * como lo habría cerrado "Cerrar la sesión", y es también lo que usa
+   * `terminar`: los dos cierres salen de la misma cuenta.
+   */
+  const pasos: PasoDelBorrador[] = useMemo(
+    () =>
+      plan.map(({ ejercicio, objetivo, bajada }) => ({
+        ejercicioId: ejercicio.id,
+        objetivo,
+        ...(bajada ? { bajada: true as const } : {}),
+      })),
+    [plan],
+  )
+
+  /**
+   * Y guardarlo, después de cada cambio.
+   *
+   * Se escribe en IndexedDB y no en `sessionStorage` a propósito: iOS descarta
+   * el sessionStorage de una pestaña reciclada, que es justamente el caso que
+   * esto tiene que sobrevivir.
+   *
+   * No se guarda una sesión vacía. Un borrador sin una sola serie anotada no
+   * tiene nada que restaurar, y dejarlo escrito haría que abrir la pantalla y
+   * salir cuente como "sesión a medio hacer" para siempre.
+   *
+   * Tampoco se escribe sin plan ni con un borrador vencido esperando
+   * respuesta: el primero dejaría `pasos` vacío —y el borrador sin con qué
+   * guardarse— y el segundo pisaría la sesión que todavía no se mostró. Va
+   * acá abajo y no arriba porque necesita el plan y el tipo ya calculados.
+   */
+  useEffect(() => {
+    if (!listo || resumen || sinCerrar || cerrando.current || pasos.length === 0) return
+    const algo =
+      Object.values(hechas).some((series) => series.length > 0) || rafagas.length > 0
+    if (!algo) return
+    const desde = arrancadaEn ?? Date.now()
+    void guardarSesionEnCurso({
+      arrancadaEn: desde,
+      // Se recalcula acá y no se toma del cronómetro para no meter `duracion`
+      // como dependencia del efecto: escribiría en la base una vez por segundo.
+      duracionAcumulada: Math.max(0, Math.round((Date.now() - desde) / 1000)),
+      corta: esCorta,
+      diaDeFuelle: esDiaDeFuelle,
+      densa: esDiaDenso,
+      indice,
+      etapa,
+      hechas,
+      ...(rafagas.length > 0 ? { rafagas } : {}),
+      ...(molestias.size > 0 ? { molestias: [...molestias] } : {}),
+      dia,
+      pasos,
+      tipo,
+    })
+  }, [
+    listo,
+    resumen,
+    sinCerrar,
+    hechas,
+    indice,
+    etapa,
+    arrancadaEn,
+    esCorta,
+    esDiaDeFuelle,
+    esDiaDenso,
+    rafagas,
+    molestias,
+    dia,
+    pasos,
+    tipo,
+  ])
 
   /**
    * El bloque de fuelle: una prescripción fija, no un relleno.
@@ -636,16 +831,93 @@ export function Entrenar() {
 
   const fuelle: PasoDeFuelle[] = useMemo(() => {
     if (densidadDelBloque === 'apagada') return []
+    // Las ráfagas del bloque tampoco cargan la cadena con molestia: el bloque
+    // es lo que se hace sin que nadie lo mida, y por eso mismo no puede caer
+    // encima de la zona que avisó.
     if (esDiaDeFuelle) {
-      return bloqueDeFuelle(minutosDelDiaDeFuelle(densidadDelBloque), equipo, densidadDelBloque)
+      return bloqueDeFuelle(
+        minutosDelDiaDeFuelle(densidadDelBloque),
+        equipo,
+        densidadDelBloque,
+        molestias,
+      )
     }
     if (!esDensa) return []
     return bloqueDeFuelle(
       minutosDelBloque(minutosDeFuerza, densidadDelBloque),
       equipo,
       densidadDelBloque,
+      molestias,
     )
-  }, [esDensa, esDiaDeFuelle, densidadDelBloque, equipo, minutosDeFuerza])
+  }, [esDensa, esDiaDeFuelle, densidadDelBloque, equipo, minutosDeFuerza, molestias])
+
+  // Un borrador vencido con trabajo adentro, si se llegó directo: primero se
+  // decide qué hacer con él, y recién después arranca la sesión de hoy.
+  function arrancarDeNuevo() {
+    setSinCerrar(null)
+    setDia(fechaISO())
+    setArrancadaEn(Date.now())
+  }
+
+  if (sinCerrar) {
+    return (
+      <div className="mx-auto flex min-h-dvh w-full max-w-lg flex-col justify-center px-4">
+        <SesionSinCerrar
+          borrador={sinCerrar}
+          hoy={fechaISO()}
+          alGuardar={async () => {
+            await guardarSesionSinCerrar()
+            void respaldarEnSilencio()
+            arrancarDeNuevo()
+          }}
+          alDescartar={async () => {
+            await descartarSesionEnCurso()
+            arrancarDeNuevo()
+          }}
+        />
+        <button onClick={() => navegar('/')} className="rotulo mt-10 self-start">
+          Salir
+        </button>
+      </div>
+    )
+  }
+
+  /*
+   * Un plan vacío por la molestia no es una sesión que todavía carga.
+   *
+   * Pasa cuando todo lo que la rutina pedía hoy es de la cadena que avisó y
+   * esa cadena está en su primer eslabón —o lo demás necesita una barra que no
+   * hay—. Sin esto la pantalla se quedaba en "preparando" para siempre: se
+   * dice lo que pasó y se ofrece volver.
+   *
+   * Va después de la sesión sin cerrar y no antes: si hay un borrador vencido
+   * con trabajo adentro, lo primero es decidir qué hacer con él, y eso no
+   * puede taparlo un aviso sobre la sesión de hoy.
+   */
+  if (avances && preferencias && historial && listo && plan.length === 0 && avisos.length > 0) {
+    return (
+      <div className="flex min-h-dvh flex-col">
+        <main className="mx-auto flex w-full max-w-lg flex-1 flex-col justify-center px-4">
+          <Rotulo>HOY</Rotulo>
+          {avisos.map((aviso) => (
+            <p
+              key={aviso.patron}
+              className="mt-3 max-w-[34ch] text-lg leading-snug"
+              data-prueba="linea-molestia"
+            >
+              {lineaDeMolestia(aviso)}
+            </p>
+          ))}
+          <p className="mt-4 max-w-[36ch] text-sm leading-relaxed text-[var(--color-glosa)]">
+            Sin esa cadena, la sesión de hoy se queda sin ejercicios.
+          </p>
+        </main>
+        <div className="mt-auto">
+          <AccionQuieta onClick={() => navegar('/')}>Volver</AccionQuieta>
+        </div>
+      </div>
+    )
+  }
 
   if (!avances || !preferencias || !historial || !listo || plan.length === 0) {
     return (
@@ -664,7 +936,7 @@ export function Entrenar() {
   // que se acota: entrar por un índice que no existe rompe la pantalla entera.
   const enCurso = Math.min(Math.max(indice, 0), plan.length - 1)
   const paso = plan[enCurso]!
-  const { ejercicio, objetivo, antes, abre, descansoSegundos, bajada } = paso
+  const { ejercicio, objetivo, antes, abre, descansoSegundos, bajada, porMolestia } = paso
 
   /* Los kilos arrancan donde quedaron la vez pasada. Va en un efecto y no en
      el estado inicial porque el ejercicio cambia sin que el componente se
@@ -720,8 +992,14 @@ export function Entrenar() {
     series.length === 0 &&
     predicho === null
 
-  // La serie de cierre: el ejercicio más fácil de la sesión, al 60%.
-  const cierre = plan.reduce((facil, p) => (p.ejercicio.ccr < facil.ejercicio.ccr ? p : facil), plan[0]!)
+  // La serie de cierre: el ejercicio más fácil de la sesión, al 60%. Fuera de
+  // la cadena con molestia mientras haya otra cosa: el eslabón bajado suele
+  // ser el más fácil, y una serie más ahí es volver a cargar la zona.
+  const candidatasDeCierre = fueraDeLaMolestia(plan, molestias)
+  const cierre = candidatasDeCierre.reduce(
+    (facil, p) => (p.ejercicio.ccr < facil.ejercicio.ccr ? p : facil),
+    candidatasDeCierre[0]!,
+  )
   const objetivoCierre = Math.max(1, Math.round(cierre.objetivo.cantidad * 0.6))
 
   /**
@@ -796,6 +1074,8 @@ export function Entrenar() {
       // nunca va a devolver algo que lo cargue: saltos de sentadilla antes de
       // una serie de sentadillas le costarían repeticiones, y el motor leería
       // esas repeticiones de menos como pérdida de fuerza.
+      // Y tampoco una que cargue una cadena con molestia, aunque no sea la que
+      // viene: el filtro mira todo lo que la ráfaga carga.
       const elegida = esDensa
         ? rafagaDelDescanso({
             descansoSegundos,
@@ -803,6 +1083,7 @@ export function Entrenar() {
             equipo,
             densidad,
             indice: rafagas.length,
+            evitar: molestias,
           })
         : null
       setRafagaActual(
@@ -875,9 +1156,14 @@ export function Entrenar() {
     setPredicho(null)
     setKgPuestos({})
     setArrancadaEn(Date.now())
+    // Una sesión nueva es del día de hoy, aunque la descartada fuera de ayer.
+    setDia(fechaISO())
     setCortaRetomada(false)
     setRetomada(false)
     setRafagas([])
+    // De cero es de cero: la sesión nueva se arma con la molestia de hoy, no
+    // con la del borrador que se acaba de descartar.
+    setMolestiasRetomadas([])
     cortarDescanso()
   }
 
@@ -895,30 +1181,34 @@ export function Entrenar() {
     vitalidadPost?: number
   }) {
     setGuardando(true)
+    setErrorAlCerrar(null)
+    cerrando.current = true
     cortarDescanso()
-
-    const registros: RegistroEjercicio[] = plan.map(({ ejercicio: e, objetivo: o, bajada: b }) => ({
-      ejercicioId: e.id,
-      objetivo: o,
-      series: hechas[e.id] ?? [],
-      ...(b ? { bajada: true as const } : {}),
-    }))
 
     try {
       const cerrada = await cerrarSesion({
-        registros,
+        registros: registrosDeLaSesion(pasos, hechas),
         duracionSegundos: duracion,
         tipo,
         ...(rafagas.length > 0 ? { rafagas } : {}),
         ...(esDensa ? { densa: true as const } : {}),
         ...(vitalidadPre !== undefined ? { vitalidadPre } : {}),
         ...datos,
+        fecha: dia,
+        // El borrador se borra adentro de la misma transacción que guarda la
+        // sesión: o quedan las dos cosas hechas o ninguna.
+        cierraElBorrador: true,
       })
       setResumen(cerrada)
-      // La sesión ya está guardada de verdad: el borrador dejó de hacer falta.
-      await descartarSesionEnCurso()
       // El respaldo ocurre solo, sin avisar y sin poder romper nada.
       void respaldarEnSilencio()
+    } catch {
+      // Antes no había `catch`: el botón dejaba de decir "Guardando…" y no
+      // pasaba nada más. Ahora se dice, y no se pierde nada: la transacción
+      // no llegó a borrar el borrador, así que la sesión sigue entera acá y
+      // también si se cierra la app.
+      cerrando.current = false
+      setErrorAlCerrar('No se pudo guardar. Tu sesión sigue acá: probá de nuevo.')
     } finally {
       setGuardando(false)
     }
@@ -930,6 +1220,7 @@ export function Entrenar() {
     return (
       <Preguntas
         guardando={guardando}
+        error={errorAlCerrar}
         onListo={(datos) => void terminar(datos)}
       />
     )
@@ -1041,6 +1332,32 @@ export function Entrenar() {
             <span className="text-[var(--color-tinta)]">{abre.nombre.toLowerCase()}</span>.
           </p>
         )}
+
+        {/* La molestia, dicha donde cambia algo. La cadena bajada lo dice en
+            su propio ejercicio; la salteada no tiene ejercicio donde decirlo,
+            así que va en el primero, que es donde la persona está mirando
+            cuando la sesión arranca. Una línea, con el motivo y sin retar:
+            avisar fue lo correcto. Mismo tono que la víspera, por lo mismo. */}
+        {porMolestia && (
+          <p
+            className="mt-2 max-w-[34ch] text-sm leading-relaxed text-[var(--color-glosa)]"
+            data-prueba="linea-molestia"
+          >
+            {lineaDeMolestia({ patron: ejercicio.patron, cambio: 'baja' })}
+          </p>
+        )}
+        {enCurso === 0 &&
+          avisos
+            .filter((aviso) => aviso.cambio === 'saltea')
+            .map((aviso) => (
+              <p
+                key={aviso.patron}
+                className="mt-2 max-w-[34ch] text-sm leading-relaxed text-[var(--color-glosa)]"
+                data-prueba="linea-molestia"
+              >
+                {lineaDeMolestia(aviso)}
+              </p>
+            ))}
 
         {/* Los casilleros, con la vara adentro.
             Un casillero vacío no dice nada; un casillero con el número de la
@@ -1558,9 +1875,12 @@ function SerieDeCierre({
 /** Las preguntas del final. Tres toques, todos opcionales. */
 function Preguntas({
   guardando,
+  error,
   onListo,
 }: {
   guardando: boolean
+  /** Si el último intento de cerrar falló, qué decir. */
+  error: string | null
   onListo: (datos: { esfuerzo?: number; animo?: number; vitalidadPost?: number }) => void
 }) {
   const [esfuerzo, setEsfuerzo] = useState<number | undefined>()
@@ -1618,6 +1938,17 @@ function Preguntas({
           Nada de esto es obligatorio. Lo usa el motor para no bajarte el objetivo por un mal día,
           y para mostrarte con tus propios datos qué te deja entrenar.
         </p>
+
+        {/* En ámbar, que es el techo de alarma de esta pantalla: el rojo de
+            borrar no existe en el entrenamiento. */}
+        {error && (
+          <p
+            role="alert"
+            className="mt-6 max-w-[38ch] text-sm leading-relaxed text-[var(--color-ambar)]"
+          >
+            {error}
+          </p>
+        )}
       </main>
 
       <div className="mt-auto">

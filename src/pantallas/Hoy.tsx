@@ -58,21 +58,33 @@ import {
   sesionesDeVida,
 } from '@/dominio/adherencia'
 import { laVezPasada } from '@/dominio/estadisticas'
-import { bandaSostenida, ajusteDelDia, cadenasCongeladas } from '@/dominio/estado'
+import {
+  bandaSostenida,
+  ajusteDelDia,
+  cadenasCongeladas,
+  contestoElChequeo,
+} from '@/dominio/estado'
+import { bloqueConMolestia, molestiasDeHoy } from '@/dominio/molestia'
 import { seAbreHoy } from '@/dominio/anticipacion'
+import { avisosDeLaRevision, eslabonesCerrados } from '@/dominio/apertura'
 import { PISO_DE_PROTEINA, senalesDelDia } from '@/dominio/nutricion'
 import { mueveElPlan } from '@/dominio/progresion'
 import {
+  descartarSesionEnCurso,
   fechaISO,
+  guardarSesionSinCerrar,
   leerAvances,
   leerDiaDelDiario,
   leerEstadoDeHoy,
   leerEstados,
   guardarPreferencias,
   leerPreferencias,
+  leerSesionSinCerrar,
   leerSesiones,
 } from '@/datos/repositorio'
+import { respaldarEnSilencio } from '@/datos/respaldo'
 import { despertarAudio } from '@/respuesta'
+import { SesionSinCerrar } from '@/componentes/sinCerrar'
 import { Carta } from '@/componentes/carta'
 import { Lyra } from '@/componentes/lyra'
 import { IconoComida, IconoFuerza, IconoSueno } from '@/componentes/iconos'
@@ -126,6 +138,15 @@ export function Hoy() {
   const estados = useLiveQuery(leerEstados, [])
   const estadoDeHoy = useLiveQuery(leerEstadoDeHoy, [])
   const diaDelDiario = useLiveQuery(() => leerDiaDelDiario(), [])
+  /**
+   * La sesión que quedó sin cerrar, si la hay: un borrador vencido con
+   * trabajo adentro. Antes se borraba sola, sin mostrarse; ahora aparece acá
+   * hasta que la persona elige qué hacer con ella.
+   */
+  const sinCerrar = useLiveQuery(leerSesionSinCerrar, [])
+  const [sinCerrarResuelta, setSinCerrarResuelta] = useState<'guardada' | 'descartada' | null>(
+    null,
+  )
 
   if (!avances || !preferencias || !sesiones || !estados) {
     return (
@@ -164,6 +185,13 @@ export function Hoy() {
   const vuelve = esVuelta(sesiones, fecha)
 
   const congeladas = cadenasCongeladas(estados, fecha)
+  /**
+   * La molestia avisada hoy, con el chequeo prendido o apagado. Cambia el plan
+   * de hoy —esa cadena baja un eslabón o se saltea— y Hoy lo tiene que
+   * anunciar igual que lo va a pedir `Entrenar`.
+   */
+  const molestias = molestiasDeHoy(estados, fecha)
+  const molestiaDeHoy = [...molestias][0]
 
   /**
    * El factor con el que se anuncia el objetivo, y tiene que ser EL MISMO que
@@ -178,6 +206,9 @@ export function Hoy() {
   const factorDelDia = ajuste.factor * (vuelve ? RECORTE_DE_VUELTA : 1)
 
   const tieneBarraCargable = (preferencias.cargaMaximaKg ?? 0) > 0
+  // La de dominadas, que decide qué eslabones puede abrir el motor. Ausente
+  // cuenta como sí, que es lo que la app asumió siempre.
+  const tieneBarra = preferencias.tieneBarra !== false
 
   const bloques = rutina.bloques.flatMap((bloqueDelPlan) => {
     // Un bloque puede alternar entre dos patrones según el día. La resolución
@@ -191,16 +222,23 @@ export function Hoy() {
     const resuelto = ejercicioDelBloque(bloque, avance, POR_ID, cadenaDe(bloque.patron), {
       tieneBarraCargable,
     })
-    if (!resuelto) return []
-    const { ejercicio, objetivo, accesorio } = resuelto
-    if (!avance) return []
+    if (!resuelto || !avance) return []
+    // Y la molestia, también desde el dominio y por el mismo motivo: si Hoy
+    // anunciara la cadena entera y la sesión la pidiera bajada, la promesa
+    // sería falsa justo donde más importa.
+    const conMolestia = bloqueConMolestia(resuelto, molestias, POR_ID, cadenaDe(bloque.patron))
+    if (conMolestia.cambio === 'saltea') return []
+    const { ejercicio, objetivo, accesorio } = conMolestia
+    const porMolestia = conMolestia.cambio === 'baja'
 
     // Si la sesión de hoy no mueve la progresión, no hay nada que anticipar:
     // el dato sería correcto y la promesa igual sería falsa.
     const cuenta =
       mueveElPlan(vuelve ? 'vuelta' : 'plan') && !ajuste.neutra && !congeladas.has(bloque.patron)
 
-    const antes = laVezPasada(sesiones, ejercicio.id, fecha)
+    // Sin vara en el eslabón bajado por una molestia, igual que en la sesión:
+    // la vez pasada de ese eslabón puede ser su techo, y hoy se pide el piso.
+    const antes = porMolestia ? null : laVezPasada(sesiones, ejercicio.id, fecha)
     return [
       {
         patron: bloque.patron,
@@ -228,12 +266,24 @@ export function Hoy() {
               }
             : objetivo,
         accesorio,
+        porMolestia,
         // Lo que hiciste la última vez que te tocó ESTE ejercicio. Si cambiaste
         // de eslabón la semana pasada no hay con qué comparar, y no se inventa.
         antes,
         // Un accesorio nunca abre un eslabón: no está en ninguna cadena, o es
-        // el anterior al que ya tenés. Anunciarlo sería una promesa falsa.
-        abre: accesorio ? null : seAbreHoy(avance, cadenaDe(bloque.patron), POR_ID, cuenta),
+        // el anterior al que ya tenés. Anunciarlo sería una promesa falsa. El
+        // eslabón bajado por una molestia, tampoco: no es el del motor. Y un
+        // eslabón cerrado tampoco: el motor no lo va a abrir aunque cumplas.
+        abre:
+          accesorio || porMolestia
+            ? null
+            : seAbreHoy(
+                avance,
+                cadenaDe(bloque.patron),
+                POR_ID,
+                cuenta,
+                eslabonesCerrados(cadenaDe(bloque.patron), avances, tieneBarra),
+              ),
       },
     ]
   })
@@ -280,11 +330,13 @@ export function Hoy() {
   // con una rutina por grupo el mismo ejercicio salía dos veces, y acá eso
   // inflaba la estimación de minutos que Hoy anuncia antes de empezar.
   const entradas = sinEjerciciosRepetidos(
-    bloques.flatMap(({ patron, ejercicio, objetivo, accesorio }) => {
-      const duro = { ejercicio, objetivo, bajada: false }
+    bloques.flatMap(({ patron, ejercicio, objetivo, accesorio, porMolestia }) => {
+      const duro = { ejercicio, objetivo, bajada: porMolestia }
       // Un accesorio no lleva bajada: ya ES el trabajo liviano, o es un
-      // movimiento con barra que no tiene eslabón anterior del que bajar.
-      if (!esDensa || accesorio) return [duro]
+      // movimiento con barra que no tiene eslabón anterior del que bajar. El
+      // eslabón bajado por una molestia, tampoco: ya ES el de abajo, y la
+      // cadena no se carga dos veces el día que avisa.
+      if (!esDensa || accesorio || porMolestia) return [duro]
       const abajo = bajadaDe(ejercicio, cadenaDe(patron), POR_ID)
       return abajo
         ? [duro, { ...abajo, descansoSegundos: DESCANSO_DE_BAJADA, bajada: true }]
@@ -301,6 +353,7 @@ export function Hoy() {
             : minutosDelBloque(minutosDeSesion(entradas), densidadDelDia),
           equipo,
           densidadDelDia,
+          molestias,
         ).reduce((suma, paso) => suma + paso.segundos + paso.descansoSegundos, 0)
 
   const minutos = esDiaDeFuelle
@@ -368,6 +421,18 @@ export function Hoy() {
    * el mismo día es una lista, y una lista no anticipa nada.
    */
   const vispera = bloques.find((b) => b.abre)
+
+  /**
+   * Si la revisión única bajó algo de la palanca frontal, por qué. Se dice
+   * hasta la próxima sesión, o hasta que algo lo mueva de donde lo bajamos, y
+   * se calla solo: lo decide el dominio con lo que ya está guardado.
+   */
+  const avisosDeBajada = avisosDeLaRevision(
+    preferencias.revisionDeRequisitos,
+    sesiones,
+    avances,
+    tieneBarra,
+  )
 
   /**
    * CUÁNTAS FILAS ENTRAN EN HOY, Y POR QUÉ HAY UN TOPE.
@@ -514,7 +579,40 @@ export function Hoy() {
         </div>
       )}
 
-      {preferencias.estadoActivo && !estadoDeHoy && (
+      {/* La sesión sin cerrar va ARRIBA de todo lo que toca hoy, y empuja
+          `Empezar` hacia abajo a sabiendas: es un estado de excepción, que dura
+          hasta el primer toque, y es lo único de la pantalla que se puede
+          perder. Si igual se toca `Empezar`, Entrenar pregunta lo mismo antes
+          de arrancar: nada se pisa sin mostrarse. */}
+      {sinCerrar ? (
+        <div className="mt-8">
+          <SesionSinCerrar
+            borrador={sinCerrar}
+            hoy={fecha}
+            alGuardar={async () => {
+              await guardarSesionSinCerrar()
+              void respaldarEnSilencio()
+              setSinCerrarResuelta('guardada')
+            }}
+            alDescartar={async () => {
+              await descartarSesionEnCurso()
+              setSinCerrarResuelta('descartada')
+            }}
+          />
+        </div>
+      ) : (
+        sinCerrarResuelta && (
+          <p className="mt-8 text-sm text-[var(--color-glosa)]" role="status">
+            {sinCerrarResuelta === 'guardada'
+              ? 'Listo: la sesión quedó guardada en tu historial.'
+              : 'Listo: la sesión se descartó.'}
+          </p>
+        )
+      )}
+
+      {/* Una fila de hoy con la molestia sola —avisada desde abajo— no es el
+          chequeo contestado: la pregunta sigue en pie. */}
+      {preferencias.estadoActivo && !(estadoDeHoy && contestoElChequeo(estadoDeHoy)) && (
         <button
           onClick={() => navegar('/estado')}
           className="registro mt-8 w-full text-left"
@@ -564,7 +662,7 @@ export function Hoy() {
             va es la lista de lo que hoy no toca. */}
         {esDiaDeEntrenar && !esDiaDeFuelle && (
         <div className="registro mt-3" data-prueba="plan-de-hoy">
-          {filasVisibles.map(({ patron, ejercicio, antes, objetivo, accesorio }, i) => {
+          {filasVisibles.map(({ patron, ejercicio, antes, objetivo, accesorio, porMolestia }, i) => {
             const cadena = cadenaDe(patron)
             const posicion = cadena.ejercicios.indexOf(ejercicio.id) + 1
             return (
@@ -589,7 +687,11 @@ export function Hoy() {
                         ninguna, o es el eslabón de abajo— así que decir "3/9"
                         sería inventar un lugar que no ocupa. */}
                     {NOMBRE_PATRON[patron]}
-                    {accesorio ? ' · accesorio' : ` · ${posicion}/${cadena.ejercicios.length}`}
+                    {accesorio
+                      ? ' · accesorio'
+                      : porMolestia
+                        ? ' · por molestia'
+                        : ` · ${posicion}/${cadena.ejercicios.length}`}
                     {antes && (
                       <>
                         {' · antes '}
@@ -690,7 +792,37 @@ export function Hoy() {
         >
           Solo tengo 7 minutos
         </button>
+        {/* Avisar una molestia, a un toque y siempre a mano.
+            Hasta acá el único camino era el chequeo diario, que viene apagado
+            de fábrica: para casi todo el mundo no había forma de decir "me
+            molesta la muñeca". Va DEBAJO de `Empezar`, que es lo único que no
+            puede moverse de lugar (la regla del pliegue), y con el mismo peso
+            que la sesión corta: es una alternativa a empezar igual, no un
+            cartel. Con una molestia avisada dice cuál, para poder retirarla. */}
+        <button
+          onClick={() => navegar('/molestia')}
+          className="accion-quieta"
+          data-prueba="avisar-molestia"
+        >
+          {molestiaDeHoy
+            ? `Molestia en ${NOMBRE_PATRON[molestiaDeHoy].toLowerCase()} · cambiar`
+            : 'Me molesta algo'}
+        </button>
       </div>
+
+      {/* Por qué bajó el core, si la revisión de la palanca frontal lo bajó.
+          DEBAJO de la acción por la regla del pliegue, como todo lo que no es
+          lo que toca hoy: es una línea que se lee una vez, no algo que tenga
+          que estar antes de poder empezar. */}
+      {avisosDeBajada.map((aviso) => (
+        <p
+          key={aviso}
+          className="mt-6 max-w-[42ch] text-sm leading-relaxed text-[var(--color-glosa)]"
+          data-prueba="aviso-de-bajada"
+        >
+          {aviso}
+        </p>
+      ))}
 
       {/* El costo de haber partido por grupo.
        *
