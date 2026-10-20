@@ -48,6 +48,7 @@ import { claseDeDia, patronDelBloque, rutinaActiva, semanaActiva } from '@/domin
 import type { ClaseDeDia } from '@/dominio/rutinas'
 import { ajusteDelDia, bandaSostenida, cadenasCongeladas } from '@/dominio/estado'
 import { seAbreHoy } from '@/dominio/anticipacion'
+import { eslabonesCerrados } from '@/dominio/apertura'
 import { mueveElPlan } from '@/dominio/progresion'
 import { dichoDelDescanso, type Expresion } from '@/dominio/frases'
 import {
@@ -555,6 +556,8 @@ export function Entrenar() {
    * tocado el sonido sería peor que el bug.
    */
   const tieneBarraCargable = (preferencias?.cargaMaximaKg ?? 0) > 0
+  /** La de dominadas, por el mismo motivo: un booleano y en las dependencias. */
+  const tieneBarra = preferencias?.tieneBarra !== false
 
   /** Los ejercicios concretos de la sesión, según el avance de cada patrón. */
   const plan = useMemo(() => {
@@ -611,8 +614,17 @@ export function Entrenar() {
         !ajusteDelDia(bandaSostenida(estados ?? [], dia)).neutra &&
         !cadenasCongeladas(estados ?? [], dia).has(bloque.patron)
       // Un accesorio nunca abre un eslabón: no está en ninguna cadena, o es el
-      // anterior al que ya tenés. Anunciarlo sería una promesa falsa.
-      const abre = accesorio ? null : seAbreHoy(avance, cadenaDe(bloque.patron), POR_ID, cuenta)
+      // anterior al que ya tenés. Anunciarlo sería una promesa falsa. Y un
+      // eslabón cerrado tampoco: el motor no lo va a abrir aunque cumplas.
+      const abre = accesorio
+        ? null
+        : seAbreHoy(
+            avance,
+            cadenaDe(bloque.patron),
+            POR_ID,
+            cuenta,
+            eslabonesCerrados(cadenaDe(bloque.patron), avances, tieneBarra),
+          )
       const duro = {
         ejercicio,
         objetivo: { series, cantidad, ...(base.kg !== undefined ? { kg: base.kg } : {}) },
@@ -659,6 +671,7 @@ export function Entrenar() {
     estados,
     tipo,
     tieneBarraCargable,
+    tieneBarra,
     dia,
     fechaDeLaSesion,
   ])

@@ -4,6 +4,7 @@ import { HashRouter } from 'react-router-dom'
 import { App } from './App'
 import './estilos.css'
 import { pedirPersistencia } from './datos/respaldo'
+import { revisarRequisitosUnaVez } from './datos/repositorio'
 
 // Se usa HashRouter y no BrowserRouter a propósito: así la app anda igual en
 // GitHub Pages, en un subdirectorio o abierta desde un archivo, sin necesidad
@@ -41,6 +42,16 @@ if ('serviceWorker' in navigator) {
 }
 
 void pedirPersistencia()
+
+/**
+ * La revisión única de la palanca frontal: quien quedó en ella con la regla
+ * vieja, sin 3 series de 8 dominadas completas, baja una vez. Corre al abrir
+ * la app y no adentro de una pantalla, porque es un arreglo de los datos y
+ * no algo que dependa de qué pantalla se abre primero. Es una transacción:
+ * si falla no queda nada a medias, no hay nada que mostrar, y se vuelve a
+ * intentar en el próximo arranque.
+ */
+revisarRequisitosUnaVez().catch(() => {})
 
 const contenedor = document.getElementById('root')
 if (!contenedor) throw new Error('No se encontró el elemento raíz.')

@@ -60,6 +60,7 @@ import {
 import { laVezPasada } from '@/dominio/estadisticas'
 import { bandaSostenida, ajusteDelDia, cadenasCongeladas } from '@/dominio/estado'
 import { seAbreHoy } from '@/dominio/anticipacion'
+import { avisosDeLaRevision, eslabonesCerrados } from '@/dominio/apertura'
 import { PISO_DE_PROTEINA, senalesDelDia } from '@/dominio/nutricion'
 import { mueveElPlan } from '@/dominio/progresion'
 import {
@@ -192,6 +193,9 @@ export function Hoy() {
   const factorDelDia = ajuste.factor * (vuelve ? RECORTE_DE_VUELTA : 1)
 
   const tieneBarraCargable = (preferencias.cargaMaximaKg ?? 0) > 0
+  // La de dominadas, que decide qué eslabones puede abrir el motor. Ausente
+  // cuenta como sí, que es lo que la app asumió siempre.
+  const tieneBarra = preferencias.tieneBarra !== false
 
   const bloques = rutina.bloques.flatMap((bloqueDelPlan) => {
     // Un bloque puede alternar entre dos patrones según el día. La resolución
@@ -246,8 +250,17 @@ export function Hoy() {
         // de eslabón la semana pasada no hay con qué comparar, y no se inventa.
         antes,
         // Un accesorio nunca abre un eslabón: no está en ninguna cadena, o es
-        // el anterior al que ya tenés. Anunciarlo sería una promesa falsa.
-        abre: accesorio ? null : seAbreHoy(avance, cadenaDe(bloque.patron), POR_ID, cuenta),
+        // el anterior al que ya tenés. Anunciarlo sería una promesa falsa. Y
+        // un eslabón cerrado tampoco: el motor no lo va a abrir aunque cumplas.
+        abre: accesorio
+          ? null
+          : seAbreHoy(
+              avance,
+              cadenaDe(bloque.patron),
+              POR_ID,
+              cuenta,
+              eslabonesCerrados(cadenaDe(bloque.patron), avances, tieneBarra),
+            ),
       },
     ]
   })
@@ -382,6 +395,18 @@ export function Hoy() {
    * el mismo día es una lista, y una lista no anticipa nada.
    */
   const vispera = bloques.find((b) => b.abre)
+
+  /**
+   * Si la revisión única bajó algo de la palanca frontal, por qué. Se dice
+   * hasta la próxima sesión, o hasta que algo lo mueva de donde lo bajamos, y
+   * se calla solo: lo decide el dominio con lo que ya está guardado.
+   */
+  const avisosDeBajada = avisosDeLaRevision(
+    preferencias.revisionDeRequisitos,
+    sesiones,
+    avances,
+    tieneBarra,
+  )
 
   /**
    * CUÁNTAS FILAS ENTRAN EN HOY, Y POR QUÉ HAY UN TOPE.
@@ -733,6 +758,20 @@ export function Hoy() {
           Solo tengo 7 minutos
         </button>
       </div>
+
+      {/* Por qué bajó el core, si la revisión de la palanca frontal lo bajó.
+          DEBAJO de la acción por la regla del pliegue, como todo lo que no es
+          lo que toca hoy: es una línea que se lee una vez, no algo que tenga
+          que estar antes de poder empezar. */}
+      {avisosDeBajada.map((aviso) => (
+        <p
+          key={aviso}
+          className="mt-6 max-w-[42ch] text-sm leading-relaxed text-[var(--color-glosa)]"
+          data-prueba="aviso-de-bajada"
+        >
+          {aviso}
+        </p>
+      ))}
 
       {/* El costo de haber partido por grupo.
        *
