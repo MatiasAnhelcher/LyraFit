@@ -163,6 +163,26 @@ describe('una sola fila rota rechaza el archivo, y dice cuál', () => {
     ).toContain('sí o no')
   })
 
+  it('una molestia avisada con el chequeo apagado no rompe la copia', () => {
+    // Es la fila que escribe `guardarMolestiaDeHoy` sin chequeo: la molestia
+    // sola. Rechazarla dejaba sin poder restaurar su copia a quien avisó.
+    const sola = { fecha: '2026-09-20', molestia: 'traccion', actualizadoEn: 1 }
+    const r = revisarCopia(copia({ estados: [sola] }))
+    if ('problema' in r) throw new Error(r.problema)
+    expect(r.copia.estados).toEqual([sola])
+
+    // Pero sin respuestas y sin molestia, o con respuestas a medias, sigue rota.
+    expect(problemaDe(copia({ estados: [{ fecha: '2026-09-20', actualizadoEn: 1 }] }))).toContain(
+      'tres respuestas',
+    )
+    expect(
+      problemaDe(copia({ estados: [{ fecha: '2026-09-20', sueno: 4, molestia: 'traccion' }] })),
+    ).toContain('tres respuestas')
+    expect(
+      problemaDe(copia({ estados: [{ fecha: '2026-09-20', molestia: 'muñeca' }] })),
+    ).toContain('El chequeo 1')
+  })
+
   it('sin preferencias no entra: mandaría al alta, que pisa los niveles restaurados', () => {
     expect(problemaDe(copia({ preferencias: undefined }))).toContain('preferencias')
     expect(problemaDe(copia({ preferencias: { id: 'otro' } }))).toContain('preferencias')
@@ -192,6 +212,19 @@ describe('el resumen antes de confirmar', () => {
       desde: '2026-08-30',
       hasta: '2026-10-03',
     })
+  })
+
+  it('una molestia avisada sola no se cuenta como chequeo, pero su día sí está', () => {
+    const r = revisarCopia(
+      copia({
+        estados: [
+          { fecha: '2026-09-15', sueno: 4, energia: 3, musculos: 5, actualizadoEn: 1 },
+          { fecha: '2026-10-05', molestia: 'core', actualizadoEn: 1 },
+        ],
+      }),
+    )
+    if ('problema' in r) throw new Error(r.problema)
+    expect(resumenDeCopia(r.copia)).toMatchObject({ chequeos: 1, hasta: '2026-10-05' })
   })
 
   it('una base vacía no tiene rango', () => {
