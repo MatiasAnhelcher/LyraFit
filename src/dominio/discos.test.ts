@@ -185,6 +185,9 @@ describe('subiendo: primero las repeticiones, después los discos', () => {
     expect(d.avance.objetivoActual.kg).toBe(45)
     expect(d.explicacion).toContain('45 kg')
     expect(d.explicacion).toMatch(/pausa|despacio/)
+    // Como otra forma de hacerlo más difícil, no como algo que "rinde más":
+    // eso no tiene fuente y choca con la estrategia.
+    expect(d.explicacion).not.toMatch(/rinde/i)
     // Y sigue moviéndose: se suman repeticiones, no se queda mudo.
     expect(d.avance.objetivoActual.cantidad).toBeGreaterThan(12)
   })

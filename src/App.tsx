@@ -8,6 +8,7 @@ import { Entrenar } from './pantallas/Entrenar'
 import { Reloj } from './pantallas/Reloj'
 import { Alta } from './pantallas/Alta'
 import { Estado } from './pantallas/Estado'
+import { Molestia } from './pantallas/Molestia'
 import { Diario } from './pantallas/Diario'
 import { Biblioteca } from './pantallas/Biblioteca'
 import { FichaEjercicio } from './pantallas/FichaEjercicio'
@@ -59,6 +60,7 @@ export function App() {
         <Route element={<Layout />}>
           <Route path="/" element={<Hoy />} />
           <Route path="/estado" element={<Estado />} />
+          <Route path="/molestia" element={<Molestia />} />
           <Route path="/diario" element={<Diario />} />
           <Route path="/biblioteca" element={<Biblioteca />} />
           {/* La hoja de contacto de los dibujos, solo en desarrollo: es una

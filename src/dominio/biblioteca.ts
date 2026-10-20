@@ -10,7 +10,7 @@
  * en la cadena: la app entera se acomoda sola.
  */
 
-import type { Cadena, Ejercicio, Patron } from './tipos'
+import type { Cadena, Ejercicio, Objetivo, Patron } from './tipos'
 
 export const EJERCICIOS: Ejercicio[] = [
   // ─── Empuje ──────────────────────────────────────────────────────────
@@ -165,7 +165,7 @@ export const EJERCICIOS: Ejercicio[] = [
     medida: 'repeticiones',
     nivel: 7,
     resumen:
-      'Manos juntas debajo del pecho. Se lleva el trabajo al tríceps y a la parte interna del pectoral.',
+      'Manos juntas debajo del pecho: el tríceps pasa a trabajar tanto como el pectoral.',
     tecnica: [
       'Juntá las manos formando un triángulo con pulgares e índices.',
       'Ubicá el triángulo debajo del esternón, no debajo de la cara.',
@@ -905,36 +905,18 @@ export const EJERCICIOS: Ejercicio[] = [
     ccr: 0.9,
     descansoSegundos: 120,
   },
-  {
-    id: 'palanca-frontal-negativa',
-    nombre: 'Palanca frontal negativa',
-    patron: 'core',
-    medida: 'segundos',
-    nivel: 8,
-    resumen:
-      'Desde colgado con las rodillas al pecho, bajar el cuerpo lo más lento posible hasta la horizontal. Los segundos que registrás son los de bajada controlada, sumados.',
-    tecnica: [
-      'Colgate con agarre prono, los brazos estirados y firmes, y llevá las rodillas al pecho.',
-      'Rotá hasta quedar horizontal de espaldas al piso, con la espalda plana.',
-      'Estirá las piernas de a poco mientras el cuerpo baja, resistiendo todo el camino.',
-      'Cortá cuando ya no podés frenar la bajada y contá solo los segundos en que tuviste el control.',
-    ],
-    erroresComunes: [
-      'Doblar los codos para aguantar un poco más. Van rectos y activos: el codo es lo que más se resiente acá, y se cuida cortando la serie antes.',
-      'Arquear la espalda baja para simular la horizontal. Si la cadera se hunde, volvé a agrupar las rodillas y terminá ahí.',
-      'Empezar con esto sin tener firmes la palanca agrupada y las dominadas completas.',
-    ],
-    ventana: { min: 8, max: 20 },
-    series: 3,
-    ccr: 1.0,
-    descansoSegundos: 150,
-  },
+  // La agrupada va antes que la negativa. Estuvieron al revés —la negativa en
+  // el 8 y la agrupada en el 9—, contra lo que dice la propia negativa: no se
+  // empieza "sin tener firmes la palanca agrupada y las dominadas completas".
+  // Se invirtieron el nivel y el `ccr` juntos, así que la escalera de carga
+  // sigue subiendo en cada eslabón. Y ninguna de las dos se abre sin 3 series
+  // de 8 dominadas completas: eso lo dice `REQUISITOS`, más abajo.
   {
     id: 'palanca-frontal-agrupada',
     nombre: 'Palanca frontal agrupada',
     patron: 'core',
     medida: 'segundos',
-    nivel: 9,
+    nivel: 8,
     resumen:
       'Colgado y horizontal con las rodillas al pecho. La primera parada real en el camino a la palanca frontal.',
     tecnica: [
@@ -946,7 +928,31 @@ export const EJERCICIOS: Ejercicio[] = [
     erroresComunes: [
       'Doblar los codos para compensar.',
       'Arquear la espalda y perder la horizontal.',
-      'Ir a esta posición sin tener dominadas y elevaciones de piernas firmes.',
+      'Ir a esta posición sin tener firmes las elevaciones de piernas colgado y 3 series de 8 dominadas completas.',
+    ],
+    ventana: { min: 8, max: 20 },
+    series: 3,
+    ccr: 1.0,
+    descansoSegundos: 150,
+  },
+  {
+    id: 'palanca-frontal-negativa',
+    nombre: 'Palanca frontal negativa',
+    patron: 'core',
+    medida: 'segundos',
+    nivel: 9,
+    resumen:
+      'Desde colgado con las rodillas al pecho, bajar el cuerpo lo más lento posible hasta la horizontal. Los segundos que registrás son los de bajada controlada, sumados.',
+    tecnica: [
+      'Colgate con agarre prono, los brazos estirados y firmes, y llevá las rodillas al pecho.',
+      'Rotá hasta quedar horizontal de espaldas al piso, con la espalda plana.',
+      'Estirá las piernas de a poco mientras el cuerpo baja, resistiendo todo el camino.',
+      'Cortá cuando ya no podés frenar la bajada y contá solo los segundos en que tuviste el control.',
+    ],
+    erroresComunes: [
+      'Doblar los codos para aguantar un poco más. Van rectos y activos: el codo es lo que más se resiente acá, y se cuida cortando la serie antes.',
+      'Arquear la espalda baja para simular la horizontal. Si la cadera se hunde, volvé a agrupar las rodillas y terminá ahí.',
+      'Empezar con esto sin tener firmes la palanca agrupada y 3 series de 8 dominadas completas.',
     ],
     ventana: { min: 8, max: 20 },
     series: 3,
@@ -1258,7 +1264,7 @@ export const EJERCICIOS: Ejercicio[] = [
       'Llevá la cadera hacia atrás como si cerraras una puerta con la cola, dejando que la barra baje rozando la pierna.',
       'Bajá hasta donde llegues SIN que la espalda baja se redondee. En la mayoría eso es a la mitad de la canilla, no al piso.',
       'Volvé estirando la cadera y apretando los glúteos arriba, sin arquearte hacia atrás.',
-      'Bajá en tres segundos: acá el tiempo bajo tensión rinde más que el peso.',
+      'Bajá en tres segundos: así controlás el recorrido.',
     ],
     erroresComunes: [
       'Doblar las rodillas para llegar más abajo. Eso lo convierte en un peso muerto convencional y el isquiotibial deja de estirarse.',
@@ -1320,7 +1326,7 @@ export const EJERCICIOS: Ejercicio[] = [
       'Parado, la barra agarrada por abajo con las manos al ancho de los hombros y los brazos estirados.',
       'Pegá los codos al costado del cuerpo y dejalos ahí: son una bisagra, no una palanca.',
       'Subí la barra hasta el pecho doblando solo el codo, sin que el hombro se vaya adelante.',
-      'Bajá en dos o tres segundos hasta estirar del todo. El tramo de abajo es el que más cuesta y es el que más rinde.',
+      'Bajá en dos o tres segundos hasta estirar del todo. El tramo de abajo es el que más cuesta.',
     ],
     erroresComunes: [
       'Balancear el torso para arrancar la repetición. Si hace falta impulso, el peso es demasiado.',
@@ -1458,8 +1464,8 @@ export const CADENAS: Cadena[] = [
       'elevacion-piernas-suelo',
       'elevacion-rodillas-colgado',
       'elevacion-piernas-colgado',
-      'palanca-frontal-negativa',
       'palanca-frontal-agrupada',
+      'palanca-frontal-negativa',
     ],
   },
   {
@@ -1479,6 +1485,60 @@ export const CADENAS: Cadena[] = [
     ],
   },
 ]
+
+/** Lo que pide un eslabón de OTRA cadena para abrirse. */
+export interface Requisito {
+  /** La otra cadena. */
+  patron: Patron
+  /** El eslabón de esa cadena al que hay que haber llegado. */
+  ejercicioId: string
+  /**
+   * Cuánto tiene que pedir el objetivo actual EN ese eslabón para que alcance.
+   * Pasado el eslabón alcanza siempre; sin mínimo, llegar alcanza.
+   */
+  minimo?: Pick<Objetivo, 'series' | 'cantidad'>
+  /** Por qué existe, en pocas palabras: cierra el aviso de cuando hay que bajar. */
+  porque: string
+}
+
+/**
+ * Eslabones que no se abren solo por dominar el anterior de su cadena.
+ *
+ * El motor sube de a un eslabón y no mira las otras cadenas, y casi siempre
+ * alcanza. Con la palanca frontal no: es un tirón con los brazos rectos,
+ * colgado de la barra, y las dos fichas piden llegar con las dominadas firmes.
+ * Sin esto, alguien con cero dominadas llegaba a la palanca apenas terminaba
+ * las elevaciones colgado.
+ *
+ * Firmes quiere decir 3 series de 8, que es lo que pide el rol de calistenia
+ * de la revisión del 20 de octubre. Llegar a las dominadas completas no
+ * alcanza: se entra con 3 por serie —el piso de la ventana—, que es poder
+ * hacer una dominada, no tenerla firme. Y la palanca castiga el codo, que es
+ * justo lo que la ficha de la negativa dice y lo que pidió cuidar kinesiología.
+ *
+ * La clave es el eslabón cerrado; el valor, hasta dónde tiene que haber
+ * llegado la persona en OTRA cadena para que se abra. Lo aplica `apertura.ts`.
+ */
+export const REQUISITOS: ReadonlyMap<string, Requisito> = new Map<string, Requisito>([
+  [
+    'palanca-frontal-agrupada',
+    {
+      patron: 'traccion',
+      ejercicioId: 'dominada-completa',
+      minimo: { series: 3, cantidad: 8 },
+      porque: 'así se cuida el codo',
+    },
+  ],
+  [
+    'palanca-frontal-negativa',
+    {
+      patron: 'traccion',
+      ejercicioId: 'dominada-completa',
+      minimo: { series: 3, cantidad: 8 },
+      porque: 'así se cuida el codo',
+    },
+  ],
+])
 
 /** Índice por id, para no recorrer el arreglo entero cada vez. */
 export const POR_ID: Map<string, Ejercicio> = new Map(

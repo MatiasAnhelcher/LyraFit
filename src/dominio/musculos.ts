@@ -16,8 +16,8 @@
  *    `curl-nordico-negativo` en `biblioteca.ts`) y subirlo acá sería contarlo
  *    dos veces. El régimen vive en `REGIMEN`.
  *  - No encoda "pectoral interno" ni ninguna región de un músculo. No existe un
- *    pectoral interno entrenable por separado; el `resumen` de la flexión
- *    diamante lo dice y el mapa no lo repite.
+ *    pectoral interno entrenable por separado, y por eso ni el mapa ni el
+ *    `resumen` de la flexión diamante lo nombran.
  *  - No encoda el lado, y es deliberado. Una serie de búlgaras es el doble de
  *    trabajo para la persona y UNA serie para cada pierna, que es lo que este
  *    mapa cuenta: un cuádriceps que hizo tres series de sentadilla y uno que
@@ -649,9 +649,11 @@ export function musculosAlcanzables(
 /**
  * Los diez ejercicios que cuelgan de una barra.
  *
- * Vive acá y no en la biblioteca porque es lo único que lo necesita hoy, y
- * agregarle un campo a los cuarenta y siete por un consumidor sería mover el
- * dato antes de saber si hace falta. El test comprueba que la lista coincida
+ * Vive acá y no en la biblioteca porque nació para el mapa muscular, y
+ * agregarle un campo a los cuarenta y siete por un consumidor era mover el
+ * dato antes de saber si hacía falta. Ahora también la leen el Reloj y
+ * `apertura.ts`, que es lo que impide que el alta o el motor manden a alguien
+ * sin barra a un ejercicio colgado. El test comprueba que la lista coincida
  * con lo que el alta filtra.
  */
 /**

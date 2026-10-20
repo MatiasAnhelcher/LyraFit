@@ -47,6 +47,23 @@ describe('la cafeína', () => {
     expect(comoHora(corteDeCafeina(23 * 60))).toBe('14:00')
     expect(comoHora(corteDeCafeina(30))).toBe('15:30')
   })
+
+  it('sin la hora de acostarse no hay aviso, aunque el café haya sido tarde', () => {
+    // La pantalla suponía las 23:00 y las guardaba sola. Ahora no supone nada,
+    // y esto es lo que garantiza que sin ese dato no se dice nada: ni el
+    // aviso en el diario, ni el de Hoy.
+    expect(senalesDelDia(dia({ ultimaCafeina: 20 * 60 })).avisoDeCafeina).toBeNull()
+  })
+
+  it('el aviso habla de esta noche: no le dice "dormiste" a quien no se acostó', () => {
+    // Sale a la tarde, antes de dormir. "No es que dormiste mal" era un
+    // pasado que todavía no había pasado.
+    const aviso = senalesDelDia(dia({ horaDeDormir: 23 * 60, ultimaCafeina: 16 * 60 })).avisoDeCafeina
+    expect(aviso).toBeTruthy()
+    expect(aviso).not.toMatch(/\bdormiste\b/i)
+    expect(aviso).toContain('esta noche')
+    expect(aviso).toContain(`${HORAS_DE_CAFEINA} horas`)
+  })
 })
 
 describe('las señales del día', () => {

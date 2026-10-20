@@ -12,16 +12,22 @@
  * Y lo más importante: esto casi nunca cambia el entrenamiento. Solo cuando
  * algo se sostiene dos de tres días. El resto del tiempo la app se queda
  * callada, que es lo que hace que valga la pena cuando habla.
+ *
+ * La excepción es la molestia, que cambia el plan ese mismo día. Se pregunta
+ * siempre, con los músculos doloridos o sin dolor: antes aparecía solo con
+ * los músculos marcados como doloridos, y quien tenía los músculos bien y el
+ * codo avisando no tenía dónde decirlo. Y se puede avisar también sin pasar
+ * por acá, desde Hoy, con el chequeo apagado.
  */
 
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useLiveQuery } from 'dexie-react-hooks'
-import { NOMBRE_PATRON } from '@/dominio/biblioteca'
 import { ENTRADAS_MINIMAS, leerEstado } from '@/dominio/estado'
 import type { Patron } from '@/dominio/tipos'
 import { fechaISO, guardarEstado, leerEstadoDeHoy, leerEstados } from '@/datos/repositorio'
 import { Accion, AccionQuieta, Rotulo, Segmento } from '@/componentes/ui'
+import { ElegirMolestia, LO_QUE_PASA_CON_LA_MOLESTIA } from '@/componentes/molestia'
 
 const ITEMS = [
   {
@@ -32,7 +38,9 @@ const ITEMS = [
   {
     clave: 'energia' as const,
     pregunta: '¿Cómo está tu energía hoy?',
-    opciones: ['En el piso', 'Cansado', 'Normal', 'Con energía', 'A pleno'],
+    // "Con poca energía" y no "Cansado": la app no sabe el género de nadie.
+    // Tiene que ser idéntica a la escala de las preguntas del final (`Entrenar`).
+    opciones: ['En el piso', 'Con poca energía', 'Normal', 'Con energía', 'A pleno'],
   },
   {
     clave: 'musculos' as const,
@@ -40,8 +48,6 @@ const ITEMS = [
     opciones: ['Muy doloridos', 'Doloridos', 'Cargados', 'Casi bien', 'Sin dolor'],
   },
 ]
-
-const PATRONES: Patron[] = ['empuje', 'traccion', 'piernas', 'core']
 
 export function Estado() {
   const navegar = useNavigate()
@@ -57,7 +63,10 @@ export function Estado() {
     number
   >
   const completo = ITEMS.every((i) => actual[i.clave] !== undefined)
-  const duele = (actual.musculos ?? 5) <= 2
+  // La molestia que ya estaba avisada hoy —desde Hoy, con el chequeo apagado—
+  // arranca elegida. Si no, guardar el chequeo la borraría sin que nadie lo
+  // pidiera.
+  const molestiaElegida = molestia ?? deHoy?.molestia ?? null
 
   const lectura = historial ? leerEstado(historial, fechaISO()) : null
 
@@ -69,7 +78,7 @@ export function Estado() {
         sueno: actual.sueno ?? 3,
         energia: actual.energia ?? 3,
         musculos: actual.musculos ?? 3,
-        ...(molestia && molestia !== 'ninguna' ? { molestia } : {}),
+        ...(molestiaElegida && molestiaElegida !== 'ninguna' ? { molestia: molestiaElegida } : {}),
       })
       navegar('/', { replace: true })
     } finally {
@@ -104,25 +113,14 @@ export function Estado() {
           </section>
         ))}
 
-        {duele && (
-          <section className="mt-8">
-            <p className="nombre">¿Es parejo o hay una zona puntual?</p>
-            <p className="mt-1 text-xs text-[var(--color-glosa)]">
-              El dolor muscular repartido es parte de entrenar. Una molestia en un lugar concreto
-              es otra cosa, y ahí la app deja de empujar esa cadena.
-            </p>
-            <div className="mt-3 flex flex-wrap gap-px">
-              <Segmento elegido={molestia === 'ninguna'} onClick={() => setMolestia('ninguna')}>
-                Parejo
-              </Segmento>
-              {PATRONES.map((p) => (
-                <Segmento key={p} elegido={molestia === p} onClick={() => setMolestia(p)} tono="ambar">
-                  {NOMBRE_PATRON[p]}
-                </Segmento>
-              ))}
-            </div>
-          </section>
-        )}
+        <section className="mt-8">
+          <p className="nombre">¿Te molesta algo en un lugar puntual?</p>
+          <p className="mt-1 text-xs text-[var(--color-glosa)]">
+            El dolor muscular repartido es parte de entrenar. Una molestia en un lugar concreto es
+            otra cosa. {LO_QUE_PASA_CON_LA_MOLESTIA}
+          </p>
+          <ElegirMolestia valor={molestiaElegida} onElegir={setMolestia} ninguna="No" />
+        </section>
 
         {lectura && !lectura.confiable && lectura.faltan > 0 && (
           <p className="mt-8 max-w-[38ch] text-xs leading-relaxed text-[var(--color-glosa)]">

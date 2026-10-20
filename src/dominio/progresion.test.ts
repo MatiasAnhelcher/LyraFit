@@ -19,8 +19,10 @@ import {
   recalibrar,
   rendimientoDeSesion,
   proyectar,
+  requisitoDicho,
   siguienteAvance,
   ubicarEnCadena,
+  type Cierre,
 } from './progresion'
 import type { Avance, Objetivo, Serie, TipoSesion } from './tipos'
 
@@ -444,6 +446,172 @@ describe('proyectar', () => {
     const avance = avanceEn('flexion-diamante', 8)
     expect(proyectar(avance, ctx, 'flexion-completa')).toBeNull()
     expect(proyectar(avance, ctx, 'flexion-diamante')).toBeNull()
+  })
+})
+
+describe('eslabones cerrados', () => {
+  // El motor no sabe POR QUÉ un eslabón está cerrado —eso lo decide
+  // `apertura.ts`, mirando el equipo y las otras cadenas—: solo recibe la
+  // lista. Acá se prueba la mecánica sobre empuje con un cierre inventado, así
+  // no depende de qué ejercicios cuelgan hoy.
+  const diamante = ejercicio('flexion-diamante')
+  const completa = ejercicio('flexion-completa')
+  const cerrados = new Map<string, Cierre>([
+    ['flexion-diamante', { motivo: 'requisito', requisito: ejercicio('dominada-completa') }],
+  ])
+  const ctxCerrado = { cadena: empuje, ejercicios: POR_ID, cerrados }
+  const sinBarra = {
+    ...ctxCerrado,
+    cerrados: new Map<string, Cierre>([['flexion-diamante', { motivo: 'sin-barra' }]]),
+  }
+
+  function cumpliendoCon(avance: Avance, contexto: typeof ctxCerrado) {
+    const objetivo = avance.objetivoActual
+    const hechas = series(...Array(objetivo.series).fill(objetivo.cantidad))
+    return siguienteAvance(
+      avance,
+      { rendimiento: rendimientoDeSesion(objetivo, hechas), tipico: logradoTipico(hechas) },
+      contexto,
+      0,
+    )
+  }
+
+  it('dominar el eslabón no sube a uno cerrado: suma volumen y dice qué falta', () => {
+    let avance = avanceEn('flexion-completa', completa.ventana.max, {
+      sesionesEnObjetivo: CONSOLIDACION,
+    })
+    for (let i = 0; i < 30; i++) {
+      const d = cumpliendoCon(avance, ctxCerrado)
+      expect(d.cambioDeNivel, `sesión ${i + 1}`).toBe(false)
+      expect(d.avance.ejercicioId).toBe('flexion-completa')
+      expect(d.movimiento).toBe('subida')
+      expect(d.explicacion).toContain(diamante.nombre)
+      expect(d.explicacion).toContain('Dominadas completas')
+      expect(d.avance.objetivoActual.cantidad).toBeGreaterThan(avance.objetivoActual.cantidad)
+      avance = d.avance
+    }
+  })
+
+  it('con un mínimo en el requisito, lo nombra: no alcanza con llegar', () => {
+    const conMinimo = {
+      ...ctxCerrado,
+      cerrados: new Map<string, Cierre>([
+        [
+          'flexion-diamante',
+          {
+            motivo: 'requisito',
+            requisito: ejercicio('dominada-completa'),
+            minimo: { series: 3, cantidad: 8 },
+          },
+        ],
+      ]),
+    }
+    const avance = avanceEn('flexion-completa', completa.ventana.max, {
+      sesionesEnObjetivo: CONSOLIDACION,
+    })
+    const d = cumpliendoCon(avance, conMinimo)
+    expect(d.cambioDeNivel).toBe(false)
+    expect(d.explicacion).toContain(
+      `Lo que sigue, ${diamante.nombre}, se abre cuando llegues a 3 series de 8 dominadas completas`,
+    )
+  })
+
+  it('sin barra, dice que el siguiente necesita una y dónde avisar si la conseguís', () => {
+    const avance = avanceEn('flexion-completa', completa.ventana.max, {
+      sesionesEnObjetivo: CONSOLIDACION,
+    })
+    const d = cumpliendoCon(avance, sinBarra)
+    expect(d.cambioDeNivel).toBe(false)
+    expect(d.explicacion).toContain('necesita una barra')
+    expect(d.explicacion).toContain('Ajustes')
+  })
+
+  it('llegar al techo no promete pasar de nivel si el siguiente está cerrado', () => {
+    const casi = avanceEn('flexion-completa', completa.ventana.max - 1)
+    expect(cumpliendo(casi).explicacion).toContain('pasás de nivel')
+    expect(cumpliendoCon(casi, ctxCerrado).explicacion).not.toContain('pasás de nivel')
+  })
+
+  it('la meseta tampoco promete cambiar con el siguiente cerrado', () => {
+    // Señal entre las dos varas, cuatro sesiones en el techo: sin cierre, el
+    // motor da el empujón y cambia de ejercicio.
+    const avance = avanceEn('flexion-completa', completa.ventana.max, {
+      senal: 0.9,
+      sesionesEnObjetivo: MESETA - 1,
+    })
+    const evaluacion = { rendimiento: 0.9, tipico: completa.ventana.max }
+    expect(siguienteAvance(avance, evaluacion, ctx, 0).cambioDeNivel).toBe(true)
+
+    const d = siguienteAvance(avance, evaluacion, ctxCerrado, 0)
+    expect(d.cambioDeNivel).toBe(false)
+    expect(d.explicacion).not.toContain('La próxima cambiamos')
+    expect(d.explicacion).toContain(diamante.nombre)
+  })
+
+  it('bajar a un eslabón cerrado sí puede: bajar nunca es el riesgo', () => {
+    const declinada = ejercicio('flexion-declinada')
+    const avance = avanceEn('flexion-declinada', declinada.ventana.min, { senal: 0.5 })
+    const d = siguienteAvance(avance, { rendimiento: 0.2, tipico: 1 }, ctxCerrado, 0)
+    expect(d.movimiento).toBe('nivel-abajo')
+    expect(d.avance.ejercicioId).toBe('flexion-diamante')
+  })
+
+  it('sin cierres, el motor hace exactamente lo de siempre', () => {
+    const avance = avanceEn('flexion-completa', completa.ventana.max, {
+      sesionesEnObjetivo: CONSOLIDACION,
+    })
+    const vacio = { cadena: empuje, ejercicios: POR_ID, cerrados: new Map<string, Cierre>() }
+    expect(cumpliendoCon(avance, vacio)).toEqual(cumpliendo(avance))
+  })
+
+  it('no proyecta sesiones hasta un eslabón cerrado, ni más allá de uno', () => {
+    const avance = avanceEn('flexion-rodillas', 8)
+    expect(proyectar(avance, ctx, 'flexion-completa')).not.toBeNull()
+    expect(proyectar(avance, ctxCerrado, 'flexion-completa')).not.toBeNull()
+    expect(proyectar(avance, ctxCerrado, 'flexion-diamante')).toBeNull()
+    expect(proyectar(avance, ctxCerrado, 'flexion-una-mano')).toBeNull()
+  })
+})
+
+describe('requisitoDicho', () => {
+  it('sin mínimo, el nombre del eslabón: alcanza con llegar', () => {
+    expect(requisitoDicho(ejercicio('dominada-completa'))).toBe('Dominadas completas')
+  })
+
+  it('con mínimo, series y cantidad del eslabón, en minúscula', () => {
+    expect(requisitoDicho(ejercicio('dominada-completa'), { series: 3, cantidad: 8 })).toBe(
+      '3 series de 8 dominadas completas',
+    )
+  })
+
+  it('en segundos, con la unidad', () => {
+    expect(requisitoDicho(ejercicio('plancha'), { series: 3, cantidad: 30 })).toBe(
+      '3 series de 30 segundos de plancha',
+    )
+  })
+})
+
+describe('ubicarEnCadena con techo', () => {
+  it('no ubica por encima del techo, aunque la cuenta dé más', () => {
+    for (const n of [12, 20, 30]) {
+      const libre = ubicarEnCadena(empuje, POR_ID, 'flexion-completa', n, 0)
+      const conTecho = ubicarEnCadena(empuje, POR_ID, 'flexion-completa', n, 0, 'flexion-rodillas')
+      expect(empuje.ejercicios.indexOf(libre.ejercicioId)).toBeGreaterThan(
+        empuje.ejercicios.indexOf('flexion-rodillas'),
+      )
+      expect(conTecho.ejercicioId).toBe('flexion-rodillas')
+      const e = ejercicio('flexion-rodillas')
+      expect(conTecho.objetivoActual.cantidad).toBeGreaterThanOrEqual(e.ventana.min)
+      expect(conTecho.objetivoActual.cantidad).toBeLessThanOrEqual(e.ventana.max)
+    }
+  })
+
+  it('por debajo del techo no cambia nada', () => {
+    for (const n of [0, 1, 3, 5]) {
+      expect(ubicarEnCadena(empuje, POR_ID, 'flexion-completa', n, 0, 'flexion-una-mano')).toEqual(
+        ubicarEnCadena(empuje, POR_ID, 'flexion-completa', n, 0),
+      )
+    }
   })
 })
 

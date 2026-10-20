@@ -24,11 +24,17 @@
  * ## Lo que la app puede afirmar, y lo que no
  *
  * PUEDE: que la proteína suficiente mejora un poco lo que se gana entrenando
- * (Morton 2018); que dormir poco mientras se baja de peso hace perder músculo
- * en vez de grasa (Nedeltcheva 2010); que la cafeína afecta el sueño 6-9 horas
- * después aunque no se sienta (Drake 2013); que el alcohol adormece rápido y
- * empeora la segunda mitad de la noche (Ebrahim 2013); que la creatina
- * monohidrato es el suplemento con más evidencia.
+ * (Morton 2018); que dormir poco mientras se baja de peso hace que una parte
+ * mayor de lo que se baja sea músculo (Nedeltcheva 2010, un ensayo chico de 14
+ * días: es "más músculo y menos grasa", no "músculo en vez de grasa"); que la
+ * cafeína recorta en promedio unos 45 minutos de sueño y que un café tiene que
+ * ir unas nueve horas antes de acostarse para no recortarlo (Gardiner y col.
+ * 2023, Sleep Med Rev 69:101764, metaanálisis de 24 estudios), sin que se
+ * sienta (Drake 2013); que con alcohol uno se duerme más rápido y la segunda
+ * mitad de la noche se vuelve más cortada (Ebrahim 2013); que la creatina
+ * monohidrato es el suplemento con más evidencia para fuerza y músculo. Lo que
+ * más cuenta de la proteína es el total del día (Schoenfeld y Aragon 2018,
+ * JISSN 15:10).
  *
  * NO PUEDE: ninguna cifra de calorías ingeridas o gastadas; que un horario de
  * comida cambie la composición corporal; que un alimento sea inflamatorio,
@@ -101,9 +107,10 @@ export interface DiaDelDiario {
 /**
  * El piso de proteína, en porciones.
  *
- * Cuatro tomas de unos 40 g rinden más que meter 100 g en la cena: cada toma
- * dispara síntesis proteica por su cuenta. Cuatro es el piso; más no es
- * "mejor" y la app no lo va a decir.
+ * Cuatro, porque repartir el total del día en al menos cuatro comidas es la
+ * forma más fácil de llegar a él (Schoenfeld y Aragon 2018). No es que cada
+ * toma "rinda más" que una cena grande: lo que más pesa es el total. Cuatro es
+ * el piso; más no es "mejor" y la app no lo va a decir.
  */
 export const PISO_DE_PROTEINA = 4
 
@@ -113,9 +120,11 @@ export const TOPE_DE_PROTEINA = 6
 /**
  * Cuántas horas antes de dormir la cafeína todavía recorta el sueño.
  *
- * Nueve. Es el único hábito donde la app le muestra a alguien algo que su
- * percepción no puede detectar: a esa distancia la gente no siente que el café
- * le hizo algo, y sin embargo duerme casi una hora menos.
+ * Nueve, que es la cuenta de un café (unos 107 mg: 8,8 horas en Gardiner y
+ * col. 2023). Un pre-entreno pide más, unas trece. Es el único hábito donde la
+ * app le muestra a alguien algo que su percepción no puede detectar: en
+ * promedio la cafeína recortó unos 45 minutos de sueño, y en Drake 2013 la
+ * gente no notaba lo que el registro sí medía.
  */
 export const HORAS_DE_CAFEINA = 9
 
@@ -200,7 +209,7 @@ export function senalesDelDia(dia: DiaDelDiario | undefined): SenalesDelDia {
     contestados: respuestas.filter(Boolean).length,
     enPiso: pisos.filter(Boolean).length,
     avisoDeCafeina: cafeinaTarde(dia)
-      ? `Tomaste cafeína dentro de las ${HORAS_DE_CAFEINA} horas previas a acostarte. En los estudios eso recorta el sueño casi una hora, y lo interesante es que a esa distancia no se siente: no es que dormiste mal, es que dormiste menos sin enterarte.`
+      ? `Tomaste cafeína a menos de ${HORAS_DE_CAFEINA} horas de tu hora de acostarte. En promedio eso recorta unos 45 minutos de sueño, y no se siente: esta noche es probable que duermas menos sin notarlo.`
       : null,
   }
 }

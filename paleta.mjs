@@ -325,6 +325,7 @@ async function main() {
     ['/progreso', 'Progreso'],
     ['/ajustes', 'Ajustes'],
     ['/estado', 'Estado'],
+    ['/molestia', 'Molestia'],
     ['/reloj', 'El reloj'],
   ]) {
     await pagina.goto(`${BASE}/#${ruta}`, { waitUntil: 'networkidle' })
@@ -339,7 +340,7 @@ async function main() {
     for (const p of problemas) console.log(' -', p)
     process.exit(1)
   }
-  console.log(`Paleta verificada: ${PARES.length} pares del sistema y todo el texto de 6 pantallas.`)
+  console.log(`Paleta verificada: ${PARES.length} pares del sistema y todo el texto de 7 pantallas.`)
 }
 
 main().catch((e) => {

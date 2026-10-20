@@ -40,13 +40,14 @@
  * misma barra de acción contra el canto que las otras seis pantallas.
  */
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { POR_ID, NOMBRE_PATRON, cadenaDe } from '@/dominio/biblioteca'
-import { proximoHitoDeCadena, proyectar, ubicarEnCadena } from '@/dominio/progresion'
+import { proximoHitoDeCadena, proyectar } from '@/dominio/progresion'
+import { ubicarDesdeElAlta, ultimoSinBarra } from '@/dominio/apertura'
 import { RUTINAS } from '@/dominio/rutinas'
-import type { Patron } from '@/dominio/tipos'
-import { guardarPreferencias, ubicarDesdePrueba } from '@/datos/repositorio'
+import type { Avance, Patron } from '@/dominio/tipos'
+import { guardarPreferencias, saltearElAlta, ubicarDesdePrueba } from '@/datos/repositorio'
 import { Accion, AccionQuieta, Glifo, Rotulo, Segmento, unidad } from '@/componentes/ui'
 
 interface Prueba {
@@ -98,6 +99,12 @@ const PRUEBAS: Prueba[] = [
     regleta: [0, 5, 10, 15, 25, 40, 60],
   },
   {
+    // Sin `sinBarra`, y no es un olvido: la plancha no cuelga, así que se hace
+    // igual con barra o sin ella. Lo que tiene que mirar el equipo es la
+    // UBICACIÓN, y eso lo hace el dominio: desde la plancha nunca se cae en un
+    // eslabón colgado (`techoDeUbicacion`). Antes, 90 segundos te mandaban a
+    // las elevaciones de piernas colgado aunque hubieras dicho que no tenías
+    // barra.
     patron: 'core',
     ejercicioId: 'plancha',
     pregunta: '¿Cuántos segundos aguantás la plancha?',
@@ -108,8 +115,28 @@ const PRUEBAS: Prueba[] = [
 
 type Paso = 'propuesta' | 'equipo' | 'pruebas' | 'plan' | 'dias'
 
+/**
+ * Lo que el alta tiene que decir al abrirse, una sola vez.
+ *
+ * Existe por "Borrar todos mis datos": la base vacía manda al alta en el acto,
+ * así que el "Listo" no llegaba a verse en Ajustes. Es memoria de módulo y no
+ * el `state` de la navegación porque la redirección del portero llega después
+ * y se lo pisa — medido por `datos.mjs`—. Se escribe solo cuando el borrado
+ * terminó bien.
+ */
+let avisoAlEntrar: string | null = null
+
+export function avisarEnElAlta(texto: string): void {
+  avisoAlEntrar = texto
+}
+
 export function Alta() {
   const navegar = useNavigate()
+  // Se lee al montar y se olvida después, para que no vuelva a aparecer.
+  const [aviso] = useState(() => avisoAlEntrar)
+  useEffect(() => {
+    avisoAlEntrar = null
+  }, [])
   const [paso, setPaso] = useState<Paso>('propuesta')
   const [tieneBarra, setTieneBarra] = useState(true)
   const [indice, setIndice] = useState(0)
@@ -132,27 +159,23 @@ export function Alta() {
     return !tieneBarra && p.sinBarra ? p.sinBarra : p.ejercicioId
   }
 
-  const ubicaciones = PRUEBAS.map((p) => ({
+  const pruebas = PRUEBAS.map((p) => ({
     patron: p.patron,
-    avance: ubicarEnCadena(
-      cadenaDe(p.patron),
-      POR_ID,
-      pruebaDe(p),
-      respuestas[p.patron],
-      0,
-    ),
+    ejercicioId: pruebaDe(p),
+    logrado: respuestas[p.patron],
+  }))
+
+  // La misma cuenta que se guarda al terminar, con los mismos techos: el plan
+  // que se muestra es el de mañana, no una vista previa de otra cosa.
+  const ubicaciones = ubicarDesdeElAlta(pruebas, tieneBarra, 0).map((avance) => ({
+    patron: avance.patron,
+    avance,
   }))
 
   async function terminar(rutinaActivaId: string) {
     setGuardando(true)
     try {
-      await ubicarDesdePrueba(
-        PRUEBAS.map((p) => ({
-          patron: p.patron,
-          ejercicioId: pruebaDe(p),
-          logrado: respuestas[p.patron],
-        })),
-      )
+      await ubicarDesdePrueba(pruebas, tieneBarra)
       await guardarPreferencias({
         rutinaActivaId,
         tieneBarra,
@@ -167,7 +190,7 @@ export function Alta() {
   async function saltear() {
     setGuardando(true)
     try {
-      await guardarPreferencias({ altaCompletadaEn: Date.now(), tieneBarra })
+      await saltearElAlta(tieneBarra)
       navegar('/', { replace: true })
     } finally {
       setGuardando(false)
@@ -177,7 +200,11 @@ export function Alta() {
   return (
     <div className="mx-auto flex min-h-dvh w-full max-w-lg flex-col px-4 pt-10">
       {paso === 'propuesta' && (
-        <Propuesta onSeguir={() => setPaso('equipo')} onSaltear={() => void saltear()} />
+        <Propuesta
+          aviso={aviso}
+          onSeguir={() => setPaso('equipo')}
+          onSaltear={() => void saltear()}
+        />
       )}
 
       {paso === 'equipo' && (
@@ -208,7 +235,11 @@ export function Alta() {
       )}
 
       {paso === 'plan' && (
-        <Plan ubicaciones={ubicaciones} onSeguir={() => setPaso('dias')} />
+        <Plan
+          ubicaciones={ubicaciones}
+          tieneBarra={tieneBarra}
+          onSeguir={() => setPaso('dias')}
+        />
       )}
 
       {paso === 'dias' && <Dias guardando={guardando} onElegir={(id) => void terminar(id)} />}
@@ -216,10 +247,26 @@ export function Alta() {
   )
 }
 
-function Propuesta({ onSeguir, onSaltear }: { onSeguir: () => void; onSaltear: () => void }) {
+function Propuesta({
+  aviso,
+  onSeguir,
+  onSaltear,
+}: {
+  aviso: string | null
+  onSeguir: () => void
+  onSaltear: () => void
+}) {
   return (
     <>
       <div className="flex flex-1 flex-col justify-center">
+        {aviso && (
+          <p
+            className="mb-8 max-w-[40ch] text-sm leading-relaxed text-[var(--color-glosa)]"
+            role="status"
+          >
+            {aviso}
+          </p>
+        )}
         <Rotulo>LYRAFIT</Rotulo>
         <h1 className="mt-4 text-4xl font-bold leading-[1.1] tracking-tight">
           La app decide qué te toca. Vos anotás lo que hiciste.
@@ -251,7 +298,8 @@ function Equipo({ onElegir }: { onElegir: (tieneBarra: boolean) => void }) {
         </h1>
         <p className="mt-3 leading-relaxed text-[var(--color-glosa)]">
           Una barra de dominadas, unas anillas, o una rama firme. Es lo único que cambia
-          de verdad el plan: sin eso, la cadena de tracción arranca con remo bajo una mesa.
+          de verdad el plan: sin eso, la cadena de tracción arranca con remo bajo una mesa
+          y el plan no te pide nada colgado.
         </p>
       </div>
 
@@ -373,9 +421,11 @@ function Pruebas({
 
 function Plan({
   ubicaciones,
+  tieneBarra,
   onSeguir,
 }: {
-  ubicaciones: { patron: Patron; avance: ReturnType<typeof ubicarEnCadena> }[]
+  ubicaciones: { patron: Patron; avance: Avance }[]
+  tieneBarra: boolean
   onSeguir: () => void
 }) {
   // La proyección se calcula con el mismo motor que va a decidir mañana, así
@@ -393,6 +443,16 @@ function Plan({
   const sesiones =
     empuje && siguiente ? proyectar(empuje.avance, contexto, siguiente.id) : null
   const meta = POR_ID.get(cadena.ejercicios[cadena.ejercicios.length - 1]!)!
+
+  // Sin barra, hasta dónde llega cada cadena que en algún momento cuelga. Es
+  // la alternativa dicha en voz alta: el plan no se corta en silencio el día
+  // que toca colgarse, se sabe desde hoy y se sabe cómo se abre.
+  const hastaSinBarra = tieneBarra
+    ? []
+    : ubicaciones.flatMap(({ patron }) => {
+        const tope = ultimoSinBarra(cadenaDe(patron))
+        return tope ? [{ patron, tope }] : []
+      })
 
   return (
     <>
@@ -432,6 +492,21 @@ function Plan({
             )
           })}
         </div>
+
+        {hastaSinBarra.length > 0 && (
+          <p className="mt-6 max-w-[42ch] text-sm leading-relaxed text-[var(--color-glosa)]">
+            Sin barra,{' '}
+            {hastaSinBarra.map(({ patron, tope }, i) => (
+              <span key={patron}>
+                {i === 0 ? '' : i === hastaSinBarra.length - 1 ? ' y ' : ', '}
+                {NOMBRE_PATRON[patron].toLowerCase()} {i === 0 ? 'llega hasta' : 'hasta'}{' '}
+                <span className="font-semibold text-[var(--color-tinta)]">{tope.nombre}</span>
+              </span>
+            ))}
+            . Lo que sigue se hace colgado: si conseguís una barra, marcalo en Ajustes y{' '}
+            {hastaSinBarra.length === 1 ? 'esa cadena sigue' : 'esas cadenas siguen'}.
+          </p>
+        )}
 
         {sesiones !== null && siguiente && (
           <p className="mt-6 max-w-[42ch] text-sm leading-relaxed text-[var(--color-glosa)]">

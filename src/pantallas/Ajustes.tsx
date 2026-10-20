@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { useLiveQuery } from 'dexie-react-hooks'
 import {
   DIAS,
@@ -16,27 +17,67 @@ import {
   siguienteClase,
 } from '@/dominio/rutinas'
 import type { ClaseDeDia } from '@/dominio/rutinas'
-import type { Preferencias } from '@/dominio/tipos'
+import type { Preferencias, SesionEnCurso } from '@/dominio/tipos'
+import {
+  avisoDeRestaurada,
+  cuantasSesiones,
+  detalleDelResumen,
+  fechaCorta,
+  fraseDelReemplazo,
+  resumenDeCopia,
+  type ResumenDeCopia,
+} from '@/dominio/copia'
+import { diaLocal, textoDelBorradorAlRestaurar, tieneTrabajo } from '@/dominio/borrador'
 import {
   RespaldoInvalido,
   borrarTodo,
+  cambiarBarraDeDominadas,
   exportarTodo,
   guardarPreferencias,
   importarTodo,
   leerPreferencias,
+  leerSesionEnCurso,
   validarRespaldo,
+  type Respaldo,
 } from '@/datos/repositorio'
-import { estadoDeAlmacenamiento, type EstadoDeAlmacenamiento } from '@/datos/respaldo'
+import {
+  estadoDeAlmacenamiento,
+  respaldarAntesDeRestaurar,
+  type EstadoDeAlmacenamiento,
+} from '@/datos/respaldo'
 import { HAY_HAPTICA } from '@/respuesta'
 import { HAY_VOZ, vozElegida } from '@/voz'
 import { orden } from '@/componentes/movimiento'
 import { Accion, AccionQuieta, Cargando, Regleta, Rotulo, Segmento } from '@/componentes/ui'
+import { avisarEnElAlta } from './Alta'
+
+/**
+ * Una restauración a la espera de que la persona la confirme.
+ *
+ * `sinCopia` se prende si la copia automática de lo que hay falló: entonces no
+ * se reemplaza nada sin decirlo, y el botón pasa a decir que va sin copia.
+ *
+ * `borrador` es la sesión a medio hacer, si tiene algo hecho: restaurar la
+ * borra y no va en ninguna copia, así que se nombra antes de confirmar.
+ */
+interface Restauracion {
+  copia: Respaldo
+  deLaCopia: ResumenDeCopia
+  actual: ResumenDeCopia
+  sinCopia: boolean
+  borrador: SesionEnCurso | null
+}
 
 export function Ajustes() {
+  const navegar = useNavigate()
   const preferencias = useLiveQuery(leerPreferencias, [])
   const archivo = useRef<HTMLInputElement>(null)
   const [aviso, setAviso] = useState<string | null>(null)
   const [confirmando, setConfirmando] = useState(false)
+  const [borrando, setBorrando] = useState(false)
+  const [errorAlBorrar, setErrorAlBorrar] = useState<string | null>(null)
+  const [restauracion, setRestauracion] = useState<Restauracion | null>(null)
+  const [restaurando, setRestaurando] = useState(false)
   const [almacenamiento, setAlmacenamiento] = useState<EstadoDeAlmacenamiento | null>(null)
 
   useEffect(() => {
@@ -101,17 +142,84 @@ export function Ajustes() {
     URL.revokeObjectURL(url)
   }
 
+  /**
+   * Elegir el archivo ya no reemplaza nada: lo revisa entero y muestra qué
+   * trae al lado de lo que hay.
+   *
+   * Antes reemplazaba todo en el acto, sin preguntar y sin guardar lo
+   * anterior, y el comentario de `importarTodo` decía que la pantalla pedía
+   * confirmación. Con los nombres de archivo todos parecidos, equivocarse de
+   * fecha costaba el historial entero.
+   */
   async function importar(entrada: File) {
+    setAviso(null)
+    setRestauracion(null)
     try {
-      const respaldo = validarRespaldo(JSON.parse(await entrada.text()))
-      await importarTodo(respaldo)
-      setAviso(`Listo: ${respaldo.sesiones.length} sesiones restauradas.`)
+      const copia = validarRespaldo(JSON.parse(await entrada.text()))
+      const [actual, borrador] = await Promise.all([exportarTodo(), leerSesionEnCurso()])
+      setRestauracion({
+        copia,
+        deLaCopia: resumenDeCopia(copia),
+        actual: resumenDeCopia(actual),
+        sinCopia: false,
+        borrador: borrador && tieneTrabajo(borrador) ? borrador : null,
+      })
     } catch (error) {
       setAviso(
         error instanceof RespaldoInvalido
-          ? error.message
-          : 'No se pudo leer el archivo. ¿Es una copia de LyraFit?',
+          ? `${error.message} No se cambió nada.`
+          : 'No se pudo leer el archivo. ¿Es una copia de LyraFit? No se cambió nada.',
       )
+    }
+  }
+
+  /**
+   * Confirmado: primero la copia automática de lo que hay, después el
+   * reemplazo, que es todo o nada.
+   *
+   * Si la copia automática no se puede guardar —un navegador sin sistema de
+   * archivos privado— no se reemplaza en silencio: se avisa, y recién un
+   * segundo toque, que ya dice "sin copia", reemplaza igual. Bloquearlo del
+   * todo dejaría sin salida a quien perdió la base y viene a restaurar, que
+   * es justo para lo que existe este botón.
+   */
+  async function confirmarRestauracion(r: Restauracion) {
+    setRestaurando(true)
+    try {
+      if (!r.sinCopia && !(await respaldarAntesDeRestaurar())) {
+        setRestauracion({ ...r, sinCopia: true })
+        return
+      }
+      await importarTodo(r.copia)
+      setRestauracion(null)
+      setAviso(avisoDeRestaurada(r.copia.sesiones.length, !r.sinCopia))
+      void estadoDeAlmacenamiento().then(setAlmacenamiento)
+    } catch {
+      setAviso('No se pudo restaurar. Tus datos quedaron como estaban.')
+    } finally {
+      setRestaurando(false)
+    }
+  }
+
+  /**
+   * Borrar todo, y decir "Listo" recién cuando es cierto.
+   *
+   * Antes se llamaba sin esperar y el "Listo. No quedó nada." salía en el
+   * acto, aunque la carpeta de copias automáticas —con el historial adentro—
+   * no se tocaba nunca. Ahora se espera todo. Si sale bien, la base vacía
+   * manda al alta, y el "Listo" se dice allá; si algo falla, se dice acá.
+   */
+  async function borrarDeVerdad() {
+    setBorrando(true)
+    setErrorAlBorrar(null)
+    try {
+      await borrarTodo()
+      avisarEnElAlta('Listo. Se borró todo lo que la app guardaba en este teléfono.')
+      navegar('/alta', { replace: true })
+    } catch {
+      setErrorAlBorrar('No se pudo borrar todo. Probá de nuevo.')
+    } finally {
+      setBorrando(false)
     }
   }
 
@@ -156,12 +264,14 @@ export function Ajustes() {
 
         <p className="rotulo mt-6">POR GRUPO MUSCULAR</p>
         {/*
-          El costo, dicho ACÁ y no después de elegir.
-          Partir en cuatro días entrena cada grupo una vez por semana, y con el
-          mismo volumen semanal la evidencia favorece dos. Es un argumento en
-          contra de lo que estas cuatro filas ofrecen, y por eso va antes de
-          las filas: una advertencia que aparece una vez elegido no es una
-          advertencia, es una excusa.
+          Qué implica, dicho ACÁ y no después de elegir.
+          Si se hacen las cuatro, a cada una le toca un día. Antes esto decía
+          además que "con el mismo volumen semanal dos veces rinde más", sin
+          ninguna fuente, y el consejo que seguía bajaba la frecuencia en vez
+          de subirla. Tampoco dice "cada músculo un solo día": el core está en
+          tres de las cuatro y Brazos repite tracción y empuje (ver
+          `advertenciaDe`). Va antes de las filas: una advertencia que aparece
+          una vez elegido no es una advertencia, es una excusa.
 
           Y se dice, no se impide. Hay razones legítimas para elegirlo —mucho
           más volumen por grupo en la sesión, y una sesión que se siente de
@@ -170,11 +280,8 @@ export function Ajustes() {
         */}
         <p className="mt-2 max-w-[42ch] text-xs leading-relaxed text-[var(--color-glosa)]">
           Cada una entrena un grupo por sesión, con cuatro o cinco ejercicios en
-          vez de uno. El costo: si hacés una por semana, cada músculo se entrena
-          una vez, y con el mismo volumen semanal dos veces rinde más.{' '}
-          <span className="text-[var(--color-tinta)]">
-            Lo que mejor funciona es alternar dos de estas cuatro por semana.
-          </span>
+          vez de uno. Si hacés las cuatro en la semana, a cada una le toca un
+          día.
         </p>
         <div className="registro mt-3">
           {RUTINAS.filter((r) => RUTINAS_POR_GRUPO.has(r.id)).map((rutina) => (
@@ -398,6 +505,18 @@ export function Ajustes() {
               )}
             </>
           )}
+          {/* La barra de dominadas, que no es la cargable. Se contesta en el
+              alta y hasta ahora no se podía cambiar nunca, aunque el alta dice
+              "por ahora no". Ahora pesa más: sin barra el motor no sube a nada
+              colgado, así que quien la consigue tiene que poder decirlo. Ausente
+              cuenta como sí, igual que en el resto de la app. Apagarla baja lo
+              que estaba colgado: eso lo hace `cambiarBarraDeDominadas`. */}
+          <Interruptor
+            titulo="Tengo dónde colgarme"
+            detalle="Una barra de dominadas, unas anillas o una rama firme. Sin eso, el plan no te pide nada colgado: si estabas en algo colgado, volvés a lo último que no cuelga."
+            activo={preferencias.tieneBarra !== false}
+            onCambiar={(v) => void cambiarBarraDeDominadas(v)}
+          />
         </div>
       </section>
 
@@ -519,7 +638,74 @@ export function Ajustes() {
             e.target.value = ''
           }}
         />
-        {aviso && <p className="mt-3 text-sm text-[var(--color-glosa)]">{aviso}</p>}
+        {aviso && (
+          <p className="mt-3 text-sm text-[var(--color-glosa)]" role="status">
+            {aviso}
+          </p>
+        )}
+
+        {restauracion && (
+          <div className="mt-6" data-prueba="confirmar-restauracion">
+            <Rotulo>ANTES DE REEMPLAZAR</Rotulo>
+            <div className="registro mt-3">
+              {(
+                [
+                  [
+                    '◇',
+                    'El archivo',
+                    restauracion.deLaCopia,
+                    `copia del ${fechaCorta(diaLocal(Date.parse(restauracion.copia.exportadoEn)))}`,
+                  ],
+                  ['◆', 'Lo que tenés ahora', restauracion.actual, null],
+                ] as const
+              ).map(([canal, titulo, resumen, extra]) => (
+                <div key={titulo}>
+                  <span className="canal">{canal}</span>
+                  <span className="min-w-0">
+                    <span className="nombre block">{titulo}</span>
+                    <span className="mt-0.5 block text-xs leading-relaxed text-[var(--color-glosa)]">
+                      {[cuantasSesiones(resumen.sesiones), detalleDelResumen(resumen), extra]
+                        .filter(Boolean)
+                        .join(' · ')}
+                    </span>
+                  </span>
+                  <span />
+                </div>
+              ))}
+            </div>
+            <p className="mt-4 max-w-[40ch] text-sm leading-relaxed">
+              {fraseDelReemplazo(restauracion.deLaCopia, restauracion.actual)}{' '}
+              {restauracion.sinCopia
+                ? ''
+                : 'Antes de reemplazar guardo una copia automática de lo que tenés ahora.'}
+            </p>
+            {restauracion.borrador && (
+              <p className="mt-3 max-w-[42ch] text-xs leading-relaxed text-[var(--color-ambar)]">
+                {textoDelBorradorAlRestaurar(restauracion.borrador, diaLocal(Date.now()))}
+              </p>
+            )}
+            {restauracion.sinCopia && (
+              <p
+                role="alert"
+                className="mt-3 max-w-[42ch] text-xs leading-relaxed text-[var(--color-ambar)]"
+              >
+                No pude guardar una copia automática en este navegador, así que todavía no cambié
+                nada. Si querés conservar lo que tenés, descargá una copia antes de seguir.
+              </p>
+            )}
+            <div className="mt-4 -mx-4">
+              <Accion
+                deshabilitado={restaurando}
+                onClick={() => void confirmarRestauracion(restauracion)}
+              >
+                {restauracion.sinCopia ? 'Reemplazar sin copia' : 'Sí, reemplazar'}
+              </Accion>
+              <AccionQuieta deshabilitado={restaurando} onClick={() => setRestauracion(null)}>
+                Mejor no
+              </AccionQuieta>
+            </div>
+          </div>
+        )}
       </section>
 
       <section className="entrar-en-orden mt-10 pb-4" style={orden(6)}>
@@ -533,19 +719,31 @@ export function Ajustes() {
         ) : (
           <div>
             <p className="max-w-[40ch] text-sm leading-relaxed">
-              Esto borra todo el historial y no se puede deshacer. Las copias automáticas también.
+              Esto borra tu historial, tu diario, tu peso y las copias automáticas de este
+              teléfono. No se puede deshacer.
             </p>
+            <p className="mt-2 max-w-[40ch] text-xs leading-relaxed text-[var(--color-glosa)]">
+              Las copias que descargaste o compartiste no las puede borrar la app: están donde las
+              guardaste.
+            </p>
+            {errorAlBorrar && (
+              <p role="alert" className="mt-3 max-w-[40ch] text-sm text-[var(--color-destructivo)]">
+                {errorAlBorrar}
+              </p>
+            )}
             <div className="mt-4 -mx-4">
-              <Accion
+              <Accion deshabilitado={borrando} onClick={() => void borrarDeVerdad()}>
+                {borrando ? 'Borrando…' : 'Sí, borrar todo'}
+              </Accion>
+              <AccionQuieta
+                deshabilitado={borrando}
                 onClick={() => {
-                  void borrarTodo()
                   setConfirmando(false)
-                  setAviso('Listo. No quedó nada.')
+                  setErrorAlBorrar(null)
                 }}
               >
-                Sí, borrar todo
-              </Accion>
-              <AccionQuieta onClick={() => setConfirmando(false)}>Mejor no</AccionQuieta>
+                Mejor no
+              </AccionQuieta>
             </div>
           </div>
         )}

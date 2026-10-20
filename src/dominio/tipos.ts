@@ -505,6 +505,42 @@ export interface Preferencias {
   voz?: boolean
   /** Cómo se quiere describir dentro de un año. Se usa en el cierre de sesión. */
   identidad?: string
+  /**
+   * La revisión de los eslabones con requisito, que corre una sola vez.
+   *
+   * La palanca frontal se abría al llegar a las dominadas completas, y el alta
+   * llegó a ubicar ahí a gente con cero dominadas. Ahora pide 3 series de 8.
+   * Quien quedó sentado en la palanca con la regla vieja baja una vez al
+   * último eslabón abierto (`bajarPorRequisito`, en `apertura.ts`), y esto
+   * deja escrito que ya se revisó y qué bajó, para poder decirlo.
+   *
+   * Ausente: la instalación viene de antes y todavía no se revisó. El alta la
+   * escribe vacía, porque ya ubica con los requisitos nuevos. Y tiene que ser
+   * una sola vez, no cada vez que se cumple la condición: con un mal día de
+   * dominadas el objetivo baja de 8 y la palanca se vuelve a cerrar, y echar
+   * de ahí a quien ya la venía haciendo por un mal día sería un castigo.
+   *
+   * Un campo opcional en las preferencias, que ya se guardan enteras: no toca
+   * el esquema de la base.
+   */
+  revisionDeRequisitos?: RevisionDeRequisitos
+}
+
+/** Lo que dejó escrito la revisión única de los requisitos. */
+export interface RevisionDeRequisitos {
+  /** Cuándo corrió. Las sesiones cerradas después apagan el aviso. */
+  en: number
+  /** Lo que bajó. Casi siempre vacío: solo baja quien estaba en la palanca. */
+  bajadas: BajadaPorRequisito[]
+}
+
+/** Un avance que bajó porque estaba en un eslabón cerrado por requisito. */
+export interface BajadaPorRequisito {
+  patron: Patron
+  /** El eslabón cerrado donde estaba. */
+  desde: string
+  /** Adónde bajó. */
+  hasta: string
 }
 
 /**
@@ -512,19 +548,26 @@ export interface Preferencias {
  *
  * Todas orientadas para que 5 sea lo mejor. Mezclar direcciones obliga a
  * invertir mentalmente y produce errores de carga.
+ *
+ * Las tres son opcionales desde que la molestia se puede avisar sola, con el
+ * chequeo apagado. Una fila que trae solo `molestia` dice exactamente eso:
+ * que hoy avisó una molestia y que no contestó cómo durmió. Rellenarla con un
+ * 3 sería inventar un dato, y el índice lo promediaría como si fuera cierto.
+ * Por eso el índice lee solo las filas que pasan `contestoElChequeo`.
  */
 export interface Estado {
   /** Fecha local AAAA-MM-DD. Es la clave: una entrada por día. */
   fecha: string
   /** ¿Cómo dormiste anoche? 1 muy mal … 5 muy bien. */
-  sueno: number
+  sueno?: number
   /** ¿Cómo está tu energía hoy? 1 en el piso … 5 a pleno. */
-  energia: number
+  energia?: number
   /** ¿Cómo andan tus músculos? 1 muy doloridos … 5 sin dolor. */
-  musculos: number
+  musculos?: number
   /**
    * Molestia en una zona puntual, no dolor muscular parejo. Es información de
-   * seguridad, categórica: nunca entra en el promedio del índice.
+   * seguridad, categórica: nunca entra en el promedio del índice. Se puede
+   * avisar con el chequeo apagado y con los músculos bien.
    */
   molestia?: Patron
   /** True si se contestó después de entrenar, cuando el dolor ya está contaminado. */
@@ -580,6 +623,44 @@ export interface SesionEnCurso {
   etapa: 'series' | 'fuelle' | 'cierre-serie' | 'preguntas'
   /** Cuántas ráfagas van hechas, para no repetir la misma al retomar. */
   rafagas?: RegistroRafaga[]
+  /**
+   * Las cadenas con molestia con las que se armó esta sesión.
+   *
+   * El plan depende de ellas: el eslabón de abajo solo existe mientras la
+   * molestia está. Si se retira a mitad de camino —o la sesión cruza la
+   * medianoche y la pestaña se recarga—, la fila de hoy ya no la trae, vuelve
+   * el eslabón de siempre y las series anotadas en el de abajo quedan fuera
+   * del plan, o sea fuera de la sesión guardada. Mientras dure la sesión, la
+   * molestia con la que arrancó sigue valiendo. Ver `molestiasDeLaSesion`.
+   */
+  molestias?: Patron[]
   /** Lo anotado hasta ahora, por ejercicio. */
   hechas: Record<string, Serie[]>
+  /**
+   * El día de la sesión, AAAA-MM-DD local. Se escribe al arrancar y no se
+   * vuelve a calcular.
+   *
+   * Es un campo propio porque ningún otro lo sabe: el plan se arma según el
+   * día —piernas y bisagra se turnan— y una sesión que arrancó el miércoles a
+   * las 23:40 y se retomó a las 00:05 se rearmaba como del jueves, con otro
+   * ejercicio y las series ya hechas afuera. `arrancadaEn` no sirve para esto:
+   * al retomar se re-ancla a lo entrenado, así que puede caer en otro día.
+   * Ausente en los borradores viejos; ahí manda el día de `arrancadaEn`.
+   */
+  dia?: string
+  /**
+   * Lo que el plan pedía de cada ejercicio. Sirve para guardar un borrador
+   * vencido tal como lo habría cerrado "Cerrar la sesión", sin rearmar un plan
+   * que días después ya puede ser otro. Ausente en los borradores viejos.
+   */
+  pasos?: PasoDelBorrador[]
+  /** Qué clase de sesión era, por lo mismo que `pasos`. */
+  tipo?: TipoSesion
+}
+
+/** Un ejercicio del plan, como lo guarda el borrador: qué se pedía de él. */
+export interface PasoDelBorrador {
+  ejercicioId: string
+  objetivo: Objetivo
+  bajada?: true
 }
