@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { POR_ID, cadenaDe } from './biblioteca'
 import { CERCA, anticipacion, esRecord, seAbreHoy } from './anticipacion'
 import { CONSOLIDACION, avanceInicial } from './progresion'
+import { eslabonesCerrados } from './apertura'
 import type { Avance, Sesion } from './tipos'
 
 const empuje = cadenaDe('empuje')
@@ -87,6 +88,28 @@ describe('anticipación', () => {
     expect(a.sesiones).toBeNull()
     expect(a.cerca).toBe(false)
     expect(a.aUnaSesion).toBe(false)
+  })
+
+  it('no anuncia un eslabón que el motor no va a abrir aunque se cumpla', () => {
+    // Elevación de piernas colgado en el techo y consolidada: sin cierres, la
+    // próxima sesión abre la palanca frontal. Con tracción lejos de las
+    // dominadas completas el motor no la abre, y la víspera no la puede
+    // prometer. Es la misma mentira que una sesión que no cuenta.
+    const core = cadenaDe('core')
+    const e = ejercicio('elevacion-piernas-colgado')
+    const avance = {
+      ...avanceEn('elevacion-piernas-colgado', e.ventana.max, { sesionesEnObjetivo: CONSOLIDACION }),
+      patron: 'core' as const,
+    }
+    expect(seAbreHoy(avance, core, POR_ID, true)?.id).toBe('palanca-frontal-agrupada')
+
+    const sinDominadas = eslabonesCerrados(
+      core,
+      new Map([['traccion', { ...avanceEn('remo-australiano-alto', 8), patron: 'traccion' as const }]]),
+      true,
+    )
+    expect(seAbreHoy(avance, core, POR_ID, true, sinDominadas)).toBeNull()
+    expect(anticipacion(avance, core, POR_ID, sinDominadas).sesiones).toBeNull()
   })
 
   it('cuanto más cerca del techo, menos sesiones faltan', () => {
