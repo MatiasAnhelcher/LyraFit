@@ -202,6 +202,24 @@ describe('la barra de 28 días no le avisa faltas a quien no faltó', () => {
     })
   }
 
+  it('una semana armada a mano con sábado o domingo se cuenta igual', () => {
+    // Ajustes deja marcar cualquier día, y ninguna rutina de la app trae el fin
+    // de semana: sin este caso, un domingo numerado 0 en vez de 7 pasaba todos
+    // los tests y la barra dejaba de contar los domingos del plan.
+    const SEMANAS: readonly number[][] = [[6, 7], [1, 3, 6], [2, 4, 7], [1, 2, 3, 4, 5, 6, 7]]
+    for (const plan of SEMANAS) {
+      for (let arranque = 0; arranque < 7; arranque++) {
+        const vistas = recorrer(masDias('2026-01-05', arranque), plan, 42)
+        for (const { hoy, momento, a } of vistas) {
+          expect(a.cubiertos, `${plan} ${hoy} ${momento}`).toBe(0)
+          expect(a.hechas, `${plan} ${hoy} ${momento}`).toBe(a.meta)
+        }
+        // A las seis semanas, la meta es la de cuatro semanas enteras.
+        expect(vistas[vistas.length - 1]!.a.meta, `${plan}`).toBe(plan.length * 4)
+      }
+    }
+  })
+
   it('cambiar un día de lugar no es faltar', () => {
     // Entrenó el martes 24 en vez del lunes 23: el lunes pasó sin sesión, pero
     // las sesiones son las mismas y no hay nada que cubrir.
