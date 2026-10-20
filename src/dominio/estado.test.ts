@@ -220,4 +220,14 @@ describe('molestia sin chequeo', () => {
     const sinLaMolestia = historial.filter((e) => e.molestia === undefined)
     expect(bandaSostenida(historial, fechaDe(22))).toBe(bandaSostenida(sinLaMolestia, fechaDe(22)))
   })
+
+  it('una molestia sola no hace de segundo día malo', () => {
+    // Un solo día malo, y al otro una molestia avisada sin chequeo. Si la fila
+    // de la molestia entrara a la cuenta de dos de tres, se leería con el
+    // índice del día anterior —el malo— y lo contaría dos veces: el objetivo
+    // bajaría por un día flojo suelto, que es justo lo que esta regla evita.
+    const historial = [...base(20, 4), dia(20, 1, 1, 1), soloMolestia(21, 'core')]
+    expect(leerEstado(historial, fechaDe(21)).banda).not.toBe('normal')
+    expect(bandaSostenida(historial, fechaDe(21))).toBe('normal')
+  })
 })

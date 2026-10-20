@@ -52,7 +52,7 @@ import {
   bloqueConMolestia,
   fueraDeLaMolestia,
   lineaDeMolestia,
-  molestiasDeHoy,
+  molestiasDeLaSesion,
   type CambioPorMolestia,
 } from '@/dominio/molestia'
 import { seAbreHoy } from '@/dominio/anticipacion'
@@ -301,8 +301,16 @@ export function Entrenar() {
   /**
    * Las cadenas con una molestia avisada hoy, con el chequeo prendido o
    * apagado. Bajan un eslabón o se saltean, y ninguna ráfaga las carga.
+   *
+   * Más las que la sesión ya traía en el borrador: retirar la molestia a mitad
+   * de camino no puede devolver el eslabón de siempre y dejar afuera las
+   * series anotadas en el de abajo.
    */
-  const molestias = useMemo(() => molestiasDeHoy(estados ?? [], fechaISO()), [estados])
+  const [molestiasRetomadas, setMolestiasRetomadas] = useState<Patron[]>([])
+  const molestias = useMemo(
+    () => molestiasDeLaSesion(estados ?? [], fechaISO(), molestiasRetomadas),
+    [estados, molestiasRetomadas],
+  )
 
   /**
    * Cuánto aprieta el fuelle, y con qué cuenta donde entrena.
@@ -356,6 +364,7 @@ export function Entrenar() {
           setHechas(borrador.hechas)
           setEtapa(borrador.etapa)
           setRafagas(borrador.rafagas ?? [])
+          setMolestiasRetomadas(borrador.molestias ?? [])
           // Se re-ancla el arranque a lo que se llevaba entrenado, no a la
           // hora original: el hueco entre que te fuiste y volviste no es
           // tiempo de entrenamiento.
@@ -407,8 +416,21 @@ export function Entrenar() {
       etapa,
       hechas,
       ...(rafagas.length > 0 ? { rafagas } : {}),
+      ...(molestias.size > 0 ? { molestias: [...molestias] } : {}),
     })
-  }, [listo, resumen, hechas, indice, etapa, arrancadaEn, esCorta, esDiaDeFuelle, esDiaDenso, rafagas])
+  }, [
+    listo,
+    resumen,
+    hechas,
+    indice,
+    etapa,
+    arrancadaEn,
+    esCorta,
+    esDiaDeFuelle,
+    esDiaDenso,
+    rafagas,
+    molestias,
+  ])
 
   /**
    * Los tres últimos segundos del descanso, en la piel.
@@ -612,7 +634,12 @@ export function Entrenar() {
       // La vez pasada de ESTE ejercicio, para poner una vara adentro de cada
       // casillero. Es lo que hace que la segunda sesión no se sienta idéntica
       // a la primera: los casilleros vacíos ya no están vacíos.
-      const antes = historial ? laVezPasada(historial, ejercicio.id, fechaISO()) : null
+      // En el eslabón bajado por una molestia, no: la vez pasada de ese
+      // eslabón puede ser su techo, y un 12 adentro del casillero invita a
+      // buscar 12 justo en la zona que avisó, con el objetivo pidiendo el piso.
+      // Es lo mismo que hace la bajada, que tampoco lleva vara.
+      const antes =
+        historial && !porMolestia ? laVezPasada(historial, ejercicio.id, fechaISO()) : null
       // Y si esta sesión, cumplida, abre el eslabón siguiente. Solo cuando la
       // sesión de verdad mueve la progresión: en una corta, una de vuelta o una
       // cadena congelada el dato sigue siendo correcto y la promesa sería falsa.
@@ -992,6 +1019,9 @@ export function Entrenar() {
     setCortaRetomada(false)
     setRetomada(false)
     setRafagas([])
+    // De cero es de cero: la sesión nueva se arma con la molestia de hoy, no
+    // con la del borrador que se acaba de descartar.
+    setMolestiasRetomadas([])
     cortarDescanso()
   }
 

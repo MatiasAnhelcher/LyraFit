@@ -11,7 +11,9 @@
  *   1. **Se puede avisar desde Hoy** y la fila que queda no inventa sueño,
  *      energía ni músculos.
  *   2. **La cadena baja un eslabón**, en Hoy y en la sesión, con la línea que
- *      lo dice y dos series.
+ *      lo dice, dos series y sin la vara de la vez pasada adentro.
+ *      **Retirarla a mitad de la sesión no tira lo hecho**: la serie anotada
+ *      en el eslabón de abajo sigue ahí y el ejercicio no cambia.
  *   3. **El motor no se entera**: cerrada la sesión, el avance de esa cadena
  *      está exactamente como estaba, el registro bajado va marcado y no hay
  *      decisión para esa cadena.
@@ -20,6 +22,8 @@
  *   5. **El chequeo pregunta siempre**, con los músculos sin dolor, ofrece la
  *      bisagra, no promete lo que no hace y no borra la molestia ya avisada.
  *   6. **"Ya no" la retira** sin tocar las respuestas del chequeo.
+ *   7. **Ninguna ráfaga carga la cadena que avisó**, en los descansos ni en
+ *      el bloque del final de una sesión densa.
  *
  * Uso: npm run build && npx vite preview --port 4173, y después
  * `node molestia.mjs` (o `BASE=http://localhost:4183 node molestia.mjs`).
@@ -79,7 +83,28 @@ const boton = (nombre) => p.getByRole('button', { name: nombre, exact: true })
 // cuarto eslabón (para que pueda bajar) y empuje en el primero (para que se
 // saltee). Lo demás, como lo dejó el alta. El chequeo, apagado: es el valor
 // de fábrica y el caso que este arreglo vino a cubrir.
-await conLaBase(p, ['preferencias', 'avances'], async (leer, poner) => {
+//
+// Y una sesión de hace tres días con el eslabón de abajo en su techo: así la
+// vara de la vez pasada existe, y se puede ver que el día de la molestia no
+// aparece adentro de los casilleros.
+await conLaBase(p, ['preferencias', 'avances', 'sesiones'], async (leer, poner) => {
+  const hace3 = new Date()
+  hace3.setDate(hace3.getDate() - 3)
+  const dd = (n) => String(n).padStart(2, '0')
+  poner('sesiones', {
+    id: 'vez-pasada-del-remo-bajo',
+    fecha: `${hace3.getFullYear()}-${dd(hace3.getMonth() + 1)}-${dd(hace3.getDate())}`,
+    finalizadaEn: hace3.getTime(),
+    duracionSegundos: 1200,
+    tipo: 'plan',
+    registros: [
+      {
+        ejercicioId: 'remo-australiano-bajo',
+        objetivo: { series: 3, cantidad: 12 },
+        series: [{ logrado: 12 }, { logrado: 12 }, { logrado: 12 }],
+      },
+    ],
+  })
   const [pref] = await leer('preferencias')
   const d = new Date().getDay()
   const clave = d === 0 ? 7 : d
@@ -158,6 +183,42 @@ if (linea !== 'Hoy bajamos un eslabón en tracción: avisaste una molestia.') {
   fallos.push(`La sesión no dice por qué bajó tracción: "${linea}"`)
 }
 if (casilleros !== 2) fallos.push(`El eslabón bajado pide ${casilleros} series y son 2`)
+const varas = await p.locator('ul[aria-label="Series de este ejercicio"] .vara').count()
+if (varas > 0) {
+  fallos.push(
+    'El eslabón bajado trae la vara de la vez pasada (su techo): invita a buscar 12 justo en la zona que avisó',
+  )
+}
+
+// ── 2b. Retirarla a mitad de la sesión no tira lo hecho ──────────────────
+//
+// Una serie en el eslabón de abajo, y después "Ya no". Sin el borrador, la
+// sesión se rearmaba con el eslabón de siempre y esa serie quedaba fuera del
+// plan, o sea fuera de lo que se guarda al cerrar.
+await boton('Anotar serie').click()
+await p.waitForTimeout(500)
+await recargar('/molestia')
+await boton('Ya no').click()
+await boton('Listo').click()
+await p.waitForTimeout(700)
+await recargar('/entrenar')
+const tituloRetomado = await texto('[data-prueba="titulo-ejercicio"]')
+const anotadas = await p
+  .locator('ul[aria-label="Series de este ejercicio"] li[aria-label^="Serie 1:"]')
+  .count()
+notas.push(
+  `Retirada la molestia a mitad de camino, la sesión sigue en "${tituloRetomado}" con ${anotadas} serie anotada.`,
+)
+if (tituloRetomado !== 'Remo australiano bajo' || anotadas !== 1) {
+  fallos.push(
+    `Retirar la molestia a mitad de la sesión cambió el ejercicio o perdió la serie: "${tituloRetomado}", ${anotadas} anotada(s)`,
+  )
+}
+// Y se vuelve a avisar, para que el resto del recorrido parta de lo mismo.
+await recargar('/molestia')
+await boton('Tracción').click()
+await boton('Listo').click()
+await p.waitForTimeout(700)
 
 // ── 3. Cerrada la sesión, el motor no se enteró ──────────────────────────
 const razon = await completarUnaSesion(p)
@@ -268,6 +329,75 @@ if (retirada?.molestia !== undefined || retirada?.sueno !== 4 || retirada?.energ
 await recargar('/')
 if (!/me molesta algo/i.test(await aviso.innerText().catch(() => ''))) {
   fallos.push('Retirada la molestia, el acceso de Hoy sigue diciendo que hay una')
+}
+
+// ── 7. En una sesión densa, ninguna ráfaga carga la cadena que avisó ─────
+//
+// El dominio ya lo prueba función por función; esto prueba que la sesión se
+// las pase. Molestia en core, que es la cadena que más ráfagas cargan
+// (sombra, escalador, rodillas al pecho y burpees), y eslabones con descanso
+// de 150 s en las otras tres, para que en cada descanso entre una ráfaga.
+//
+// Hoy como ÚNICO día denso de la semana, y no los siete: así el bloque que
+// alterna cae en piernas (es el primer día de fuerza) y no en bisagra. Los
+// descansos antes de una serie de piernas son los que discriminan: con
+// piernas y core prohibidas no queda ninguna ráfaga, pero si la sesión no le
+// pasara la molestia al filtro, ahí entraría el boxeo de sombra.
+const CARGAN_CORE = new Set(['Boxeo de sombra', 'Escalador', 'Rodillas al pecho', 'Burpees'])
+await conLaBase(p, ['preferencias', 'avances'], async (leer, poner) => {
+  const [pref] = await leer('preferencias')
+  const d = new Date().getDay()
+  const clave = d === 0 ? 7 : d
+  const semana = Object.fromEntries(
+    [1, 2, 3, 4, 5, 6, 7].map((n) => [n, n === clave ? 'ambos' : 'descanso']),
+  )
+  poner('preferencias', { ...pref, semana, densidad: 'fuerte', puedeSaltar: true, tieneEscalon: true })
+  const largos = {
+    empuje: 'flexion-pseudoplancha',
+    traccion: 'dominada-completa',
+    piernas: 'sentadilla-bulgara',
+    core: 'elevacion-piernas-colgado',
+  }
+  for (const avance of await leer('avances')) {
+    const id = largos[avance.patron]
+    if (id) poner('avances', { ...avance, ejercicioId: id, objetivoActual: { series: 3, cantidad: 5 } })
+  }
+})
+await recargar('/molestia')
+await boton('Core').click()
+await boton('Listo').click()
+await p.waitForTimeout(700)
+
+await recargar('/entrenar')
+const rafagasVistas = []
+let seriesDePiernas = 0
+for (let vuelta = 0; vuelta < 120; vuelta++) {
+  const rotulo = (await p.locator('.rotulo').allInnerTexts()).join(' | ')
+  if (/PIERNAS · SERIE [23]/.test(rotulo) && (await boton('Anotar serie').isVisible().catch(() => false))) {
+    seriesDePiernas++
+  }
+  if (rotulo.includes('EL FUELLE')) {
+    rafagasVistas.push(await texto('[data-prueba="nombre-rafaga"]'))
+    break
+  }
+  if (rotulo.includes('RÁFAGA')) rafagasVistas.push(await texto('[data-prueba="nombre-rafaga"]'))
+  const siguiente = p.getByRole('button', { name: /^(Siguiente ejercicio|Terminar)$/ })
+  if (await boton('Saltear').isVisible().catch(() => false)) await boton('Saltear').click()
+  else if (await boton('Voy').isVisible().catch(() => false)) await boton('Voy').click()
+  else if (await boton('Anotar serie').isVisible().catch(() => false)) await boton('Anotar serie').click()
+  else if (await siguiente.isVisible().catch(() => false)) await siguiente.click()
+  else break
+  await p.waitForTimeout(200)
+}
+notas.push(`Sesión densa con molestia en core, ráfagas que aparecieron: ${rafagasVistas.join(', ') || 'ninguna'}.`)
+if (rafagasVistas.length < 3 || seriesDePiernas === 0) {
+  fallos.push(
+    `La sesión densa mostró ${rafagasVistas.length} ráfagas y ${seriesDePiernas} descansos antes de piernas: así no se puede decir nada de cuáles evita`,
+  )
+}
+const sobreLaZona = rafagasVistas.filter((nombre) => CARGAN_CORE.has(nombre))
+if (sobreLaZona.length > 0) {
+  fallos.push(`Con molestia en core, la sesión puso ráfagas que cargan core: ${sobreLaZona.join(', ')}`)
 }
 
 await navegador.close()

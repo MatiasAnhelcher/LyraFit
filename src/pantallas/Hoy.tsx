@@ -218,7 +218,9 @@ export function Hoy() {
     const cuenta =
       mueveElPlan(vuelve ? 'vuelta' : 'plan') && !ajuste.neutra && !congeladas.has(bloque.patron)
 
-    const antes = laVezPasada(sesiones, ejercicio.id, fecha)
+    // Sin vara en el eslabón bajado por una molestia, igual que en la sesión:
+    // la vez pasada de ese eslabón puede ser su techo, y hoy se pide el piso.
+    const antes = porMolestia ? null : laVezPasada(sesiones, ejercicio.id, fecha)
     return [
       {
         patron: bloque.patron,

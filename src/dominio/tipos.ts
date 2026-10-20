@@ -587,6 +587,17 @@ export interface SesionEnCurso {
   etapa: 'series' | 'fuelle' | 'cierre-serie' | 'preguntas'
   /** Cuántas ráfagas van hechas, para no repetir la misma al retomar. */
   rafagas?: RegistroRafaga[]
+  /**
+   * Las cadenas con molestia con las que se armó esta sesión.
+   *
+   * El plan depende de ellas: el eslabón de abajo solo existe mientras la
+   * molestia está. Si se retira a mitad de camino —o la sesión cruza la
+   * medianoche y la pestaña se recarga—, la fila de hoy ya no la trae, vuelve
+   * el eslabón de siempre y las series anotadas en el de abajo quedan fuera
+   * del plan, o sea fuera de la sesión guardada. Mientras dure la sesión, la
+   * molestia con la que arrancó sigue valiendo. Ver `molestiasDeLaSesion`.
+   */
+  molestias?: Patron[]
   /** Lo anotado hasta ahora, por ejercicio. */
   hechas: Record<string, Serie[]>
 }

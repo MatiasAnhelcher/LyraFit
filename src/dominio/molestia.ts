@@ -60,6 +60,27 @@ export function molestiasDeHoy(estados: readonly Estado[], hoy: string): Set<Pat
   return new Set(deHoy?.molestia ? [deHoy.molestia] : [])
 }
 
+/**
+ * Las cadenas con molestia para la sesión en curso: las de hoy, más las que
+ * la sesión ya traía en su borrador.
+ *
+ * Una molestia no puede dejar de valer a mitad de una sesión. Si la persona
+ * la retira con "Ya no" después de anotar series en el eslabón de abajo —o la
+ * sesión cruza la medianoche y la pestaña se recarga—, la fila de hoy ya no
+ * la trae. Sin el borrador, el bloque volvería al eslabón de siempre, las
+ * series anotadas en el de abajo quedarían fuera del plan y el cierre no las
+ * guardaría: trabajo perdido en silencio. Al revés no hace falta nada: una
+ * molestia nueva entra sola por la fila de hoy, y lo ya empezado lo cuida
+ * `yaEmpezado`.
+ */
+export function molestiasDeLaSesion(
+  estados: readonly Estado[],
+  hoy: string,
+  delBorrador: readonly Patron[] = [],
+): Set<Patron> {
+  return new Set([...molestiasDeHoy(estados, hoy), ...delBorrador])
+}
+
 export type CambioPorMolestia = 'baja' | 'saltea'
 
 /** Un bloque ya resuelto: lo que devuelve `ejercicioDelBloque`. */

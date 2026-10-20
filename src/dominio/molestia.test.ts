@@ -11,6 +11,7 @@ import {
   fueraDeLaMolestia,
   lineaDeMolestia,
   molestiasDeHoy,
+  molestiasDeLaSesion,
 } from './molestia'
 import { siguienteAvance } from './progresion'
 import { RUTINAS } from './rutinas'
@@ -81,6 +82,20 @@ describe('de dónde sale la molestia de hoy', () => {
     const fila: Estado = { fecha: HOY, sueno: 2, energia: 3, musculos: 1, actualizadoEn: 1 }
     expect(molestiasDeHoy([fila], HOY).size).toBe(0)
     expect(molestiasDeHoy([], HOY).size).toBe(0)
+  })
+
+  it('retirada a mitad de la sesión, la del borrador sigue valiendo para esa sesión', () => {
+    // "Ya no" después de anotar series en el eslabón de abajo borra la fila de
+    // hoy. Si la sesión se rearmara sin la molestia, volvería el eslabón de
+    // siempre y esas series quedarían fuera de lo que se guarda al cerrar.
+    expect([...molestiasDeLaSesion([], HOY, ['traccion'])]).toEqual(['traccion'])
+    // Y una que se avisa a mitad de camino se suma a la que ya traía.
+    expect(molestiasDeLaSesion([soloMolestia('bisagra')], HOY, ['traccion'])).toEqual(
+      new Set(['bisagra', 'traccion']),
+    )
+    // Una sesión nueva, sin borrador, es la molestia de hoy y nada más.
+    expect(molestiasDeLaSesion([soloMolestia('empuje')], HOY)).toEqual(new Set(['empuje']))
+    expect(molestiasDeLaSesion([], HOY).size).toBe(0)
   })
 })
 
