@@ -29,7 +29,7 @@ import type { Patron } from './tipos'
  * los dos son desigualdades, así que se comprueban solos.
  */
 
-const PATRONES: Patron[] = ['empuje', 'traccion', 'piernas', 'core']
+const PATRONES: Patron[] = ['empuje', 'traccion', 'piernas', 'core', 'bisagra']
 /**
  * Las densidades que de verdad producen algo.
  *
@@ -192,6 +192,81 @@ describe('la ráfaga no compite con lo que viene', () => {
           })?.rafaga.id,
       )
       expect(salen[0], `${patron}: la primera y la segunda son iguales`).not.toBe(salen[1])
+    }
+  })
+})
+
+describe('la ráfaga nunca carga una cadena con molestia', () => {
+  it('en el descanso, mirando todo lo que carga y no solo lo que viene', () => {
+    // El filtro viejo preguntaba solo por el patrón de la serie siguiente: con
+    // la muñeca avisando en empuje, antes de una serie de core salía un burpee.
+    for (const molestia of PATRONES) {
+      for (const viene of PATRONES) {
+        for (const equipo of EQUIPOS) {
+          for (const densidad of DENSIDADES) {
+            for (const descanso of DESCANSOS_REALES) {
+              for (let indice = 0; indice < 12; indice++) {
+                const elegida = rafagaDelDescanso({
+                  descansoSegundos: descanso,
+                  patronQueViene: viene,
+                  equipo,
+                  densidad,
+                  indice,
+                  evitar: [molestia],
+                })
+                if (!elegida) continue
+                expect(
+                  elegida.rafaga.carga,
+                  `${elegida.rafaga.id} con molestia en ${molestia}, antes de ${viene}`,
+                ).not.toContain(molestia)
+                expect(elegida.rafaga.carga).not.toContain(viene)
+              }
+            }
+          }
+        }
+      }
+    }
+  })
+
+  it('en el bloque del final y en el día de fuelle', () => {
+    for (const molestia of PATRONES) {
+      for (const equipo of EQUIPOS) {
+        for (const densidad of DENSIDADES) {
+          for (const minutos of [4, 8, 12, 20, 30]) {
+            for (const paso of bloqueDeFuelle(minutos, equipo, densidad, [molestia])) {
+              expect(
+                paso.rafaga.carga,
+                `${paso.rafaga.id} en el bloque con molestia en ${molestia}`,
+              ).not.toContain(molestia)
+            }
+          }
+        }
+      }
+    }
+  })
+
+  it('sin molestia, el bloque y el descanso quedan exactamente como estaban', () => {
+    const equipo = { puedeSaltar: true, tieneEscalon: true }
+    expect(bloqueDeFuelle(12, equipo, 'fuerte', [])).toEqual(bloqueDeFuelle(12, equipo, 'fuerte'))
+    for (let indice = 0; indice < 8; indice++) {
+      const entrada = {
+        descansoSegundos: 150,
+        patronQueViene: 'core' as const,
+        equipo,
+        densidad: 'fuerte' as const,
+        indice,
+      }
+      expect(rafagaDelDescanso({ ...entrada, evitar: [] })).toEqual(rafagaDelDescanso(entrada))
+    }
+  })
+
+  it('los saltos de sentadilla, el burpee y la subida al cajón cargan la bisagra', () => {
+    // Las tres extienden la cadera contra el peso del cuerpo. Sin la bisagra en
+    // la lista, cualquiera de las tres podía caer antes de un curl nórdico.
+    for (const id of ['salto-sentadilla', 'burpee', 'paso-al-cajon']) {
+      const rafaga = RAFAGAS.find((r) => r.id === id)
+      expect(rafaga, id).toBeDefined()
+      expect(rafaga!.carga, id).toContain('bisagra')
     }
   })
 })
