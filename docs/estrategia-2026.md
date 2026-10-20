@@ -874,7 +874,9 @@ La versión honesta son hábitos, ordenados por impacto:
    menos de 9 horas de tu hora de acostarte. En promedio eso recorta unos 45 minutos de
    sueño, y no se siente: esta noche es probable que duermas menos sin notarlo."* (Gardiner
    y col. 2023, metaanálisis). Sin la hora de acostarse que dio la persona no hay aviso ni
-   corte: la app no la supone (revisión de octubre de 2026).
+   corte: la app no la supone (revisión de octubre de 2026). La pregunta *"¿A qué hora te
+   pensás acostar?"* (21 a 2) sale solo cuando el café marcado puede tocar el sueño, y una
+   respuesta de las últimas dos semanas se vuelve a usar, a la vista y sin copiarla al día.
 4. **Alcohol** — tres opciones, cero carga moral. Prohibido: "días limpios", rachas de
    abstinencia, felicitaciones por no tomar.
 5. **Peso corporal** — solo como guardarraíl de seguridad, y **la recomendación es dejarlo

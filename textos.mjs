@@ -12,9 +12,11 @@
  *      test de dominio nunca podía agarrarlo. Acá se toca el café a las 20 en
  *      una base limpia: ni aviso ni "CORTE SUGERIDO", en el diario ni en Hoy,
  *      y la fila del día no tiene `horaDeDormir`.
- *   2. **Con la hora de verdad, sí.** Si la hora está en la base, se usa: el
- *      corte es esa hora menos nueve y el aviso habla de esta noche, no de un
- *      "dormiste" que todavía no pasó.
+ *   2. **Con la hora de verdad, sí.** Si la hora contestada está en la base
+ *      (con `horaDeDormirContestada`, la marca que separa una respuesta de las
+ *      23:00 que se inventaban), se usa: el corte es esa hora menos nueve y el
+ *      aviso habla de esta noche, no de un "dormiste" que todavía no pasó.
+ *      Cómo se contesta en pantalla lo recorre `dormir.mjs`.
  *   3. **La escala de energía no le supone un género a nadie.** "Con poca
  *      energía", no "Cansado".
  *   4. **Ajustes y las fichas no afirman lo que no tiene fuente**: ni que dos
@@ -100,7 +102,7 @@ try {
     const dd = (n) => String(n).padStart(2, '0')
     const hoy = `${d.getFullYear()}-${dd(d.getMonth() + 1)}-${dd(d.getDate())}`
     const fila = filas.find((f) => f.fecha === hoy)
-    poner('diario', { ...fila, horaDeDormir: 22 * 60 })
+    poner('diario', { ...fila, horaDeDormir: 22 * 60, horaDeDormirContestada: true })
   })
   await p.reload({ waitUntil: 'networkidle' })
   await ir('/diario')

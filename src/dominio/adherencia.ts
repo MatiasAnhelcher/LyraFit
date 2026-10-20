@@ -50,7 +50,7 @@ export function diasEntre(desde: string, hasta: string): number {
  * hora local. Se suma con el calendario y al mediodía, lejos de cualquier
  * cambio de hora: sumar 86.400.000 ms cruzando uno puede caer en otro día.
  */
-function sumarDias(iso: string, n: number): string {
+export function sumarDias(iso: string, n: number): string {
   const fecha = new Date(`${iso}T12:00:00`)
   fecha.setDate(fecha.getDate() + n)
   const dd = (k: number) => String(k).padStart(2, '0')

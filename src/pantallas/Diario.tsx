@@ -28,9 +28,11 @@
  * que hace que un registro diario se abandone a la semana.
  */
 
+import { useState } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
 import {
   HORAS_DE_CAFEINA,
+  HORAS_DE_DORMIR,
   NOMBRE_ALCOHOL,
   PISO_DE_PROTEINA,
   SIN_CAFEINA,
@@ -38,11 +40,14 @@ import {
   TRAMOS_DE_SUENO,
   comoHora,
   corteDeCafeina,
+  cuandoSeContesto,
+  preguntarHoraDeDormir,
   senalesDelDia,
   type Alcohol,
   type DiaDelDiario,
+  type HoraDeDormir,
 } from '@/dominio/nutricion'
-import { guardarDiaDelDiario, leerDiaDelDiario } from '@/datos/repositorio'
+import { guardarDiaDelDiario, leerDiaDelDiario, leerHoraDeDormir } from '@/datos/repositorio'
 import { Cargando, Glosa, Regleta, Rotulo, Segmento } from '@/componentes/ui'
 import { IconoComida, IconoSueno } from '@/componentes/iconos'
 import { orden } from '@/componentes/movimiento'
@@ -99,6 +104,74 @@ function Pregunta({ children, porque }: { children: React.ReactNode; porque?: st
   )
 }
 
+/**
+ * La hora de acostarse: la pregunta, o la respuesta de otro día con su fecha.
+ *
+ * Si se contestó hace poco, no se vuelve a preguntar: se muestra en una línea
+ * qué hora se está usando y de cuándo es, con "Cambiar" a un toque. Esa hora
+ * NO se guarda en la fila de hoy —se usa, no se copia—, así que la única hora
+ * que queda escrita en un día es una que la persona tocó ese día.
+ *
+ * Contestada hoy, o al tocar "Cambiar", queda la regleta con la hora que vale
+ * marcada, igual que las otras preguntas del diario: lo marcado es lo que se
+ * está usando, y tocar otra la cambia.
+ */
+function HoraDeAcostarse({
+  hora,
+  poner,
+}: {
+  hora: HoraDeDormir | null
+  poner: (campos: Partial<DiaDelDiario>) => void
+}) {
+  const [cambiando, setCambiando] = useState(false)
+
+  if (hora && hora.hace > 0 && !cambiando) {
+    return (
+      <div className="mt-4 flex items-center justify-between gap-3" data-prueba="hora-de-dormir-de-antes">
+        <p className="text-sm leading-snug">
+          Te acostás a las <span className="cifra">{comoHora(hora.minutos)}</span>, como dijiste{' '}
+          {cuandoSeContesto(hora.hace)}.
+        </p>
+        <button
+          type="button"
+          onClick={() => setCambiando(true)}
+          className="boton-contorno shrink-0"
+          aria-label="Cambiar la hora de acostarte"
+        >
+          Cambiar
+        </button>
+      </div>
+    )
+  }
+
+  return (
+    <>
+      <Pregunta
+        porque={`Un café necesita unas ${HORAS_DE_CAFEINA} horas antes de dormir para no recortar el sueño (Gardiner y col., 2023). Con tu hora se hace la cuenta; sin ella, no se inventa ninguna.`}
+      >
+        ¿A qué hora te pensás acostar?
+      </Pregunta>
+      <Regleta className="mt-3" etiqueta="Hora de acostarte">
+        {HORAS_DE_DORMIR.map((h) => (
+          <Segmento
+            key={h}
+            elegido={hora?.minutos === h * 60}
+            onClick={() => poner({ horaDeDormir: h * 60, horaDeDormirContestada: true })}
+            cifra
+            className="flex-1"
+            prueba={`dormir-${h}`}
+          >
+            {h}
+          </Segmento>
+        ))}
+      </Regleta>
+      {/* El reloj da la vuelta acá, y se dice con palabras: sin esto, el 0
+          al lado del 23 parece un error y el 1 se lee como la una de la tarde. */}
+      <p className="rotulo mt-2">0, 1 y 2 ya son de madrugada</p>
+    </>
+  )
+}
+
 export function Diario() {
   /**
    * El `?? null` no es un adorno, es el arreglo de un bug que hacía que esta
@@ -116,8 +189,11 @@ export function Diario() {
    * aserción de contenido en `revisar.mjs`. Ahora la tiene.
    */
   const dia = useLiveQuery(async () => (await leerDiaDelDiario()) ?? null, [])
+  /* Esta sí puede devolver `null` sin ayuda: sin hora es `null` y en vuelo es
+     `undefined`, así que la guarda de abajo no se confunde. */
+  const hora = useLiveQuery(() => leerHoraDeDormir(), [])
 
-  if (dia === undefined) return <Cargando filas={5} />
+  if (dia === undefined || hora === undefined) return <Cargando filas={5} />
 
   const actual: DiaDelDiario = dia ?? { fecha: '', actualizadoEn: 0 }
   const poner = (campos: Partial<DiaDelDiario>) => void guardarDiaDelDiario(campos)
@@ -127,11 +203,11 @@ export function Diario() {
    * Antes había una por defecto, las 23:00, y la pantalla la guardaba sola al
    * tocar la cafeína: a quien se acuesta a la una le avisaba de más y a quien
    * se acuesta a las diez, de menos, con un "corte sugerido" calculado contra
-   * una hora que nadie contestó. Sin la hora de verdad, `cafeinaTarde` no
-   * afirma nada y el aviso no sale.
+   * una hora que nadie contestó. Ahora se pregunta, y solo cuando el café de
+   * hoy puede tocar el sueño; sin respuesta —de hoy o de hace poco—,
+   * `cafeinaTarde` no afirma nada y el aviso no sale.
    */
-  const horaDeDormir = actual.horaDeDormir
-  const senales = senalesDelDia(actual)
+  const senales = senalesDelDia(actual, hora)
   const porciones = actual.porcionesDeProteina
 
   return (
@@ -187,9 +263,11 @@ export function Diario() {
           </Segmento>
         </Regleta>
 
-        {senales.avisoDeCafeina && horaDeDormir !== undefined && (
+        {preguntarHoraDeDormir(actual.ultimaCafeina) && <HoraDeAcostarse hora={hora} poner={poner} />}
+
+        {senales.avisoDeCafeina && hora && (
           <div className="mt-4">
-            <Glosa tono="ambar" cita={`CORTE SUGERIDO · ${comoHora(corteDeCafeina(horaDeDormir))}`}>
+            <Glosa tono="ambar" cita={`CORTE SUGERIDO · ${comoHora(corteDeCafeina(hora.minutos))}`}>
               {senales.avisoDeCafeina}
             </Glosa>
           </div>

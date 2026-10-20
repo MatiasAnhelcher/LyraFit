@@ -176,7 +176,8 @@ function diaRoto(d: unknown): string | null {
     return 'un número no es un número'
   }
   if (![d.sueno, d.alcohol].every((x) => opcional(x, esTexto))) return 'una respuesta está rota'
-  if (![d.verduraEnDos, d.creatina].every((x) => opcional(x, (b) => typeof b === 'boolean'))) {
+  const binarias = [d.verduraEnDos, d.creatina, d.horaDeDormirContestada]
+  if (!binarias.every((x) => opcional(x, (b) => typeof b === 'boolean'))) {
     return 'una respuesta de sí o no está rota'
   }
   return null

@@ -43,6 +43,8 @@
  * BCAA, un quemador o un colágeno, se perdió la credibilidad entera.
  */
 
+import { diasEntre, sumarDias } from './adherencia'
+
 /** Cuánto se durmió, en los cinco tramos que una persona puede contestar. */
 export type Sueno = '<5' | '5-6' | '6-7' | '7-8' | '8+'
 
@@ -91,8 +93,22 @@ export interface DiaDelDiario {
    * mañana es además una hora de café perfectamente posible.
    */
   ultimaCafeina?: number
-  /** A qué hora te acostaste (o pensás acostarte), en minutos desde medianoche. */
+  /**
+   * A qué hora pensás acostarte, en minutos desde medianoche.
+   *
+   * OJO con las filas viejas: hasta octubre de 2026 la app escribía acá unas
+   * 23:00 que nadie contestó cada vez que se tocaba la cafeína, y no había
+   * ninguna pantalla que la preguntara. Así que este número solo, sin
+   * `horaDeDormirContestada`, no es una respuesta de nadie.
+   */
   horaDeDormir?: number
+  /**
+   * `true` cuando `horaDeDormir` la eligió la persona en la regleta, ese día.
+   * Es lo que separa una respuesta de verdad de las 23:00 inventadas de antes:
+   * sin la marca, la hora no se usa ni se vuelve a ofrecer. La que se vuelve a
+   * usar de un día anterior no se copia acá (ver `horaDeDormirVigente`).
+   */
+  horaDeDormirContestada?: boolean
   alcohol?: Alcohol
   /** Verdura o fruta en al menos dos comidas. Binario a propósito. */
   verduraEnDos?: boolean
@@ -171,6 +187,101 @@ export function corteDeCafeina(horaDeDormir: number): number {
   return bruto < 0 ? bruto + 24 * 60 : bruto
 }
 
+/* ══════════════════════════════════════════════════════════════════════════
+   LA HORA DE ACOSTARSE
+
+   Sin ella el aviso de cafeína no existe, y durante un tiempo no existió: la
+   pantalla suponía las 23:00 y la guardaba sola, y cuando se sacó esa
+   suposición nadie preguntaba la hora. Ahora se pregunta, con tres reglas:
+
+     · Solo se pregunta cuando la respuesta puede cambiar algo.
+     · Nunca se guarda una hora que la persona no contestó, y una hora sin la
+       marca de contestada —las 23:00 que la app escribía sola— no se usa.
+     · Si la contestó hace poco, se usa esa y se dice de cuándo es, para no
+       preguntar lo mismo todos los días. Usarla no es guardarla: la fila de
+       hoy sigue sin hora hasta que la persona toque una.
+   ══════════════════════════════════════════════════════════════════════════ */
+
+/**
+ * Las horas que se ofrecen, en el orden de la noche.
+ *
+ * 0, 1 y 2 son de la madrugada SIGUIENTE, no de la de hoy: van después de las
+ * 23 y no antes de las 8. `cafeinaTarde` ya resta sobre un reloj circular, así
+ * que "café a las 20 y a dormir a la 1" son cinco horas, no diecinueve.
+ */
+export const HORAS_DE_DORMIR = [21, 22, 23, 0, 1, 2]
+
+/**
+ * Cuántos días sigue valiendo una hora contestada, sin volver a preguntarla.
+ *
+ * Dos semanas. La hora de acostarse cambia con la estación, con un trabajo
+ * nuevo o con las vacaciones, y una respuesta de hace dos meses dicha como
+ * "tu hora" ya no es de la persona: es una suposición con otra cara. Pasadas
+ * dos semanas sin tocarla, volver a preguntar cuesta un toque.
+ */
+export const DIAS_QUE_VALE_LA_HORA = 14
+
+/** La hora de acostarse que vale hoy, y de cuándo es. */
+export interface HoraDeDormir {
+  /** Minutos desde medianoche, como `DiaDelDiario.horaDeDormir`. */
+  minutos: number
+  /** Hace cuántos días se contestó: 0 si fue hoy. */
+  hace: number
+}
+
+/**
+ * ¿Vale la pena preguntar la hora de acostarse?
+ *
+ * Solo si con alguna de las horas que se ofrecen el café de hoy cae adentro
+ * de la ventana. Con "Nada", o sin contestar, no hay cuenta que hacer; y con
+ * un café a las 12 tampoco: ni acostándose a las 21 llega a tocar el sueño,
+ * así que cualquier respuesta daría lo mismo. Una pregunta cuya respuesta no
+ * cambia nada es ruido, y este módulo calla cuando no tiene nada que decir.
+ */
+export function preguntarHoraDeDormir(ultimaCafeina: number | undefined): boolean {
+  if (ultimaCafeina === undefined || ultimaCafeina === SIN_CAFEINA) return false
+  return HORAS_DE_DORMIR.some((h) =>
+    cafeinaTarde({ fecha: '', actualizadoEn: 0, ultimaCafeina, horaDeDormir: h * 60 }),
+  )
+}
+
+/** El primer día cuya respuesta todavía vale hoy, para no leer de más. */
+export function desdeCuandoValeLaHora(hoy: string): string {
+  return sumarDias(hoy, -DIAS_QUE_VALE_LA_HORA)
+}
+
+/**
+ * La hora de acostarse que vale hoy: la de hoy si se contestó, y si no, la
+ * última que se contestó en las dos semanas anteriores. Nunca una por
+ * defecto: si no hay respuesta, es `null` y el aviso no sale.
+ *
+ * @param dias  días del diario, en cualquier orden; los que no tienen una
+ *              hora contestada, los de después de hoy y los vencidos no
+ *              cuentan.
+ * @param hoy   'AAAA-MM-DD' en hora local.
+ */
+export function horaDeDormirVigente(dias: DiaDelDiario[], hoy: string): HoraDeDormir | null {
+  let ultima: { fecha: string; minutos: number } | undefined
+  for (const d of dias) {
+    // Sin la marca es una de las 23:00 que la app escribía sola: decir "como
+    // dijiste hace tres días" sobre eso sería poner palabras en boca ajena.
+    if (d.horaDeDormir === undefined || d.horaDeDormirContestada !== true) continue
+    // Un día posterior a hoy solo existe si el reloj del teléfono se movió:
+    // no es una respuesta que la persona haya dado antes de hoy.
+    if (d.fecha > hoy) continue
+    if (diasEntre(d.fecha, hoy) > DIAS_QUE_VALE_LA_HORA) continue
+    if (!ultima || d.fecha > ultima.fecha) ultima = { fecha: d.fecha, minutos: d.horaDeDormir }
+  }
+  return ultima ? { minutos: ultima.minutos, hace: diasEntre(ultima.fecha, hoy) } : null
+}
+
+/** "ayer", "hace 3 días": de cuándo es una hora que se volvió a usar. */
+export function cuandoSeContesto(hace: number): string {
+  if (hace <= 0) return 'hoy'
+  if (hace === 1) return 'ayer'
+  return `hace ${hace} días`
+}
+
 /**
  * Las señales del día: lo que está, lo que falta, y nada más.
  *
@@ -187,8 +298,19 @@ export interface SenalesDelDia {
   avisoDeCafeina: string | null
 }
 
-export function senalesDelDia(dia: DiaDelDiario | undefined): SenalesDelDia {
+/**
+ * @param hora  la hora de acostarse que vale hoy (`horaDeDormirVigente`), que
+ *              puede venir de un día anterior. Si se pasa —aunque sea `null`—
+ *              manda ella y la de la fila no se mira: la fila puede traer una
+ *              de las 23:00 inventadas de antes. Las pantallas la pasan
+ *              siempre.
+ */
+export function senalesDelDia(
+  dia: DiaDelDiario | undefined,
+  hora?: HoraDeDormir | null,
+): SenalesDelDia {
   if (!dia) return { contestados: 0, enPiso: 0, avisoDeCafeina: null }
+  const paraLaCafeina = hora === undefined ? dia : { ...dia, horaDeDormir: hora?.minutos }
 
   const respuestas = [
     dia.sueno !== undefined,
@@ -208,7 +330,7 @@ export function senalesDelDia(dia: DiaDelDiario | undefined): SenalesDelDia {
   return {
     contestados: respuestas.filter(Boolean).length,
     enPiso: pisos.filter(Boolean).length,
-    avisoDeCafeina: cafeinaTarde(dia)
+    avisoDeCafeina: cafeinaTarde(paraLaCafeina)
       ? `Tomaste cafeína a menos de ${HORAS_DE_CAFEINA} horas de tu hora de acostarte. En promedio eso recorta unos 45 minutos de sueño, y no se siente: esta noche es probable que duermas menos sin notarlo.`
       : null,
   }

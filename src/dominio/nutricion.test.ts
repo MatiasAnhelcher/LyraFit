@@ -1,7 +1,9 @@
 import { describe, expect, it } from 'vitest'
 import {
   DIAS_PARA_LEER_SUENO,
+  DIAS_QUE_VALE_LA_HORA,
   HORAS_DE_CAFEINA,
+  HORAS_DE_DORMIR,
   PISO_DE_PROTEINA,
   SESIONES_POR_LADO,
   SIN_CAFEINA,
@@ -10,7 +12,11 @@ import {
   comoHora,
   corteDeCafeina,
   cruzarSuenoConRendimiento,
+  cuandoSeContesto,
+  desdeCuandoValeLaHora,
   dichoDelSueno,
+  horaDeDormirVigente,
+  preguntarHoraDeDormir,
   senalesDelDia,
   type DiaDelDiario,
 } from './nutricion'
@@ -188,5 +194,124 @@ describe('"hoy no tomé" no es lo mismo que "no contesté"', () => {
     // justo el caso donde el aviso tiene que salir.
     expect(cafeinaTarde(dia({ ultimaCafeina: 0, horaDeDormir: 2 * 60 }))).toBe(true)
     expect(SIN_CAFEINA).toBeLessThan(0)
+  })
+})
+
+describe('la hora de acostarse', () => {
+  /** Un día con la hora contestada en la regleta, que es lo único que cuenta. */
+  const conHora = (fecha: string, horaDeDormir?: number): DiaDelDiario =>
+    dia({ fecha, ...(horaDeDormir === undefined ? {} : { horaDeDormir, horaDeDormirContestada: true }) })
+
+  it('se pregunta solo cuando la respuesta puede cambiar algo', () => {
+    // Sin contestar el café, o con "Nada", no hay cuenta que hacer.
+    expect(preguntarHoraDeDormir(undefined)).toBe(false)
+    expect(preguntarHoraDeDormir(SIN_CAFEINA)).toBe(false)
+    // Un café a las 12 no toca el sueño ni acostándose a las 21 (nueve horas
+    // justas): cualquier respuesta daría lo mismo, así que no se pregunta.
+    for (const h of [8, 10, 12]) expect(preguntarHoraDeDormir(h * 60), `café a las ${h}`).toBe(false)
+    for (const h of [14, 16, 18, 20]) expect(preguntarHoraDeDormir(h * 60), `café a las ${h}`).toBe(true)
+  })
+
+  it('0, 1 y 2 son de la madrugada siguiente, no de la de hoy', () => {
+    // En el orden de la noche: después de las 23 viene el 0.
+    expect(HORAS_DE_DORMIR).toEqual([21, 22, 23, 0, 1, 2])
+    // Café a las 20 y a dormir a la 1: cinco horas, no diecinueve.
+    expect(cafeinaTarde(dia({ ultimaCafeina: 20 * 60, horaDeDormir: 1 * 60 }))).toBe(true)
+    // Café a las 14 y a dormir a las 0: diez horas. Con una resta lineal
+    // daría -14 h, y "menos de nueve" avisaría a quien no tiene que avisar.
+    expect(cafeinaTarde(dia({ ultimaCafeina: 14 * 60, horaDeDormir: 0 }))).toBe(false)
+    // Y el corte sube con la noche, sin saltar al revés en la medianoche.
+    expect(HORAS_DE_DORMIR.map((h) => comoHora(corteDeCafeina(h * 60)))).toEqual([
+      '12:00',
+      '13:00',
+      '14:00',
+      '15:00',
+      '16:00',
+      '17:00',
+    ])
+  })
+
+  it('sin ninguna respuesta no hay hora: nunca una por defecto', () => {
+    expect(horaDeDormirVigente([], '2026-03-10')).toBeNull()
+    expect(horaDeDormirVigente([conHora('2026-03-10'), conHora('2026-03-09')], '2026-03-10')).toBeNull()
+  })
+
+  it('las 23:00 que la app escribía sola no son una respuesta', () => {
+    // Hasta octubre de 2026, tocar la cafeína guardaba `horaDeDormir: 1380`
+    // sin que nadie la contestara. Esas filas siguen en los teléfonos, y sin
+    // la marca la app diría "como dijiste hace tres días" de algo que nadie
+    // dijo.
+    const vieja = dia({ fecha: '2026-03-09', ultimaCafeina: 16 * 60, horaDeDormir: 23 * 60 })
+    expect(horaDeDormirVigente([vieja], '2026-03-10')).toBeNull()
+    // Y una vieja de hoy tampoco dispara el aviso cuando la pantalla pasa la
+    // hora vigente, aunque esté en la fila.
+    const viejaDeHoy = dia({ fecha: '2026-03-10', ultimaCafeina: 20 * 60, horaDeDormir: 23 * 60 })
+    const hora = horaDeDormirVigente([viejaDeHoy], '2026-03-10')
+    expect(hora).toBeNull()
+    expect(senalesDelDia(viejaDeHoy, hora).avisoDeCafeina).toBeNull()
+    // Con la marca, la misma hora sí cuenta.
+    expect(horaDeDormirVigente([{ ...vieja, horaDeDormirContestada: true }], '2026-03-10')).toEqual({
+      minutos: 23 * 60,
+      hace: 1,
+    })
+  })
+
+  it('la de hoy gana a cualquier otra', () => {
+    const dias = [conHora('2026-03-09', 1 * 60), conHora('2026-03-10', 23 * 60)]
+    expect(horaDeDormirVigente(dias, '2026-03-10')).toEqual({ minutos: 23 * 60, hace: 0 })
+  })
+
+  it('si hoy no se contestó, vale la última respuesta, venga en el orden que venga', () => {
+    const dias = [
+      conHora('2026-03-03', 21 * 60),
+      conHora('2026-03-10'),
+      conHora('2026-03-08', 22 * 60),
+      conHora('2026-03-05', 2 * 60),
+    ]
+    expect(horaDeDormirVigente(dias, '2026-03-10')).toEqual({ minutos: 22 * 60, hace: 2 })
+  })
+
+  it('las doce de la noche son una respuesta, no un hueco', () => {
+    // `if (d.horaDeDormir)` trataría el 0 como "no contestó".
+    expect(horaDeDormirVigente([conHora('2026-03-09', 0)], '2026-03-10')).toEqual({ minutos: 0, hace: 1 })
+  })
+
+  it('vale dos semanas y ni un día más', () => {
+    expect(DIAS_QUE_VALE_LA_HORA).toBe(14)
+    expect(horaDeDormirVigente([conHora('2026-03-10', 60)], '2026-03-24')).toEqual({ minutos: 60, hace: 14 })
+    expect(horaDeDormirVigente([conHora('2026-03-10', 60)], '2026-03-25')).toBeNull()
+  })
+
+  it('cuenta días de calendario aunque en el medio cambie la hora', () => {
+    // El 4/10/2026 Sídney adelanta el reloj y el 5/4/2026 lo atrasa: los
+    // tests corren también en esa zona, y un día de 23 o 25 horas no puede
+    // correr el borde de la vigencia.
+    expect(horaDeDormirVigente([conHora('2026-09-26', 60)], '2026-10-10')?.hace).toBe(14)
+    expect(horaDeDormirVigente([conHora('2026-09-25', 60)], '2026-10-10')).toBeNull()
+    expect(horaDeDormirVigente([conHora('2026-03-29', 60)], '2026-04-12')?.hace).toBe(14)
+    expect(desdeCuandoValeLaHora('2026-10-10')).toBe('2026-09-26')
+    expect(desdeCuandoValeLaHora('2026-01-05')).toBe('2025-12-22')
+  })
+
+  it('un día posterior a hoy no es una respuesta de antes', () => {
+    // Solo existe si el reloj del teléfono se movió.
+    expect(horaDeDormirVigente([conHora('2026-03-11', 60)], '2026-03-10')).toBeNull()
+  })
+
+  it('dice de cuándo es la hora que se volvió a usar', () => {
+    expect(cuandoSeContesto(1)).toBe('ayer')
+    expect(cuandoSeContesto(3)).toBe('hace 3 días')
+    expect(cuandoSeContesto(14)).toBe('hace 14 días')
+  })
+
+  it('el aviso usa la hora que vale hoy, aunque sea de otro día', () => {
+    const hoy = dia({ ultimaCafeina: 20 * 60 })
+    expect(senalesDelDia(hoy).avisoDeCafeina).toBeNull()
+    expect(senalesDelDia(hoy, null).avisoDeCafeina).toBeNull()
+    expect(senalesDelDia(hoy, { minutos: 23 * 60, hace: 2 }).avisoDeCafeina).toContain('esta noche')
+    // Usarla no es contestarla: la cuenta de respuestas de hoy no cambia.
+    expect(senalesDelDia(hoy, { minutos: 23 * 60, hace: 2 }).contestados).toBe(1)
+    // Y con "Nada" no hay aviso, haya la hora que haya.
+    expect(senalesDelDia(dia({ ultimaCafeina: SIN_CAFEINA }), { minutos: 0, hace: 0 }).avisoDeCafeina).toBeNull()
   })
 })

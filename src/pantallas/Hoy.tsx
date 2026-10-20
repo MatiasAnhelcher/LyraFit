@@ -76,6 +76,7 @@ import {
   leerAvances,
   leerDiaDelDiario,
   leerEstadoDeHoy,
+  leerHoraDeDormir,
   leerEstados,
   guardarPreferencias,
   leerPreferencias,
@@ -138,6 +139,8 @@ export function Hoy() {
   const estados = useLiveQuery(leerEstados, [])
   const estadoDeHoy = useLiveQuery(leerEstadoDeHoy, [])
   const diaDelDiario = useLiveQuery(() => leerDiaDelDiario(), [])
+  /** La misma hora de acostarse que usa el diario, para que los dos avisos digan lo mismo. */
+  const horaDeDormir = useLiveQuery(() => leerHoraDeDormir(), [])
   /**
    * La sesión que quedó sin cerrar, si la hay: un borrador vencido con
    * trabajo adentro. Antes se borraba sola, sin mostrarse; ahora aparece acá
@@ -488,7 +491,9 @@ export function Hoy() {
    * es una respuesta, y tratarla como silencio dejaría la fila esperando para
    * siempre algo que ya está dicho.
    */
-  const senales = senalesDelDia(diaDelDiario)
+  // `?? null` mientras la consulta vuela: sin hora todavía, y no la de la fila,
+  // que puede ser una de las 23:00 inventadas de antes.
+  const senales = senalesDelDia(diaDelDiario, horaDeDormir ?? null)
   const porciones = diaDelDiario?.porcionesDeProteina
   const senalesDelDia_filas = [
     {

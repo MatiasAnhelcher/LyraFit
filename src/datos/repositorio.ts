@@ -6,7 +6,12 @@
  * y no se entera nadie más.
  */
 
-import type { DiaDelDiario } from '@/dominio/nutricion'
+import {
+  desdeCuandoValeLaHora,
+  horaDeDormirVigente,
+  type DiaDelDiario,
+  type HoraDeDormir,
+} from '@/dominio/nutricion'
 import { db, marcarPendiente, PREFERENCIAS_POR_DEFECTO } from './db'
 import type {
   Avance,
@@ -252,6 +257,22 @@ export async function leerDiario(): Promise<DiaDelDiario[]> {
 
 export async function leerDiaDelDiario(fecha = fechaISO()): Promise<DiaDelDiario | undefined> {
   return db.diario.get(fecha)
+}
+
+/**
+ * La hora de acostarse que vale hoy: la de hoy o la última de hace poco.
+ *
+ * Lee solo los días que todavía pueden valer —por la clave, que ya es la
+ * fecha, sin índice nuevo— y la regla de cuál gana es de
+ * `horaDeDormirVigente`. No escribe nada: la hora de otro día se usa, no se
+ * copia a la fila de hoy.
+ */
+export async function leerHoraDeDormir(fecha = fechaISO()): Promise<HoraDeDormir | null> {
+  const recientes = await db.diario
+    .where('fecha')
+    .between(desdeCuandoValeLaHora(fecha), fecha, true, true)
+    .toArray()
+  return horaDeDormirVigente(recientes, fecha)
 }
 
 /**

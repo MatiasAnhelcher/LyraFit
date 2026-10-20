@@ -109,8 +109,11 @@ muestra cada vez que decide algo. Nada de esperar a "sentirte listo".
   Es un piso, nunca un techo: la app no dice "te pasaste" de nada, no hay
   rachas y no hay días limpios. El único aviso que sabe dar sola es el de la
   cafeína tomada a menos de nueve horas de acostarse, porque es lo que la
-  percepción no detecta. Pero esa cuenta necesita tu hora de acostarte, que la
-  app todavía no pregunta y no supone: sin ese dato, el aviso no sale.
+  percepción no detecta. Esa cuenta necesita tu hora de acostarte, así que la
+  pregunta cuando marcás un café que puede llegar a tocar el sueño, y nunca la
+  supone: sin respuesta, el aviso no sale. Si la diste en las últimas dos
+  semanas, usa esa sin volver a preguntar y te dice de cuándo es, con
+  "Cambiar" a un toque; esa hora no se copia al día de hoy.
 
 - **El mapa muscular dibujado**, en la ficha de cada ejercicio y en Progreso.
   No es una imagen de banco: son los dieciocho músculos pintados con el dato
@@ -168,6 +171,7 @@ node datos.mjs     # que ningún dato se pierda sin que la persona lo vea y lo d
 node molestia.mjs  # avisar una molestia baja la cadena, se dice, y el motor no se entera
 node textos.mjs    # lo que se lee en pantalla: sin hora de acostarse inventada, sin género, sin "rinde más"
 node barra.mjs     # la barra de 28 días: que no le avise faltas a quien no faltó
+node dormir.mjs    # la hora de acostarse: se pregunta con el café tarde, nunca se inventa, y con ella sale el corte
 node logo.mjs     # regenera el favicon y los íconos desde el componente de Lyra
 ```
 
