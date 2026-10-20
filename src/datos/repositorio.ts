@@ -603,7 +603,10 @@ export async function revisarRequisitosUnaVez(): Promise<void> {
 
       const ahora = Date.now()
       const borrador = await db.curso.get('actual')
-      if (borrador && ahora - borrador.actualizadoEn <= VIGENCIA_DEL_BORRADOR) return
+      // Espera a la sesión que todavía se retoma. Una vencida no la frena,
+      // aunque Hoy la siga ofreciendo para guardarla: "Guardarla" cierra con
+      // lo que trae el borrador, así que bajar el core no deja series afuera.
+      if (borrador && destinoDelBorrador(borrador, ahora) === 'retomar') return
 
       const { avances, bajadas } = bajarPorRequisito(
         await leerAvances(),
