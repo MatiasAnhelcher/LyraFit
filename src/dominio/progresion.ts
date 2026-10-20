@@ -448,15 +448,39 @@ interface Contexto {
  *
  * - **sin-barra**: se hace colgado y la persona dijo que no tiene de dónde.
  * - **requisito**: pide haber llegado a un eslabón de otra cadena, que viaja
- *   acá para poder nombrarlo.
+ *   acá para poder nombrarlo, y a veces con un mínimo en ese eslabón —las 3
+ *   series de 8 dominadas completas de la palanca frontal—, que viaja por lo
+ *   mismo: decir "cuando llegues a las dominadas completas" a quien ya está
+ *   en ellas sería no decirle nada.
  */
-export type Cierre = { motivo: 'sin-barra' } | { motivo: 'requisito'; requisito: Ejercicio }
+export type Cierre =
+  | { motivo: 'sin-barra' }
+  | { motivo: 'requisito'; requisito: Ejercicio; minimo?: Pick<Objetivo, 'series' | 'cantidad'> }
+
+/**
+ * El requisito dicho para la persona: "3 series de 8 dominadas completas", o
+ * el nombre del eslabón si alcanza con llegar.
+ *
+ * Es lo que va después de "cuando llegues a", y lo usan el motor, la ficha y
+ * el aviso de cuando hubo que bajar: si cada uno lo armara por su cuenta, el
+ * mismo requisito se diría de tres maneras.
+ */
+export function requisitoDicho(
+  requisito: Ejercicio,
+  minimo?: Pick<Objetivo, 'series' | 'cantidad'>,
+): string {
+  if (!minimo) return requisito.nombre
+  const nombre = requisito.nombre.toLowerCase()
+  return requisito.medida === 'segundos'
+    ? `${minimo.series} series de ${minimo.cantidad} segundos de ${nombre}`
+    : `${minimo.series} series de ${minimo.cantidad} ${nombre}`
+}
 
 /** Lo que falta para que se abra el eslabón siguiente, dicho para la persona. */
 function loQueFalta(siguiente: Ejercicio, cierre: Cierre): string {
   return cierre.motivo === 'sin-barra'
     ? `Lo que sigue, ${siguiente.nombre}, necesita una barra`
-    : `Lo que sigue, ${siguiente.nombre}, se abre cuando llegues a ${cierre.requisito.nombre}`
+    : `Lo que sigue, ${siguiente.nombre}, se abre cuando llegues a ${requisitoDicho(cierre.requisito, cierre.minimo)}`
 }
 
 /**

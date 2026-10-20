@@ -16,21 +16,42 @@
  * Son la misma regla —hay eslabones que no se abren solo por dominar el
  * anterior— y se resuelven igual: con la lista de eslabones cerrados, que el
  * motor recibe en su contexto y que el alta usa como techo.
+ *
+ * La palanca no se abre al llegar a las dominadas completas sino con 3 series
+ * de 8 (`REQUISITOS`). Y quien ya estaba en ella con la regla vieja baja una
+ * sola vez (`bajarPorRequisito`), con una línea que dice por qué.
  */
 
-import type { Avance, Cadena, Ejercicio, Patron } from './tipos'
-import { POR_ID, REQUISITOS, cadenaDe } from './biblioteca'
+import type {
+  Avance,
+  BajadaPorRequisito,
+  Cadena,
+  Ejercicio,
+  Patron,
+  RevisionDeRequisitos,
+  Sesion,
+} from './tipos'
+import { NOMBRE_PATRON, POR_ID, REQUISITOS, cadenaDe, type Requisito } from './biblioteca'
 import { NECESITAN_BARRA } from './musculos'
-import { recalibrar, ubicarEnCadena, type Cierre } from './progresion'
+import { recalibrar, requisitoDicho, ubicarEnCadena, type Cierre } from './progresion'
 
-/** ¿Llegó la persona, en esa cadena, al eslabón que pide el requisito? */
-function llego(avances: ReadonlyMap<Patron, Avance>, patron: Patron, ejercicioId: string): boolean {
-  const avance = avances.get(patron)
+/**
+ * ¿Cumple la persona el requisito, mirando su avance en la otra cadena?
+ *
+ * Pasado el eslabón pedido, sí. En el eslabón, solo si el objetivo actual ya
+ * pide el mínimo: el objetivo y no lo logrado en una sesión suelta, porque el
+ * objetivo es lo que el motor ya dio por sostenido. Y antes del eslabón, no.
+ */
+function cumple(avances: ReadonlyMap<Patron, Avance>, requisito: Requisito): boolean {
+  const avance = avances.get(requisito.patron)
   if (!avance) return false
-  const cadena = cadenaDe(patron).ejercicios
+  const cadena = cadenaDe(requisito.patron).ejercicios
   const donde = cadena.indexOf(avance.ejercicioId)
-  const pedido = cadena.indexOf(ejercicioId)
-  return donde !== -1 && pedido !== -1 && donde >= pedido
+  const pedido = cadena.indexOf(requisito.ejercicioId)
+  if (donde === -1 || pedido === -1 || donde < pedido) return false
+  if (donde > pedido || !requisito.minimo) return true
+  const { series, cantidad } = avance.objetivoActual
+  return series >= requisito.minimo.series && cantidad >= requisito.minimo.cantidad
 }
 
 /**
@@ -39,9 +60,9 @@ function llego(avances: ReadonlyMap<Patron, Avance>, patron: Patron, ejercicioId
  *
  * Sin barra se cierra todo lo que cuelga, y ese motivo va primero: a quien no
  * tiene de dónde colgarse, decirle que le faltan dominadas no le sirve de
- * nada. Con barra, lo que tiene un requisito se abre cuando la persona llegó a
- * ese eslabón de la otra cadena. Llegar alcanza: es el momento en que el motor
- * ya la dio por lista para hacerlo.
+ * nada. Con barra, lo que tiene un requisito se abre cuando la persona lo
+ * cumple en la otra cadena (`cumple`): para la palanca frontal, 3 series de 8
+ * dominadas completas, o haberlas pasado.
  *
  * `tieneBarra` viene explícito y no como el campo de preferencias, que puede
  * faltar: el que llama decide qué hacer con el ausente, y en toda la app
@@ -59,9 +80,15 @@ export function eslabonesCerrados(
       continue
     }
     const requisito = REQUISITOS.get(id)
-    if (!requisito || llego(avances, requisito.patron, requisito.ejercicioId)) continue
+    if (!requisito || cumple(avances, requisito)) continue
     const ejercicio = POR_ID.get(requisito.ejercicioId)
-    if (ejercicio) cerrados.set(id, { motivo: 'requisito', requisito: ejercicio })
+    if (ejercicio) {
+      cerrados.set(id, {
+        motivo: 'requisito',
+        requisito: ejercicio,
+        ...(requisito.minimo ? { minimo: requisito.minimo } : {}),
+      })
+    }
   }
   return cerrados
 }
@@ -96,6 +123,16 @@ export function bajarDeLoColgado(avance: Avance, ahora: number = Date.now()): Av
   const actual = POR_ID.get(avance.ejercicioId)
   const destino = ultimoSinBarra(cadena)
   if (!actual || !destino || !cadena.ejercicios.includes(actual.id)) return null
+  return bajarA(avance, actual, destino, ahora)
+}
+
+/**
+ * El avance puesto en un eslabón más abajo, con la carga recalculada igual
+ * que en cualquier cambio de eslabón del motor. La señal se conserva: viene
+ * de cómo le venía yendo, y eso no cambió. Lo que se reinicia es lo que mide
+ * el eslabón nuevo.
+ */
+function bajarA(avance: Avance, actual: Ejercicio, destino: Ejercicio, ahora: number): Avance {
   return {
     patron: avance.patron,
     ejercicioId: destino.id,
@@ -108,6 +145,97 @@ export function bajarDeLoColgado(avance: Avance, ahora: number = Date.now()): Av
     graciaRestante: 0,
     actualizadoEn: ahora,
   }
+}
+
+/**
+ * Quién baja porque está en un eslabón cerrado por requisito, y adónde.
+ *
+ * Es para la revisión única de la palanca frontal (`revisionDeRequisitos`, en
+ * las preferencias). Con la regla vieja, la palanca se abría apenas se llegaba
+ * a las dominadas completas, y el alta ubicaba ahí con 120 segundos de
+ * plancha aunque no hubiera ni una dominada. Cerrarla frena las subidas, pero
+ * no saca a nadie de donde ya está: el motor no baja de eslabón a quien viene
+ * cumpliendo.
+ *
+ * Baja al último eslabón abierto de su cadena por debajo del que estaba: con
+ * barra, la elevación de piernas colgado; sin barra, la elevación de piernas
+ * en el suelo, porque lo colgado también está cerrado. La carga se recalcula
+ * como en `bajarDeLoColgado`.
+ *
+ * Solo mira el requisito, no la barra: quien cumple las dominadas no se toca,
+ * tenga barra o no —de lo colgado sin barra se ocupa el interruptor de
+ * Ajustes—. Y quien tiene la palanca abierta no se toca nunca. Es idempotente:
+ * lo que devuelve ya no está en un eslabón cerrado, así que pasarlo dos veces
+ * no mueve nada más. Que corra una sola vez lo decide el que llama.
+ */
+export function bajarPorRequisito(
+  avances: ReadonlyMap<Patron, Avance>,
+  tieneBarra: boolean,
+  ahora: number = Date.now(),
+): { avances: Avance[]; bajadas: BajadaPorRequisito[] } {
+  const abajo: Avance[] = []
+  const bajadas: BajadaPorRequisito[] = []
+  for (const avance of avances.values()) {
+    const requisito = REQUISITOS.get(avance.ejercicioId)
+    if (!requisito || cumple(avances, requisito)) continue
+    const cadena = cadenaDe(avance.patron)
+    const actual = POR_ID.get(avance.ejercicioId)
+    const donde = cadena.ejercicios.indexOf(avance.ejercicioId)
+    if (!actual || donde <= 0) continue
+    const cerrados = eslabonesCerrados(cadena, avances, tieneBarra)
+    const destinoId = cadena.ejercicios
+      .slice(0, donde)
+      .reverse()
+      .find((id) => !cerrados.has(id))
+    const destino = destinoId ? POR_ID.get(destinoId) : undefined
+    if (!destino) continue
+    abajo.push(bajarA(avance, actual, destino, ahora))
+    bajadas.push({ patron: avance.patron, desde: actual.id, hasta: destino.id })
+  }
+  return { avances: abajo, bajadas }
+}
+
+/**
+ * La línea que explica una bajada por requisito, o null si los datos ya no
+ * alcanzan para decirla (un eslabón que dejó de existir).
+ *
+ * Una sola frase, en primera del plural porque la decisión fue de la app y no
+ * de la persona: no hizo nada mal, la regla vieja la puso ahí. Dice adónde
+ * bajó, qué la vuelve a abrir y por qué existe la regla. Sin barra suma la
+ * barra, que es la otra mitad de lo que falta.
+ */
+export function avisoDeBajada(bajada: BajadaPorRequisito, tieneBarra: boolean): string | null {
+  const requisito = REQUISITOS.get(bajada.desde)
+  const pedido = requisito ? POR_ID.get(requisito.ejercicioId) : undefined
+  const hasta = POR_ID.get(bajada.hasta)
+  if (!requisito || !pedido || !hasta) return null
+  const falta = requisitoDicho(pedido, requisito.minimo)
+  const cuando = tieneBarra
+    ? `hasta que llegues a ${falta}`
+    : `hasta que tengas una barra y llegues a ${falta}`
+  return `Bajamos ${NOMBRE_PATRON[bajada.patron].toLowerCase()} a ${hasta.nombre.toLowerCase()} ${cuando}: ${requisito.porque}.`
+}
+
+/**
+ * Los avisos de la revisión que todavía hay que mostrar.
+ *
+ * Se muestran hasta la próxima sesión cerrada y después se callan solos. No
+ * hace falta un "ya lo vio" guardado aparte: la fecha de la revisión y la de
+ * las sesiones ya están en los datos, que es el mismo criterio con el que Hoy
+ * ofrece el fuelle una sola vez. Y hasta entrenar es justo lo que sirve:
+ * después, la sesión ya mostró dónde está.
+ */
+export function avisosDeLaRevision(
+  revision: RevisionDeRequisitos | undefined,
+  sesiones: readonly Pick<Sesion, 'finalizadaEn'>[],
+  tieneBarra: boolean,
+): string[] {
+  if (!revision || revision.bajadas.length === 0) return []
+  if (sesiones.some((s) => s.finalizadaEn > revision.en)) return []
+  return revision.bajadas.flatMap((bajada) => {
+    const aviso = avisoDeBajada(bajada, tieneBarra)
+    return aviso ? [aviso] : []
+  })
 }
 
 /**

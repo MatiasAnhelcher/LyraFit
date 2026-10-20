@@ -19,6 +19,7 @@ import {
   recalibrar,
   rendimientoDeSesion,
   proyectar,
+  requisitoDicho,
   siguienteAvance,
   ubicarEnCadena,
   type Cierre,
@@ -491,6 +492,30 @@ describe('eslabones cerrados', () => {
     }
   })
 
+  it('con un mínimo en el requisito, lo nombra: no alcanza con llegar', () => {
+    const conMinimo = {
+      ...ctxCerrado,
+      cerrados: new Map<string, Cierre>([
+        [
+          'flexion-diamante',
+          {
+            motivo: 'requisito',
+            requisito: ejercicio('dominada-completa'),
+            minimo: { series: 3, cantidad: 8 },
+          },
+        ],
+      ]),
+    }
+    const avance = avanceEn('flexion-completa', completa.ventana.max, {
+      sesionesEnObjetivo: CONSOLIDACION,
+    })
+    const d = cumpliendoCon(avance, conMinimo)
+    expect(d.cambioDeNivel).toBe(false)
+    expect(d.explicacion).toContain(
+      `Lo que sigue, ${diamante.nombre}, se abre cuando llegues a 3 series de 8 dominadas completas`,
+    )
+  })
+
   it('sin barra, dice que el siguiente necesita una y dónde avisar si la conseguís', () => {
     const avance = avanceEn('flexion-completa', completa.ventana.max, {
       sesionesEnObjetivo: CONSOLIDACION,
@@ -545,6 +570,24 @@ describe('eslabones cerrados', () => {
     expect(proyectar(avance, ctxCerrado, 'flexion-completa')).not.toBeNull()
     expect(proyectar(avance, ctxCerrado, 'flexion-diamante')).toBeNull()
     expect(proyectar(avance, ctxCerrado, 'flexion-una-mano')).toBeNull()
+  })
+})
+
+describe('requisitoDicho', () => {
+  it('sin mínimo, el nombre del eslabón: alcanza con llegar', () => {
+    expect(requisitoDicho(ejercicio('dominada-completa'))).toBe('Dominadas completas')
+  })
+
+  it('con mínimo, series y cantidad del eslabón, en minúscula', () => {
+    expect(requisitoDicho(ejercicio('dominada-completa'), { series: 3, cantidad: 8 })).toBe(
+      '3 series de 8 dominadas completas',
+    )
+  })
+
+  it('en segundos, con la unidad', () => {
+    expect(requisitoDicho(ejercicio('plancha'), { series: 3, cantidad: 30 })).toBe(
+      '3 series de 30 segundos de plancha',
+    )
   })
 })
 

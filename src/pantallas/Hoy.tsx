@@ -60,7 +60,7 @@ import {
 import { laVezPasada } from '@/dominio/estadisticas'
 import { bandaSostenida, ajusteDelDia, cadenasCongeladas } from '@/dominio/estado'
 import { seAbreHoy } from '@/dominio/anticipacion'
-import { eslabonesCerrados } from '@/dominio/apertura'
+import { avisosDeLaRevision, eslabonesCerrados } from '@/dominio/apertura'
 import { PISO_DE_PROTEINA, senalesDelDia } from '@/dominio/nutricion'
 import { mueveElPlan } from '@/dominio/progresion'
 import {
@@ -383,6 +383,13 @@ export function Hoy() {
   const vispera = bloques.find((b) => b.abre)
 
   /**
+   * Si la revisión única bajó algo de la palanca frontal, por qué. Se dice
+   * hasta la próxima sesión y se calla solo: lo decide el dominio con las
+   * fechas que ya están guardadas.
+   */
+  const avisosDeBajada = avisosDeLaRevision(preferencias.revisionDeRequisitos, sesiones, tieneBarra)
+
+  /**
    * CUÁNTAS FILAS ENTRAN EN HOY, Y POR QUÉ HAY UN TOPE.
    *
    * No es estético: es la regla del pliegue, y es el único lugar de la app
@@ -701,6 +708,20 @@ export function Hoy() {
           Solo tengo 7 minutos
         </button>
       </div>
+
+      {/* Por qué bajó el core, si la revisión de la palanca frontal lo bajó.
+          DEBAJO de la acción por la regla del pliegue, como todo lo que no es
+          lo que toca hoy: es una línea que se lee una vez, no algo que tenga
+          que estar antes de poder empezar. */}
+      {avisosDeBajada.map((aviso) => (
+        <p
+          key={aviso}
+          className="mt-6 max-w-[42ch] text-sm leading-relaxed text-[var(--color-glosa)]"
+          data-prueba="aviso-de-bajada"
+        >
+          {aviso}
+        </p>
+      ))}
 
       {/* El costo de haber partido por grupo.
        *

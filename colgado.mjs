@@ -21,6 +21,14 @@
  *   4. **Una sesión entera sin barra.** El motor no sube a lo colgado, y lo
  *      dice al cerrar. Y en ningún momento de la sesión Entrenar promete el
  *      paso a lo colgado.
+ *   5. **La palanca frontal pide 3 series de 8 dominadas completas, y quien ya
+ *      estaba en ella baja una sola vez.** El alta deja escrita la revisión
+ *      vacía. Una instalación de antes, con la palanca abierta (3×8), no se
+ *      toca; con 3×5 —abierta con la regla vieja— baja a la elevación de
+ *      piernas colgado al abrir la app, y Hoy lo dice en una línea, debajo de
+ *      Empezar. La revisión no vuelve a correr. Hoy no promete la palanca con
+ *      3×5 y sí con 3×8 (el control), la ficha dice qué la abre, y al cerrar la
+ *      sesión el motor nombra el 3×8 y el aviso se calla.
  *
  * Uso: npm run build && npx vite preview --port 4173, y después `node colgado.mjs`.
  * En otro puerto: `BASE=http://localhost:4181 node colgado.mjs`.
@@ -261,6 +269,203 @@ if (razon) {
 
 await sinBarra.navegador.close()
 
+// ── 5. La palanca frontal, con 3×8 dominadas; y quien ya estaba, baja una vez ──
+{
+  const conBarra = await abrir({ fallos })
+  const q = conBarra.pagina
+  // El mismo vigía que en el paso 1, para la promesa de la palanca.
+  await q.addInitScript(() => {
+    new MutationObserver(() => {
+      if (/pasás a palanca frontal/i.test(document.body?.textContent ?? '')) {
+        sessionStorage.setItem('promesa-palanca', '1')
+      }
+    }).observe(document, { subtree: true, childList: true, characterData: true })
+  })
+  await altaHastaElPlan(q, { barra: true, respuestas: [12, 0, 15, 120] })
+  await terminarElAlta(q)
+
+  const recien = (await leerTodo(q)).preferencias?.revisionDeRequisitos
+  if (!recien || !Array.isArray(recien.bajadas) || recien.bajadas.length !== 0) {
+    fallos.push(`El alta no dejó escrita la revisión de requisitos vacía: ${JSON.stringify(recien)}`)
+  }
+
+  /**
+   * Abre la app de verdad —que es cuando corre la revisión— y espera a que la
+   * revisión quede escrita. La pantalla se lee después: la revisión escribe
+   * por Dexie, así que Hoy se entera solo.
+   */
+  async function abrirLaApp() {
+    await q.goto('about:blank')
+    await q.goto(`${BASE}/#/`, { waitUntil: 'networkidle' })
+    for (let i = 0; i < 40; i++) {
+      if ((await leerTodo(q)).preferencias?.revisionDeRequisitos) break
+      await q.waitForTimeout(100)
+    }
+    await q.waitForTimeout(500)
+    const datos = await leerTodo(q)
+    const donde = Object.fromEntries(datos.avances.map((a) => [a.patron, a]))
+    return { ...datos, donde, texto: await q.locator('body').innerText() }
+  }
+  const AVISO = 'Bajamos core a elevación de piernas colgado hasta que llegues a 3 series de 8 dominadas completas'
+
+  // a. El control: una instalación de antes con la palanca abierta (3×8 de
+  // dominadas completas) no se toca, aunque no tenga la revisión escrita.
+  await conLaBase(q, ['avances', 'preferencias'], async (leer, poner) => {
+    const [prefe] = await leer('preferencias')
+    const { revisionDeRequisitos: _, ...deAntes } = prefe
+    await poner('preferencias', {
+      ...deAntes,
+      semana: { 1: 'fuerza', 2: 'fuerza', 3: 'fuerza', 4: 'fuerza', 5: 'fuerza', 6: 'fuerza', 7: 'fuerza' },
+    })
+    for (const a of await leer('avances')) {
+      if (a.patron === 'traccion') {
+        await poner('avances', { ...a, ejercicioId: 'dominada-completa', objetivoActual: { series: 3, cantidad: 8 } })
+      }
+      if (a.patron === 'core') {
+        await poner('avances', { ...a, ejercicioId: 'palanca-frontal-agrupada', objetivoActual: { series: 3, cantidad: 12 } })
+      }
+    }
+  })
+  {
+    const { donde, preferencias, texto } = await abrirLaApp()
+    if (donde.core?.ejercicioId !== 'palanca-frontal-agrupada') {
+      fallos.push(`Con 3×8 dominadas la palanca está abierta, y la revisión movió core a "${donde.core?.ejercicioId}"`)
+    }
+    const r = preferencias?.revisionDeRequisitos
+    if (!r || r.bajadas?.length !== 0) fallos.push(`Con la palanca abierta, la revisión anotó: ${JSON.stringify(r)}`)
+    if (texto.includes('Bajamos core') || (await q.locator('[data-prueba="aviso-de-bajada"]').count()) > 0) {
+      fallos.push('Con la palanca abierta, Hoy igual avisa una bajada')
+    }
+  }
+
+  // b. La instalación de antes con 3×5: con la regla vieja la palanca estaba
+  // abierta, con la nueva no. Baja una vez, y Hoy dice por qué.
+  await conLaBase(q, ['avances', 'preferencias'], async (leer, poner) => {
+    const [prefe] = await leer('preferencias')
+    const { revisionDeRequisitos: _, ...deAntes } = prefe
+    await poner('preferencias', deAntes)
+    for (const a of await leer('avances')) {
+      if (a.patron === 'traccion') {
+        await poner('avances', { ...a, ejercicioId: 'dominada-completa', objetivoActual: { series: 3, cantidad: 5 } })
+      }
+      if (a.patron === 'core') {
+        await poner('avances', { ...a, ejercicioId: 'palanca-frontal-agrupada', objetivoActual: { series: 3, cantidad: 12 } })
+      }
+    }
+  })
+  {
+    const { donde, preferencias, texto } = await abrirLaApp()
+    notas.push(`En la palanca con 3×5 dominadas, al abrir la app: core ${donde.core?.ejercicioId} ${donde.core?.objetivoActual?.series}×${donde.core?.objetivoActual?.cantidad}.`)
+    if (donde.core?.ejercicioId !== 'elevacion-piernas-colgado') {
+      fallos.push(`Con 3×5 dominadas, la revisión dejó core en "${donde.core?.ejercicioId}" y no en la elevación de piernas colgado`)
+    }
+    if (donde.traccion?.ejercicioId !== 'dominada-completa' || donde.traccion?.objetivoActual?.cantidad !== 5) {
+      fallos.push('La revisión tocó la tracción, que solo tenía que mirar')
+    }
+    const bajadas = preferencias?.revisionDeRequisitos?.bajadas ?? []
+    if (
+      bajadas.length !== 1 ||
+      bajadas[0].desde !== 'palanca-frontal-agrupada' ||
+      bajadas[0].hasta !== 'elevacion-piernas-colgado'
+    ) {
+      fallos.push(`La revisión no anotó la bajada como corresponde: ${JSON.stringify(bajadas)}`)
+    }
+    if (!texto.includes(AVISO)) {
+      fallos.push('Hoy no dice por qué bajó el core')
+    } else {
+      const linea = (await q.locator('[data-prueba="aviso-de-bajada"]').allInnerTexts())[0] ?? ''
+      notas.push(`Hoy dice: "${linea}"`)
+      const aviso = await q.locator('[data-prueba="aviso-de-bajada"]').first().boundingBox()
+      const empezar = await q.getByRole('button', { name: 'Empezar', exact: true }).boundingBox()
+      if (!aviso || !empezar || aviso.y < empezar.y) {
+        fallos.push('El aviso de la bajada va arriba de Empezar: rompe la regla del pliegue')
+      }
+    }
+    const filas = await q.locator('[data-prueba="plan-de-hoy"] .nombre').allInnerTexts()
+    if (filas.some((f) => /Palanca frontal/.test(f))) fallos.push(`Después de bajar, Hoy sigue mostrando la palanca: ${filas.join(' · ')}`)
+
+    // La ficha dice qué la abre, con el mismo número.
+    await q.goto(`${BASE}/#/biblioteca/palanca-frontal-agrupada`, { waitUntil: 'networkidle' })
+    await q.waitForTimeout(500)
+    const ficha = await q.locator('body').innerText()
+    if (!ficha.includes('Se abre cuando llegues a 3 series de 8 dominadas completas.')) {
+      fallos.push('La ficha de la palanca frontal agrupada no dice qué la abre')
+    }
+  }
+
+  // c. Una sola vez: con la revisión ya escrita, alguien que vuelve a la
+  // palanca —a mano, desde la ficha— no baja de nuevo al abrir la app.
+  await conLaBase(q, ['avances'], async (leer, poner) => {
+    const core = (await leer('avances')).find((a) => a.patron === 'core')
+    await poner('avances', { ...core, ejercicioId: 'palanca-frontal-agrupada', objetivoActual: { series: 3, cantidad: 12 } })
+  })
+  {
+    const { donde } = await abrirLaApp()
+    if (donde.core?.ejercicioId !== 'palanca-frontal-agrupada') {
+      fallos.push(`La revisión volvió a correr: bajó core a "${donde.core?.ejercicioId}" con la revisión ya escrita`)
+    }
+  }
+
+  // d. Hoy no promete la palanca con 3×5, y sí con 3×8 (el control). Core en
+  // el techo de la elevación colgado y consolidado: sin el requisito, cumplir
+  // hoy lo pasaría a la palanca.
+  await conLaBase(q, ['avances'], async (leer, poner) => {
+    const core = (await leer('avances')).find((a) => a.patron === 'core')
+    await poner('avances', {
+      ...core,
+      ejercicioId: 'elevacion-piernas-colgado',
+      objetivoActual: { series: 3, cantidad: 10 },
+      senal: 1,
+      sesionesEnObjetivo: 2,
+      graciaRestante: 0,
+    })
+  })
+  const PROMESA_PALANCA = /pasás a palanca frontal agrupada/
+  if (PROMESA_PALANCA.test((await abrirLaApp()).texto)) {
+    fallos.push('Con 3×5 dominadas, Hoy promete "pasás a palanca frontal agrupada": el motor no lo va a hacer')
+  }
+  await conLaBase(q, ['avances'], async (leer, poner) => {
+    const t = (await leer('avances')).find((a) => a.patron === 'traccion')
+    await poner('avances', { ...t, objetivoActual: { series: 3, cantidad: 8 } })
+  })
+  if (!PROMESA_PALANCA.test((await abrirLaApp()).texto)) {
+    fallos.push('Con 3×8 dominadas, Hoy no anuncia la palanca: el control falló, y el chequeo de arriba no prueba nada')
+  }
+  await conLaBase(q, ['avances'], async (leer, poner) => {
+    const t = (await leer('avances')).find((a) => a.patron === 'traccion')
+    await poner('avances', { ...t, objetivoActual: { series: 3, cantidad: 5 } })
+  })
+
+  // e. Una sesión entera con 3×5: el motor no abre la palanca y nombra el
+  // 3×8; Entrenar no la promete; y después el aviso de Hoy se calla.
+  await q.goto('about:blank')
+  await q.goto(`${BASE}/#/`, { waitUntil: 'networkidle' })
+  await q.evaluate(() => sessionStorage.removeItem('promesa-palanca'))
+  await q.goto('about:blank')
+  const razon5 = await completarUnaSesion(q)
+  if (await q.evaluate(() => sessionStorage.getItem('promesa-palanca'))) {
+    fallos.push('Con 3×5 dominadas, Entrenar prometió el paso a la palanca frontal')
+  }
+  if (razon5) {
+    fallos.push(`La sesión con barra no se pudo completar: ${razon5}`)
+  } else {
+    const { donde, sesiones, texto } = await abrirLaApp()
+    if (donde.core?.ejercicioId !== 'elevacion-piernas-colgado') {
+      fallos.push(`Con 3×5 dominadas, el motor movió core a "${donde.core?.ejercicioId}"`)
+    }
+    const decision = sesiones.at(-1)?.decisiones?.find((d) => d.patron === 'core')
+    notas.push(`Lo que dijo el motor con 3×5 dominadas: "${decision?.explicacion}"`)
+    if (!/se abre cuando llegues a 3 series de 8 dominadas completas/.test(decision?.explicacion ?? '')) {
+      fallos.push(`El motor no nombra las 3 series de 8: "${decision?.explicacion}"`)
+    }
+    if (texto.includes('Bajamos core') || (await q.locator('[data-prueba="aviso-de-bajada"]').count()) > 0) {
+      fallos.push('Después de entrenar, Hoy sigue avisando la bajada: tenía que callarse')
+    }
+  }
+
+  await conBarra.navegador.close()
+}
+
 for (const n of notas) console.log(n)
 
 if (fallos.length > 0) {
@@ -268,4 +473,4 @@ if (fallos.length > 0) {
   process.exit(1)
 }
 
-console.log('\nSin barra no hay nada colgado, la palanca no se abre desde el alta, y ni Hoy ni Entrenar prometen lo que el motor no hace.')
+console.log('\nSin barra no hay nada colgado, la palanca no se abre desde el alta ni sin 3×8 dominadas, quien ya estaba baja una sola vez y se le dice por qué, y ni Hoy ni Entrenar prometen lo que el motor no hace.')

@@ -2,7 +2,7 @@ import { Link, useParams } from 'react-router-dom'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { NOMBRE_PATRON, POR_ID, buscarEjercicio, cadenaDe } from '@/dominio/biblioteca'
 import { historicoDeEjercicio, recordDe } from '@/dominio/estadisticas'
-import { proyectar } from '@/dominio/progresion'
+import { proyectar, requisitoDicho } from '@/dominio/progresion'
 import { eslabonesCerrados } from '@/dominio/apertura'
 import { POSTURAS } from '@/dominio/posturas'
 import { FiguraEjercicio } from '@/componentes/figura'
@@ -114,18 +114,27 @@ export function FichaEjercicio() {
   const posicionActual = avance ? cadena.ejercicios.indexOf(avance.ejercicioId) : -1
   const eslabonesDeDistancia =
     esEslabon && posicionActual >= 0 ? posicion - posicionActual : null
+  const cerrados = eslabonesCerrados(cadena, avances, preferencias.tieneBarra !== false)
   const sesionesHasta =
     avance && eslabonesDeDistancia === 1
-      ? proyectar(
-          avance,
-          {
-            cadena,
-            ejercicios: POR_ID,
-            cerrados: eslabonesCerrados(cadena, avances, preferencias.tieneBarra !== false),
-          },
-          ejercicio.id,
-        )
+      ? proyectar(avance, { cadena, ejercicios: POR_ID, cerrados }, ejercicio.id)
       : null
+  /**
+   * Y si está cerrado, qué lo abre. Es la pregunta con la que alguien entra a
+   * la ficha de la palanca frontal: sin esto la ficha decía "un eslabón más
+   * adelante" y nada más, y el motor, mientras tanto, decía que falta algo
+   * que en ningún lado se veía. Es la misma frase que usa el motor.
+   */
+  const cierre =
+    eslabonesDeDistancia !== null && eslabonesDeDistancia > 0
+      ? cerrados.get(ejercicio.id)
+      : undefined
+  const queLoAbre =
+    cierre?.motivo === 'requisito'
+      ? `Se abre cuando llegues a ${requisitoDicho(cierre.requisito, cierre.minimo)}.`
+      : cierre?.motivo === 'sin-barra'
+        ? 'Se hace colgado: si conseguís una barra, marcalo en Ajustes.'
+        : null
 
   return (
     <>
@@ -182,6 +191,14 @@ export function FichaEjercicio() {
                   : `${eslabonesDeDistancia} eslabones`}
               </span>{' '}
               más adelante en la cadena.
+            </>
+          )}
+          {queLoAbre && (
+            <>
+              {' '}
+              <span className="text-[var(--color-tinta)]" data-prueba="que-lo-abre">
+                {queLoAbre}
+              </span>
             </>
           )}
         </p>

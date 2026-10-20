@@ -12,7 +12,10 @@ import { describe, expect, it } from 'vitest'
 import { POR_ID, REQUISITOS, cadenaDe } from './biblioteca'
 import { NECESITAN_BARRA } from './musculos'
 import {
+  avisoDeBajada,
+  avisosDeLaRevision,
   bajarDeLoColgado,
+  bajarPorRequisito,
   eslabonesCerrados,
   techoDeUbicacion,
   ubicarDesdeElAlta,
@@ -25,7 +28,7 @@ import {
   siguienteAvance,
   ubicarEnCadena,
 } from './progresion'
-import type { Avance, Patron, Serie } from './tipos'
+import type { Avance, Patron, RevisionDeRequisitos, Serie } from './tipos'
 
 const core = cadenaDe('core')
 const traccion = cadenaDe('traccion')
@@ -264,13 +267,48 @@ describe('eslabonesCerrados', () => {
         'palanca-frontal-negativa',
       ])
       for (const cierre of cerrados.values()) {
-        expect(cierre).toEqual({ motivo: 'requisito', requisito: POR_ID.get('dominada-completa') })
+        expect(cierre).toEqual({
+          motivo: 'requisito',
+          requisito: POR_ID.get('dominada-completa'),
+          minimo: { series: 3, cantidad: 8 },
+        })
       }
     }
   })
 
-  it('llegar a las dominadas completas la abre', () => {
-    for (const id of ['dominada-completa', 'dominada-arquera', 'dominada-un-brazo-asistida']) {
+  /** Tracción en las dominadas completas, con este objetivo. */
+  const enDominadas = (series: number, cantidad: number) =>
+    new Map<Patron, Avance>([
+      ['traccion', { ...avanceEn('traccion', 'dominada-completa'), objetivoActual: { series, cantidad } }],
+    ])
+
+  it('llegar a las dominadas completas no alcanza: se entra con 3 por serie', () => {
+    // Era la regla vieja: llegar abría la palanca, con 3×3.
+    const dominada = POR_ID.get('dominada-completa')!
+    for (let cantidad = dominada.ventana.min; cantidad < 8; cantidad++) {
+      const cerrados = eslabonesCerrados(core, enDominadas(3, cantidad), true)
+      expect([...cerrados.keys()].sort(), `3×${cantidad}`).toEqual([
+        'palanca-frontal-agrupada',
+        'palanca-frontal-negativa',
+      ])
+    }
+  })
+
+  it('la abre un objetivo de 3 series de 8 dominadas completas, o más', () => {
+    const dominada = POR_ID.get('dominada-completa')!
+    for (let cantidad = 8; cantidad <= dominada.ventana.max; cantidad++) {
+      expect(eslabonesCerrados(core, enDominadas(3, cantidad), true).size, `3×${cantidad}`).toBe(0)
+    }
+  })
+
+  it('son 3 series: dos de diez no alcanzan', () => {
+    expect(eslabonesCerrados(core, enDominadas(2, 10), true).has('palanca-frontal-agrupada')).toBe(
+      true,
+    )
+  })
+
+  it('pasadas las dominadas completas, abierta sin mirar el objetivo', () => {
+    for (const id of ['dominada-arquera', 'dominada-un-brazo-asistida']) {
       expect(eslabonesCerrados(core, conTraccionEn(id), true).size, id).toBe(0)
     }
   })
@@ -368,18 +406,74 @@ describe('el motor, con los eslabones cerrados que calcula la app', () => {
     expect(recorrido.filter((id) => id.startsWith('palanca-frontal'))).toEqual([])
     expect(recorrido.at(-1)).toBe('elevacion-piernas-colgado')
     expect(explicaciones.at(-1)).toContain('Palanca frontal agrupada')
-    expect(explicaciones.at(-1)).toContain('Dominadas completas')
+    expect(explicaciones.at(-1)).toContain('se abre cuando llegues a 3 series de 8 dominadas completas')
   })
 
-  it('con las dominadas completas se abre, y por la agrupada', () => {
+  it('en las dominadas completas con 3 por serie, tampoco: es donde la regla vieja la abría', () => {
     const avances = new Map<Patron, Avance>([
-      ['traccion', avanceEn('traccion', 'dominada-completa')],
+      ['traccion', avanceEn('traccion', 'dominada-completa', 3)],
+      ['core', avanceEn('core', 'elevacion-piernas-colgado')],
+    ])
+    const { recorrido, explicaciones } = entrenar(avances, 'core', 300, true)
+    expect(recorrido.filter((id) => id.startsWith('palanca-frontal'))).toEqual([])
+    expect(explicaciones.at(-1)).toContain('3 series de 8 dominadas completas')
+  })
+
+  it('con 3 series de 8 dominadas completas se abre, y por la agrupada', () => {
+    const avances = new Map<Patron, Avance>([
+      ['traccion', avanceEn('traccion', 'dominada-completa', 8)],
       ['core', avanceEn('core', 'elevacion-piernas-colgado')],
     ])
     const { recorrido } = entrenar(avances, 'core', 300, true)
     const primeraPalanca = recorrido.find((id) => id.startsWith('palanca-frontal'))
     expect(primeraPalanca).toBe('palanca-frontal-agrupada')
     expect(recorrido.at(-1)).toBe('palanca-frontal-negativa')
+  })
+
+  it('entrenando las dos cadenas, el core espera a que las dominadas lleguen a 3×8', () => {
+    // Las dos a la vez, como en una sesión de verdad: los cierres de cada
+    // sesión salen de los avances de ANTES de esa sesión, igual que en
+    // `cerrarSesion`. El core llega primero al techo y se queda sumando; la
+    // palanca se abre recién en la sesión siguiente a que el objetivo de
+    // dominadas pida 3 series de 8.
+    const avances = new Map<Patron, Avance>([
+      ['traccion', avanceEn('traccion', 'dominada-completa', 3)],
+      [
+        'core',
+        avanceEn('core', 'elevacion-piernas-colgado', POR_ID.get('elevacion-piernas-colgado')!.ventana.max),
+      ],
+    ])
+    let abrio: { sesion: number; traccion: Avance } | null = null
+    for (let i = 0; i < 200 && !abrio; i++) {
+      const antes = new Map(avances)
+      for (const patron of ['traccion', 'core'] as Patron[]) {
+        const cadena = cadenaDe(patron)
+        const avance = antes.get(patron)!
+        const { series: n, cantidad } = avance.objetivoActual
+        const hechas: Serie[] = Array.from({ length: n }, () => ({ logrado: cantidad }))
+        const d = siguienteAvance(
+          avance,
+          { rendimiento: rendimientoDeSesion(avance.objetivoActual, hechas), tipico: logradoTipico(hechas) },
+          { cadena, ejercicios: POR_ID, cerrados: eslabonesCerrados(cadena, antes, true) },
+          i,
+        )
+        avances.set(patron, d.avance)
+      }
+      if (avances.get('core')!.ejercicioId.startsWith('palanca-frontal')) {
+        abrio = { sesion: i, traccion: antes.get('traccion')! }
+      }
+    }
+    expect(abrio, 'la palanca no se abrió nunca').not.toBeNull()
+    expect(abrio!.sesion).toBeGreaterThan(0)
+    expect(avances.get('core')!.ejercicioId).toBe('palanca-frontal-agrupada')
+    // Lo que tenía tracción en la sesión en que se abrió: 3×8, o más arriba.
+    const { traccion } = abrio!
+    const enCompleta = traccion.ejercicioId === 'dominada-completa'
+    expect(traccion.ejercicioId === 'dominada-arquera' || enCompleta).toBe(true)
+    if (enCompleta) {
+      expect(traccion.objetivoActual.series).toBeGreaterThanOrEqual(3)
+      expect(traccion.objetivoActual.cantidad).toBeGreaterThanOrEqual(8)
+    }
   })
 
   it('sin barra, el motivo es la barra aunque tenga las dominadas completas', () => {
@@ -391,5 +485,182 @@ describe('el motor, con los eslabones cerrados que calcula la app', () => {
     expect(recorrido.filter((id) => NECESITAN_BARRA.has(id))).toEqual([])
     expect(explicaciones.at(-1)).toContain('necesita una barra')
     expect(explicaciones.at(-1)).toContain('Ajustes')
+  })
+})
+
+describe('bajarPorRequisito', () => {
+  // La revisión única: quien quedó en la palanca frontal con la regla vieja
+  // —el alta lo ponía ahí con 120 s de plancha y cero dominadas, o el motor
+  // al llegar a las dominadas completas con 3 por serie— baja una vez.
+  const conTraccion = (traccion: Avance, coreEn: string, cantidad?: number) =>
+    new Map<Patron, Avance>([
+      ['traccion', traccion],
+      ['core', { ...avanceEn('core', coreEn, cantidad), senal: 0.93 }],
+    ])
+  const enCompleta = (cantidad: number) => avanceEn('traccion', 'dominada-completa', cantidad)
+
+  it.each(['palanca-frontal-agrupada', 'palanca-frontal-negativa'])(
+    'con barra y sin las 3×8, desde %s baja a la elevación de piernas colgado',
+    (id) => {
+      const avances = conTraccion(enCompleta(5), id, 13)
+      const { avances: abajo, bajadas } = bajarPorRequisito(avances, true, 42)
+      expect(bajadas).toEqual([{ patron: 'core', desde: id, hasta: 'elevacion-piernas-colgado' }])
+      expect(abajo).toHaveLength(1)
+      const [nuevo] = abajo
+      const destino = POR_ID.get('elevacion-piernas-colgado')!
+      // La carga, recalculada como en cualquier cambio de eslabón: de segundos
+      // a repeticiones no hay cuenta posible, así que entra por el piso.
+      expect(nuevo).toEqual({
+        patron: 'core',
+        ejercicioId: destino.id,
+        objetivoActual: { series: destino.series, cantidad: destino.ventana.min },
+        senal: 0.93,
+        sesionesEnObjetivo: 0,
+        graciaRestante: 0,
+        actualizadoEn: 42,
+      })
+      // Y queda en un eslabón abierto: el motor puede seguir desde ahí.
+      expect(eslabonesCerrados(core, avances, true).has(nuevo!.ejercicioId)).toBe(false)
+    },
+  )
+
+  it.each(['palanca-frontal-agrupada', 'palanca-frontal-negativa'])(
+    'sin barra y sin las 3×8, desde %s baja a lo último que no cuelga',
+    (id) => {
+      const { avances: abajo, bajadas } = bajarPorRequisito(
+        conTraccion(avanceEn('traccion', 'remo-australiano-pies-elevados'), id),
+        false,
+        0,
+      )
+      expect(bajadas).toEqual([{ patron: 'core', desde: id, hasta: 'elevacion-piernas-suelo' }])
+      expect(NECESITAN_BARRA.has(abajo[0]!.ejercicioId)).toBe(false)
+    },
+  )
+
+  it('el caso de la revisión: alta con 120 s de plancha y cero dominadas', () => {
+    // Lo que la app real guardaba: tracción en el primer eslabón y core en la
+    // palanca frontal negativa, 3×13 s.
+    const avances = new Map<Patron, Avance>([
+      ['traccion', avanceInicial(traccion, POR_ID, 0)],
+      ['core', avanceEn('core', 'palanca-frontal-negativa', 13)],
+    ])
+    expect(bajarPorRequisito(avances, true, 0).bajadas[0]?.hasta).toBe('elevacion-piernas-colgado')
+    expect(bajarPorRequisito(avances, false, 0).bajadas[0]?.hasta).toBe('elevacion-piernas-suelo')
+  })
+
+  it('sin avance de tracción no se da nada por cumplido', () => {
+    const avances = new Map<Patron, Avance>([['core', avanceEn('core', 'palanca-frontal-agrupada')]])
+    expect(bajarPorRequisito(avances, true, 0).bajadas).toHaveLength(1)
+  })
+
+  it('con la palanca abierta no toca a nadie', () => {
+    for (const traccion of [
+      enCompleta(8),
+      enCompleta(10),
+      avanceEn('traccion', 'dominada-arquera'),
+      avanceEn('traccion', 'dominada-un-brazo-asistida'),
+    ]) {
+      for (const id of ['palanca-frontal-agrupada', 'palanca-frontal-negativa']) {
+        const resultado = bajarPorRequisito(conTraccion(traccion, id), true, 0)
+        expect(resultado, `${traccion.ejercicioId} ${traccion.objetivoActual.cantidad}, ${id}`).toEqual({
+          avances: [],
+          bajadas: [],
+        })
+      }
+    }
+  })
+
+  it('quien cumple las dominadas no baja aunque no tenga barra: eso es cosa del interruptor', () => {
+    const avances = conTraccion(avanceEn('traccion', 'dominada-arquera'), 'palanca-frontal-agrupada')
+    expect(bajarPorRequisito(avances, false, 0).avances).toEqual([])
+  })
+
+  it('solo mira los eslabones con requisito', () => {
+    for (const id of core.ejercicios.filter((x) => !REQUISITOS.has(x))) {
+      for (const barra of [true, false]) {
+        expect(bajarPorRequisito(conTraccion(enCompleta(3), id), barra, 0).avances, id).toEqual([])
+      }
+    }
+  })
+
+  it('es idempotente: lo que baja ya no está en un eslabón cerrado', () => {
+    for (const barra of [true, false]) {
+      const avances = conTraccion(enCompleta(3), 'palanca-frontal-negativa')
+      const primera = bajarPorRequisito(avances, barra, 0)
+      for (const avance of primera.avances) avances.set(avance.patron, avance)
+      expect(bajarPorRequisito(avances, barra, 0)).toEqual({ avances: [], bajadas: [] })
+    }
+  })
+
+  it('y no toca la tracción: el requisito se mira, no se mueve', () => {
+    const traccionAntes = enCompleta(4)
+    const { avances } = bajarPorRequisito(conTraccion(traccionAntes, 'palanca-frontal-agrupada'), true, 0)
+    expect(avances.map((a) => a.patron)).toEqual(['core'])
+  })
+})
+
+describe('el aviso de la bajada', () => {
+  const bajada = (hasta: string) => ({
+    patron: 'core' as const,
+    desde: 'palanca-frontal-agrupada',
+    hasta,
+  })
+
+  it('dice adónde bajó, qué lo vuelve a abrir y por qué, en una línea', () => {
+    expect(avisoDeBajada(bajada('elevacion-piernas-colgado'), true)).toBe(
+      'Bajamos core a elevación de piernas colgado hasta que llegues a 3 series de 8 dominadas completas: así se cuida el codo.',
+    )
+  })
+
+  it('sin barra, suma la barra a lo que falta', () => {
+    expect(avisoDeBajada(bajada('elevacion-piernas-suelo'), false)).toBe(
+      'Bajamos core a elevación de piernas en el suelo hasta que tengas una barra y llegues a 3 series de 8 dominadas completas: así se cuida el codo.',
+    )
+  })
+
+  it('es una sola frase, corta, y no le reprocha nada a nadie', () => {
+    for (const [hasta, barra] of [
+      ['elevacion-piernas-colgado', true],
+      ['elevacion-piernas-suelo', false],
+    ] as const) {
+      const aviso = avisoDeBajada(bajada(hasta), barra)!
+      expect(aviso.endsWith('.')).toBe(true)
+      expect(aviso.slice(0, -1)).not.toContain('.')
+      expect(aviso.length).toBeLessThanOrEqual(150)
+      expect(aviso).not.toMatch(/deber[ií]as|tendr[ií]as|error|culpa|mal|no pod[eé]s/i)
+    }
+  })
+
+  it('con eslabones que ya no existen no inventa nada', () => {
+    expect(avisoDeBajada({ patron: 'core', desde: 'no-existe', hasta: 'plancha' }, true)).toBeNull()
+    expect(
+      avisoDeBajada({ patron: 'core', desde: 'palanca-frontal-agrupada', hasta: 'no-existe' }, true),
+    ).toBeNull()
+  })
+})
+
+describe('avisosDeLaRevision', () => {
+  const revision: RevisionDeRequisitos = {
+    en: 1000,
+    bajadas: [{ patron: 'core', desde: 'palanca-frontal-negativa', hasta: 'elevacion-piernas-colgado' }],
+  }
+
+  it('sin revisión, o sin nada bajado, no hay nada que decir', () => {
+    expect(avisosDeLaRevision(undefined, [], true)).toEqual([])
+    expect(avisosDeLaRevision({ en: 1000, bajadas: [] }, [], true)).toEqual([])
+  })
+
+  it('se dice hasta la próxima sesión cerrada', () => {
+    const aviso = avisoDeBajada(revision.bajadas[0]!, true)
+    expect(avisosDeLaRevision(revision, [], true)).toEqual([aviso])
+    // Las sesiones de antes de la revisión no cuentan.
+    expect(avisosDeLaRevision(revision, [{ finalizadaEn: 999 }], true)).toEqual([aviso])
+    expect(avisosDeLaRevision(revision, [{ finalizadaEn: 999 }, { finalizadaEn: 1001 }], true)).toEqual(
+      [],
+    )
+  })
+
+  it('el texto sigue a la barra de ahora, no a la del día de la revisión', () => {
+    expect(avisosDeLaRevision(revision, [], false)[0]).toContain('hasta que tengas una barra')
   })
 })

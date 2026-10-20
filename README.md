@@ -54,7 +54,8 @@ muestra cada vez que decide algo. Nada de esperar a "sentirte listo".
   el último eslabón que no cuelga (si conseguís una, se cambia en Ajustes; si
   la dejás de tener, apagarla ahí baja lo que estaba colgado), y la
   palanca frontal —primero la agrupada, después la negativa— espera a que
-  llegues a las dominadas completas.
+  llegues a 3 series de 8 dominadas completas. Si ya estabas en la palanca
+  sin eso, la app te baja una sola vez a lo último abierto y te dice por qué.
 - **Registro de series** con predicción previa, temporizador de descanso que no
   se atrasa aunque bloquees el teléfono, y la pantalla siempre encendida.
 - **Chequeo diario opcional** de tres preguntas, que sirve sobre todo para que
@@ -154,7 +155,7 @@ node pliegue.mjs   # que nada quede abajo del pliegue, medido en tres teléfonos
 node paleta.mjs    # contraste de cada par del sistema y de cada texto en pantalla
 node movimiento.mjs # que nada se mueva en el esfuerzo y que haya un solo infinito
 node carga.mjs     # los discos: que se ofrezcan con qué, y que lleguen a la base
-node colgado.mjs   # sin barra, nada colgado; y la palanca frontal, recién con dominadas
+node colgado.mjs   # sin barra, nada colgado; y la palanca frontal, recién con 3×8 dominadas
 node logo.mjs     # regenera el favicon y los íconos desde el componente de Lyra
 ```
 

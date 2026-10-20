@@ -8,6 +8,7 @@
 
 import { describe, expect, it } from 'vitest'
 import { CADENAS, EJERCICIOS, FUERA_DE_CADENA, POR_ID, REQUISITOS, cadenaDe } from './biblioteca'
+import { requisitoDicho } from './progresion'
 
 /**
  * Salto máximo de carga entre dos eslabones consecutivos.
@@ -119,9 +120,16 @@ describe('la palanca frontal', () => {
     expect(core.indexOf(agrupada.id)).toBeLessThan(core.indexOf(negativa.id))
   })
 
-  it('las dos piden dominadas completas antes de abrirse', () => {
+  it('las dos piden 3 series de 8 dominadas completas antes de abrirse', () => {
+    // El 3×8 del rol de calistenia. Llegar a las dominadas completas no
+    // alcanza: se entra con 3 por serie.
     for (const id of [agrupada.id, negativa.id]) {
-      expect(REQUISITOS.get(id), id).toEqual({ patron: 'traccion', ejercicioId: 'dominada-completa' })
+      expect(REQUISITOS.get(id), id).toEqual({
+        patron: 'traccion',
+        ejercicioId: 'dominada-completa',
+        minimo: { series: 3, cantidad: 8 },
+        porque: 'así se cuida el codo',
+      })
     }
   })
 })
@@ -134,6 +142,36 @@ describe('requisitos cruzados', () => {
       expect(cadenaDe(ejercicio!.patron).ejercicios, cerrado).toContain(cerrado)
       expect(patron, `${cerrado} pide algo de su propia cadena`).not.toBe(ejercicio!.patron)
       expect(cadenaDe(patron).ejercicios, `${cerrado} pide ${ejercicioId}`).toContain(ejercicioId)
+    }
+  })
+
+  it('el mínimo es alcanzable en el eslabón pedido y pide más que entrar', () => {
+    // Un mínimo por encima del techo de la ventana no se cumpliría nunca en
+    // ese eslabón; uno en el piso sería lo mismo que llegar.
+    for (const [cerrado, { ejercicioId, minimo }] of REQUISITOS) {
+      if (!minimo) continue
+      const pedido = POR_ID.get(ejercicioId)!
+      expect(minimo.cantidad, cerrado).toBeGreaterThan(pedido.ventana.min)
+      expect(minimo.cantidad, cerrado).toBeLessThanOrEqual(pedido.ventana.max)
+      expect(minimo.series, cerrado).toBeGreaterThanOrEqual(1)
+      expect(minimo.series, cerrado).toBeLessThanOrEqual(pedido.series)
+    }
+  })
+
+  it('la ficha del eslabón cerrado dice el mismo requisito que el dato', () => {
+    // La ficha lo dice en "Lo que sale mal". Si alguien cambia el mínimo y no
+    // el texto, la ficha diría una cosa y el motor otra.
+    for (const [cerrado, { ejercicioId, minimo }] of REQUISITOS) {
+      const texto = POR_ID.get(cerrado)!.erroresComunes.join(' ')
+      expect(texto, cerrado).toContain(requisitoDicho(POR_ID.get(ejercicioId)!, minimo))
+    }
+  })
+
+  it('cada requisito dice por qué existe, en pocas palabras y sin punto', () => {
+    for (const [cerrado, { porque }] of REQUISITOS) {
+      expect(porque.length, cerrado).toBeGreaterThan(5)
+      expect(porque.length, cerrado).toBeLessThanOrEqual(40)
+      expect(porque, cerrado).not.toMatch(/\.$/)
     }
   })
 })
