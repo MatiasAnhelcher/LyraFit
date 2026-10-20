@@ -512,19 +512,26 @@ export interface Preferencias {
  *
  * Todas orientadas para que 5 sea lo mejor. Mezclar direcciones obliga a
  * invertir mentalmente y produce errores de carga.
+ *
+ * Las tres son opcionales desde que la molestia se puede avisar sola, con el
+ * chequeo apagado. Una fila que trae solo `molestia` dice exactamente eso:
+ * que hoy avisó una molestia y que no contestó cómo durmió. Rellenarla con un
+ * 3 sería inventar un dato, y el índice lo promediaría como si fuera cierto.
+ * Por eso el índice lee solo las filas que pasan `contestoElChequeo`.
  */
 export interface Estado {
   /** Fecha local AAAA-MM-DD. Es la clave: una entrada por día. */
   fecha: string
   /** ¿Cómo dormiste anoche? 1 muy mal … 5 muy bien. */
-  sueno: number
+  sueno?: number
   /** ¿Cómo está tu energía hoy? 1 en el piso … 5 a pleno. */
-  energia: number
+  energia?: number
   /** ¿Cómo andan tus músculos? 1 muy doloridos … 5 sin dolor. */
-  musculos: number
+  musculos?: number
   /**
    * Molestia en una zona puntual, no dolor muscular parejo. Es información de
-   * seguridad, categórica: nunca entra en el promedio del índice.
+   * seguridad, categórica: nunca entra en el promedio del índice. Se puede
+   * avisar con el chequeo apagado y con los músculos bien.
    */
   molestia?: Patron
   /** True si se contestó después de entrenar, cuando el dolor ya está contaminado. */

@@ -5,11 +5,19 @@ import {
   bandaSostenida,
   cadenasCongeladas,
   compuesto,
+  contestoElChequeo,
   leerEstado,
+  type Chequeo,
 } from './estado'
 import type { Estado } from './tipos'
 
-function dia(n: number, sueno: number, energia: number, musculos: number, extra: Partial<Estado> = {}): Estado {
+function dia(
+  n: number,
+  sueno: number,
+  energia: number,
+  musculos: number,
+  extra: Partial<Pick<Estado, 'molestia' | 'posterior'>> = {},
+): Chequeo {
   const fecha = new Date('2026-01-01T00:00:00')
   fecha.setDate(fecha.getDate() + n)
   const dd = (x: number) => String(x).padStart(2, '0')
@@ -156,5 +164,60 @@ describe('molestia puntual', () => {
   it('el dolor muscular parejo no congela nada: es parte de entrenar', () => {
     const historial = [dia(0, 4, 4, 1), dia(1, 4, 4, 1), dia(2, 4, 4, 1)]
     expect(cadenasCongeladas(historial, fechaDe(2)).size).toBe(0)
+  })
+})
+
+/**
+ * La molestia avisada sola, con el chequeo apagado.
+ *
+ * Es como viene la app de fábrica: el chequeo diario está apagado, así que la
+ * fila del día trae la molestia y nada más. Tiene que proteger la cadena igual
+ * y, al mismo tiempo, no puede entrar al índice: no hay nada que promediar, y
+ * rellenarla sería inventar un día normal que nadie contó.
+ */
+describe('molestia sin chequeo', () => {
+  /** La fila que deja avisar una molestia con el chequeo apagado. */
+  function soloMolestia(n: number, molestia: Estado['molestia']): Estado {
+    return { fecha: fechaDe(n), molestia, actualizadoEn: n }
+  }
+
+  it('la fila con la molestia sola no pasa por el chequeo', () => {
+    expect(contestoElChequeo(soloMolestia(0, 'bisagra'))).toBe(false)
+    expect(contestoElChequeo(dia(0, 4, 4, 4))).toBe(true)
+  })
+
+  it('congela la cadena igual, la bisagra incluida', () => {
+    for (const patron of ['empuje', 'traccion', 'piernas', 'core', 'bisagra'] as const) {
+      expect(cadenasCongeladas([soloMolestia(5, patron)], fechaDe(5)).has(patron), patron).toBe(
+        true,
+      )
+    }
+  })
+
+  it('la lectura de hoy la trae aunque no haya ni una fila de chequeo', () => {
+    const lectura = leerEstado([soloMolestia(3, 'traccion')], fechaDe(3))
+    expect(lectura.molestia).toBe('traccion')
+    expect(lectura.entradas).toBe(0)
+    expect(lectura.confiable).toBe(false)
+  })
+
+  it('no cuenta como entrada ni mueve el índice', () => {
+    const historial = base(20)
+    const conMolestia = [...historial, soloMolestia(20, 'empuje')]
+    const sin = leerEstado(historial, fechaDe(20))
+    const con = leerEstado(conMolestia, fechaDe(20))
+    expect(con.entradas).toBe(sin.entradas)
+    expect(con.z).toBe(sin.z)
+    expect(con.banda).toBe(sin.banda)
+    expect(con.molestia).toBe('empuje')
+    expect(Number.isNaN(con.z)).toBe(false)
+  })
+
+  it('tampoco cuenta para la banda sostenida', () => {
+    // Dos días malos y una molestia sola en el medio: la molestia no puede
+    // hacer de tercer día ni romper la cuenta de dos de tres.
+    const historial = [...base(20, 4), dia(20, 1, 1, 1), soloMolestia(21, 'core'), dia(22, 1, 1, 1)]
+    const sinLaMolestia = historial.filter((e) => e.molestia === undefined)
+    expect(bandaSostenida(historial, fechaDe(22))).toBe(bandaSostenida(sinLaMolestia, fechaDe(22)))
   })
 })

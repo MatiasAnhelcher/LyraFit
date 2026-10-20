@@ -1,0 +1,395 @@
+import { describe, expect, it } from 'vitest'
+import { ejercicioDelBloque } from './bajada'
+import { CADENAS, NOMBRE_PATRON, POR_ID, cadenaDe } from './biblioteca'
+import { cadenasCongeladas, contestoElChequeo, leerEstado } from './estado'
+import { curvaDeFuerza } from './estadisticas'
+import { RAFAGAS, bloqueDeFuelle, rafagaDelDescanso } from './metabolico'
+import {
+  SERIES_CON_MOLESTIA,
+  avisosDeMolestia,
+  bloqueConMolestia,
+  fueraDeLaMolestia,
+  lineaDeMolestia,
+  molestiasDeHoy,
+} from './molestia'
+import { siguienteAvance } from './progresion'
+import { RUTINAS } from './rutinas'
+import type { Avance, BloqueRutina, Estado, Patron, Sesion } from './tipos'
+
+/**
+ * Que avisar una molestia cambie el plan, y nada más que el plan.
+ *
+ * Lo que se verifica es lo que la persona no puede ver desde afuera: que la
+ * cadena que avisó no se cargue igual por un costado —un accesorio, el
+ * volumen, una ráfaga—, que avisar no le cueste un eslabón ni se lo regale, y
+ * que todo eso pase con el chequeo diario apagado, que es como viene la app.
+ */
+
+const PATRONES: Patron[] = ['empuje', 'traccion', 'piernas', 'core', 'bisagra']
+const HOY = '2026-10-20'
+
+/** Un avance parado en un eslabón cualquiera de su cadena. */
+function avanceEn(patron: Patron, ejercicioId: string): Avance {
+  const ejercicio = POR_ID.get(ejercicioId)!
+  return {
+    patron,
+    ejercicioId,
+    objetivoActual: { series: ejercicio.series, cantidad: ejercicio.ventana.min },
+    senal: 1,
+    sesionesEnObjetivo: 0,
+    graciaRestante: 0,
+    actualizadoEn: 0,
+  }
+}
+
+/** La fila que deja avisar una molestia con el chequeo apagado: nada más que eso. */
+function soloMolestia(molestia: Patron, fecha = HOY): Estado {
+  return { fecha, molestia, actualizadoEn: 1 }
+}
+
+/** El bloque del motor de un patrón, resuelto como lo resuelven las pantallas. */
+function bloqueDelMotor(avance: Avance, bloque: BloqueRutina = { patron: avance.patron }) {
+  return ejercicioDelBloque(bloque, avance, POR_ID, cadenaDe(bloque.patron), {
+    tieneBarraCargable: true,
+  })
+}
+
+describe('de dónde sale la molestia de hoy', () => {
+  it('de la fila de hoy aunque no tenga el chequeo: así queda con el chequeo apagado', () => {
+    const fila = soloMolestia('bisagra')
+    expect(contestoElChequeo(fila)).toBe(false)
+    expect([...molestiasDeHoy([fila], HOY)]).toEqual(['bisagra'])
+  })
+
+  it('y de la del chequeo entero, igual', () => {
+    const fila: Estado = {
+      fecha: HOY,
+      sueno: 4,
+      energia: 4,
+      musculos: 5,
+      molestia: 'traccion',
+      actualizadoEn: 1,
+    }
+    expect([...molestiasDeHoy([fila], HOY)]).toEqual(['traccion'])
+  })
+
+  it('la de ayer no cambia el plan de hoy', () => {
+    expect(molestiasDeHoy([soloMolestia('empuje', '2026-10-19')], HOY).size).toBe(0)
+  })
+
+  it('sin molestia no hay nada', () => {
+    const fila: Estado = { fecha: HOY, sueno: 2, energia: 3, musculos: 1, actualizadoEn: 1 }
+    expect(molestiasDeHoy([fila], HOY).size).toBe(0)
+    expect(molestiasDeHoy([], HOY).size).toBe(0)
+  })
+})
+
+describe('la cadena con molestia baja un eslabón o se saltea', () => {
+  it('en cada eslabón de las cinco cadenas, la bisagra incluida', () => {
+    for (const patron of PATRONES) {
+      const cadena = cadenaDe(patron)
+      cadena.ejercicios.forEach((id, posicion) => {
+        const resuelto = bloqueDelMotor(avanceEn(patron, id))!
+        const hoy = bloqueConMolestia(resuelto, new Set([patron]), POR_ID, cadena)
+
+        if (posicion === 0) {
+          expect(hoy.cambio, `${id} es el primero: no hay dónde bajar`).toBe('saltea')
+          return
+        }
+        expect(hoy.cambio, id).toBe('baja')
+        if (hoy.cambio !== 'baja') return
+        const anterior = POR_ID.get(cadena.ejercicios[posicion - 1]!)!
+        expect(hoy.ejercicio.id, id).toBe(anterior.id)
+        expect(hoy.ejercicio.patron).toBe(patron)
+        expect(hoy.ejercicio.ccr, `${id} → ${anterior.id}`).toBeLessThanOrEqual(
+          resuelto.ejercicio.ccr,
+        )
+        expect(hoy.objetivo.series).toBeLessThanOrEqual(SERIES_CON_MOLESTIA)
+        expect(hoy.objetivo.cantidad).toBe(anterior.ventana.min)
+        // Con la zona avisando no se le pone peso encima.
+        expect(hoy.objetivo.kg).toBeUndefined()
+        expect(hoy.accesorio).toBe(false)
+      })
+    }
+  })
+
+  it('una molestia en otra cadena no toca nada', () => {
+    for (const patron of PATRONES) {
+      const avance = avanceEn(patron, cadenaDe(patron).ejercicios[2]!)
+      const resuelto = bloqueDelMotor(avance)!
+      for (const otra of PATRONES.filter((p) => p !== patron)) {
+        const hoy = bloqueConMolestia(resuelto, new Set([otra]), POR_ID, cadenaDe(patron))
+        expect(hoy, `${patron} con molestia en ${otra}`).toEqual({ ...resuelto, cambio: null })
+      }
+      expect(bloqueConMolestia(resuelto, new Set(), POR_ID, cadenaDe(patron)).cambio).toBeNull()
+    }
+  })
+
+  it('el volumen y los accesorios de esa cadena se saltean', () => {
+    // Son más carga sobre la misma zona. El volumen, además, ya ES el eslabón
+    // de abajo: dejarlo sería cargar dos veces lo que tenía que bajar una.
+    const traccion = avanceEn('traccion', cadenaDe('traccion').ejercicios[4]!)
+    const volumen = bloqueDelMotor(traccion, { patron: 'traccion', volumen: true })!
+    const curl = bloqueDelMotor(traccion, { patron: 'traccion', ejercicioId: 'curl-barra' })!
+    const rumano = bloqueDelMotor(avanceEn('bisagra', cadenaDe('bisagra').ejercicios[2]!), {
+      patron: 'bisagra',
+      ejercicioId: 'peso-muerto-rumano',
+    })!
+    const con = (resuelto: typeof curl, molestia: Patron, patron: Patron) =>
+      bloqueConMolestia(resuelto, new Set([molestia]), POR_ID, cadenaDe(patron)).cambio
+    expect(con(volumen, 'traccion', 'traccion')).toBe('saltea')
+    expect(con(curl, 'traccion', 'traccion')).toBe('saltea')
+    expect(con(rumano, 'bisagra', 'bisagra')).toBe('saltea')
+    // Y el de otra cadena sigue en pie.
+    expect(con(curl, 'empuje', 'traccion')).toBeNull()
+  })
+
+  it('lo que ya tiene series anotadas en la sesión no se cambia a mitad de camino', () => {
+    // Si se cambiara, las series quedarían fuera del plan y el cierre no las
+    // guardaría: perder trabajo en silencio es peor que cualquier otra cosa.
+    const avance = avanceEn('empuje', cadenaDe('empuje').ejercicios[3]!)
+    const resuelto = bloqueDelMotor(avance)!
+    const hoy = bloqueConMolestia(resuelto, new Set(['empuje']), POR_ID, cadenaDe('empuje'), {
+      yaEmpezado: true,
+    })
+    expect(hoy).toEqual({ ...resuelto, cambio: null })
+  })
+
+  it('en ninguna rutina la cadena con molestia queda cargada en su eslabón de siempre', () => {
+    // El recorrido entero que hacen las pantallas, con cada rutina, cada
+    // molestia y cada patrón que puede tocar ese día (los bloques que alternan,
+    // en sus dos lados). Lo único de esa cadena que puede quedar es el eslabón
+    // de abajo, con dos series.
+    for (const nivel of [0, 3]) {
+      const avances = new Map(
+        CADENAS.map((c) => [c.patron, avanceEn(c.patron, c.ejercicios[nivel]!)]),
+      )
+      for (const rutina of RUTINAS) {
+        for (const molestia of PATRONES) {
+          const molestias = new Set([molestia])
+          const bloques = rutina.bloques.flatMap((b) =>
+            b.alterna ? [b, { ...b, patron: b.alterna }] : [b],
+          )
+          for (const bloque of bloques) {
+            const avance = avances.get(bloque.patron)!
+            const resuelto = ejercicioDelBloque(bloque, avance, POR_ID, cadenaDe(bloque.patron), {
+              tieneBarraCargable: true,
+            })
+            if (!resuelto) continue
+            const hoy = bloqueConMolestia(resuelto, molestias, POR_ID, cadenaDe(bloque.patron))
+            if (hoy.cambio === 'saltea') continue
+            if (hoy.ejercicio.patron !== molestia) continue
+            const donde = `${rutina.id}, bloque de ${bloque.patron}, molestia en ${molestia}`
+            expect(hoy.cambio, donde).toBe('baja')
+            expect(hoy.ejercicio.id, donde).not.toBe(avance.ejercicioId)
+            expect(hoy.objetivo.series, donde).toBeLessThanOrEqual(SERIES_CON_MOLESTIA)
+          }
+        }
+      }
+    }
+  })
+})
+
+describe('el motor no se entera', () => {
+  it('el eslabón de abajo nunca es el ejercicio del avance', () => {
+    // `cerrarSesion` solo progresa un patrón "si se entrenó el ejercicio que
+    // tocaba". Que el bajado sea otro ejercicio es lo que deja quieto al motor:
+    // ni fallo por hacer menos, ni progreso por hacer fácil lo de abajo. Si un
+    // día esto dejara de ser cierto, avisar una molestia empezaría a costar o
+    // a regalar eslabones.
+    for (const patron of PATRONES) {
+      for (const id of cadenaDe(patron).ejercicios) {
+        const avance = avanceEn(patron, id)
+        const resuelto = bloqueDelMotor(avance)!
+        const hoy = bloqueConMolestia(resuelto, new Set([patron]), POR_ID, cadenaDe(patron))
+        if (hoy.cambio !== 'baja') continue
+        expect(hoy.ejercicio.id, id).not.toBe(avance.ejercicioId)
+      }
+    }
+  })
+
+  it('con la molestia sola la cadena queda congelada: ni el ejercicio de siempre la movería', () => {
+    // La red de abajo: si por algún camino se anotara el ejercicio del avance
+    // —una sesión que ya venía empezada—, la sesión es neutra para esa cadena
+    // y el motor devuelve el avance tal cual estaba.
+    for (const patron of PATRONES) {
+      expect(cadenasCongeladas([soloMolestia(patron)], HOY).has(patron), patron).toBe(true)
+      const avance = avanceEn(patron, cadenaDe(patron).ejercicios[2]!)
+      const decision = siguienteAvance(
+        avance,
+        { rendimiento: 1.4, tipico: 30, neutra: true },
+        { cadena: cadenaDe(patron), ejercicios: POR_ID },
+        avance.actualizadoEn,
+      )
+      expect(decision.movimiento).toBe('neutra')
+      expect(decision.cambioDeNivel).toBe(false)
+      expect(decision.avance).toEqual(avance)
+    }
+  })
+
+  it('el día del eslabón bajado no hunde la curva de fuerza', () => {
+    // El registro bajado se guarda marcado como bajada, igual que el volumen:
+    // hacer el eslabón de abajo no es haber perdido fuerza, y la curva no
+    // puede dibujarlo como un pozo.
+    const patron: Patron = 'traccion'
+    const cadena = cadenaDe(patron)
+    const avance = avanceEn(patron, cadena.ejercicios[4]!)
+    const hoy = bloqueConMolestia(bloqueDelMotor(avance)!, new Set([patron]), POR_ID, cadena)
+    if (hoy.cambio !== 'baja') throw new Error('tenía que bajar')
+    const sesion: Sesion = {
+      id: 's',
+      fecha: HOY,
+      finalizadaEn: 1,
+      duracionSegundos: 900,
+      tipo: 'plan',
+      registros: [
+        {
+          ejercicioId: hoy.ejercicio.id,
+          objetivo: hoy.objetivo,
+          bajada: true,
+          series: Array.from({ length: hoy.objetivo.series }, () => ({
+            logrado: hoy.objetivo.cantidad,
+          })),
+        },
+      ],
+    }
+    expect(curvaDeFuerza([sesion], patron)).toEqual([])
+  })
+})
+
+describe('funciona con el chequeo apagado', () => {
+  it('una fila con la molestia sola baja la cadena, sin línea de base y sin índice', () => {
+    // Es el caso de fábrica: nunca nadie contestó el chequeo. No hace falta
+    // ninguna entrada previa ni ningún dato inventado para que el plan cambie.
+    for (const patron of PATRONES) {
+      const estados = [soloMolestia(patron)]
+      const lectura = leerEstado(estados, HOY)
+      expect(lectura.entradas).toBe(0)
+      expect(lectura.molestia).toBe(patron)
+
+      const cadena = cadenaDe(patron)
+      const avance = avanceEn(patron, cadena.ejercicios[1]!)
+      const molestias = molestiasDeHoy(estados, HOY)
+      const hoy = bloqueConMolestia(bloqueDelMotor(avance)!, molestias, POR_ID, cadena)
+      expect(hoy.cambio, patron).toBe('baja')
+    }
+  })
+})
+
+describe('las ráfagas no cargan la cadena con molestia', () => {
+  it('ni en el descanso ni en el bloque, para cada cadena', () => {
+    const equipo = { puedeSaltar: true, tieneEscalon: true }
+    for (const molestia of PATRONES) {
+      const evitar = molestiasDeHoy([soloMolestia(molestia)], HOY)
+      for (const viene of PATRONES) {
+        for (let indice = 0; indice < RAFAGAS.length * 2; indice++) {
+          const elegida = rafagaDelDescanso({
+            descansoSegundos: 150,
+            patronQueViene: viene,
+            equipo,
+            densidad: 'fuerte',
+            indice,
+            evitar,
+          })
+          if (elegida) expect(elegida.rafaga.carga, elegida.rafaga.id).not.toContain(molestia)
+        }
+      }
+      for (const paso of bloqueDeFuelle(12, equipo, 'fuerte', evitar)) {
+        expect(paso.rafaga.carga, paso.rafaga.id).not.toContain(molestia)
+      }
+    }
+  })
+
+  it('con la bisagra avisando, antes de un curl nórdico no salta nada', () => {
+    const evitar = new Set<Patron>(['bisagra'])
+    const salen = new Set<string>()
+    for (let indice = 0; indice < RAFAGAS.length * 2; indice++) {
+      const elegida = rafagaDelDescanso({
+        descansoSegundos: 150,
+        patronQueViene: 'core',
+        equipo: { puedeSaltar: true, tieneEscalon: true },
+        densidad: 'fuerte',
+        indice,
+        evitar,
+      })
+      if (elegida) salen.add(elegida.rafaga.id)
+    }
+    expect(salen.has('burpee')).toBe(false)
+    expect(salen.has('salto-sentadilla')).toBe(false)
+    expect(salen.has('paso-al-cajon')).toBe(false)
+  })
+})
+
+describe('lo que se dice', () => {
+  it('una vez por cadena, y si bajó, se dice que bajó', () => {
+    expect(
+      avisosDeMolestia([
+        { patron: 'traccion', cambio: 'baja' },
+        { patron: 'traccion', cambio: 'saltea' },
+        { patron: 'bisagra', cambio: 'saltea' },
+        { patron: 'bisagra', cambio: 'saltea' },
+      ]),
+    ).toEqual([
+      { patron: 'traccion', cambio: 'baja' },
+      { patron: 'bisagra', cambio: 'saltea' },
+    ])
+    // El orden de los bloques no cambia lo que se dice.
+    expect(
+      avisosDeMolestia([
+        { patron: 'empuje', cambio: 'saltea' },
+        { patron: 'empuje', cambio: 'baja' },
+      ]),
+    ).toEqual([{ patron: 'empuje', cambio: 'baja' }])
+  })
+
+  it('"no cargamos" no se dice de una cadena que quedó en el plan', () => {
+    // El volumen se salteó, pero el eslabón de siempre siguió porque ya tenía
+    // series anotadas: decir "hoy no cargamos empuje" sería falso.
+    expect(avisosDeMolestia([{ patron: 'empuje', cambio: 'saltea' }], ['empuje', 'core'])).toEqual(
+      [],
+    )
+    expect(avisosDeMolestia([{ patron: 'empuje', cambio: 'saltea' }], ['core'])).toEqual([
+      { patron: 'empuje', cambio: 'saltea' },
+    ])
+    // El que bajó se dice siempre: el bajado ES lo que quedó en el plan.
+    expect(avisosDeMolestia([{ patron: 'empuje', cambio: 'baja' }], ['empuje'])).toEqual([
+      { patron: 'empuje', cambio: 'baja' },
+    ])
+  })
+
+  it('una línea corta, con el motivo, sin retar y sin diagnosticar', () => {
+    expect(lineaDeMolestia({ patron: 'traccion', cambio: 'saltea' })).toBe(
+      'Hoy no cargamos tracción: avisaste una molestia.',
+    )
+    expect(lineaDeMolestia({ patron: 'traccion', cambio: 'baja' })).toBe(
+      'Hoy bajamos un eslabón en tracción: avisaste una molestia.',
+    )
+    const prohibidas = /lesi|tendin|desgarr|no es nada|dale igual|deberías|te pasaste/i
+    for (const patron of PATRONES) {
+      for (const cambio of ['baja', 'saltea'] as const) {
+        const linea = lineaDeMolestia({ patron, cambio })
+        expect(linea).toContain(NOMBRE_PATRON[patron].toLowerCase())
+        expect(linea).toContain('avisaste una molestia')
+        expect(linea).not.toMatch(prohibidas)
+        expect(linea.length, linea).toBeLessThanOrEqual(70)
+      }
+    }
+  })
+})
+
+describe('la serie de cierre', () => {
+  it('no cae sobre la cadena con molestia mientras haya otra cosa', () => {
+    const entradas = (['empuje', 'traccion', 'bisagra'] as const).map((patron) => ({
+      ejercicio: POR_ID.get(cadenaDe(patron).ejercicios[0]!)!,
+    }))
+    const molestia = entradas[0]!.ejercicio.patron
+    const libres = fueraDeLaMolestia(entradas, new Set([molestia]))
+    expect(libres.length).toBe(entradas.length - 1)
+    expect(libres.every((e) => e.ejercicio.patron !== molestia)).toBe(true)
+  })
+
+  it('si no queda otra cosa, usa lo que hay: el cierre se puede saltear', () => {
+    const entradas = [{ ejercicio: POR_ID.get(cadenaDe('core').ejercicios[0]!)! }]
+    expect(fueraDeLaMolestia(entradas, new Set(['core']))).toEqual(entradas)
+  })
+})

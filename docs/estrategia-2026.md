@@ -75,6 +75,7 @@ resultó ser la veta más rica de todas:
 | Los 39 ejercicios, dibujados | **Hecho.** Motor paramétrico de figuras, "cómo se hace" encima de la serie, y tests de geometría —incluido el de la figura espejada, que dije que era imposible— |
 | El fuelle: trabajo metabólico sin costo para el motor | **Hecho.** Ráfagas en los huecos por encima de un piso de recuperación, bloque al final antes de la serie de cierre, día de fuelle, y la bajada. Medido: el motor absorbe hasta un 12% de merma y se derrumba al 18% |
 | Cuánto va a durar la sesión, antes de empezar | **Hecho.** Se elige la duración y lo que se estira es el bloque, nunca las series |
+| La molestia que cambia el plan | **Hecho**, en su versión mínima. Se avisa desde Hoy aunque el chequeo esté apagado y los músculos estén bien, con la bisagra; ese día la cadena baja un eslabón o se saltea, la sesión lo dice, ninguna ráfaga la carga y el motor no se mueve. `molestia.mjs` lo recorre. La molestia por zona del cuerpo y la pausa que se levanta con un "ya no" quedan para cuando haya firma profesional |
 
 Dos lecciones de método que valen más que cualquiera de esas filas, porque las
 dos aparecieron al equivocarme:

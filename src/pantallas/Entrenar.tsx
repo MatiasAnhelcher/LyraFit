@@ -47,6 +47,14 @@ import { NOMBRE_PATRON, POR_ID, cadenaDe } from '@/dominio/biblioteca'
 import { claseDeDia, patronDelBloque, rutinaActiva, semanaActiva } from '@/dominio/rutinas'
 import type { ClaseDeDia } from '@/dominio/rutinas'
 import { ajusteDelDia, bandaSostenida, cadenasCongeladas } from '@/dominio/estado'
+import {
+  avisosDeMolestia,
+  bloqueConMolestia,
+  fueraDeLaMolestia,
+  lineaDeMolestia,
+  molestiasDeHoy,
+  type CambioPorMolestia,
+} from '@/dominio/molestia'
 import { seAbreHoy } from '@/dominio/anticipacion'
 import { mueveElPlan } from '@/dominio/progresion'
 import { dichoDelDescanso, type Expresion } from '@/dominio/frases'
@@ -79,7 +87,7 @@ import {
 } from '@/dominio/metabolico'
 import { esVuelta, RECORTE_DE_VUELTA } from '@/dominio/adherencia'
 import { haceCuanto, laVezPasada } from '@/dominio/estadisticas'
-import type { RegistroEjercicio, RegistroRafaga, Serie, TipoSesion } from '@/dominio/tipos'
+import type { Patron, RegistroEjercicio, RegistroRafaga, Serie, TipoSesion } from '@/dominio/tipos'
 import {
   cerrarSesion,
   descartarSesionEnCurso,
@@ -289,6 +297,12 @@ export function Entrenar() {
     () => estados?.find((e) => e.fecha === fechaISO())?.energia,
     [estados],
   )
+
+  /**
+   * Las cadenas con una molestia avisada hoy, con el chequeo prendido o
+   * apagado. Bajan un eslabón o se saltean, y ninguna ráfaga las carga.
+   */
+  const molestias = useMemo(() => molestiasDeHoy(estados ?? [], fechaISO()), [estados])
 
   /**
    * Cuánto aprieta el fuelle, y con qué cuenta donde entrena.
@@ -531,15 +545,19 @@ export function Entrenar() {
    */
   const tieneBarraCargable = (preferencias?.cargaMaximaKg ?? 0) > 0
 
-  /** Los ejercicios concretos de la sesión, según el avance de cada patrón. */
-  const plan = useMemo(() => {
-    if (!rutina || !semana || !avances) return []
+  /**
+   * Los ejercicios concretos de la sesión, según el avance de cada patrón, y
+   * lo que la molestia de hoy le cambió a cada cadena, para decirlo.
+   */
+  const { plan, avisos } = useMemo(() => {
+    if (!rutina || !semana || !avances) return { plan: [], avisos: [] }
+    const cambios: { patron: Patron; cambio: CambioPorMolestia }[] = []
     // El `sinEjerciciosRepetidos` de afuera no es higiene: en un día denso con
     // una rutina por grupo, el mismo ejercicio entraba dos veces —la bajada
     // del bloque de cadena y el bloque de volumen resuelven al mismo eslabón—
     // y las dos entradas compartían el arreglo de series, porque `hechas` se
     // indexa por id de ejercicio y el plan es posicional.
-    return sinEjerciciosRepetidos(rutina.bloques.flatMap((bloqueDelPlan) => {
+    const entradas = sinEjerciciosRepetidos(rutina.bloques.flatMap((bloqueDelPlan) => {
       const bloque = {
         ...bloqueDelPlan,
         patron: patronDelBloque(bloqueDelPlan, semana, new Date()),
@@ -554,7 +572,24 @@ export function Entrenar() {
         tieneBarraCargable,
       })
       if (!resuelto || !avance) return []
-      const { ejercicio, objetivo: delBloque, accesorio } = resuelto
+      // La molestia de hoy, con la misma función que usa `Hoy`. Lo que ya
+      // tiene series anotadas en esta sesión no se toca: cambiarlo a mitad de
+      // camino dejaría esas series fuera del plan, y el cierre no las
+      // guardaría.
+      const conMolestia = bloqueConMolestia(
+        resuelto,
+        molestias,
+        POR_ID,
+        cadenaDe(bloque.patron),
+        { yaEmpezado: (hechas[resuelto.ejercicio.id]?.length ?? 0) > 0 },
+      )
+      if (conMolestia.cambio === 'saltea') {
+        cambios.push({ patron: bloque.patron, cambio: 'saltea' })
+        return []
+      }
+      const porMolestia = conMolestia.cambio === 'baja'
+      if (porMolestia) cambios.push({ patron: bloque.patron, cambio: 'baja' })
+      const { ejercicio, objetivo: delBloque, accesorio } = conMolestia
       // La vara de la vez pasada manda en un accesorio: el motor no lo
       // progresa —y no debe— así que la doble progresión la lleva la persona,
       // con el número de la última vez delante.
@@ -586,8 +621,12 @@ export function Entrenar() {
         !ajusteDelDia(bandaSostenida(estados ?? [], fechaISO())).neutra &&
         !cadenasCongeladas(estados ?? [], fechaISO()).has(bloque.patron)
       // Un accesorio nunca abre un eslabón: no está en ninguna cadena, o es el
-      // anterior al que ya tenés. Anunciarlo sería una promesa falsa.
-      const abre = accesorio ? null : seAbreHoy(avance, cadenaDe(bloque.patron), POR_ID, cuenta)
+      // anterior al que ya tenés. Anunciarlo sería una promesa falsa. El
+      // eslabón bajado por una molestia, tampoco: no es el del motor.
+      const abre =
+        accesorio || porMolestia
+          ? null
+          : seAbreHoy(avance, cadenaDe(bloque.patron), POR_ID, cuenta)
       const duro = {
         ejercicio,
         objetivo: { series, cantidad, ...(base.kg !== undefined ? { kg: base.kg } : {}) },
@@ -596,8 +635,10 @@ export function Entrenar() {
         descansoSegundos: ejercicio.descansoSegundos,
         // Un accesorio ocupa el lugar de una bajada: marcarlo como tal lo deja
         // fuera de la curva de fuerza y del cálculo de rendimiento, que es
-        // donde no tiene nada que hacer.
-        bajada: accesorio,
+        // donde no tiene nada que hacer. El eslabón bajado por una molestia,
+        // lo mismo: hacer el de abajo no es haber perdido fuerza.
+        bajada: accesorio || porMolestia,
+        porMolestia,
       }
 
       // Y, en las sesiones densas, volumen en el eslabón anterior.
@@ -607,8 +648,9 @@ export function Entrenar() {
       // y la curva de fuerza se queda con el máximo del día, así que tampoco
       // puede hundirla. Las dos cosas tienen su test en `bajada.test.ts`.
       // Un accesorio no lleva bajada encima: ya ES el trabajo liviano, o es un
-      // movimiento con barra sin eslabón anterior del que bajar.
-      if (!esDensa || accesorio) return [duro]
+      // movimiento con barra sin eslabón anterior del que bajar. Una cadena
+      // con molestia tampoco: ya bajó, y no se carga dos veces.
+      if (!esDensa || accesorio || porMolestia) return [duro]
       const abajo = bajadaDe(ejercicio, cadenaDe(bloque.patron), POR_ID)
       if (!abajo) return [duro]
       return [
@@ -620,10 +662,31 @@ export function Entrenar() {
           abre: null,
           descansoSegundos: DESCANSO_DE_BAJADA,
           bajada: true,
+          porMolestia: false,
         },
       ]
     }))
-  }, [rutina, semana, avances, esCorta, esDensa, factor, historial, estados, tipo, tieneBarraCargable])
+    return {
+      plan: entradas,
+      avisos: avisosDeMolestia(
+        cambios,
+        entradas.map((e) => e.ejercicio.patron),
+      ),
+    }
+  }, [
+    rutina,
+    semana,
+    avances,
+    esCorta,
+    esDensa,
+    factor,
+    historial,
+    estados,
+    tipo,
+    tieneBarraCargable,
+    molestias,
+    hechas,
+  ])
 
   /**
    * El bloque de fuelle: una prescripción fija, no un relleno.
@@ -636,16 +699,58 @@ export function Entrenar() {
 
   const fuelle: PasoDeFuelle[] = useMemo(() => {
     if (densidadDelBloque === 'apagada') return []
+    // Las ráfagas del bloque tampoco cargan la cadena con molestia: el bloque
+    // es lo que se hace sin que nadie lo mida, y por eso mismo no puede caer
+    // encima de la zona que avisó.
     if (esDiaDeFuelle) {
-      return bloqueDeFuelle(minutosDelDiaDeFuelle(densidadDelBloque), equipo, densidadDelBloque)
+      return bloqueDeFuelle(
+        minutosDelDiaDeFuelle(densidadDelBloque),
+        equipo,
+        densidadDelBloque,
+        molestias,
+      )
     }
     if (!esDensa) return []
     return bloqueDeFuelle(
       minutosDelBloque(minutosDeFuerza, densidadDelBloque),
       equipo,
       densidadDelBloque,
+      molestias,
     )
-  }, [esDensa, esDiaDeFuelle, densidadDelBloque, equipo, minutosDeFuerza])
+  }, [esDensa, esDiaDeFuelle, densidadDelBloque, equipo, minutosDeFuerza, molestias])
+
+  /*
+   * Un plan vacío por la molestia no es una sesión que todavía carga.
+   *
+   * Pasa cuando todo lo que la rutina pedía hoy es de la cadena que avisó y
+   * esa cadena está en su primer eslabón —o lo demás necesita una barra que no
+   * hay—. Sin esto la pantalla se quedaba en "preparando" para siempre: se
+   * dice lo que pasó y se ofrece volver.
+   */
+  if (avances && preferencias && historial && listo && plan.length === 0 && avisos.length > 0) {
+    return (
+      <div className="flex min-h-dvh flex-col">
+        <main className="mx-auto flex w-full max-w-lg flex-1 flex-col justify-center px-4">
+          <Rotulo>HOY</Rotulo>
+          {avisos.map((aviso) => (
+            <p
+              key={aviso.patron}
+              className="mt-3 max-w-[34ch] text-lg leading-snug"
+              data-prueba="linea-molestia"
+            >
+              {lineaDeMolestia(aviso)}
+            </p>
+          ))}
+          <p className="mt-4 max-w-[36ch] text-sm leading-relaxed text-[var(--color-glosa)]">
+            Sin esa cadena, la sesión de hoy se queda sin ejercicios.
+          </p>
+        </main>
+        <div className="mt-auto">
+          <AccionQuieta onClick={() => navegar('/')}>Volver</AccionQuieta>
+        </div>
+      </div>
+    )
+  }
 
   if (!avances || !preferencias || !historial || !listo || plan.length === 0) {
     return (
@@ -664,7 +769,7 @@ export function Entrenar() {
   // que se acota: entrar por un índice que no existe rompe la pantalla entera.
   const enCurso = Math.min(Math.max(indice, 0), plan.length - 1)
   const paso = plan[enCurso]!
-  const { ejercicio, objetivo, antes, abre, descansoSegundos, bajada } = paso
+  const { ejercicio, objetivo, antes, abre, descansoSegundos, bajada, porMolestia } = paso
 
   /* Los kilos arrancan donde quedaron la vez pasada. Va en un efecto y no en
      el estado inicial porque el ejercicio cambia sin que el componente se
@@ -720,8 +825,14 @@ export function Entrenar() {
     series.length === 0 &&
     predicho === null
 
-  // La serie de cierre: el ejercicio más fácil de la sesión, al 60%.
-  const cierre = plan.reduce((facil, p) => (p.ejercicio.ccr < facil.ejercicio.ccr ? p : facil), plan[0]!)
+  // La serie de cierre: el ejercicio más fácil de la sesión, al 60%. Fuera de
+  // la cadena con molestia mientras haya otra cosa: el eslabón bajado suele
+  // ser el más fácil, y una serie más ahí es volver a cargar la zona.
+  const candidatasDeCierre = fueraDeLaMolestia(plan, molestias)
+  const cierre = candidatasDeCierre.reduce(
+    (facil, p) => (p.ejercicio.ccr < facil.ejercicio.ccr ? p : facil),
+    candidatasDeCierre[0]!,
+  )
   const objetivoCierre = Math.max(1, Math.round(cierre.objetivo.cantidad * 0.6))
 
   /**
@@ -796,6 +907,8 @@ export function Entrenar() {
       // nunca va a devolver algo que lo cargue: saltos de sentadilla antes de
       // una serie de sentadillas le costarían repeticiones, y el motor leería
       // esas repeticiones de menos como pérdida de fuerza.
+      // Y tampoco una que cargue una cadena con molestia, aunque no sea la que
+      // viene: el filtro mira todo lo que la ráfaga carga.
       const elegida = esDensa
         ? rafagaDelDescanso({
             descansoSegundos,
@@ -803,6 +916,7 @@ export function Entrenar() {
             equipo,
             densidad,
             indice: rafagas.length,
+            evitar: molestias,
           })
         : null
       setRafagaActual(
@@ -1041,6 +1155,32 @@ export function Entrenar() {
             <span className="text-[var(--color-tinta)]">{abre.nombre.toLowerCase()}</span>.
           </p>
         )}
+
+        {/* La molestia, dicha donde cambia algo. La cadena bajada lo dice en
+            su propio ejercicio; la salteada no tiene ejercicio donde decirlo,
+            así que va en el primero, que es donde la persona está mirando
+            cuando la sesión arranca. Una línea, con el motivo y sin retar:
+            avisar fue lo correcto. Mismo tono que la víspera, por lo mismo. */}
+        {porMolestia && (
+          <p
+            className="mt-2 max-w-[34ch] text-sm leading-relaxed text-[var(--color-glosa)]"
+            data-prueba="linea-molestia"
+          >
+            {lineaDeMolestia({ patron: ejercicio.patron, cambio: 'baja' })}
+          </p>
+        )}
+        {enCurso === 0 &&
+          avisos
+            .filter((aviso) => aviso.cambio === 'saltea')
+            .map((aviso) => (
+              <p
+                key={aviso.patron}
+                className="mt-2 max-w-[34ch] text-sm leading-relaxed text-[var(--color-glosa)]"
+                data-prueba="linea-molestia"
+              >
+                {lineaDeMolestia(aviso)}
+              </p>
+            ))}
 
         {/* Los casilleros, con la vara adentro.
             Un casillero vacío no dice nada; un casillero con el número de la
