@@ -148,6 +148,7 @@ node pliegue.mjs   # que nada quede abajo del pliegue, medido en tres teléfonos
 node paleta.mjs    # contraste de cada par del sistema y de cada texto en pantalla
 node movimiento.mjs # que nada se mueva en el esfuerzo y que haya un solo infinito
 node carga.mjs     # los discos: que se ofrezcan con qué, y que lleguen a la base
+node textos.mjs    # lo que se lee en pantalla: sin hora de acostarse inventada, sin género, sin "rinde más"
 node logo.mjs     # regenera el favicon y los íconos desde el componente de Lyra
 ```
 
