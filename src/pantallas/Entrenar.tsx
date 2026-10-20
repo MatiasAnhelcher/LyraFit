@@ -355,11 +355,13 @@ export function Entrenar() {
    *
    * "Hoy" es el día de la sesión, como en todo lo demás de esta pantalla: una
    * sesión que cruza la medianoche se sigue armando con la molestia del día en
-   * que empezó, no con la fila de un día que todavía no entrenó.
+   * que empezó. Y además con la que se avise pasada la medianoche, que queda
+   * en la fila del día nuevo: es cómo está el cuerpo ahora, y Hoy ya la está
+   * anunciando. Avisarla escribe en `estados`, así que el memo se rehace solo.
    */
   const [molestiasRetomadas, setMolestiasRetomadas] = useState<Patron[]>([])
   const molestias = useMemo(
-    () => molestiasDeLaSesion(estados ?? [], dia, molestiasRetomadas),
+    () => molestiasDeLaSesion(estados ?? [], dia, molestiasRetomadas, fechaISO()),
     [estados, dia, molestiasRetomadas],
   )
 
