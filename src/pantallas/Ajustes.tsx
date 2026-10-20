@@ -157,12 +157,13 @@ export function Ajustes() {
         <p className="rotulo mt-6">POR GRUPO MUSCULAR</p>
         {/*
           Qué implica, dicho ACÁ y no después de elegir.
-          Partir en cuatro días entrena cada grupo una vez por semana. Antes
-          esto decía además que "con el mismo volumen semanal dos veces rinde
-          más", sin ninguna fuente, y el consejo que seguía bajaba la
-          frecuencia en vez de subirla. Ahora dice el hecho y nada más, hasta
-          que haya una cita verificada. Va antes de las filas: una advertencia
-          que aparece una vez elegido no es una advertencia, es una excusa.
+          Si se hacen las cuatro, a cada una le toca un día. Antes esto decía
+          además que "con el mismo volumen semanal dos veces rinde más", sin
+          ninguna fuente, y el consejo que seguía bajaba la frecuencia en vez
+          de subirla. Tampoco dice "cada músculo un solo día": el core está en
+          tres de las cuatro y Brazos repite tracción y empuje (ver
+          `advertenciaDe`). Va antes de las filas: una advertencia que aparece
+          una vez elegido no es una advertencia, es una excusa.
 
           Y se dice, no se impide. Hay razones legítimas para elegirlo —mucho
           más volumen por grupo en la sesión, y una sesión que se siente de
@@ -171,8 +172,8 @@ export function Ajustes() {
         */}
         <p className="mt-2 max-w-[42ch] text-xs leading-relaxed text-[var(--color-glosa)]">
           Cada una entrena un grupo por sesión, con cuatro o cinco ejercicios en
-          vez de uno. Si hacés las cuatro en la semana, cada músculo se entrena
-          un solo día.
+          vez de uno. Si hacés las cuatro en la semana, a cada una le toca un
+          día.
         </p>
         <div className="registro mt-3">
           {RUTINAS.filter((r) => RUTINAS_POR_GRUPO.has(r.id)).map((rutina) => (

@@ -59,13 +59,16 @@ Cada día mezcla tres clases de ejercicio:
 Si no cargaste la barra en Ajustes, los accesorios no aparecen y las rutinas
 siguen andando con los otros dos.
 
-> **Lo que implica, dicho de frente.** Partir por grupo y hacer una por semana
-> entrena cada músculo **una vez cada siete días**. La app te lo dice en
-> pantalla cuando elegís, y no dice más: que con el mismo volumen semanal dos
-> veces rinda más que una no tiene una cita verificada todavía (el metaanálisis
-> de frecuencia de Schoenfeld, Grgic y Krieger 2019 está pendiente de
-> revisar), y el consejo de alternar dos de las cuatro por semana, que estaba
-> acá, en promedio bajaba la frecuencia en vez de subirla.
+> **Lo que implica, dicho de frente.** Partir por grupo y hacer las cuatro
+> significa que a cada una le toca **un día por semana**. No es lo mismo que
+> "cada músculo una vez": el core está en tres de las cuatro, Brazos repite
+> tracción y empuje, y el rumano de Espalda vuelve a cargar la parte de atrás
+> de la pierna. La app te lo dice en pantalla cuando elegís, y no dice más:
+> que con el mismo volumen semanal dos veces rinda más que una no tiene una
+> cita verificada todavía (el metaanálisis de frecuencia de Schoenfeld, Grgic
+> y Krieger 2019 está pendiente de revisar), y el consejo de alternar dos de
+> las cuatro por semana, que estaba acá, en promedio bajaba la frecuencia en
+> vez de subirla.
 >
 > El plan de abajo —torso / pierna / torso / pierna— reparte cada músculo en
 > dos días por semana.

@@ -1320,7 +1320,7 @@ export const EJERCICIOS: Ejercicio[] = [
       'Parado, la barra agarrada por abajo con las manos al ancho de los hombros y los brazos estirados.',
       'Pegá los codos al costado del cuerpo y dejalos ahí: son una bisagra, no una palanca.',
       'Subí la barra hasta el pecho doblando solo el codo, sin que el hombro se vaya adelante.',
-      'Bajá en dos o tres segundos hasta estirar del todo. El tramo de abajo es el que más cuesta y es el que más rinde.',
+      'Bajá en dos o tres segundos hasta estirar del todo. El tramo de abajo es el que más cuesta.',
     ],
     erroresComunes: [
       'Balancear el torso para arrancar la repetición. Si hace falta impulso, el peso es demasiado.',

@@ -40,11 +40,14 @@
  * masculino. Se corrigieron o se borraron, y ahora hay un test por familia:
  * obligar o retar, empujar más allá del límite, prometer (también en futuro
  * corto), inventar una cifra escrita con letras, comparar con otra gente,
- * afirmar una causa que nadie midió y el masculino por defecto. Lyra le habla a
- * cualquiera: "con calma", no "tranquilo".
+ * afirmar una causa que nadie midió y el género por defecto. Lyra le habla a
+ * cualquiera: "con calma", no "tranquilo" ni "tranquila". La regla 2 decía
+ * tener test y no lo tenía —por eso entró "Ya sos alguien que entrena"—: ahora
+ * sí, contra los rótulos de persona.
  *
- * Y una frase que solo es cierta con historia —"acá estás otra vez"— lleva su
- * condición en `DESDE_SESIONES`, para que no salga el primer día.
+ * Y una frase que solo es cierta con historia —"acá estás otra vez", "es que
+ * volviste"— lleva su condición en `DESDE_SESIONES`, para que no salga el
+ * primer día.
  *
  * ## Por qué no hay `Math.random()` acá
  *
@@ -280,7 +283,7 @@ export const FRASES: Grupo[] = [
       'Si te sentís con energía, mejor: es que descansaste.',
       'Nos vemos en el próximo.',
       'Agua, comida y sueño. Eso es hoy.',
-      'Estar quieto también es entrenar.',
+      'Un día quieto también es entrenar.',
     ],
   },
   {
@@ -406,7 +409,7 @@ export const FRASES: Grupo[] = [
       'Esto es un juego largo. Muy largo.',
       'Nadie se puso fuerte en poco tiempo.',
       'La paciencia acá no es virtud: es el método.',
-      'Lo que ganás despacio se pierde despacio.',
+      'Despacio también es avanzar.',
       'Las progresiones no se saltean. Se caminan.',
       'Vas a olvidarte de cuándo empezaste.',
       'El progreso no es una línea. Es un garabato que sube.',
@@ -416,7 +419,7 @@ export const FRASES: Grupo[] = [
       'Lo lento también llega.',
       'No hay atajos que no se paguen después.',
       'El objetivo no es esta sesión. Es la número doscientos.',
-      'La fuerza es la única cosa que se acumula sin caducar.',
+      'Cada sesión anotada es el punto de partida de la próxima.',
       'Nadie ve el progreso desde adentro. Por eso se mide.',
       'Cada eslabón tiene su tiempo y no se negocia.',
       'Las cadenas terminan en ejercicios que hoy parecen de otro planeta.',
@@ -494,7 +497,7 @@ export const FRASES: Grupo[] = [
     expresion: 'festejo',
     lineas: [
       'Último ejercicio. Esto ya está terminando.',
-      'Lo que queda es poco. Aguantá ahí.',
+      'Último ejercicio. Sin apuro.',
       'Ya casi. Este es el último.',
       'Estás en el final de la sesión.',
       'Última cadena del día.',
@@ -511,13 +514,13 @@ export const FRASES: Grupo[] = [
       'Ya está casi entera. Terminala.',
       'Lo más difícil quedó atrás.',
       'Esto es la cola de la sesión.',
-      'Aguantá un poquito más.',
+      'Este es el último. Terminá con resto.',
       'Último ejercicio: acá se cierra.',
       'Casi. Ya casi.',
       'Estás a un ejercicio de terminar.',
       'Lo que falta se hace solo.',
       'Final de sesión. Bien ahí.',
-      'Un último empujón y listo.',
+      'Último ejercicio: la técnica primero.',
       'Ya te la ganaste. Cerrá.',
     ],
   },
@@ -545,15 +548,28 @@ export const CUANTAS = 343
  * para que el banco siga siendo una lista que se lee de corrido.
  *
  * El número es el de sesiones de la persona cuando se muestra la frase: en
- * Hoy, las que ya hizo; en el cierre, contando la que acaba de cerrar.
+ * Hoy, las que ya hizo; en el cierre, contando la que acaba de cerrar. La
+ * constancia sale en Hoy recién después de entrenar, así que su piso es una
+ * sesión, y con una sola no hay "otra" ni "volviste": lo que nombra una sesión
+ * anterior pide dos. Lo que habla de costumbre pide diez, el mismo número que
+ * "llevás más de las que creías".
  */
 export const DESDE_SESIONES: ReadonlyMap<string, number> = new Map([
   ['Acá estás otra vez. Vamos de a una serie.', 1],
+  ['Dejá que el cuerpo termine lo que empezaste.', 1],
   ['Otra más en la cuenta.', 2],
   ['Apareciste de nuevo. Es lo único que hace falta.', 2],
+  ['No es motivación: es que volviste.', 2],
+  ['Sumaste otra sin hacer ruido.', 2],
+  ['Otra vuelta al sol para el cuerpo.', 2],
+  ['Hoy pusiste otro ladrillo.', 2],
   ['Una sesión más en la columna que importa.', 2],
   ['Una sesión floja no borra las que ya hiciste.', 3],
   ['Llevás más de las que creías.', 10],
+  ['Esto ya dejó de ser un intento.', 10],
+  ['Nadie sostiene esto por ganas. Lo sostenés por costumbre.', 10],
+  ['Semana tras semana, ahí seguís.', 10],
+  ['Se te está haciendo normal. Eso es lo bueno.', 10],
 ])
 
 const POR_MOMENTO = new Map(FRASES.map((g) => [g.momento, g]))

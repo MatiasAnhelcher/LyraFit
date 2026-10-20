@@ -140,8 +140,8 @@ export function Hoy() {
 
   const rutina = rutinaActiva(preferencias)
   // Lo que implica haber elegido partir por grupo, dicho en pantalla y no
-  // escondido en un comentario: cada músculo una vez por semana. Se dice y no
-  // se impide.
+  // escondido en un comentario: si se hacen las cuatro, a cada una le toca una
+  // vez por semana. Se dice y no se impide.
   const advertencia = advertenciaDe(rutina)
   const semana = semanaActiva(preferencias)
   /**

@@ -94,8 +94,8 @@ muestra cada vez que decide algo. Nada de esperar a "sentirte listo".
   Es un piso, nunca un techo: la app no dice "te pasaste" de nada, no hay
   rachas y no hay días limpios. El único aviso que sabe dar sola es el de la
   cafeína tomada a menos de nueve horas de acostarse, porque es lo que la
-  percepción no detecta. Pero esa cuenta necesita tu hora de acostarte, y la
-  app no la supone: mientras no la sepa por vos, el aviso no sale.
+  percepción no detecta. Pero esa cuenta necesita tu hora de acostarte, que la
+  app todavía no pregunta y no supone: sin ese dato, el aviso no sale.
 
 - **El mapa muscular dibujado**, en la ficha de cada ejercicio y en Progreso.
   No es una imagen de banco: son los dieciocho músculos pintados con el dato
@@ -117,9 +117,11 @@ muestra cada vez que decide algo. Nada de esperar a "sentirte listo".
   mezclando el eslabón que te toca, volumen en el anterior y accesorios con
   barra.
 
-  Con el costo dicho en pantalla: partir en cuatro días entrena cada grupo una
-  vez por semana, y con el mismo volumen semanal la evidencia favorece dos.
-  Se dice y no se impide.
+  Con lo que implica dicho en pantalla: si hacés las cuatro, a cada una le
+  toca una vez por semana. Nada más: que dos veces por semana rinda más con el
+  mismo volumen no tiene una cita verificada todavía, y "cada músculo una vez"
+  no es cierto, porque el core y los brazos se repiten entre las cuatro. Se
+  dice y no se impide.
 
 ## Cómo se levanta
 
@@ -316,8 +318,9 @@ recortadas: suman 64 KB entre las cuatro.
   colado sin tocar esas palabras ("cuando el cuerpo dice basta y seguís un poco
   más", "un mes de esto se nota", "bienvenido"), y ahora también están
   prohibidos por test los retos, empujar más allá del límite, las promesas en
-  futuro corto, las cifras escritas con letras y el masculino por defecto. Las
-  frases que solo son ciertas con historia ("acá estás otra vez") no salen
+  futuro corto, las cifras escritas con letras, el género por defecto y los
+  rótulos de persona ("ya sos alguien que entrena"). Las frases que solo son
+  ciertas con historia ("acá estás otra vez", "es que volviste") no salen
   antes de tiempo.
 - **La sesión de siete minutos cuenta para la adherencia y no para la
   progresión.** Separar las dos cosas es lo que permite ser indulgente con la

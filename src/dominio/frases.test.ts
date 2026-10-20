@@ -192,6 +192,10 @@ describe('las cuatro reglas, que son el punto', () => {
       /\bque no tenías\b/i,
       /\bdale todo\b/i,
       /\bya no querías\b/i,
+      // "Aguantá un poquito más" en el último ejercicio, justo donde la app
+      // armó un final suave. Sin `\b` al final: la á no es letra sin `u`.
+      /\baguant[aá]/i,
+      /\bempuj[oó]n/i,
     ],
     'promete, también en futuro corto': [
       /\bte va a (salir|cambiar|parecer)\b/i,
@@ -213,16 +217,17 @@ describe('las cuatro reglas, que son el punto', () => {
       /\bcon la técnica puesta\b/i,
     ],
     // La app no pregunta el género, y está bien que no lo haga. Entonces Lyra
-    // no puede suponerlo: "con calma" en vez de "tranquilo", "qué bueno verte"
-    // en vez de "bienvenido".
-    'habla en masculino por defecto': [
-      /\btranquilo\b/i,
-      /\bbienvenido\b/i,
-      /\bcansado\b/i,
-      /\bvestido\b/i,
-      /\b(terminaste|seguís|te sentís|estás) entero\b/i,
-      /\bestás (listo|preparado|solo)\b/i,
-      /\bel que empezó\b/i,
+    // no puede suponerlo, ni para un lado ni para el otro: "con calma" en vez
+    // de "tranquilo" o "tranquila", "qué bueno verte" en vez de "bienvenido".
+    'le supone un género a la persona': [
+      /\btranquil[oa]\b/i,
+      /\bbienvenid[oa]\b/i,
+      /\bcansad[oa]\b/i,
+      /\bvestid[oa]\b/i,
+      /\b(terminaste|seguís|te sentís|estás) enter[oa]\b/i,
+      /\bestás (list[oa]|preparad[oa]|sol[oa])\b/i,
+      /\b(el|la) que empezó\b/i,
+      /\bestar quiet[oa]\b/i,
     ],
   }
   for (const [regla, patrones] of Object.entries(REGLAS)) {
@@ -233,6 +238,23 @@ describe('las cuatro reglas, que son el punto', () => {
       }
     })
   }
+
+  it('ninguna pone un rótulo de persona', () => {
+    // La regla 2 —lo que hiciste, no lo que sos— era la única de las cuatro
+    // sin test, y por eso salía "Ya sos alguien que entrena" después de la
+    // primera sesión. La identidad la cuenta el número de sesiones, que es un
+    // dato; una frase al azar no le pone un rótulo a nadie. Patrones de la
+    // revisión de adherencia de octubre de 2026, que no marcan "No fallaste
+    // vos" ni "Menos repeticiones no es menos vos".
+    const rotulos = [
+      /\bsos (alguien|una persona|constante|disciplinad)/i,
+      /\bya no sos\b/i,
+      /\bsos (el|la) que\b/i,
+    ]
+    for (const linea of TODAS) {
+      for (const p of rotulos) expect(p.test(linea), `rótulo de persona: "${linea}"`).toBe(false)
+    }
+  })
 
   it('las excepciones existen: una permitida que ya no está no protege nada', () => {
     for (const linea of PERMITIDAS.keys()) expect(TODAS, linea).toContain(linea)
@@ -283,6 +305,10 @@ describe('las cuatro reglas, que son el punto', () => {
 })
 
 describe('elegir una frase', () => {
+  // Con historia de sobra, para que las que piden sesiones también cuenten:
+  // estos tests miden el azar y la memoria, no las condiciones.
+  const CON_HISTORIA = 1000
+
   it('siempre devuelve algo para cualquier momento y cualquier azar', () => {
     for (const momento of MOMENTOS) {
       for (const azar of [0, 0.001, 0.25, 0.5, 0.75, 0.999, 1]) {
@@ -296,8 +322,6 @@ describe('elegir una frase', () => {
   it('el azar recorre el grupo entero', () => {
     // Si la aritmética del índice estuviera mal —un off-by-one, un módulo de
     // más— habría frases inalcanzables: estarían escritas y no las vería nadie.
-    // Con historia de sobra, para que las que piden sesiones también cuenten.
-    const CON_HISTORIA = 1000
     for (const grupo of FRASES) {
       const salieron = new Set<string>()
       const pasos = grupo.lineas.length * 4
@@ -315,7 +339,7 @@ describe('elegir una frase', () => {
       let dichas: string[] = []
       const salidas: string[] = []
       for (let i = 0; i < 15; i++) {
-        const elegida = fraseDe(grupo.momento, (i * 0.37) % 1, dichas)!
+        const elegida = fraseDe(grupo.momento, (i * 0.37) % 1, dichas, CON_HISTORIA)!
         salidas.push(elegida.texto)
         dichas = recordar(dichas, elegida.texto)
       }
@@ -384,6 +408,11 @@ describe('las frases que piden historia', () => {
       /\bllevás\b/i,
       /\blas que ya hiciste\b/i,
       /\banteriores\b/i,
+      /\bvolviste\b/i,
+      /\bsumaste otra\b/i,
+      /\botro ladrillo\b/i,
+      /\botra vuelta\b/i,
+      /\btermine lo que empezaste\b/i,
     ]
     const casos: [Momento, number][] = [
       ['abrir', 0],
@@ -397,6 +426,26 @@ describe('las frases que piden historia', () => {
       for (const linea of alcanzables(momento, sesiones)) {
         for (const p of HABLA_DE_ANTES) {
           expect(p.test(linea), `${momento} con ${sesiones}: "${linea}"`).toBe(false)
+        }
+      }
+    }
+  })
+
+  it('lo que habla de costumbre no sale antes de diez sesiones', () => {
+    // "Semana tras semana, ahí seguís" después de la primera sesión es Lyra
+    // desmintiendo el 001 que la pantalla tiene arriba. Diez es el número de
+    // "llevás más de las que creías".
+    const HABLA_DE_COSTUMBRE = [
+      /\bcostumbre\b/i,
+      /\bsemana tras semana\b/i,
+      /\bse te está haciendo\b/i,
+      /\bdejó de ser un intento\b/i,
+      /\bllevás más\b/i,
+    ]
+    for (const grupo of FRASES) {
+      for (const linea of alcanzables(grupo.momento, 9)) {
+        for (const p of HABLA_DE_COSTUMBRE) {
+          expect(p.test(linea), `${grupo.momento} con 9: "${linea}"`).toBe(false)
         }
       }
     }

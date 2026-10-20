@@ -98,14 +98,13 @@ export const RUTINAS: Rutina[] = [
      brazos también, con los ejercicios específicos para explotar la cadena
      muscular elegida".
 
-     ## Lo que hay que decir antes, porque es el costo
+     ## Lo que hay que decir antes
 
-     Partir por grupo en cuatro días significa que **cada grupo se entrena UNA
-     vez por semana**, y la evidencia favorece dos cuando el volumen semanal
-     es el mismo. No es una diferencia enorme, pero es real y va en contra de
-     esta elección, así que la app lo dice EN PANTALLA —en `advertenciaDe`, no
-     escondido en este comentario— en vez de vender el split como si fuera
-     mejor.
+     Partir por grupo y hacer las cuatro significa que a cada una le toca un
+     día por semana, y la app lo dice EN PANTALLA —en `advertenciaDe`, no
+     escondido en este comentario—. Decía además que la evidencia favorece
+     dos veces por semana con el mismo volumen, y eso no tiene una cita
+     verificada todavía: ver `advertenciaDe`.
 
      Lo que el split sí da, y por lo que vale la pena cuando alguien lo pide:
      mucho más volumen por grupo en la sesión, y una sesión que se siente de
@@ -199,8 +198,14 @@ export const RUTINAS_POR_GRUPO = new Set([
  * La advertencia que va en pantalla cuando alguien elige partir por grupo.
  *
  * No es letra chica y no es opcional: es lo que implica la decisión, dicho en
- * el momento de tomarla. Partir en cuatro días significa entrenar cada grupo
- * una vez por semana.
+ * el momento de tomarla. Si se hacen las cuatro, a cada una le toca una vez
+ * por semana.
+ *
+ * Dice "cada una" y no "cada músculo", a propósito: decía "cada músculo se
+ * entrena una vez por semana", y no es cierto con estas cuatro. El core está
+ * en tres, Brazos repite tracción y empuje con el volumen, y el rumano de
+ * Espalda vuelve a cargar la bisagra de Piernas. El test de `grupos.test.ts`
+ * lo cuenta sobre los bloques.
  *
  * Decía también que "con el mismo volumen semanal, dos veces rinde más", y no
  * tenía ninguna fuente: el metaanálisis de frecuencia que podría decidirlo
@@ -214,7 +219,7 @@ export const RUTINAS_POR_GRUPO = new Set([
  */
 export function advertenciaDe(rutina: Rutina): string | null {
   if (!RUTINAS_POR_GRUPO.has(rutina.id)) return null
-  return 'Partida por grupo, cada músculo se entrena una vez por semana.'
+  return 'Partida por grupo: si hacés las cuatro, a cada una le toca una vez por semana.'
 }
 
 export const RUTINA_POR_ID = new Map(RUTINAS.map((r) => [r.id, r]))
