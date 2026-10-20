@@ -38,7 +38,7 @@ import {
 } from '@/dominio/apertura'
 import { ajusteDelDia, bandaSostenida, cadenasCongeladas } from '@/dominio/estado'
 import { animoReciente } from '@/dominio/vitalidad'
-import { cierreDelBorrador, destinoDelBorrador } from '@/dominio/borrador'
+import { cierreDelBorrador, destinoDelBorrador, quedaPorCerrar } from '@/dominio/borrador'
 import { revisarCopia } from '@/dominio/copia'
 
 /** Fecha local en formato AAAA-MM-DD, sin arrastrar la zona horaria de UTC. */
@@ -631,8 +631,10 @@ export async function saltearElAlta(tieneBarra: boolean): Promise<void> {
  * en el próximo arranque.
  *
  * No corre antes del alta —no hay nada que revisar, y el alta escribe la
- * revisión vacía— ni con una sesión a medio hacer: cambiar el core en medio de
- * la sesión dejaría huérfanas las series ya anotadas. Espera al próximo
+ * revisión vacía— ni con una sesión por cerrar (`quedaPorCerrar`): cambiar el
+ * core en medio de la sesión dejaría huérfanas las series ya anotadas, y con
+ * una vencida que Hoy ofrece guardar, bajaría el core justo antes de que
+ * "Guardarla" sumara las dominadas que lo mantenían. Espera al próximo
  * arranque, que es lo mismo que hace la persona.
  */
 export async function revisarRequisitosUnaVez(): Promise<void> {
@@ -645,10 +647,12 @@ export async function revisarRequisitosUnaVez(): Promise<void> {
 
       const ahora = Date.now()
       const borrador = await db.curso.get('actual')
-      // Espera a la sesión que todavía se retoma. Una vencida no la frena,
-      // aunque Hoy la siga ofreciendo para guardarla: "Guardarla" cierra con
-      // lo que trae el borrador, así que bajar el core no deja series afuera.
-      if (borrador && destinoDelBorrador(borrador, ahora) === 'retomar') return
+      // Espera a la sesión que se retoma y también a la vencida que Hoy ofrece
+      // guardar: "Guardarla" la cierra con el motor de esa noche, y si esa
+      // sesión llevaba las dominadas a 3×8, la palanca ya no tiene por qué
+      // cerrarse. Además, guardarla después de la bajada apagaría el aviso
+      // de por qué bajó. Una vencida y vacía no frena nada.
+      if (borrador && quedaPorCerrar(borrador, ahora)) return
 
       const { avances, bajadas } = bajarPorRequisito(
         await leerAvances(),

@@ -32,8 +32,9 @@
  *      motor nombra el 3×8 y el aviso se calla.
  *   6. **Saltear el alta también deja la revisión escrita.** Es una
  *      instalación nueva: si se pone en la palanca a mano, no baja.
- *   7. **Con una sesión a medio hacer, la revisión espera**, y corre en el
- *      primer arranque con el borrador ya vencido.
+ *   7. **Con una sesión a medio hacer, la revisión espera**, también si ya
+ *      venció y Hoy la ofrece para guardarla, y corre en el primer arranque
+ *      con el borrador vencido y vacío.
  *
  * Uso: npm run build && npx vite preview --port 4173, y después `node colgado.mjs`.
  * En otro puerto: `BASE=http://localhost:4181 node colgado.mjs`.
@@ -516,8 +517,8 @@ await sinBarra.navegador.close()
   // ── 7. Con una sesión a medio hacer, la revisión espera ──────────────────
   // La misma base hecha pasar por una de antes: sin revisión, 3×5 dominadas y
   // core en la palanca. Con un borrador vigente no se toca nada —cambiar el
-  // core en medio de la sesión dejaría huérfanas las series anotadas—; con
-  // uno vencido, baja.
+  // core en medio de la sesión dejaría huérfanas las series anotadas—, ni con
+  // uno vencido que todavía se puede guardar; con uno vencido y vacío, baja.
   const reabrir = async () => {
     await r.goto('about:blank')
     await r.goto(`${BASE}/#/`, { waitUntil: 'networkidle' })
@@ -549,6 +550,39 @@ await sinBarra.navegador.close()
       fallos.push('Con una sesión a medio hacer, la revisión se dio por hecha sin haber mirado nada')
     }
   }
+  // Una vencida CON series tampoco la deja correr: Hoy la ofrece para
+  // guardarla, y "Guardarla" la cierra con el motor de esa noche. Bajar el
+  // core antes le cambiaría el resultado —esa sesión podía llevar las
+  // dominadas a 3×8—, y guardarla después apagaría el aviso de la bajada.
+  await conLaBase(r, ['curso'], async (_leer, poner) => {
+    const arranque = Date.now() - 8 * 60 * 60 * 1000
+    const f = new Date(arranque)
+    const dd = (n) => String(n).padStart(2, '0')
+    await poner('curso', {
+      id: 'actual',
+      arrancadaEn: arranque,
+      duracionAcumulada: 900,
+      actualizadoEn: Date.now() - 7 * 60 * 60 * 1000,
+      corta: false,
+      indice: 0,
+      etapa: 'series',
+      hechas: { 'dominada-completa': [{ logrado: 5 }, { logrado: 5 }] },
+      dia: `${f.getFullYear()}-${dd(f.getMonth() + 1)}-${dd(f.getDate())}`,
+    })
+  })
+  {
+    const { core, preferencias } = await reabrir()
+    if (core?.ejercicioId !== 'palanca-frontal-agrupada') {
+      fallos.push(`Con una sesión vencida esperando "Guardarla", la revisión movió core a "${core?.ejercicioId}"`)
+    }
+    if (preferencias?.revisionDeRequisitos) {
+      fallos.push('Con una sesión vencida esperando "Guardarla", la revisión se dio por hecha')
+    }
+    if ((await r.locator('[data-prueba="sesion-sin-cerrar"]').count()) === 0) {
+      fallos.push('Con una sesión vencida con series, Hoy no la ofrece para guardarla')
+    }
+  }
+  // Vencida y vacía no hay nada que cerrar: ahí sí corre.
   await conLaBase(r, ['curso'], async (_leer, poner) => {
     await poner('curso', { id: 'actual', actualizadoEn: Date.now() - 7 * 60 * 60 * 1000 })
   })
