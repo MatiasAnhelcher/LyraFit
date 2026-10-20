@@ -63,16 +63,21 @@ import { seAbreHoy } from '@/dominio/anticipacion'
 import { PISO_DE_PROTEINA, senalesDelDia } from '@/dominio/nutricion'
 import { mueveElPlan } from '@/dominio/progresion'
 import {
+  descartarSesionEnCurso,
   fechaISO,
+  guardarSesionSinCerrar,
   leerAvances,
   leerDiaDelDiario,
   leerEstadoDeHoy,
   leerEstados,
   guardarPreferencias,
   leerPreferencias,
+  leerSesionSinCerrar,
   leerSesiones,
 } from '@/datos/repositorio'
+import { respaldarEnSilencio } from '@/datos/respaldo'
 import { despertarAudio } from '@/respuesta'
+import { SesionSinCerrar } from '@/componentes/sinCerrar'
 import { Carta } from '@/componentes/carta'
 import { Lyra } from '@/componentes/lyra'
 import { IconoComida, IconoFuerza, IconoSueno } from '@/componentes/iconos'
@@ -126,6 +131,15 @@ export function Hoy() {
   const estados = useLiveQuery(leerEstados, [])
   const estadoDeHoy = useLiveQuery(leerEstadoDeHoy, [])
   const diaDelDiario = useLiveQuery(() => leerDiaDelDiario(), [])
+  /**
+   * La sesión que quedó sin cerrar, si la hay: un borrador vencido con
+   * trabajo adentro. Antes se borraba sola, sin mostrarse; ahora aparece acá
+   * hasta que la persona elige qué hacer con ella.
+   */
+  const sinCerrar = useLiveQuery(leerSesionSinCerrar, [])
+  const [sinCerrarResuelta, setSinCerrarResuelta] = useState<'guardada' | 'descartada' | null>(
+    null,
+  )
 
   if (!avances || !preferencias || !sesiones || !estados) {
     return (
@@ -512,6 +526,37 @@ export function Hoy() {
             {ajuste.mensaje}
           </Glosa>
         </div>
+      )}
+
+      {/* La sesión sin cerrar va ARRIBA de todo lo que toca hoy, y empuja
+          `Empezar` hacia abajo a sabiendas: es un estado de excepción, que dura
+          hasta el primer toque, y es lo único de la pantalla que se puede
+          perder. Si igual se toca `Empezar`, Entrenar pregunta lo mismo antes
+          de arrancar: nada se pisa sin mostrarse. */}
+      {sinCerrar ? (
+        <div className="mt-8">
+          <SesionSinCerrar
+            borrador={sinCerrar}
+            hoy={fecha}
+            alGuardar={async () => {
+              await guardarSesionSinCerrar()
+              void respaldarEnSilencio()
+              setSinCerrarResuelta('guardada')
+            }}
+            alDescartar={async () => {
+              await descartarSesionEnCurso()
+              setSinCerrarResuelta('descartada')
+            }}
+          />
+        </div>
+      ) : (
+        sinCerrarResuelta && (
+          <p className="mt-8 text-sm text-[var(--color-glosa)]" role="status">
+            {sinCerrarResuelta === 'guardada'
+              ? 'Listo: la sesión quedó guardada en tu historial.'
+              : 'Listo: la sesión se descartó.'}
+          </p>
+        )
       )}
 
       {preferencias.estadoActivo && !estadoDeHoy && (

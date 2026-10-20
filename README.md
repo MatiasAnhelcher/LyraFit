@@ -145,6 +145,7 @@ node pliegue.mjs   # que nada quede abajo del pliegue, medido en tres teléfonos
 node paleta.mjs    # contraste de cada par del sistema y de cada texto en pantalla
 node movimiento.mjs # que nada se mueva en el esfuerzo y que haya un solo infinito
 node carga.mjs     # los discos: que se ofrezcan con qué, y que lleguen a la base
+node datos.mjs     # que ningún dato se pierda sin que la persona lo vea y lo decida
 node logo.mjs     # regenera el favicon y los íconos desde el componente de Lyra
 ```
 
@@ -183,6 +184,16 @@ arranque después de la ráfaga en vez de contenerla— así que esto anota una
 serie, espera a que el tramo termine y lee el reloj. Y comprueba contra la base
 real que el motor haya decidido una vez por cadena y no una por registro, que es
 lo que separa "volumen extra" de "mentirle al motor".
+
+`datos.mjs` corre con el reloj de Playwright en la mano y comprueba contra la
+base real las cinco formas en que la app perdía datos sin avisar: la sesión que
+cruza la medianoche y se rearmaba con el plan del día siguiente; el borrador
+que vencía a las seis horas y se borraba solo; el archivo de restauración que
+pasaba con una fila rota y reemplazaba todo sin preguntar; el cierre que fallaba
+sin decir nada; y "Borrar todo" que dejaba las copias automáticas y decía
+"Listo" igual. Para las fallas no espera a que ocurran: las provoca, rompiendo
+a propósito la escritura en IndexedDB o en la carpeta de copias, y mira que la
+pantalla lo diga y que no se pierda nada.
 
 Los dibujos de los ejercicios se revisan aparte, porque los tests comprueban que
 la geometría cierre pero no que la postura se parezca al ejercicio. Eso hay que
@@ -227,6 +238,8 @@ src/
     metabolico.ts    el fuelle: qué ráfaga entra en cada hueco, y cuánta
     bajada.ts        el volumen que el motor no mira, y cuánto dura la sesión
     estadisticas.ts  la curva de fuerza, récords, semanas
+    borrador.ts      de qué día es la sesión a medias, y qué hacer con ella
+    copia.ts         la copia de seguridad, revisada fila por fila
   datos/         la persistencia
     db.ts            el esquema de IndexedDB y sus migraciones
     repositorio.ts   la única puerta entre la app y la base
@@ -276,6 +289,17 @@ no una:
   pedido, así que se trata como diagnóstico—;
 - y el aviso en **Ajustes → Tus datos** cuando la app no está instalada, que es
   lo que de verdad la protege en iPhone.
+
+Y como es la única, nada se borra ni se reemplaza sin que lo veas y lo decidas:
+
+- una sesión que quedó sin cerrar se retoma durante seis horas; pasadas, Hoy la
+  ofrece para **guardarla** o **descartarla**, en vez de borrarla sola;
+- la sesión es del día en que empezó, aunque se cierre pasada la medianoche;
+- restaurar un archivo lo revisa fila por fila y, si algo está roto, no toca
+  nada; si está sano, muestra qué trae al lado de lo que vas a reemplazar, pide
+  confirmación y guarda antes una copia automática de lo que había;
+- **Borrar todo** borra también las copias automáticas del teléfono, y dice
+  "Listo" solo cuando terminó.
 
 Cada escritura además deja una marca en la tabla `pendientes`. Hoy nadie las
 lee: es la costura por donde va a entrar la sincronización.

@@ -40,7 +40,7 @@
  * misma barra de acción contra el canto que las otras seis pantallas.
  */
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { POR_ID, NOMBRE_PATRON, cadenaDe } from '@/dominio/biblioteca'
 import { proximoHitoDeCadena, proyectar, ubicarEnCadena } from '@/dominio/progresion'
@@ -108,8 +108,28 @@ const PRUEBAS: Prueba[] = [
 
 type Paso = 'propuesta' | 'equipo' | 'pruebas' | 'plan' | 'dias'
 
+/**
+ * Lo que el alta tiene que decir al abrirse, una sola vez.
+ *
+ * Existe por "Borrar todos mis datos": la base vacía manda al alta en el acto,
+ * así que el "Listo" no llegaba a verse en Ajustes. Es memoria de módulo y no
+ * el `state` de la navegación porque la redirección del portero llega después
+ * y se lo pisa — medido por `datos.mjs`—. Se escribe solo cuando el borrado
+ * terminó bien.
+ */
+let avisoAlEntrar: string | null = null
+
+export function avisarEnElAlta(texto: string): void {
+  avisoAlEntrar = texto
+}
+
 export function Alta() {
   const navegar = useNavigate()
+  // Se lee al montar y se olvida después, para que no vuelva a aparecer.
+  const [aviso] = useState(() => avisoAlEntrar)
+  useEffect(() => {
+    avisoAlEntrar = null
+  }, [])
   const [paso, setPaso] = useState<Paso>('propuesta')
   const [tieneBarra, setTieneBarra] = useState(true)
   const [indice, setIndice] = useState(0)
@@ -177,7 +197,11 @@ export function Alta() {
   return (
     <div className="mx-auto flex min-h-dvh w-full max-w-lg flex-col px-4 pt-10">
       {paso === 'propuesta' && (
-        <Propuesta onSeguir={() => setPaso('equipo')} onSaltear={() => void saltear()} />
+        <Propuesta
+          aviso={aviso}
+          onSeguir={() => setPaso('equipo')}
+          onSaltear={() => void saltear()}
+        />
       )}
 
       {paso === 'equipo' && (
@@ -216,10 +240,26 @@ export function Alta() {
   )
 }
 
-function Propuesta({ onSeguir, onSaltear }: { onSeguir: () => void; onSaltear: () => void }) {
+function Propuesta({
+  aviso,
+  onSeguir,
+  onSaltear,
+}: {
+  aviso: string | null
+  onSeguir: () => void
+  onSaltear: () => void
+}) {
   return (
     <>
       <div className="flex flex-1 flex-col justify-center">
+        {aviso && (
+          <p
+            className="mb-8 max-w-[40ch] text-sm leading-relaxed text-[var(--color-glosa)]"
+            role="status"
+          >
+            {aviso}
+          </p>
+        )}
         <Rotulo>LYRAFIT</Rotulo>
         <h1 className="mt-4 text-4xl font-bold leading-[1.1] tracking-tight">
           La app decide qué te toca. Vos anotás lo que hiciste.

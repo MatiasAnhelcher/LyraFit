@@ -582,4 +582,31 @@ export interface SesionEnCurso {
   rafagas?: RegistroRafaga[]
   /** Lo anotado hasta ahora, por ejercicio. */
   hechas: Record<string, Serie[]>
+  /**
+   * El día de la sesión, AAAA-MM-DD local. Se escribe al arrancar y no se
+   * vuelve a calcular.
+   *
+   * Es un campo propio porque ningún otro lo sabe: el plan se arma según el
+   * día —piernas y bisagra se turnan— y una sesión que arrancó el miércoles a
+   * las 23:40 y se retomó a las 00:05 se rearmaba como del jueves, con otro
+   * ejercicio y las series ya hechas afuera. `arrancadaEn` no sirve para esto:
+   * al retomar se re-ancla a lo entrenado, así que puede caer en otro día.
+   * Ausente en los borradores viejos; ahí manda el día de `arrancadaEn`.
+   */
+  dia?: string
+  /**
+   * Lo que el plan pedía de cada ejercicio. Sirve para guardar un borrador
+   * vencido tal como lo habría cerrado "Cerrar la sesión", sin rearmar un plan
+   * que días después ya puede ser otro. Ausente en los borradores viejos.
+   */
+  pasos?: PasoDelBorrador[]
+  /** Qué clase de sesión era, por lo mismo que `pasos`. */
+  tipo?: TipoSesion
+}
+
+/** Un ejercicio del plan, como lo guarda el borrador: qué se pedía de él. */
+export interface PasoDelBorrador {
+  ejercicioId: string
+  objetivo: Objetivo
+  bajada?: true
 }
