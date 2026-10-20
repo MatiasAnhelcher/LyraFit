@@ -145,6 +145,7 @@ node pliegue.mjs   # que nada quede abajo del pliegue, medido en tres teléfonos
 node paleta.mjs    # contraste de cada par del sistema y de cada texto en pantalla
 node movimiento.mjs # que nada se mueva en el esfuerzo y que haya un solo infinito
 node carga.mjs     # los discos: que se ofrezcan con qué, y que lleguen a la base
+node barra.mjs     # la barra de 28 días: que no le avise faltas a quien no faltó
 node logo.mjs     # regenera el favicon y los íconos desde el componente de Lyra
 ```
 
@@ -301,7 +302,10 @@ recortadas: suman 64 KB entre las cuatro.
 - **No hay racha de días.** En una app de fuerza el descanso es parte del plan,
   así que premiar días consecutivos premia lo que no hay que hacer. En su lugar
   hay una ventana rodante de 28 días que nunca vuelve a cero, créditos de perdón
-  para que faltar esté previsto, y un contador de sesiones que solo sube.
+  para que faltar esté previsto, y un contador de sesiones que solo sube. La
+  ventana mide solo los días del plan que ya pasaron desde la primera sesión, y
+  hoy entra cuando ya entrenaste: quien lleva una semana sin faltar ve "3 de 3",
+  no "3 de 12", y a quien no faltó no le aparece un día cubierto antes de entrenar.
 - **No hay rojo en nada del entrenamiento.** El techo de alarma es un ámbar. El
   rojo existe solo para borrar datos en Ajustes.
 - **Lyra habla, pero nunca en lugar de un dato.** §9 del documento de estrategia

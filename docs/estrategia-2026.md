@@ -436,6 +436,14 @@ Se muestra como *"9 de 12"* y como barra. **Nunca se resetea a cero** y siempre 
 recuperar en días, no en semanas. A diferencia de la racha, no tiene un estado
 catastrófico: perder un día mueve la barra un poco, no la destruye.
 
+Cómo quedó en el código (`adherencia.ts`): el denominador no es siempre `meta_semanal × 4`
+sino los días del plan que pasaron desde la primera sesión, con tope de 28 días (el día de
+la primera sesión cuenta aunque no sea del plan), y la ventana termina ayer mientras hoy no
+se haya entrenado. Con la fórmula tal cual, alguien que no faltaba nunca leía "3 de 12" al
+terminar la primera semana y "Un día cubierto con tus créditos" cada día de entrenar antes
+de la sesión. Con más de cuatro semanas de historia el denominador vuelve a ser
+`meta_semanal × 4`.
+
 Detalle gratis con evidencia detrás: dejar que la persona elija en ajustes si la barra dice
 *"llevás 9 de 12"* o *"te faltan 3 de 12"*. Es autonomía sobre el encuadre, y en un
 megaestudio de 54 intervenciones esa opción quedó entre las cinco mejores.

@@ -38,33 +38,44 @@ function rutina(desde: string, dias: number[], semanas: number): Sesion[] {
   return out
 }
 
+/** Los días del plan, de 1 (lunes) a 7 (domingo), como los da `diasDe`. */
+const LMV = [1, 3, 5]
+const MA_V = [2, 5]
+const L_MA_J_V = [1, 2, 4, 5]
+
 describe('adherencia rodante', () => {
   // 2026-01-05 es lunes.
   it('alguien impecable ve el máximo, con la rutina de la propia app', () => {
     // Esto es exactamente lo que la racha de días hacía mal: con lunes,
     // miércoles y viernes, ocho semanas perfectas mostraban un tres.
     const sesiones = rutina('2026-01-05', [0, 2, 4], 8)
-    const a = adherencia(sesiones, '2026-02-27', 3)
+    const a = adherencia(sesiones, '2026-02-27', LMV)
     expect(a.porcentaje).toBe(100)
     expect(a.hechas).toBe(12)
+    expect(a.meta).toBe(12)
   })
 
   it('la rutina mínima de dos días también llega al máximo', () => {
     const sesiones = rutina('2026-01-06', [0, 3], 8)
-    const a = adherencia(sesiones, '2026-02-27', 2)
+    const a = adherencia(sesiones, '2026-02-27', MA_V)
     expect(a.porcentaje).toBe(100)
+    expect(a.meta).toBe(8)
   })
 
   it('faltar una vez no derrumba nada, porque hay crédito', () => {
-    const sesiones = rutina('2026-01-05', [0, 2, 4], 8).slice(0, -1)
-    const a = adherencia(sesiones, '2026-02-27', 3)
-    expect(a.cubiertos).toBeGreaterThan(0)
+    // Una falta de verdad: el miércoles 25 pasó sin sesión, y se mira el
+    // viernes ya entrenado. Antes este test sacaba la sesión de HOY y la
+    // contaba como falta, que es justo el error que tenía la barra.
+    const sesiones = rutina('2026-01-05', [0, 2, 4], 8).filter((s) => s.fecha !== '2026-02-25')
+    const a = adherencia(sesiones, '2026-02-27', LMV)
+    expect(a.hechas).toBe(11)
+    expect(a.cubiertos).toBe(1)
     expect(a.porcentaje).toBe(100)
   })
 
   it('pero los créditos tienen tope: faltar mucho sí se nota', () => {
     const sesiones = rutina('2026-01-05', [0, 2, 4], 8).slice(0, -6)
-    const a = adherencia(sesiones, '2026-02-27', 3)
+    const a = adherencia(sesiones, '2026-02-27', LMV)
     expect(a.creditos).toBeLessThanOrEqual(CREDITOS_MAXIMOS)
     expect(a.porcentaje).toBeLessThan(100)
   })
@@ -72,20 +83,226 @@ describe('adherencia rodante', () => {
   it('nunca vuelve a cero de golpe: siempre se puede recuperar en días', () => {
     const sesiones = rutina('2026-01-05', [0, 2, 4], 8)
     // Dos semanas sin entrenar: la barra baja, pero no desaparece.
-    const a = adherencia(sesiones, '2026-03-13', 3)
+    const a = adherencia(sesiones, '2026-03-13', LMV)
     expect(a.porcentaje).toBeGreaterThan(0)
     expect(a.porcentaje).toBeLessThan(100)
   })
 
-  it('sin historial no explota', () => {
-    const a = adherencia([], '2026-02-27', 3)
+  it('sin historial no explota, y no mide nada', () => {
+    const a = adherencia([], '2026-02-27', LMV)
     expect(a.porcentaje).toBe(0)
     expect(a.creditos).toBe(0)
+    expect(a.meta).toBe(0)
   })
 
   it('dos sesiones el mismo día cuentan como un día', () => {
-    const a = adherencia([sesion('2026-02-26'), sesion('2026-02-26', 20)], '2026-02-27', 3)
+    const a = adherencia([sesion('2026-02-26'), sesion('2026-02-26', 20)], '2026-02-27', LMV)
     expect(a.hechas).toBe(1)
+  })
+})
+
+/**
+ * La barra de 28 días le avisaba faltas a quien no faltó.
+ *
+ * Medido con la función de antes, para alguien que entrena lunes, miércoles y
+ * viernes y no falla nunca: el día 7 veía "3 de 12"; el día 8, antes de
+ * entrenar, "Un día cubierto con tus créditos. Faltar estaba previsto."; desde
+ * el día 15, "2 días cubiertos"; y con diez semanas perfectas el aviso seguía
+ * saliendo cada lunes, miércoles y viernes antes de la sesión. El test de
+ * arriba solo miraba un viernes ya entrenado de la semana 8, y por eso no lo vio.
+ */
+describe('la barra de 28 días no le avisa faltas a quien no faltó', () => {
+  const dd = (n: number) => String(n).padStart(2, '0')
+  /** Fecha local AAAA-MM-DD, como la arma la app con `fechaISO`. */
+  const local = (d: Date) => `${d.getFullYear()}-${dd(d.getMonth() + 1)}-${dd(d.getDate())}`
+  const masDias = (fecha: string, n: number) => {
+    const d = new Date(`${fecha}T12:00:00`)
+    d.setDate(d.getDate() + n)
+    return local(d)
+  }
+  const diaDeLaSemana = (fecha: string) => new Date(`${fecha}T12:00:00`).getDay() || 7
+
+  /**
+   * Recorre `dias` días desde `desde` entrenando exactamente los días del plan,
+   * y devuelve lo que se ve cada día antes y, si tocaba, después de entrenar.
+   */
+  function recorrer(desde: string, plan: readonly number[], dias: number) {
+    const sesiones: Sesion[] = []
+    const vistas: { hoy: string; momento: string; a: ReturnType<typeof adherencia> }[] = []
+    for (let i = 0; i < dias; i++) {
+      const hoy = masDias(desde, i)
+      vistas.push({ hoy, momento: 'antes', a: adherencia(sesiones, hoy, plan) })
+      if (plan.includes(diaDeLaSemana(hoy))) {
+        sesiones.push(sesion(hoy))
+        vistas.push({ hoy, momento: 'después', a: adherencia(sesiones, hoy, plan) })
+      }
+    }
+    return vistas
+  }
+
+  it('en la primera semana se mide contra los días que pasaron, no contra 28', () => {
+    // El domingo, día 7: tres de tres, y no tres de doce.
+    const a = adherencia(rutina('2026-01-05', [0, 2, 4], 1), '2026-01-11', LMV)
+    expect(`${a.hechas} de ${a.meta}`).toBe('3 de 3')
+    expect(a.cubiertos).toBe(0)
+    // A las dos semanas, seis de seis.
+    const b = adherencia(rutina('2026-01-05', [0, 2, 4], 2), '2026-01-18', LMV)
+    expect(`${b.hechas} de ${b.meta}`).toBe('6 de 6')
+    expect(b.cubiertos).toBe(0)
+  })
+
+  it('la meta crece con los días que pasan y se queda en la de cuatro semanas', () => {
+    const despues = recorrer('2026-01-05', LMV, 70).filter((v) => v.momento === 'después')
+    expect(despues.slice(0, 5).map((v) => v.a.meta)).toEqual([1, 2, 3, 4, 5])
+    for (const v of despues.slice(11)) expect(v.a.meta, v.hoy).toBe(12)
+  })
+
+  it('la primera sesión, hoy mismo, es una de una', () => {
+    const a = adherencia([sesion('2026-01-05')], '2026-01-05', LMV)
+    expect(`${a.hechas} de ${a.meta}`).toBe('1 de 1')
+    expect(a.cubiertos).toBe(0)
+    expect(a.porcentaje).toBe(100)
+  })
+
+  it('si arranca un día que no es del plan, ese día igual cuenta', () => {
+    // Martes 6 con un plan de lunes, miércoles y viernes: es el día que eligió
+    // para empezar. Sin esta regla, el miércoles leería "2 de 1".
+    const martes = [sesion('2026-01-06')]
+    expect(adherencia(martes, '2026-01-06', LMV)).toMatchObject({ hechas: 1, meta: 1 })
+    expect(adherencia(martes, '2026-01-07', LMV)).toMatchObject({ hechas: 1, meta: 1 })
+    const miercoles = [...martes, sesion('2026-01-07')]
+    expect(adherencia(miercoles, '2026-01-07', LMV)).toMatchObject({ hechas: 2, meta: 2 })
+  })
+
+  it('antes de entrenar hoy, la ventana termina ayer', () => {
+    // Diez semanas impecables, hasta el viernes 13 de marzo. El lunes 16, antes
+    // de entrenar, antes leía "11 de 12" y "Un día cubierto con tus créditos".
+    const sesiones = rutina('2026-01-05', [0, 2, 4], 10)
+    const antes = adherencia(sesiones, '2026-03-16', LMV)
+    expect(`${antes.hechas} de ${antes.meta}`).toBe('12 de 12')
+    expect(antes.cubiertos).toBe(0)
+
+    const despues = adherencia([...sesiones, sesion('2026-03-16')], '2026-03-16', LMV)
+    expect(`${despues.hechas} de ${despues.meta}`).toBe('12 de 12')
+    expect(despues.cubiertos).toBe(0)
+  })
+
+  const RUTINAS: [string, readonly number[], string][] = [
+    ['cuerpo completo (L-M-V)', LMV, '2026-01-05'],
+    ['la mínima (Ma-V)', MA_V, '2026-01-06'],
+    ['empuje y tracción (L-Ma-J-V)', L_MA_J_V, '2026-01-05'],
+  ]
+
+  for (const [nombre, plan, desde] of RUTINAS) {
+    it(`en ${nombre}, diez semanas día por día: nunca un aviso ni una falta`, () => {
+      for (const { hoy, momento, a } of recorrer(desde, plan, 70)) {
+        expect(a.cubiertos, `${hoy} ${momento}`).toBe(0)
+        expect(a.hechas, `${hoy} ${momento}`).toBe(a.meta)
+      }
+    })
+  }
+
+  it('cambiar un día de lugar no es faltar', () => {
+    // Entrenó el martes 24 en vez del lunes 23: el lunes pasó sin sesión, pero
+    // las sesiones son las mismas y no hay nada que cubrir.
+    const sesiones = rutina('2026-01-05', [0, 2, 4], 8)
+      .filter((s) => s.fecha <= '2026-02-25')
+      .map((s) => (s.fecha === '2026-02-23' ? sesion('2026-02-24') : s))
+    const a = adherencia(sesiones, '2026-02-25', LMV)
+    expect(`${a.hechas} de ${a.meta}`).toBe('12 de 12')
+    expect(a.cubiertos).toBe(0)
+  })
+
+  it('el aviso de créditos sale solo si de verdad pasó un día del plan sin sesión', () => {
+    // Historias al azar, con semilla para que el test sea siempre el mismo
+    // (mulberry32): cada día del plan se entrena con probabilidad 0,7 y cada
+    // día libre con 0,15, arrancando cualquier día de la semana. Se mira cada
+    // día, antes y después de entrenar.
+    let semilla = 20261020
+    const azar = () => {
+      semilla = (semilla + 0x6d2b79f5) | 0
+      let t = Math.imul(semilla ^ (semilla >>> 15), 1 | semilla)
+      t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t
+      return ((t ^ (t >>> 14)) >>> 0) / 4294967296
+    }
+
+    let conAviso = 0
+    for (let historia = 0; historia < 60; historia++) {
+      const [, plan] = RUTINAS[historia % RUTINAS.length]!
+      const desde = masDias('2026-01-05', historia % 7)
+      const sesiones: Sesion[] = []
+      for (let i = 0; i < 49; i++) {
+        const hoy = masDias(desde, i)
+        const toca = plan.includes(diaDeLaSemana(hoy))
+        const entrena = i === 0 || azar() < (toca ? 0.7 : 0.15)
+        for (const yaEntreno of entrena ? [false, true] : [false]) {
+          if (yaEntreno) sesiones.push(sesion(hoy))
+          const a = adherencia(sesiones, hoy, plan)
+          if (a.cubiertos === 0) continue
+          conAviso++
+          // El tramo medido, contado aparte: desde la primera sesión, o desde
+          // hace 27 días, hasta hoy si ya entrenó o hasta ayer si todavía no.
+          // Un día del plan que todavía no terminó no puede ser la falta.
+          const fechas = new Set(sesiones.map((s) => s.fecha))
+          const hasta = fechas.has(hoy) ? hoy : masDias(hoy, -1)
+          const primera = [...fechas].sort()[0]!
+          let huboFalta = false
+          for (let d = 0; d < 28; d++) {
+            const dia = masDias(hasta, -d)
+            if (dia < primera) break
+            if (plan.includes(diaDeLaSemana(dia)) && !fechas.has(dia)) huboFalta = true
+          }
+          expect(huboFalta, `${hoy} con ${a.cubiertos} cubiertos`).toBe(true)
+        }
+      }
+    }
+    // Que el test no pase en el vacío: en estas historias hay faltas reales.
+    expect(conAviso).toBeGreaterThan(50)
+  })
+
+  it('alrededor de la medianoche, el día cuenta cuando termina', () => {
+    // Cuatro semanas impecables desde el lunes 21 de septiembre de 2026, y el
+    // lunes 19 de octubre es día de entrenar.
+    const historia = rutina('2026-09-21', [0, 2, 4], 4)
+    const lunes2359 = local(new Date(2026, 9, 19, 23, 59))
+    const martes0001 = local(new Date(2026, 9, 20, 0, 1))
+    const martes0010 = local(new Date(2026, 9, 20, 0, 10))
+
+    // Lunes 23:59 sin haber entrenado: el lunes todavía no pasó.
+    expect(adherencia(historia, lunes2359, LMV).cubiertos).toBe(0)
+
+    // Entrenó el lunes a las 23:30: a las 00:01 del martes, todo en orden.
+    const conLunes = [...historia, sesion('2026-10-19', 23)]
+    expect(adherencia(conLunes, martes0001, LMV)).toMatchObject({ hechas: 12, meta: 12, cubiertos: 0 })
+
+    // La sesión empezó el lunes y terminó pasada la medianoche, así que quedó
+    // con fecha del martes: es un día cambiado de lugar, no una falta.
+    const pasadaLaMedianoche = [...historia, sesion('2026-10-20', 0)]
+    expect(adherencia(pasadaLaMedianoche, martes0010, LMV).cubiertos).toBe(0)
+
+    // Y si el lunes de verdad pasó sin sesión, a las 00:01 sí aparece el día
+    // cubierto: ahí corresponde.
+    const falto = adherencia(historia, martes0001, LMV)
+    expect(falto.hechas).toBe(11)
+    expect(falto.cubiertos).toBe(1)
+  })
+
+  it('el cambio de hora no corre los días del plan', () => {
+    // En Sídney (la corrida con TZ=Australia/Sydney) el horario de verano
+    // termina el domingo 5 de abril de 2026 y empieza el domingo 4 de octubre.
+    const CASOS: [string, string, string][] = [
+      // desde, el viernes después del cambio, el lunes después del cambio
+      ['2026-03-09', '2026-04-10', '2026-04-06'],
+      ['2026-09-07', '2026-10-09', '2026-10-05'],
+    ]
+    for (const [desde, viernes, lunes] of CASOS) {
+      const sesiones = rutina(desde, [0, 2, 4], 8)
+      const delViernes = adherencia(sesiones.filter((s) => s.fecha <= viernes), viernes, LMV)
+      expect(delViernes, viernes).toMatchObject({ hechas: 12, meta: 12, cubiertos: 0 })
+      // El lunes, antes de entrenar.
+      const delLunes = adherencia(sesiones.filter((s) => s.fecha < lunes), lunes, LMV)
+      expect(delLunes, lunes).toMatchObject({ hechas: 12, meta: 12, cubiertos: 0 })
+    }
   })
 })
 
