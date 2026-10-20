@@ -432,6 +432,55 @@ interface Contexto {
    * con el piso y una barra de dominadas.
    */
   barra?: Barra
+  /**
+   * Los eslabones de esta cadena a los que todavía no se puede subir, cada uno
+   * con su motivo. Los calcula `eslabonesCerrados` (en `apertura.ts`), que es
+   * el que mira afuera de la cadena: el equipo y las otras cadenas.
+   *
+   * El motor no sube a uno cerrado, y lo dice. Bajar a uno sí puede, porque
+   * bajar nunca es el riesgo. Sin esto se comporta exactamente como antes.
+   */
+  cerrados?: ReadonlyMap<string, Cierre>
+}
+
+/**
+ * Por qué un eslabón está cerrado.
+ *
+ * - **sin-barra**: se hace colgado y la persona dijo que no tiene de dónde.
+ * - **requisito**: pide haber llegado a un eslabón de otra cadena, que viaja
+ *   acá para poder nombrarlo, y a veces con un mínimo en ese eslabón —las 3
+ *   series de 8 dominadas completas de la palanca frontal—, que viaja por lo
+ *   mismo: decir "cuando llegues a las dominadas completas" a quien ya está
+ *   en ellas sería no decirle nada.
+ */
+export type Cierre =
+  | { motivo: 'sin-barra' }
+  | { motivo: 'requisito'; requisito: Ejercicio; minimo?: Pick<Objetivo, 'series' | 'cantidad'> }
+
+/**
+ * El requisito dicho para la persona: "3 series de 8 dominadas completas", o
+ * el nombre del eslabón si alcanza con llegar.
+ *
+ * Es lo que va después de "cuando llegues a", y lo usan el motor, la ficha y
+ * el aviso de cuando hubo que bajar: si cada uno lo armara por su cuenta, el
+ * mismo requisito se diría de tres maneras.
+ */
+export function requisitoDicho(
+  requisito: Ejercicio,
+  minimo?: Pick<Objetivo, 'series' | 'cantidad'>,
+): string {
+  if (!minimo) return requisito.nombre
+  const nombre = requisito.nombre.toLowerCase()
+  return requisito.medida === 'segundos'
+    ? `${minimo.series} series de ${minimo.cantidad} segundos de ${nombre}`
+    : `${minimo.series} series de ${minimo.cantidad} ${nombre}`
+}
+
+/** Lo que falta para que se abra el eslabón siguiente, dicho para la persona. */
+function loQueFalta(siguiente: Ejercicio, cierre: Cierre): string {
+  return cierre.motivo === 'sin-barra'
+    ? `Lo que sigue, ${siguiente.nombre}, necesita una barra`
+    : `Lo que sigue, ${siguiente.nombre}, se abre cuando llegues a ${requisitoDicho(cierre.requisito, cierre.minimo)}`
 }
 
 /**
@@ -696,6 +745,12 @@ export function siguienteAvance(
 
   // ── Sube ───────────────────────────────────────────────────────────────
   if (senal >= SUBE) {
+    // El eslabón que viene, y si está cerrado. Se mira antes que nada porque
+    // cambia lo que se puede prometer: con el siguiente cerrado, llegar al
+    // techo no es pasar de nivel.
+    const siguiente = vecino(ctx, actual.id, 1)
+    const cierre = siguiente ? ctx.cerrados?.get(siguiente.id) : undefined
+
     if (cantidad < ventana.max) {
       // Viene cumpliendo, pero la está pasando mal. Subirle la carga ahora es
       // la forma más segura de perderla: se consolida en su lugar.
@@ -715,11 +770,38 @@ export function siguienteAvance(
 
       const nueva = Math.min(cantidad + incremento(medida, cantidad), ventana.max)
       const faltaPoco = nueva >= ventana.max
+      const techo = cierre
+        ? `es el techo de ${actual.nombre}.`
+        : `es el techo de ${actual.nombre}, y con eso pasás de nivel.`
       return ajustar(
         nueva,
         faltaPoco
-          ? `Objetivo cumplido. Subimos a ${conUnidad(medida, nueva)} por serie: es el techo de ${actual.nombre}, y con eso pasás de nivel.`
+          ? `Objetivo cumplido. Subimos a ${conUnidad(medida, nueva)} por serie: ${techo}`
           : `Objetivo cumplido. Subimos a ${conUnidad(medida, nueva)} por serie.`,
+        'subida',
+      )
+    }
+
+    /*
+     * EL SIGUIENTE ESTÁ CERRADO: SE SIGUE SUMANDO ACÁ.
+     *
+     * Es el mismo trato que el último eslabón de una cadena —se suma volumen—
+     * con dos diferencias. No pasa por la consolidación, porque consolidar es
+     * asegurarse antes de cambiar de ejercicio y acá no se cambia. Y no ofrece
+     * discos: la barra cargable es para el final de una cadena, no para el
+     * eslabón donde la persona espera que se le abra el siguiente.
+     *
+     * Existe por dos casos medidos con el código real: sin barra, el motor
+     * subía igual a las dominadas negativas y a las elevaciones colgado; y con
+     * cero dominadas, llegaba a la palanca frontal apenas terminaban las
+     * elevaciones colgado.
+     */
+    if (siguiente && cierre) {
+      return ajustar(
+        cantidad + incremento(medida, cantidad),
+        `Llegaste al techo de ${actual.nombre}. ${loQueFalta(siguiente, cierre)}: mientras tanto seguís sumando acá.${
+          cierre.motivo === 'sin-barra' ? ' Si conseguís una, marcalo en Ajustes.' : ''
+        }`,
         'subida',
       )
     }
@@ -737,7 +819,6 @@ export function siguienteAvance(
       )
     }
 
-    const siguiente = vecino(ctx, actual.id, 1)
     if (siguiente) {
       const nueva = recalibrar(actual, cantidad, siguiente)
 
@@ -960,6 +1041,12 @@ export function siguienteAvance(
       )
     }
     const siguiente = vecino(ctx, actual.id, 1)
+    const cierre = siguiente ? ctx.cerrados?.get(siguiente.id) : undefined
+    // Con el siguiente cerrado no hay empujón que dar, y "la próxima
+    // cambiamos" sería una promesa que el motor no va a cumplir.
+    if (siguiente && cierre) {
+      return sostener(`Seguimos en ${actual.nombre}. ${loQueFalta(siguiente, cierre)}.`)
+    }
     if (siguiente && avance.graciaRestante === 0) {
       const nueva = recalibrar(actual, cantidad, siguiente)
       return cambiarDeNivel(
@@ -1038,6 +1125,12 @@ export function avanceInicial(
  * Se baja un escalón a propósito. Lo que uno dice que hace siempre está un
  * poco inflado, y arrancar demasiado fácil se corrige solo en dos sesiones,
  * mientras que arrancar demasiado arriba se corrige con una lesión.
+ *
+ * `techo` es el eslabón más alto en el que se puede ubicar, aunque la cuenta
+ * dé más. Lo decide `techoDeUbicacion` (en `apertura.ts`): una plancha de dos
+ * minutos dice mucho del abdomen y nada de colgarse de una barra. Si la cuenta
+ * pasa el techo, se queda en el techo sin el escalón de descuento: lo que
+ * demostró ya alcanza de sobra para ese eslabón.
  */
 export function ubicarEnCadena(
   cadena: Cadena,
@@ -1045,6 +1138,7 @@ export function ubicarEnCadena(
   pruebaId: string,
   logrado: number,
   ahora: number = Date.now(),
+  techo?: string,
 ): Avance {
   const inicial = avanceInicial(cadena, ejercicios, ahora)
   const prueba = ejercicios.get(pruebaId)
@@ -1065,7 +1159,9 @@ export function ubicarEnCadena(
     }
   }
 
-  const seguro = Math.max(0, elegido - 1)
+  const tope = techo === undefined ? -1 : cadena.ejercicios.indexOf(techo)
+  const conDescuento = Math.max(0, elegido - 1)
+  const seguro = tope === -1 ? conDescuento : Math.min(conDescuento, tope)
   const id = cadena.ejercicios[seguro]
   const ejercicio = id ? ejercicios.get(id) : undefined
   if (!ejercicio) return inicial
@@ -1127,6 +1223,13 @@ export function proyectar(
   const destino = ctx.cadena.ejercicios.indexOf(hasta)
   const actual = ctx.cadena.ejercicios.indexOf(avance.ejercicioId)
   if (destino === -1 || actual === -1 || destino <= actual) return null
+
+  // Un eslabón cerrado en el camino no se cruza cumpliendo: se abre con otra
+  // cosa. Contar sesiones hasta ahí sería prometer un salto que el motor no va
+  // a dar, y correrlo seiscientas veces para descubrirlo, un desperdicio.
+  for (let i = actual + 1; i <= destino; i++) {
+    if (ctx.cerrados?.has(ctx.cadena.ejercicios[i]!)) return null
+  }
 
   let corriendo = avance
   for (let sesion = 1; sesion <= tope; sesion++) {

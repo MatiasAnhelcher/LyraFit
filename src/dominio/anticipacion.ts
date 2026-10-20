@@ -22,7 +22,7 @@
  */
 
 import type { Avance, Cadena, Ejercicio, Sesion } from './tipos'
-import { indiceDeCarga, proximoHitoDeCadena, proyectar } from './progresion'
+import { indiceDeCarga, proximoHitoDeCadena, proyectar, type Cierre } from './progresion'
 
 /**
  * A partir de acá la app puede hablar. Con más sesiones por delante, la
@@ -52,6 +52,7 @@ export function anticipacion(
   avance: Avance,
   cadena: Cadena,
   ejercicios: Map<string, Ejercicio>,
+  cerrados?: ReadonlyMap<string, Cierre>,
 ): Anticipacion {
   const actual = ejercicios.get(avance.ejercicioId)
   const siguiente = proximoHitoDeCadena(avance, cadena, ejercicios)
@@ -60,8 +61,10 @@ export function anticipacion(
   const hecho = actual ? avance.objetivoActual.cantidad - actual.ventana.min : 0
   const enLaVentana = recorrido > 0 ? Math.min(1, Math.max(0, hecho / recorrido)) : 1
 
+  // Con los mismos eslabones cerrados que va a mirar el motor: si el siguiente
+  // no se abre cumpliendo, no hay sesiones que contar hasta él.
   const sesiones = siguiente
-    ? proyectar(avance, { cadena, ejercicios }, siguiente.id)
+    ? proyectar(avance, { cadena, ejercicios, cerrados }, siguiente.id)
     : null
 
   return {
@@ -81,6 +84,10 @@ export function anticipacion(
  * porque es verdad: `proyectar` corre el motor en seco contra alguien que
  * cumple, así que "una sesión" quiere decir exactamente una sesión.
  *
+ * `cerrados` son los eslabones que el motor no va a abrir aunque se cumpla
+ * —sin barra, o la palanca frontal sin dominadas—: anunciar uno de esos sería
+ * la misma mentira.
+ *
  * `cuenta` es lo que la hace honesta. Hay días en que la sesión no mueve la
  * progresión —una de vuelta, una cadena congelada por molestia, un estado rojo
  * sostenido— y en esos días prometer un cambio de eslabón sería mentir con un
@@ -98,9 +105,10 @@ export function seAbreHoy(
   cadena: Cadena,
   ejercicios: Map<string, Ejercicio>,
   cuenta: boolean,
+  cerrados?: ReadonlyMap<string, Cierre>,
 ): Ejercicio | null {
   if (!cuenta) return null
-  const previsto = anticipacion(avance, cadena, ejercicios)
+  const previsto = anticipacion(avance, cadena, ejercicios, cerrados)
   return previsto.aUnaSesion ? previsto.siguiente : null
 }
 

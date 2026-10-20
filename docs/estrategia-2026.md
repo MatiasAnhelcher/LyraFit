@@ -62,7 +62,7 @@ resultó ser la veta más rica de todas:
 
 | Qué | Estado |
 |---|---|
-| La sesión sobrevive a que el navegador recicle la pestaña | **Hecho.** Borrador en IndexedDB, vigencia de seis horas, `rescate.mjs` lo verifica matando la pestaña a media sesión |
+| La sesión sobrevive a que el navegador recicle la pestaña | **Hecho.** Borrador en IndexedDB, vigencia de seis horas, `rescate.mjs` lo verifica matando la pestaña a media sesión. Pasadas las seis horas, Hoy la ofrece para guardarla o descartarla: ya no se borra sola (`datos.mjs`) |
 | La vez pasada, en Hoy y adentro de cada casillero | **Hecho.** El dato estaba desde el día uno y no se mostraba en ningún lado |
 | La víspera: "si cerrás esta sesión, pasás a X" | **Hecho.** `anticipacion.ts` estaba escrito, testeado y conectado a nada. Frecuencia medida (19-30% de las sesiones) y atada con un test |
 | La voz del motor, relegible en el historial | **Hecho.** Se guarda con la sesión; en pantalla solo los cambios de eslabón |

@@ -505,6 +505,42 @@ export interface Preferencias {
   voz?: boolean
   /** Cómo se quiere describir dentro de un año. Se usa en el cierre de sesión. */
   identidad?: string
+  /**
+   * La revisión de los eslabones con requisito, que corre una sola vez.
+   *
+   * La palanca frontal se abría al llegar a las dominadas completas, y el alta
+   * llegó a ubicar ahí a gente con cero dominadas. Ahora pide 3 series de 8.
+   * Quien quedó sentado en la palanca con la regla vieja baja una vez al
+   * último eslabón abierto (`bajarPorRequisito`, en `apertura.ts`), y esto
+   * deja escrito que ya se revisó y qué bajó, para poder decirlo.
+   *
+   * Ausente: la instalación viene de antes y todavía no se revisó. El alta la
+   * escribe vacía, porque ya ubica con los requisitos nuevos. Y tiene que ser
+   * una sola vez, no cada vez que se cumple la condición: con un mal día de
+   * dominadas el objetivo baja de 8 y la palanca se vuelve a cerrar, y echar
+   * de ahí a quien ya la venía haciendo por un mal día sería un castigo.
+   *
+   * Un campo opcional en las preferencias, que ya se guardan enteras: no toca
+   * el esquema de la base.
+   */
+  revisionDeRequisitos?: RevisionDeRequisitos
+}
+
+/** Lo que dejó escrito la revisión única de los requisitos. */
+export interface RevisionDeRequisitos {
+  /** Cuándo corrió. Las sesiones cerradas después apagan el aviso. */
+  en: number
+  /** Lo que bajó. Casi siempre vacío: solo baja quien estaba en la palanca. */
+  bajadas: BajadaPorRequisito[]
+}
+
+/** Un avance que bajó porque estaba en un eslabón cerrado por requisito. */
+export interface BajadaPorRequisito {
+  patron: Patron
+  /** El eslabón cerrado donde estaba. */
+  desde: string
+  /** Adónde bajó. */
+  hasta: string
 }
 
 /**
@@ -600,4 +636,31 @@ export interface SesionEnCurso {
   molestias?: Patron[]
   /** Lo anotado hasta ahora, por ejercicio. */
   hechas: Record<string, Serie[]>
+  /**
+   * El día de la sesión, AAAA-MM-DD local. Se escribe al arrancar y no se
+   * vuelve a calcular.
+   *
+   * Es un campo propio porque ningún otro lo sabe: el plan se arma según el
+   * día —piernas y bisagra se turnan— y una sesión que arrancó el miércoles a
+   * las 23:40 y se retomó a las 00:05 se rearmaba como del jueves, con otro
+   * ejercicio y las series ya hechas afuera. `arrancadaEn` no sirve para esto:
+   * al retomar se re-ancla a lo entrenado, así que puede caer en otro día.
+   * Ausente en los borradores viejos; ahí manda el día de `arrancadaEn`.
+   */
+  dia?: string
+  /**
+   * Lo que el plan pedía de cada ejercicio. Sirve para guardar un borrador
+   * vencido tal como lo habría cerrado "Cerrar la sesión", sin rearmar un plan
+   * que días después ya puede ser otro. Ausente en los borradores viejos.
+   */
+  pasos?: PasoDelBorrador[]
+  /** Qué clase de sesión era, por lo mismo que `pasos`. */
+  tipo?: TipoSesion
+}
+
+/** Un ejercicio del plan, como lo guarda el borrador: qué se pedía de él. */
+export interface PasoDelBorrador {
+  ejercicioId: string
+  objetivo: Objetivo
+  bajada?: true
 }

@@ -66,19 +66,25 @@ import {
 } from '@/dominio/estado'
 import { bloqueConMolestia, molestiasDeHoy } from '@/dominio/molestia'
 import { seAbreHoy } from '@/dominio/anticipacion'
+import { avisosDeLaRevision, eslabonesCerrados } from '@/dominio/apertura'
 import { PISO_DE_PROTEINA, senalesDelDia } from '@/dominio/nutricion'
 import { mueveElPlan } from '@/dominio/progresion'
 import {
+  descartarSesionEnCurso,
   fechaISO,
+  guardarSesionSinCerrar,
   leerAvances,
   leerDiaDelDiario,
   leerEstadoDeHoy,
   leerEstados,
   guardarPreferencias,
   leerPreferencias,
+  leerSesionSinCerrar,
   leerSesiones,
 } from '@/datos/repositorio'
+import { respaldarEnSilencio } from '@/datos/respaldo'
 import { despertarAudio } from '@/respuesta'
+import { SesionSinCerrar } from '@/componentes/sinCerrar'
 import { Carta } from '@/componentes/carta'
 import { Lyra } from '@/componentes/lyra'
 import { IconoComida, IconoFuerza, IconoSueno } from '@/componentes/iconos'
@@ -132,6 +138,15 @@ export function Hoy() {
   const estados = useLiveQuery(leerEstados, [])
   const estadoDeHoy = useLiveQuery(leerEstadoDeHoy, [])
   const diaDelDiario = useLiveQuery(() => leerDiaDelDiario(), [])
+  /**
+   * La sesión que quedó sin cerrar, si la hay: un borrador vencido con
+   * trabajo adentro. Antes se borraba sola, sin mostrarse; ahora aparece acá
+   * hasta que la persona elige qué hacer con ella.
+   */
+  const sinCerrar = useLiveQuery(leerSesionSinCerrar, [])
+  const [sinCerrarResuelta, setSinCerrarResuelta] = useState<'guardada' | 'descartada' | null>(
+    null,
+  )
 
   if (!avances || !preferencias || !sesiones || !estados) {
     return (
@@ -191,6 +206,9 @@ export function Hoy() {
   const factorDelDia = ajuste.factor * (vuelve ? RECORTE_DE_VUELTA : 1)
 
   const tieneBarraCargable = (preferencias.cargaMaximaKg ?? 0) > 0
+  // La de dominadas, que decide qué eslabones puede abrir el motor. Ausente
+  // cuenta como sí, que es lo que la app asumió siempre.
+  const tieneBarra = preferencias.tieneBarra !== false
 
   const bloques = rutina.bloques.flatMap((bloqueDelPlan) => {
     // Un bloque puede alternar entre dos patrones según el día. La resolución
@@ -254,11 +272,18 @@ export function Hoy() {
         antes,
         // Un accesorio nunca abre un eslabón: no está en ninguna cadena, o es
         // el anterior al que ya tenés. Anunciarlo sería una promesa falsa. El
-        // eslabón bajado por una molestia, tampoco: no es el del motor.
+        // eslabón bajado por una molestia, tampoco: no es el del motor. Y un
+        // eslabón cerrado tampoco: el motor no lo va a abrir aunque cumplas.
         abre:
           accesorio || porMolestia
             ? null
-            : seAbreHoy(avance, cadenaDe(bloque.patron), POR_ID, cuenta),
+            : seAbreHoy(
+                avance,
+                cadenaDe(bloque.patron),
+                POR_ID,
+                cuenta,
+                eslabonesCerrados(cadenaDe(bloque.patron), avances, tieneBarra),
+              ),
       },
     ]
   })
@@ -396,6 +421,18 @@ export function Hoy() {
    * el mismo día es una lista, y una lista no anticipa nada.
    */
   const vispera = bloques.find((b) => b.abre)
+
+  /**
+   * Si la revisión única bajó algo de la palanca frontal, por qué. Se dice
+   * hasta la próxima sesión, o hasta que algo lo mueva de donde lo bajamos, y
+   * se calla solo: lo decide el dominio con lo que ya está guardado.
+   */
+  const avisosDeBajada = avisosDeLaRevision(
+    preferencias.revisionDeRequisitos,
+    sesiones,
+    avances,
+    tieneBarra,
+  )
 
   /**
    * CUÁNTAS FILAS ENTRAN EN HOY, Y POR QUÉ HAY UN TOPE.
@@ -540,6 +577,37 @@ export function Hoy() {
             {ajuste.mensaje}
           </Glosa>
         </div>
+      )}
+
+      {/* La sesión sin cerrar va ARRIBA de todo lo que toca hoy, y empuja
+          `Empezar` hacia abajo a sabiendas: es un estado de excepción, que dura
+          hasta el primer toque, y es lo único de la pantalla que se puede
+          perder. Si igual se toca `Empezar`, Entrenar pregunta lo mismo antes
+          de arrancar: nada se pisa sin mostrarse. */}
+      {sinCerrar ? (
+        <div className="mt-8">
+          <SesionSinCerrar
+            borrador={sinCerrar}
+            hoy={fecha}
+            alGuardar={async () => {
+              await guardarSesionSinCerrar()
+              void respaldarEnSilencio()
+              setSinCerrarResuelta('guardada')
+            }}
+            alDescartar={async () => {
+              await descartarSesionEnCurso()
+              setSinCerrarResuelta('descartada')
+            }}
+          />
+        </div>
+      ) : (
+        sinCerrarResuelta && (
+          <p className="mt-8 text-sm text-[var(--color-glosa)]" role="status">
+            {sinCerrarResuelta === 'guardada'
+              ? 'Listo: la sesión quedó guardada en tu historial.'
+              : 'Listo: la sesión se descartó.'}
+          </p>
+        )
       )}
 
       {/* Una fila de hoy con la molestia sola —avisada desde abajo— no es el
@@ -738,6 +806,20 @@ export function Hoy() {
             : 'Me molesta algo'}
         </button>
       </div>
+
+      {/* Por qué bajó el core, si la revisión de la palanca frontal lo bajó.
+          DEBAJO de la acción por la regla del pliegue, como todo lo que no es
+          lo que toca hoy: es una línea que se lee una vez, no algo que tenga
+          que estar antes de poder empezar. */}
+      {avisosDeBajada.map((aviso) => (
+        <p
+          key={aviso}
+          className="mt-6 max-w-[42ch] text-sm leading-relaxed text-[var(--color-glosa)]"
+          data-prueba="aviso-de-bajada"
+        >
+          {aviso}
+        </p>
+      ))}
 
       {/* El costo de haber partido por grupo.
        *
