@@ -165,7 +165,7 @@ export const EJERCICIOS: Ejercicio[] = [
     medida: 'repeticiones',
     nivel: 7,
     resumen:
-      'Manos juntas debajo del pecho. Se lleva el trabajo al tríceps y a la parte interna del pectoral.',
+      'Manos juntas debajo del pecho: el tríceps pasa a trabajar tanto como el pectoral.',
     tecnica: [
       'Juntá las manos formando un triángulo con pulgares e índices.',
       'Ubicá el triángulo debajo del esternón, no debajo de la cara.',
@@ -1264,7 +1264,7 @@ export const EJERCICIOS: Ejercicio[] = [
       'Llevá la cadera hacia atrás como si cerraras una puerta con la cola, dejando que la barra baje rozando la pierna.',
       'Bajá hasta donde llegues SIN que la espalda baja se redondee. En la mayoría eso es a la mitad de la canilla, no al piso.',
       'Volvé estirando la cadera y apretando los glúteos arriba, sin arquearte hacia atrás.',
-      'Bajá en tres segundos: acá el tiempo bajo tensión rinde más que el peso.',
+      'Bajá en tres segundos: así controlás el recorrido.',
     ],
     erroresComunes: [
       'Doblar las rodillas para llegar más abajo. Eso lo convierte en un peso muerto convencional y el isquiotibial deja de estirarse.',
@@ -1326,7 +1326,7 @@ export const EJERCICIOS: Ejercicio[] = [
       'Parado, la barra agarrada por abajo con las manos al ancho de los hombros y los brazos estirados.',
       'Pegá los codos al costado del cuerpo y dejalos ahí: son una bisagra, no una palanca.',
       'Subí la barra hasta el pecho doblando solo el codo, sin que el hombro se vaya adelante.',
-      'Bajá en dos o tres segundos hasta estirar del todo. El tramo de abajo es el que más cuesta y es el que más rinde.',
+      'Bajá en dos o tres segundos hasta estirar del todo. El tramo de abajo es el que más cuesta.',
     ],
     erroresComunes: [
       'Balancear el torso para arrancar la repetición. Si hace falta impulso, el peso es demasiado.',

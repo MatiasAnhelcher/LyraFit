@@ -47,9 +47,6 @@ import { Cargando, Glosa, Regleta, Rotulo, Segmento } from '@/componentes/ui'
 import { IconoComida, IconoSueno } from '@/componentes/iconos'
 import { orden } from '@/componentes/movimiento'
 
-/** La hora por defecto que se ofrece, cuando todavía no hay ninguna anotada. */
-const DORMIR_POR_DEFECTO = 23 * 60
-
 /** Las horas que se ofrecen en la regleta de cafeína, de dos en dos. */
 const HORAS_DE_CAFE = [8, 10, 12, 14, 16, 18, 20]
 
@@ -124,8 +121,17 @@ export function Diario() {
 
   const actual: DiaDelDiario = dia ?? { fecha: '', actualizadoEn: 0 }
   const poner = (campos: Partial<DiaDelDiario>) => void guardarDiaDelDiario(campos)
-  const horaDeDormir = actual.horaDeDormir ?? DORMIR_POR_DEFECTO
-  const senales = senalesDelDia({ ...actual, horaDeDormir })
+  /*
+   * La hora de acostarse, solo si la dio la persona.
+   *
+   * Antes había una por defecto, las 23:00, y la pantalla la guardaba sola al
+   * tocar la cafeína: a quien se acuesta a la una le avisaba de más y a quien
+   * se acuesta a las diez, de menos, con un "corte sugerido" calculado contra
+   * una hora que nadie contestó. Sin la hora de verdad, `cafeinaTarde` no
+   * afirma nada y el aviso no sale.
+   */
+  const horaDeDormir = actual.horaDeDormir
+  const senales = senalesDelDia(actual)
   const porciones = actual.porcionesDeProteina
 
   return (
@@ -134,7 +140,7 @@ export function Diario() {
 
       {/* ── SUEÑO ──────────────────────────────────────────────────────── */}
       <Seccion titulo="SUEÑO" dominio="sueno" Icono={IconoSueno} i={0}>
-        <Pregunta porque="Con el mismo déficit exacto, dormir cinco horas y media en vez de ocho y media hace que lo que baje sea más músculo y menos grasa. No hay comida que compense eso.">
+        <Pregunta porque="Si estás bajando de peso, dormir poco hace que una parte mayor de lo que baja sea músculo. En un ensayo chico, durmiendo unas cinco horas se perdió menos grasa y más músculo que durmiendo siete y media.">
           ¿Cuánto dormiste anoche?
         </Pregunta>
         <Regleta className="mt-3" etiqueta="Cuánto dormiste anoche">
@@ -161,7 +167,7 @@ export function Diario() {
             <Segmento
               key={h}
               elegido={actual.ultimaCafeina === h * 60}
-              onClick={() => poner({ ultimaCafeina: h * 60, horaDeDormir })}
+              onClick={() => poner({ ultimaCafeina: h * 60 })}
               cifra
               className="flex-1"
             >
@@ -173,7 +179,7 @@ export function Diario() {
               quedaría indistinguible del día sin contestar. */}
           <Segmento
             elegido={actual.ultimaCafeina === SIN_CAFEINA}
-            onClick={() => poner({ ultimaCafeina: SIN_CAFEINA, horaDeDormir })}
+            onClick={() => poner({ ultimaCafeina: SIN_CAFEINA })}
             className="flex-1"
             prueba="cafeina-nada"
           >
@@ -181,7 +187,7 @@ export function Diario() {
           </Segmento>
         </Regleta>
 
-        {senales.avisoDeCafeina && (
+        {senales.avisoDeCafeina && horaDeDormir !== undefined && (
           <div className="mt-4">
             <Glosa tono="ambar" cita={`CORTE SUGERIDO · ${comoHora(corteDeCafeina(horaDeDormir))}`}>
               {senales.avisoDeCafeina}
@@ -192,7 +198,7 @@ export function Diario() {
 
       {/* ── COMIDA ─────────────────────────────────────────────────────── */}
       <Seccion titulo="COMIDA" dominio="comida" Icono={IconoComida} i={1}>
-        <Pregunta porque="Una porción es más o menos la palma de tu mano. Repartirla en varias comidas rinde más que meterla toda en la cena: cada toma dispara síntesis proteica por su cuenta.">
+        <Pregunta porque="Una porción es más o menos la palma de tu mano. Lo que más cuenta es el total del día, y repartirla en cuatro comidas es la forma más fácil de llegar.">
           ¿En cuántas comidas de hoy hubo proteína?
         </Pregunta>
         <Regleta className="mt-3" etiqueta="Comidas con proteína">
@@ -235,7 +241,7 @@ export function Diario() {
           ))}
         </Regleta>
 
-        <Pregunta porque="El alcohol adormece rápido y empeora la segunda mitad de la noche, que es donde recuperás. Es un dato, no una falta: acá no hay días limpios ni rachas de abstinencia.">
+        <Pregunta porque="Con alcohol te dormís más rápido, pero la segunda mitad de la noche se vuelve más cortada. Es un dato, no una falta: acá no hay días limpios ni rachas de abstinencia.">
           ¿Tomaste alcohol hoy?
         </Pregunta>
         <Regleta className="mt-3" etiqueta="Alcohol">
@@ -251,7 +257,7 @@ export function Diario() {
           ))}
         </Regleta>
 
-        <Pregunta porque="Es el único suplemento que esta app va a nombrar. Tiene más evidencia que todo el resto junto; lo demás —BCAA, glutamina, quemadores, colágeno— no la tiene.">
+        <Pregunta porque="Es el único suplemento por el que pregunta esta app: el que más evidencia tiene para ganar fuerza y músculo. BCAA, glutamina, quemadores y colágeno no la tienen para eso. Si un día no la tomás, no pasa nada: el músculo la guarda por semanas.">
           ¿Tomaste creatina?
         </Pregunta>
         <Regleta className="mt-3" etiqueta="Creatina">

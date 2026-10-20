@@ -107,9 +107,10 @@ muestra cada vez que decide algo. Nada de esperar a "sentirte listo".
   heredar sus riesgos.
 
   Es un piso, nunca un techo: la app no dice "te pasaste" de nada, no hay
-  rachas y no hay días limpios. Lo único que avisa sola es la cafeína, porque
-  es el único dato que la percepción no detecta — a nueve horas de distancia
-  nadie siente que el café le recortó el sueño, y se lo recortó.
+  rachas y no hay días limpios. El único aviso que sabe dar sola es el de la
+  cafeína tomada a menos de nueve horas de acostarse, porque es lo que la
+  percepción no detecta. Pero esa cuenta necesita tu hora de acostarte, que la
+  app todavía no pregunta y no supone: sin ese dato, el aviso no sale.
 
 - **El mapa muscular dibujado**, en la ficha de cada ejercicio y en Progreso.
   No es una imagen de banco: son los dieciocho músculos pintados con el dato
@@ -131,9 +132,11 @@ muestra cada vez que decide algo. Nada de esperar a "sentirte listo".
   mezclando el eslabón que te toca, volumen en el anterior y accesorios con
   barra.
 
-  Con el costo dicho en pantalla: partir en cuatro días entrena cada grupo una
-  vez por semana, y con el mismo volumen semanal la evidencia favorece dos.
-  Se dice y no se impide.
+  Con lo que implica dicho en pantalla: si hacés las cuatro, a cada una le
+  toca una vez por semana. Nada más: que dos veces por semana rinda más con el
+  mismo volumen no tiene una cita verificada todavía, y "cada músculo una vez"
+  no es cierto, porque el core y los brazos se repiten entre las cuatro. Se
+  dice y no se impide.
 
 ## Cómo se levanta
 
@@ -163,6 +166,7 @@ node carga.mjs     # los discos: que se ofrezcan con qué, y que lleguen a la ba
 node colgado.mjs   # sin barra, nada colgado; y la palanca frontal, recién con 3×8 dominadas
 node datos.mjs     # que ningún dato se pierda sin que la persona lo vea y lo decida
 node molestia.mjs  # avisar una molestia baja la cadena, se dice, y el motor no se entera
+node textos.mjs    # lo que se lee en pantalla: sin hora de acostarse inventada, sin género, sin "rinde más"
 node logo.mjs     # regenera el favicon y los íconos desde el componente de Lyra
 ```
 
@@ -253,7 +257,7 @@ src/
     vitalidad.ts     el delta de energía y la calibración
     rutinas.ts       qué clase de día es cada día, y qué patrones toca
     siguiente.ts     qué viene después, y cómo se escribe y se dice
-    frases.ts        las 378 cosas que Lyra puede decir, y cuándo
+    frases.ts        las 343 cosas que Lyra puede decir, y cuándo
     metabolico.ts    el fuelle: qué ráfaga entra en cada hueco, y cuánta
     bajada.ts        el volumen que el motor no mira, y cuánto dura la sesión
     estadisticas.ts  la curva de fuerza, récords, semanas
@@ -350,11 +354,18 @@ recortadas: suman 64 KB entre las cuatro.
 - **Lyra habla, pero nunca en lugar de un dato.** §9 del documento de estrategia
   prohíbe las frases motivacionales, y tiene razón sobre un tipo puntual: la que
   promete un resultado, la que elogia a la persona en vez de a la conducta, y la
-  que ocupa el lugar de un dato sobre el desempeño propio. Las 300 frases entran
+  que ocupa el lugar de un dato sobre el desempeño propio. Las 343 frases entran
   con esas tres cosas prohibidas **por test** —`frases.test.ts` las hace fallar
   con expresiones regulares— y Lyra habla siempre *después* de lo que decidió el
   motor, nunca encima. Al escribirlas, el test rechazó tres que había que
-  reescribir.
+  reescribir. La revisión de octubre de 2026 encontró 46 más que se habían
+  colado sin tocar esas palabras ("cuando el cuerpo dice basta y seguís un poco
+  más", "un mes de esto se nota", "bienvenido"), y ahora también están
+  prohibidos por test los retos, empujar más allá del límite, las promesas en
+  futuro corto, las cifras escritas con letras, el género por defecto y los
+  rótulos de persona ("ya sos alguien que entrena"). Las frases que solo son
+  ciertas con historia ("acá estás otra vez", "es que volviste") no salen
+  antes de tiempo.
 - **La sesión de siete minutos cuenta para la adherencia y no para la
   progresión.** Separar las dos cosas es lo que permite ser indulgente con la
   persona sin mentirle al motor. El día de fuelle usa la misma puerta del otro

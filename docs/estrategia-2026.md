@@ -781,7 +781,7 @@ y produce errores:
 | Ítem | Pregunta | Escala |
 |---|---|---|
 | Sueño | *¿Cómo dormiste anoche?* | Muy mal · Mal · Más o menos · Bien · Muy bien |
-| **Energía** (el de mayor señal) | *¿Cómo está tu energía hoy?* | En el piso · Cansado · Normal · Con energía · A pleno |
+| **Energía** (el de mayor señal) | *¿Cómo está tu energía hoy?* | En el piso · Con poca energía · Normal · Con energía · A pleno |
 | Dolor muscular | *¿Cómo andan tus músculos del último entrenamiento?* | Muy doloridos · Doloridos · Algo cargados · Casi bien · Sin dolor |
 
 Rama de seguridad, solo si el tercer ítem es 1 o 2: *"¿Es dolor muscular parejo o hay una
@@ -862,10 +862,11 @@ La versión honesta son hábitos, ordenados por impacto:
    porción de proteína?"*, stepper 0-6. Referencia visual una sola vez: *"una porción es más
    o menos la palma de tu mano"*. Es un **piso**: la app nunca dice "te pasaste".
 3. **Hora de la última cafeína** — el único hábito donde la app le muestra algo que su
-   percepción no puede detectar. Corte = hora de dormir − 9 h. Copy: *"tomaste café dentro
-   de las 9 horas previas a acostarte. En los estudios eso recorta el sueño casi una hora, y
-   lo interesante es que a esa distancia la gente no lo siente. No es que dormiste mal: es
-   que dormiste menos sin enterarte."*
+   percepción no puede detectar. Corte = hora de dormir − 9 h. Copy: *"Tomaste cafeína a
+   menos de 9 horas de tu hora de acostarte. En promedio eso recorta unos 45 minutos de
+   sueño, y no se siente: esta noche es probable que duermas menos sin notarlo."* (Gardiner
+   y col. 2023, metaanálisis). Sin la hora de acostarse que dio la persona no hay aviso ni
+   corte: la app no la supone (revisión de octubre de 2026).
 4. **Alcohol** — tres opciones, cero carga moral. Prohibido: "días limpios", rachas de
    abstinencia, felicitaciones por no tomar.
 5. **Peso corporal** — solo como guardarraíl de seguridad, y **la recomendación es dejarlo

@@ -1925,7 +1925,7 @@ function Preguntas({
           // misma vara, el delta no significa nada.
           opciones={[
             [1, 'En el piso'],
-            [2, 'Cansado'],
+            [2, 'Con poca energía'],
             [3, 'Normal'],
             [4, 'Con energía'],
             [5, 'A pleno'],
