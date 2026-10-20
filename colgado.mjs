@@ -16,9 +16,11 @@
  *      de la elevación en el suelo y sin barra, no puede decir "pasás a
  *      elevación de rodillas colgado". Con "Tengo dónde colgarme" prendido en
  *      Ajustes, sí: ese es el control, sin él el primer chequeo pasaría igual
- *      con la anticipación rota.
+ *      con la anticipación rota. Y apagarlo estando en las dominadas y en las
+ *      elevaciones colgado baja las dos a lo último que no cuelga.
  *   4. **Una sesión entera sin barra.** El motor no sube a lo colgado, y lo
- *      dice al cerrar.
+ *      dice al cerrar. Y en ningún momento de la sesión Entrenar promete el
+ *      paso a lo colgado.
  *
  * Uso: npm run build && npx vite preview --port 4173, y después `node colgado.mjs`.
  * En otro puerto: `BASE=http://localhost:4181 node colgado.mjs`.
@@ -82,6 +84,18 @@ await revisarQueSirvaLoCompilado(BASE)
 // ── 1. Alta sin barra, 120 s de plancha ───────────────────────────────────
 const sinBarra = await abrir({ fallos })
 const p = sinBarra.pagina
+
+// Un vigía para la víspera de Entrenar. Ahí la promesa sale recién en el
+// bloque de core, después de anotar todo lo anterior, así que mirar la
+// pantalla una vez al entrar no alcanza: si aparece en cualquier momento,
+// queda anotado. El paso 4 lo pone en cero antes de empezar.
+await p.addInitScript(() => {
+  new MutationObserver(() => {
+    if (/pasás a elevación de rodillas colgado/i.test(document.body?.textContent ?? '')) {
+      sessionStorage.setItem('promesa-colgado', '1')
+    }
+  }).observe(document, { subtree: true, childList: true, characterData: true })
+})
 {
   // Flexiones 12, remos 12, sentadillas 25, plancha 120.
   const { filas, texto } = await altaHastaElPlan(p, { barra: false, respuestas: [12, 12, 25, 120] })
@@ -162,18 +176,65 @@ if (!(await interruptor.isVisible().catch(() => false))) {
   if (!PROMESA.test(await textoDeHoy(p))) {
     fallos.push('Con barra, Hoy no anuncia el paso a la elevación de rodillas colgado: el control falló, y el chequeo de arriba no prueba nada')
   }
-  // Y se vuelve a apagar para la sesión de abajo.
+  // Con barra, alguien que ya está colgado en las dos cadenas. Apagar el
+  // interruptor tiene que bajarlo a lo último que no cuelga: el interruptor
+  // dice que el plan no pide nada colgado, y saltear un ejercicio no mueve el
+  // plan, así que sin esto se quedaba en las dominadas para siempre.
+  await conLaBase(p, ['avances'], async (leer, poner) => {
+    const avances = await leer('avances')
+    const traccion = avances.find((a) => a.patron === 'traccion')
+    const core = avances.find((a) => a.patron === 'core')
+    await poner('avances', { ...traccion, ejercicioId: 'dominada-completa', objetivoActual: { series: 3, cantidad: 6 } })
+    await poner('avances', { ...core, ejercicioId: 'elevacion-rodillas-colgado', objetivoActual: { series: 3, cantidad: 8 } })
+  })
+
+  // Y se vuelve a apagar, que es también lo que necesita la sesión de abajo.
   await p.goto(`${BASE}/#/ajustes`, { waitUntil: 'networkidle' })
   await p.waitForTimeout(500)
   await p.getByRole('button', { name: /Tengo dónde colgarme/ }).click()
   await p.waitForTimeout(300)
-  if ((await leerTodo(p)).preferencias?.tieneBarra !== false) {
+  const apagado = await leerTodo(p)
+  if (apagado.preferencias?.tieneBarra !== false) {
     fallos.push('Apagar "Tengo dónde colgarme" no guardó tieneBarra = false')
   }
+  const donde = Object.fromEntries(apagado.avances.map((a) => [a.patron, a.ejercicioId]))
+  notas.push(`Al apagar la barra estando colgado: tracción ${donde.traccion}, core ${donde.core}.`)
+  if (donde.traccion !== 'remo-australiano-pies-elevados' || donde.core !== 'elevacion-piernas-suelo') {
+    fallos.push(
+      `Apagar "Tengo dónde colgarme" dejó a la persona colgada: tracción en ${donde.traccion}, core en ${donde.core}`,
+    )
+  }
+  const hoy = (await textoDeHoy(p)).toLowerCase()
+  const enHoy = ['Dominadas completas', 'Elevación de rodillas colgado'].filter((n) =>
+    hoy.includes(n.toLowerCase()),
+  )
+  if (enHoy.length > 0) fallos.push(`Sin barra, Hoy sigue mostrando ${enHoy.join(' y ')}`)
+
+  // El core vuelve a como lo dejó el paso 3, que es lo que mide la sesión.
+  await conLaBase(p, ['avances'], async (leer, poner) => {
+    const core = (await leer('avances')).find((a) => a.patron === 'core')
+    await poner('avances', {
+      ...core,
+      ejercicioId: 'elevacion-piernas-suelo',
+      objetivoActual: { series: 3, cantidad: 12 },
+      senal: 1,
+      sesionesEnObjetivo: 2,
+      graciaRestante: 0,
+    })
+  })
 }
 
 // ── 4. Una sesión entera sin barra ────────────────────────────────────────
+// Core sigue en el techo y consolidado, como en el paso 3: sin el cierre,
+// Entrenar diría "pasás a elevación de rodillas colgado" en el bloque de core.
+// La recarga es de verdad porque la última escritura fue cruda: sin ella,
+// `liveQuery` le muestra a Entrenar el avance de antes y el vigía no mide nada.
+await p.evaluate(() => sessionStorage.removeItem('promesa-colgado'))
+await p.goto('about:blank')
 const razon = await completarUnaSesion(p)
+if (await p.evaluate(() => sessionStorage.getItem('promesa-colgado'))) {
+  fallos.push('Sin barra, Entrenar prometió "pasás a elevación de rodillas colgado": el motor no lo va a hacer')
+}
 if (razon) {
   fallos.push(`La sesión no se pudo completar: ${razon}`)
 } else {
@@ -207,4 +268,4 @@ if (fallos.length > 0) {
   process.exit(1)
 }
 
-console.log('\nSin barra no hay nada colgado, la palanca no se abre desde el alta, y Hoy no promete lo que el motor no hace.')
+console.log('\nSin barra no hay nada colgado, la palanca no se abre desde el alta, y ni Hoy ni Entrenar prometen lo que el motor no hace.')

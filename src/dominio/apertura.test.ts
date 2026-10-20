@@ -12,6 +12,7 @@ import { describe, expect, it } from 'vitest'
 import { POR_ID, REQUISITOS, cadenaDe } from './biblioteca'
 import { NECESITAN_BARRA } from './musculos'
 import {
+  bajarDeLoColgado,
   eslabonesCerrados,
   techoDeUbicacion,
   ubicarDesdeElAlta,
@@ -188,6 +189,55 @@ describe('ultimoSinBarra', () => {
   it('las cadenas que no cuelgan no tienen dónde frenar', () => {
     for (const patron of ['empuje', 'piernas', 'bisagra'] as Patron[]) {
       expect(ultimoSinBarra(cadenaDe(patron)), patron).toBeNull()
+    }
+  })
+})
+
+describe('bajarDeLoColgado', () => {
+  // Lo que pasa al apagar "Tengo dónde colgarme": cerrar lo colgado frena las
+  // subidas, pero alguien que ya estaba en las dominadas seguía en ellas.
+  it.each([core, traccion].flatMap((c) => c.ejercicios.filter((id) => NECESITAN_BARRA.has(id))))(
+    'desde %s baja al último eslabón que no cuelga',
+    (id) => {
+      const e = POR_ID.get(id)!
+      const avance = { ...avanceEn(e.patron, id, e.ventana.max), senal: 0.9 }
+      const abajo = bajarDeLoColgado(avance, 7)!
+      const destino = ultimoSinBarra(cadenaDe(e.patron))!
+      expect(abajo.ejercicioId).toBe(destino.id)
+      expect(NECESITAN_BARRA.has(abajo.ejercicioId)).toBe(false)
+      expect(abajo.objetivoActual.series).toBe(destino.series)
+      expect(abajo.objetivoActual.cantidad).toBeGreaterThanOrEqual(destino.ventana.min)
+      expect(abajo.objetivoActual.cantidad).toBeLessThanOrEqual(destino.ventana.max)
+      expect(abajo.objetivoActual.kg).toBeUndefined()
+      expect(abajo.senal).toBe(0.9)
+      expect(abajo.actualizadoEn).toBe(7)
+    },
+  )
+
+  it('lo que no cuelga se queda donde está', () => {
+    for (const cadena of [core, traccion, cadenaDe('empuje')]) {
+      for (const id of cadena.ejercicios.filter((x) => !NECESITAN_BARRA.has(x))) {
+        expect(bajarDeLoColgado(avanceEn(cadena.patron, id), 0), id).toBeNull()
+      }
+    }
+  })
+
+  it('y desde ahí, sin barra, el motor no vuelve a subir a lo colgado', () => {
+    const e = POR_ID.get('elevacion-rodillas-colgado')!
+    const abajo = bajarDeLoColgado(avanceEn('core', e.id, e.ventana.max), 0)!
+    let avance = abajo
+    const avances = new Map<Patron, Avance>([['core', avance]])
+    for (let i = 0; i < 60; i++) {
+      const { series: n, cantidad } = avance.objetivoActual
+      const hechas: Serie[] = Array.from({ length: n }, () => ({ logrado: cantidad }))
+      avance = siguienteAvance(
+        avance,
+        { rendimiento: rendimientoDeSesion(avance.objetivoActual, hechas), tipico: cantidad },
+        { cadena: core, ejercicios: POR_ID, cerrados: eslabonesCerrados(core, avances, false) },
+        i,
+      ).avance
+      avances.set('core', avance)
+      expect(NECESITAN_BARRA.has(avance.ejercicioId), `sesión ${i + 1}`).toBe(false)
     }
   })
 })

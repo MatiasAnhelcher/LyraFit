@@ -29,7 +29,12 @@ import {
   siguienteAvance,
   type Decision,
 } from '@/dominio/progresion'
-import { eslabonesCerrados, ubicarDesdeElAlta, type PruebaDelAlta } from '@/dominio/apertura'
+import {
+  bajarDeLoColgado,
+  eslabonesCerrados,
+  ubicarDesdeElAlta,
+  type PruebaDelAlta,
+} from '@/dominio/apertura'
 import { ajusteDelDia, bandaSostenida, cadenasCongeladas } from '@/dominio/estado'
 import { animoReciente } from '@/dominio/vitalidad'
 
@@ -432,6 +437,31 @@ export async function ajustarObjetivo(patron: Patron, objetivo: Objetivo): Promi
   const actualizado: Avance = { ...avance, objetivoActual: objetivo, actualizadoEn: Date.now() }
   await guardarAvance(actualizado)
   return actualizado
+}
+
+/**
+ * La barra de dominadas, que se cambia en Ajustes.
+ *
+ * Apagarla no es solo una preferencia: lo que estaba colgado baja al último
+ * eslabón que no cuelga (`bajarDeLoColgado`), en la misma transacción. Si no,
+ * el interruptor diría que el plan no pide nada colgado mientras Hoy sigue
+ * mostrando dominadas. Prenderla no mueve nada: el motor sube solo cuando
+ * corresponde.
+ *
+ * El borrador de una sesión a medio hacer no se toca, a diferencia de
+ * `fijarNivel`: tirarlo perdería las series de todos los demás ejercicios por
+ * uno que, sin barra, no se podía hacer.
+ */
+export async function cambiarBarraDeDominadas(tieneBarra: boolean): Promise<void> {
+  await db.transaction('rw', db.preferencias, db.avances, db.pendientes, async () => {
+    await guardarPreferencias({ tieneBarra })
+    if (tieneBarra) return
+    const ahora = Date.now()
+    for (const avance of await db.avances.toArray()) {
+      const abajo = bajarDeLoColgado(avance, ahora)
+      if (abajo) await guardarAvance(abajo)
+    }
+  })
 }
 
 /**

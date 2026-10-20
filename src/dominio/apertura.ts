@@ -21,7 +21,7 @@
 import type { Avance, Cadena, Ejercicio, Patron } from './tipos'
 import { POR_ID, REQUISITOS, cadenaDe } from './biblioteca'
 import { NECESITAN_BARRA } from './musculos'
-import { ubicarEnCadena, type Cierre } from './progresion'
+import { recalibrar, ubicarEnCadena, type Cierre } from './progresion'
 
 /** ¿Llegó la persona, en esa cadena, al eslabón que pide el requisito? */
 function llego(avances: ReadonlyMap<Patron, Avance>, patron: Patron, ejercicioId: string): boolean {
@@ -77,6 +77,37 @@ export function ultimoSinBarra(cadena: Cadena): Ejercicio | null {
   const primeroColgado = cadena.ejercicios.findIndex((id) => NECESITAN_BARRA.has(id))
   if (primeroColgado <= 0) return null
   return POR_ID.get(cadena.ejercicios[primeroColgado - 1]!) ?? null
+}
+
+/**
+ * Dónde queda un avance cuando la persona dice que no tiene de dónde
+ * colgarse, o null si no hace falta moverlo.
+ *
+ * Cerrar lo colgado frena las subidas, pero no saca a nadie de donde ya está.
+ * Quien apagaba "Tengo dónde colgarme" estando en las dominadas seguía viendo
+ * dominadas en Hoy, aunque el interruptor dice que el plan no le pide nada
+ * colgado. Y como saltear un ejercicio no mueve el plan, se quedaba ahí para
+ * siempre. Se baja al último eslabón que no cuelga, con la carga recalculada
+ * igual que en cualquier cambio de eslabón del motor.
+ */
+export function bajarDeLoColgado(avance: Avance, ahora: number = Date.now()): Avance | null {
+  if (!NECESITAN_BARRA.has(avance.ejercicioId)) return null
+  const cadena = cadenaDe(avance.patron)
+  const actual = POR_ID.get(avance.ejercicioId)
+  const destino = ultimoSinBarra(cadena)
+  if (!actual || !destino || !cadena.ejercicios.includes(actual.id)) return null
+  return {
+    patron: avance.patron,
+    ejercicioId: destino.id,
+    objetivoActual: {
+      series: destino.series,
+      cantidad: recalibrar(actual, avance.objetivoActual.cantidad, destino),
+    },
+    senal: avance.senal,
+    sesionesEnObjetivo: 0,
+    graciaRestante: 0,
+    actualizadoEn: ahora,
+  }
 }
 
 /**

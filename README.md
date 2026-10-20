@@ -51,7 +51,8 @@ muestra cada vez que decide algo. Nada de esperar a "sentirte listo".
   desde el alta. Sin barra, el plan te dice hasta dónde llega cada cadena.
 - **Motor de progresión** que ajusta el objetivo sesión a sesión y explica en
   una frase por qué cambió. Y no sube a ciegas: sin barra frena en
-  el último eslabón que no cuelga (si conseguís una, se cambia en Ajustes), y la
+  el último eslabón que no cuelga (si conseguís una, se cambia en Ajustes; si
+  la dejás de tener, apagarla ahí baja lo que estaba colgado), y la
   palanca frontal —primero la agrupada, después la negativa— espera a que
   llegues a las dominadas completas.
 - **Registro de series** con predicción previa, temporizador de descanso que no
