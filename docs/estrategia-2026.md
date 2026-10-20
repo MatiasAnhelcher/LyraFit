@@ -789,6 +789,12 @@ zona puntual que te molesta?"*. Si es puntual, selector de cadena y flag boolean
 promediar eso dentro del índice**: es información categórica de seguridad, no un grado de
 bienestar.
 
+Eso fue el diseño de partida, y la condición del tercer ítem resultó una traba: quien tenía
+los músculos bien y el codo avisando no tenía dónde decirlo, y con el chequeo apagado —que
+es como viene— no lo tenía nadie. Hoy la pregunta va siempre, se puede contestar sola desde
+Hoy con el chequeo apagado, incluye la bisagra, y ese día la cadena baja un eslabón o se
+saltea (`src/dominio/molestia.ts`). Sigue sin entrar al índice.
+
 Botón *"Hoy no"* siempre visible, sin culpa y sin racha rota: quien puede saltar responde
 más veces en el largo plazo.
 
