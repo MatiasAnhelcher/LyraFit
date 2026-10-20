@@ -28,7 +28,7 @@
  * que hace que un registro diario se abandone a la semana.
  */
 
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
 import {
   HORAS_DE_CAFEINA,
@@ -124,12 +124,26 @@ function HoraDeAcostarse({
   poner: (campos: Partial<DiaDelDiario>) => void
 }) {
   const [cambiando, setCambiando] = useState(false)
+  const regleta = useRef<HTMLDivElement>(null)
+
+  /* "Cambiar" desaparece al tocarlo, y con él el foco: sin esto quedaba en
+     <body> y un lector de pantalla no se enteraba de que apareció la regleta.
+     Se lleva a la hora marcada, que es la que se está por cambiar. */
+  useEffect(() => {
+    if (!cambiando) return
+    const destino =
+      regleta.current?.querySelector<HTMLButtonElement>('[aria-pressed="true"]') ??
+      regleta.current?.querySelector<HTMLButtonElement>('button')
+    destino?.focus()
+  }, [cambiando])
 
   if (hora && hora.hace > 0 && !cambiando) {
+    // La una va en singular: "a la 01:00", no "a las 01:00".
+    const a = Math.floor(hora.minutos / 60) === 1 ? 'a la' : 'a las'
     return (
       <div className="mt-4 flex items-center justify-between gap-3" data-prueba="hora-de-dormir-de-antes">
         <p className="text-sm leading-snug">
-          Te acostás a las <span className="cifra">{comoHora(hora.minutos)}</span>, como dijiste{' '}
+          Te acostás {a} <span className="cifra">{comoHora(hora.minutos)}</span>, como dijiste{' '}
           {cuandoSeContesto(hora.hace)}.
         </p>
         <button
@@ -151,20 +165,22 @@ function HoraDeAcostarse({
       >
         ¿A qué hora te pensás acostar?
       </Pregunta>
-      <Regleta className="mt-3" etiqueta="Hora de acostarte">
-        {HORAS_DE_DORMIR.map((h) => (
-          <Segmento
-            key={h}
-            elegido={hora?.minutos === h * 60}
-            onClick={() => poner({ horaDeDormir: h * 60, horaDeDormirContestada: true })}
-            cifra
-            className="flex-1"
-            prueba={`dormir-${h}`}
-          >
-            {h}
-          </Segmento>
-        ))}
-      </Regleta>
+      <div ref={regleta}>
+        <Regleta className="mt-3" etiqueta="Hora de acostarte">
+          {HORAS_DE_DORMIR.map((h) => (
+            <Segmento
+              key={h}
+              elegido={hora?.minutos === h * 60}
+              onClick={() => poner({ horaDeDormir: h * 60, horaDeDormirContestada: true })}
+              cifra
+              className="flex-1"
+              prueba={`dormir-${h}`}
+            >
+              {h}
+            </Segmento>
+          ))}
+        </Regleta>
+      </div>
       {/* El reloj da la vuelta acá, y se dice con palabras: sin esto, el 0
           al lado del 23 parece un error y el 1 se lee como la una de la tarde. */}
       <p className="rotulo mt-2">0, 1 y 2 ya son de madrugada</p>

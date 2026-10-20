@@ -241,8 +241,13 @@ try {
   await p.goto(`${BASE}/#/diario`, { waitUntil: 'networkidle' })
   await esperar(700)
 
-  await cambiar.click()
+  // Con teclado, como lo usa un lector de pantalla: el botón desaparece al
+  // tocarlo, y el foco tiene que caer en la regleta y no en <body>.
+  await cambiar.focus()
+  await p.keyboard.press('Enter')
   await esperar()
+  const enfocado = await p.evaluate(() => document.activeElement?.getAttribute('data-prueba') ?? document.activeElement?.tagName)
+  if (enfocado !== 'dormir-23') fallos.push(`Después de "Cambiar", el foco quedó en ${enfocado} y no en la hora marcada (dormir-23).`)
   if (!(await preguntaVisible())) fallos.push('"Cambiar" no abre la pregunta de la hora de acostarse.')
   else if ((await dormir(23).getAttribute('aria-pressed')) !== 'true') {
     fallos.push('Al tocar "Cambiar", la regleta no marca la hora que se está usando (23).')
