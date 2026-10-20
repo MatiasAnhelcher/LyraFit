@@ -384,10 +384,15 @@ export function Hoy() {
 
   /**
    * Si la revisión única bajó algo de la palanca frontal, por qué. Se dice
-   * hasta la próxima sesión y se calla solo: lo decide el dominio con las
-   * fechas que ya están guardadas.
+   * hasta la próxima sesión, o hasta que algo lo mueva de donde lo bajamos, y
+   * se calla solo: lo decide el dominio con lo que ya está guardado.
    */
-  const avisosDeBajada = avisosDeLaRevision(preferencias.revisionDeRequisitos, sesiones, tieneBarra)
+  const avisosDeBajada = avisosDeLaRevision(
+    preferencias.revisionDeRequisitos,
+    sesiones,
+    avances,
+    tieneBarra,
+  )
 
   /**
    * CUÁNTAS FILAS ENTRAN EN HOY, Y POR QUÉ HAY UN TOPE.

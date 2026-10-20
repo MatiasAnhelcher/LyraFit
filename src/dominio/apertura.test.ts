@@ -636,6 +636,14 @@ describe('el aviso de la bajada', () => {
     expect(
       avisoDeBajada({ patron: 'core', desde: 'palanca-frontal-agrupada', hasta: 'no-existe' }, true),
     ).toBeNull()
+    // Ni con una cadena que no existe: antes reventaba con un TypeError, y
+    // reventaba Hoy entero.
+    expect(
+      avisoDeBajada(
+        { patron: 'no-existe' as Patron, desde: 'palanca-frontal-agrupada', hasta: 'plancha' },
+        true,
+      ),
+    ).toBeNull()
   })
 })
 
@@ -644,23 +652,67 @@ describe('avisosDeLaRevision', () => {
     en: 1000,
     bajadas: [{ patron: 'core', desde: 'palanca-frontal-negativa', hasta: 'elevacion-piernas-colgado' }],
   }
+  /** Los avances con core en este eslabón. */
+  const conCoreEn = (id: string) => new Map<Patron, Avance>([['core', avanceEn('core', id)]])
+  /** Donde la dejó la revisión: la elevación de piernas colgado. */
+  const dondeLaBajamos = conCoreEn('elevacion-piernas-colgado')
 
   it('sin revisión, o sin nada bajado, no hay nada que decir', () => {
-    expect(avisosDeLaRevision(undefined, [], true)).toEqual([])
-    expect(avisosDeLaRevision({ en: 1000, bajadas: [] }, [], true)).toEqual([])
+    expect(avisosDeLaRevision(undefined, [], dondeLaBajamos, true)).toEqual([])
+    expect(avisosDeLaRevision({ en: 1000, bajadas: [] }, [], dondeLaBajamos, true)).toEqual([])
   })
 
   it('se dice hasta la próxima sesión cerrada', () => {
     const aviso = avisoDeBajada(revision.bajadas[0]!, true)
-    expect(avisosDeLaRevision(revision, [], true)).toEqual([aviso])
-    // Las sesiones de antes de la revisión no cuentan.
-    expect(avisosDeLaRevision(revision, [{ finalizadaEn: 999 }], true)).toEqual([aviso])
-    expect(avisosDeLaRevision(revision, [{ finalizadaEn: 999 }, { finalizadaEn: 1001 }], true)).toEqual(
-      [],
-    )
+    expect(avisosDeLaRevision(revision, [], dondeLaBajamos, true)).toEqual([aviso])
+    // Las sesiones de antes de la revisión no cuentan, ni una cerrada en el
+    // mismo instante: tiene que ser una sesión de después.
+    expect(avisosDeLaRevision(revision, [{ finalizadaEn: 999 }], dondeLaBajamos, true)).toEqual([aviso])
+    expect(avisosDeLaRevision(revision, [{ finalizadaEn: 1000 }], dondeLaBajamos, true)).toEqual([aviso])
+    expect(
+      avisosDeLaRevision(revision, [{ finalizadaEn: 999 }, { finalizadaEn: 1001 }], dondeLaBajamos, true),
+    ).toEqual([])
   })
 
   it('el texto sigue a la barra de ahora, no a la del día de la revisión', () => {
-    expect(avisosDeLaRevision(revision, [], false)[0]).toContain('hasta que tengas una barra')
+    // Bajó sin barra, al suelo. Si después consiguió una, ya no le falta la
+    // barra: le faltan las dominadas. Y al revés.
+    const sinBarra: RevisionDeRequisitos = {
+      en: 1000,
+      bajadas: [{ patron: 'core', desde: 'palanca-frontal-negativa', hasta: 'elevacion-piernas-suelo' }],
+    }
+    const enElSuelo = conCoreEn('elevacion-piernas-suelo')
+    expect(avisosDeLaRevision(sinBarra, [], enElSuelo, false)[0]).toContain('hasta que tengas una barra')
+    const conBarraAhora = avisosDeLaRevision(sinBarra, [], enElSuelo, true)[0]
+    expect(conBarraAhora).not.toContain('barra')
+    expect(conBarraAhora).toContain('hasta que llegues a 3 series de 8 dominadas completas')
+  })
+
+  it('se calla si algo lo movió de donde lo bajamos', () => {
+    // Apagar la barra en Ajustes baja lo colgado al suelo: el aviso diría
+    // "Bajamos core a elevación de piernas colgado hasta que tengas una
+    // barra", que ni es donde está ni tiene sentido.
+    const bajado = bajarDeLoColgado(avanceEn('core', 'elevacion-piernas-colgado'), 0)!
+    const trasApagarLaBarra = new Map<Patron, Avance>([['core', bajado]])
+    expect(avisosDeLaRevision(revision, [], trasApagarLaBarra, false)).toEqual([])
+    // Volver a la palanca a mano, desde la ficha: el aviso diría que está en
+    // algo que no es lo que Hoy le muestra.
+    expect(avisosDeLaRevision(revision, [], conCoreEn('palanca-frontal-agrupada'), true)).toEqual([])
+    // Y sin avance de esa cadena, tampoco.
+    expect(avisosDeLaRevision(revision, [], new Map(), true)).toEqual([])
+  })
+
+  it('con una revisión rota, de una copia tocada a mano, no dice nada y no se cae', () => {
+    const rotas = [
+      { en: 1000 },
+      { en: 1000, bajadas: null },
+      { en: 1000, bajadas: 'core' },
+      { en: 1000, bajadas: [null] },
+      { en: 1000, bajadas: [{ patron: 'no-existe', desde: 'palanca-frontal-agrupada', hasta: 'plancha' }] },
+    ] as unknown as RevisionDeRequisitos[]
+    for (const rota of rotas) {
+      expect(() => avisosDeLaRevision(rota, [], conCoreEn('plancha'), true), JSON.stringify(rota)).not.toThrow()
+      expect(avisosDeLaRevision(rota, [], conCoreEn('plancha'), true), JSON.stringify(rota)).toEqual([])
+    }
   })
 })

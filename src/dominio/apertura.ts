@@ -197,7 +197,7 @@ export function bajarPorRequisito(
 
 /**
  * La línea que explica una bajada por requisito, o null si los datos ya no
- * alcanzan para decirla (un eslabón que dejó de existir).
+ * alcanzan para decirla (un eslabón o una cadena que dejó de existir).
  *
  * Una sola frase, en primera del plural porque la decisión fue de la app y no
  * de la persona: no hizo nada mal, la regla vieja la puso ahí. Dice adónde
@@ -208,12 +208,13 @@ export function avisoDeBajada(bajada: BajadaPorRequisito, tieneBarra: boolean): 
   const requisito = REQUISITOS.get(bajada.desde)
   const pedido = requisito ? POR_ID.get(requisito.ejercicioId) : undefined
   const hasta = POR_ID.get(bajada.hasta)
-  if (!requisito || !pedido || !hasta) return null
+  const cadena: string | undefined = NOMBRE_PATRON[bajada.patron]
+  if (!requisito || !pedido || !hasta || !cadena) return null
   const falta = requisitoDicho(pedido, requisito.minimo)
   const cuando = tieneBarra
     ? `hasta que llegues a ${falta}`
     : `hasta que tengas una barra y llegues a ${falta}`
-  return `Bajamos ${NOMBRE_PATRON[bajada.patron].toLowerCase()} a ${hasta.nombre.toLowerCase()} ${cuando}: ${requisito.porque}.`
+  return `Bajamos ${cadena.toLowerCase()} a ${hasta.nombre.toLowerCase()} ${cuando}: ${requisito.porque}.`
 }
 
 /**
@@ -224,15 +225,28 @@ export function avisoDeBajada(bajada: BajadaPorRequisito, tieneBarra: boolean): 
  * las sesiones ya están en los datos, que es el mismo criterio con el que Hoy
  * ofrece el fuelle una sola vez. Y hasta entrenar es justo lo que sirve:
  * después, la sesión ya mostró dónde está.
+ *
+ * Y cada aviso, solo mientras la persona siga donde la bajamos. Antes de
+ * entrenar la pueden mover dos cosas: apagar la barra en Ajustes, que baja lo
+ * colgado al suelo, o volver a la palanca a mano desde la ficha. En los dos
+ * casos "Bajamos core a elevación de piernas colgado" ya no es cierto, y sin
+ * barra encima se contradice: diría que la puso en algo colgado hasta que
+ * tenga una barra. Lo que hace falta para saberlo ya está en los avances.
+ *
+ * La revisión viene de la base, y una copia restaurada es un archivo que
+ * cualquiera puede tocar: si `bajadas` no es una lista no hay nada que decir,
+ * y Hoy no se cae por eso.
  */
 export function avisosDeLaRevision(
   revision: RevisionDeRequisitos | undefined,
   sesiones: readonly Pick<Sesion, 'finalizadaEn'>[],
+  avances: ReadonlyMap<Patron, Pick<Avance, 'ejercicioId'>>,
   tieneBarra: boolean,
 ): string[] {
-  if (!revision || revision.bajadas.length === 0) return []
+  if (!revision || !Array.isArray(revision.bajadas) || revision.bajadas.length === 0) return []
   if (sesiones.some((s) => s.finalizadaEn > revision.en)) return []
   return revision.bajadas.flatMap((bajada) => {
+    if (!bajada || avances.get(bajada.patron)?.ejercicioId !== bajada.hasta) return []
     const aviso = avisoDeBajada(bajada, tieneBarra)
     return aviso ? [aviso] : []
   })

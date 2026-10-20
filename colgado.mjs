@@ -26,9 +26,14 @@
  *      vacía. Una instalación de antes, con la palanca abierta (3×8), no se
  *      toca; con 3×5 —abierta con la regla vieja— baja a la elevación de
  *      piernas colgado al abrir la app, y Hoy lo dice en una línea, debajo de
- *      Empezar. La revisión no vuelve a correr. Hoy no promete la palanca con
- *      3×5 y sí con 3×8 (el control), la ficha dice qué la abre, y al cerrar la
- *      sesión el motor nombra el 3×8 y el aviso se calla.
+ *      Empezar. La revisión no vuelve a correr, y si core vuelve a la palanca
+ *      a mano, el aviso se calla. Hoy no promete la palanca con 3×5 y sí con
+ *      3×8 (el control), la ficha dice qué la abre, y al cerrar la sesión el
+ *      motor nombra el 3×8 y el aviso se calla.
+ *   6. **Saltear el alta también deja la revisión escrita.** Es una
+ *      instalación nueva: si se pone en la palanca a mano, no baja.
+ *   7. **Con una sesión a medio hacer, la revisión espera**, y corre en el
+ *      primer arranque con el borrador ya vencido.
  *
  * Uso: npm run build && npx vite preview --port 4173, y después `node colgado.mjs`.
  * En otro puerto: `BASE=http://localhost:4181 node colgado.mjs`.
@@ -394,15 +399,20 @@ await sinBarra.navegador.close()
   }
 
   // c. Una sola vez: con la revisión ya escrita, alguien que vuelve a la
-  // palanca —a mano, desde la ficha— no baja de nuevo al abrir la app.
+  // palanca —a mano, desde la ficha— no baja de nuevo al abrir la app. Y Hoy
+  // ya no le dice "Bajamos core a elevación de piernas colgado": no es donde
+  // está, y la línea contradiría al plan que tiene justo arriba.
   await conLaBase(q, ['avances'], async (leer, poner) => {
     const core = (await leer('avances')).find((a) => a.patron === 'core')
     await poner('avances', { ...core, ejercicioId: 'palanca-frontal-agrupada', objetivoActual: { series: 3, cantidad: 12 } })
   })
   {
-    const { donde } = await abrirLaApp()
+    const { donde, texto } = await abrirLaApp()
     if (donde.core?.ejercicioId !== 'palanca-frontal-agrupada') {
       fallos.push(`La revisión volvió a correr: bajó core a "${donde.core?.ejercicioId}" con la revisión ya escrita`)
+    }
+    if (texto.includes('Bajamos core') || (await q.locator('[data-prueba="aviso-de-bajada"]').count()) > 0) {
+      fallos.push('Con core de vuelta en la palanca, Hoy sigue diciendo que lo bajamos a la elevación de piernas colgado')
     }
   }
 
@@ -464,6 +474,94 @@ await sinBarra.navegador.close()
   }
 
   await conBarra.navegador.close()
+}
+
+// ── 6. "Prefiero arrancar desde cero" también deja la revisión escrita ─────
+{
+  const desdeCero = await abrir({ fallos })
+  const r = desdeCero.pagina
+  await r.goto(`${BASE}/#/`, { waitUntil: 'networkidle' })
+  await r.waitForTimeout(400)
+  await r.getByRole('button', { name: 'Prefiero arrancar desde cero', exact: true }).click()
+  await r.waitForTimeout(700)
+  const revision = (await leerTodo(r)).preferencias?.revisionDeRequisitos
+  if (!revision || !Array.isArray(revision.bajadas) || revision.bajadas.length !== 0) {
+    fallos.push(`Saltear el alta no dejó escrita la revisión vacía: ${JSON.stringify(revision)}`)
+  }
+  // Y por eso, quien es nueva y se pone en la palanca a mano antes de volver
+  // a abrir la app no baja: la regla vieja nunca la tocó.
+  await conLaBase(r, ['avances'], async (_leer, poner) => {
+    await poner('avances', {
+      patron: 'core',
+      ejercicioId: 'palanca-frontal-agrupada',
+      objetivoActual: { series: 3, cantidad: 8 },
+      senal: 1,
+      sesionesEnObjetivo: 0,
+      graciaRestante: 0,
+      actualizadoEn: Date.now(),
+    })
+  })
+  await r.goto('about:blank')
+  await r.goto(`${BASE}/#/`, { waitUntil: 'networkidle' })
+  await r.waitForTimeout(1200)
+  const despues = await leerTodo(r)
+  const core = despues.avances.find((a) => a.patron === 'core')
+  if (core?.ejercicioId !== 'palanca-frontal-agrupada') {
+    fallos.push(`Después de saltear el alta, la revisión corrió igual y bajó core a "${core?.ejercicioId}"`)
+  }
+  if ((await r.locator('[data-prueba="aviso-de-bajada"]').count()) > 0) {
+    fallos.push('Después de saltear el alta, Hoy avisa una bajada que la regla vieja nunca hizo')
+  }
+
+  // ── 7. Con una sesión a medio hacer, la revisión espera ──────────────────
+  // La misma base hecha pasar por una de antes: sin revisión, 3×5 dominadas y
+  // core en la palanca. Con un borrador vigente no se toca nada —cambiar el
+  // core en medio de la sesión dejaría huérfanas las series anotadas—; con
+  // uno vencido, baja.
+  const reabrir = async () => {
+    await r.goto('about:blank')
+    await r.goto(`${BASE}/#/`, { waitUntil: 'networkidle' })
+    await r.waitForTimeout(1200)
+    const datos = await leerTodo(r)
+    return { ...datos, core: datos.avances.find((a) => a.patron === 'core') }
+  }
+  await conLaBase(r, ['avances', 'preferencias', 'curso'], async (leer, poner) => {
+    const [prefe] = await leer('preferencias')
+    const { revisionDeRequisitos: _, ...deAntes } = prefe
+    await poner('preferencias', deAntes)
+    await poner('avances', {
+      patron: 'traccion',
+      ejercicioId: 'dominada-completa',
+      objetivoActual: { series: 3, cantidad: 5 },
+      senal: 1,
+      sesionesEnObjetivo: 0,
+      graciaRestante: 0,
+      actualizadoEn: Date.now(),
+    })
+    await poner('curso', { id: 'actual', actualizadoEn: Date.now() })
+  })
+  {
+    const { core, preferencias } = await reabrir()
+    if (core?.ejercicioId !== 'palanca-frontal-agrupada') {
+      fallos.push(`Con una sesión a medio hacer, la revisión movió core a "${core?.ejercicioId}"`)
+    }
+    if (preferencias?.revisionDeRequisitos) {
+      fallos.push('Con una sesión a medio hacer, la revisión se dio por hecha sin haber mirado nada')
+    }
+  }
+  await conLaBase(r, ['curso'], async (_leer, poner) => {
+    await poner('curso', { id: 'actual', actualizadoEn: Date.now() - 7 * 60 * 60 * 1000 })
+  })
+  {
+    const { core, preferencias } = await reabrir()
+    if (core?.ejercicioId !== 'elevacion-piernas-colgado') {
+      fallos.push(`Con el borrador vencido, la revisión no bajó core: quedó en "${core?.ejercicioId}"`)
+    }
+    if (preferencias?.revisionDeRequisitos?.bajadas?.length !== 1) {
+      fallos.push(`Con el borrador vencido, la revisión anotó: ${JSON.stringify(preferencias?.revisionDeRequisitos)}`)
+    }
+  }
+  await desdeCero.navegador.close()
 }
 
 for (const n of notas) console.log(n)

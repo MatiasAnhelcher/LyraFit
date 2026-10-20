@@ -47,7 +47,7 @@ import { proximoHitoDeCadena, proyectar } from '@/dominio/progresion'
 import { ubicarDesdeElAlta, ultimoSinBarra } from '@/dominio/apertura'
 import { RUTINAS } from '@/dominio/rutinas'
 import type { Avance, Patron } from '@/dominio/tipos'
-import { guardarPreferencias, ubicarDesdePrueba } from '@/datos/repositorio'
+import { guardarPreferencias, saltearElAlta, ubicarDesdePrueba } from '@/datos/repositorio'
 import { Accion, AccionQuieta, Glifo, Rotulo, Segmento, unidad } from '@/componentes/ui'
 
 interface Prueba {
@@ -170,7 +170,7 @@ export function Alta() {
   async function saltear() {
     setGuardando(true)
     try {
-      await guardarPreferencias({ altaCompletadaEn: Date.now(), tieneBarra })
+      await saltearElAlta(tieneBarra)
       navegar('/', { replace: true })
     } finally {
       setGuardando(false)

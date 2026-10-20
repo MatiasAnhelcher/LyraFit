@@ -491,6 +491,25 @@ export async function ubicarDesdePrueba(
 }
 
 /**
+ * El alta sin prueba: "Prefiero arrancar desde cero".
+ *
+ * También deja escrita la revisión de los requisitos, vacía, por lo mismo que
+ * `ubicarDesdePrueba`: es una instalación nueva y la regla vieja nunca la
+ * tocó. Sin esto la revisión corría en el segundo arranque, y a quien entre
+ * tanto se hubiera puesto en la palanca a mano desde la ficha —"el motor
+ * decide solo, pero vos mandás"— lo bajaba con un aviso que habla de una
+ * regla vieja que nunca le tocó.
+ */
+export async function saltearElAlta(tieneBarra: boolean): Promise<void> {
+  const ahora = Date.now()
+  await guardarPreferencias({
+    altaCompletadaEn: ahora,
+    tieneBarra,
+    revisionDeRequisitos: { en: ahora, bajadas: [] },
+  })
+}
+
+/**
  * La revisión única de los eslabones con requisito. Corre al abrir la app.
  *
  * La palanca frontal pide ahora 3 series de 8 dominadas completas, y antes se
