@@ -352,11 +352,15 @@ export function Entrenar() {
    * Más las que la sesión ya traía en el borrador: retirar la molestia a mitad
    * de camino no puede devolver el eslabón de siempre y dejar afuera las
    * series anotadas en el de abajo.
+   *
+   * "Hoy" es el día de la sesión, como en todo lo demás de esta pantalla: una
+   * sesión que cruza la medianoche se sigue armando con la molestia del día en
+   * que empezó, no con la fila de un día que todavía no entrenó.
    */
   const [molestiasRetomadas, setMolestiasRetomadas] = useState<Patron[]>([])
   const molestias = useMemo(
-    () => molestiasDeLaSesion(estados ?? [], fechaISO(), molestiasRetomadas),
-    [estados, molestiasRetomadas],
+    () => molestiasDeLaSesion(estados ?? [], dia, molestiasRetomadas),
+    [estados, dia, molestiasRetomadas],
   )
 
   /**
@@ -845,39 +849,6 @@ export function Entrenar() {
     )
   }, [esDensa, esDiaDeFuelle, densidadDelBloque, equipo, minutosDeFuerza, molestias])
 
-  /*
-   * Un plan vacío por la molestia no es una sesión que todavía carga.
-   *
-   * Pasa cuando todo lo que la rutina pedía hoy es de la cadena que avisó y
-   * esa cadena está en su primer eslabón —o lo demás necesita una barra que no
-   * hay—. Sin esto la pantalla se quedaba en "preparando" para siempre: se
-   * dice lo que pasó y se ofrece volver.
-   */
-  if (avances && preferencias && historial && listo && plan.length === 0 && avisos.length > 0) {
-    return (
-      <div className="flex min-h-dvh flex-col">
-        <main className="mx-auto flex w-full max-w-lg flex-1 flex-col justify-center px-4">
-          <Rotulo>HOY</Rotulo>
-          {avisos.map((aviso) => (
-            <p
-              key={aviso.patron}
-              className="mt-3 max-w-[34ch] text-lg leading-snug"
-              data-prueba="linea-molestia"
-            >
-              {lineaDeMolestia(aviso)}
-            </p>
-          ))}
-          <p className="mt-4 max-w-[36ch] text-sm leading-relaxed text-[var(--color-glosa)]">
-            Sin esa cadena, la sesión de hoy se queda sin ejercicios.
-          </p>
-        </main>
-        <div className="mt-auto">
-          <AccionQuieta onClick={() => navegar('/')}>Volver</AccionQuieta>
-        </div>
-      </div>
-    )
-  }
-
   // Un borrador vencido con trabajo adentro, si se llegó directo: primero se
   // decide qué hacer con él, y recién después arranca la sesión de hoy.
   function arrancarDeNuevo() {
@@ -905,6 +876,43 @@ export function Entrenar() {
         <button onClick={() => navegar('/')} className="rotulo mt-10 self-start">
           Salir
         </button>
+      </div>
+    )
+  }
+
+  /*
+   * Un plan vacío por la molestia no es una sesión que todavía carga.
+   *
+   * Pasa cuando todo lo que la rutina pedía hoy es de la cadena que avisó y
+   * esa cadena está en su primer eslabón —o lo demás necesita una barra que no
+   * hay—. Sin esto la pantalla se quedaba en "preparando" para siempre: se
+   * dice lo que pasó y se ofrece volver.
+   *
+   * Va después de la sesión sin cerrar y no antes: si hay un borrador vencido
+   * con trabajo adentro, lo primero es decidir qué hacer con él, y eso no
+   * puede taparlo un aviso sobre la sesión de hoy.
+   */
+  if (avances && preferencias && historial && listo && plan.length === 0 && avisos.length > 0) {
+    return (
+      <div className="flex min-h-dvh flex-col">
+        <main className="mx-auto flex w-full max-w-lg flex-1 flex-col justify-center px-4">
+          <Rotulo>HOY</Rotulo>
+          {avisos.map((aviso) => (
+            <p
+              key={aviso.patron}
+              className="mt-3 max-w-[34ch] text-lg leading-snug"
+              data-prueba="linea-molestia"
+            >
+              {lineaDeMolestia(aviso)}
+            </p>
+          ))}
+          <p className="mt-4 max-w-[36ch] text-sm leading-relaxed text-[var(--color-glosa)]">
+            Sin esa cadena, la sesión de hoy se queda sin ejercicios.
+          </p>
+        </main>
+        <div className="mt-auto">
+          <AccionQuieta onClick={() => navegar('/')}>Volver</AccionQuieta>
+        </div>
       </div>
     )
   }
