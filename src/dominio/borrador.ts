@@ -116,6 +116,24 @@ export function destinoDelBorrador(
 }
 
 /**
+ * Si mover un nivel a mano (`fijarNivel`, "Empezar la cadena acá" en una
+ * ficha) tiene que tirar el borrador.
+ *
+ * Sí cuando la sesión todavía se retoma: Entrenar la rearma con el plan de
+ * ahora, y las series del eslabón que se dejó quedarían afuera del cierre sin
+ * que nadie lo diga. No cuando es una vencida que Hoy ofrece guardar: esa se
+ * guarda con el plan que traía (`pasos`) o, si es de las viejas, con lo que
+ * se anotó, así que cambiar de eslabón no le saca ninguna serie, y tirarla
+ * era perder la sesión entera sin mostrarla. Una vencida y vacía se tira.
+ */
+export function cambiarDeNivelLaTira(
+  borrador: Pick<SesionEnCurso, 'actualizadoEn' | 'hechas' | 'rafagas'>,
+  ahora: number,
+): boolean {
+  return destinoDelBorrador(borrador, ahora) !== 'ofrecer'
+}
+
+/**
  * Los registros de una sesión: lo que pedía el plan y lo que se anotó.
  *
  * Es la cuenta que hace "Cerrar la sesión" y la que hace "Guardarla" con un

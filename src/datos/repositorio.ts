@@ -32,7 +32,7 @@ import {
 } from '@/dominio/progresion'
 import { ajusteDelDia, bandaSostenida, cadenasCongeladas } from '@/dominio/estado'
 import { animoReciente } from '@/dominio/vitalidad'
-import { cierreDelBorrador, destinoDelBorrador } from '@/dominio/borrador'
+import { cambiarDeNivelLaTira, cierreDelBorrador, destinoDelBorrador } from '@/dominio/borrador'
 import { revisarCopia } from '@/dominio/copia'
 
 /** Fecha local en formato AAAA-MM-DD, sin arrastrar la zona horaria de UTC. */
@@ -469,12 +469,16 @@ export async function fijarNivel(patron: Patron, ejercicioId: string): Promise<A
   }
 
   await guardarAvance(avance)
-  // Y se tira el borrador, si había uno. Las series a medio anotar están
-  // indexadas por id de ejercicio, y `cerrarSesion` solo mira los ejercicios
-  // del plan de hoy: cambiar de eslabón deja huérfanas las que ya se hicieron y
-  // desaparecen sin que nadie avise. Perder trabajo en silencio es peor que
+  // Y se tira el borrador de la sesión que todavía se retoma. Las series a
+  // medio anotar están indexadas por id de ejercicio, y Entrenar la rearma con
+  // el plan de ahora: cambiar de eslabón deja huérfanas las que ya se hicieron
+  // y desaparecen sin que nadie avise. Perder trabajo en silencio es peor que
   // perderlo con un cartel, así que se descarta acá, que es donde se sabe.
-  await descartarSesionEnCurso()
+  // La vencida que Hoy ofrece guardar no: se guarda con su propio plan, así
+  // que no pierde nada, y tirarla era borrarla sin mostrarla
+  // (`cambiarDeNivelLaTira`).
+  const borrador = await leerSesionEnCurso()
+  if (borrador && cambiarDeNivelLaTira(borrador, Date.now())) await descartarSesionEnCurso()
   return avance
 }
 

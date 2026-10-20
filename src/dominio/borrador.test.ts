@@ -10,6 +10,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   VIGENCIA_DEL_BORRADOR,
+  cambiarDeNivelLaTira,
   cierreDelBorrador,
   destinoDelBorrador,
   diaDelBorrador,
@@ -125,6 +126,21 @@ describe('qué hacer con el borrador', () => {
     // Una serie anotada en cero no es trabajo: `cerrarSesion` tampoco la guarda.
     const b = borrador({ hechas: { 'puente-gluteos': [{ logrado: 0 }] } })
     expect(destinoDelBorrador(b, b.actualizadoEn + VIGENCIA_DEL_BORRADOR + 1)).toBe('descartar')
+  })
+
+  it('cambiar de nivel a mano no tira la sesión vencida que Hoy ofrece guardar', () => {
+    // "Empezar la cadena acá", en una ficha, tiraba el borrador siempre. Con
+    // uno vencido con series era perder la sesión entera sin que se mostrara:
+    // esa se guarda con su propio plan, así que cambiar de eslabón no le saca
+    // nada.
+    const b = borrador()
+    expect(cambiarDeNivelLaTira(b, b.actualizadoEn + VIGENCIA_DEL_BORRADOR + 1)).toBe(false)
+    // La que todavía se retoma sí: Entrenar la rearmaría con el eslabón nuevo
+    // y las series del viejo quedarían afuera del cierre.
+    expect(cambiarDeNivelLaTira(b, b.actualizadoEn + 60_000)).toBe(true)
+    // Y una vencida sin nada hecho no tiene nada que perder.
+    const vacio = borrador({ hechas: {} })
+    expect(cambiarDeNivelLaTira(vacio, vacio.actualizadoEn + VIGENCIA_DEL_BORRADOR + 1)).toBe(true)
   })
 })
 
