@@ -75,6 +75,7 @@ resultó ser la veta más rica de todas:
 | Los 39 ejercicios, dibujados | **Hecho.** Motor paramétrico de figuras, "cómo se hace" encima de la serie, y tests de geometría —incluido el de la figura espejada, que dije que era imposible— |
 | El fuelle: trabajo metabólico sin costo para el motor | **Hecho.** Ráfagas en los huecos por encima de un piso de recuperación, bloque al final antes de la serie de cierre, día de fuelle, y la bajada. Medido: el motor absorbe hasta un 12% de merma y se derrumba al 18% |
 | Cuánto va a durar la sesión, antes de empezar | **Hecho.** Se elige la duración y lo que se estira es el bloque, nunca las series |
+| La molestia que cambia el plan | **Hecho**, en su versión mínima. Se avisa desde Hoy aunque el chequeo esté apagado y los músculos estén bien, con la bisagra; ese día la cadena baja un eslabón o se saltea, la sesión lo dice, ninguna ráfaga la carga y el motor no se mueve. `molestia.mjs` lo recorre. La molestia por zona del cuerpo y la pausa que se levanta con un "ya no" quedan para cuando haya firma profesional |
 
 Dos lecciones de método que valen más que cualquiera de esas filas, porque las
 dos aparecieron al equivocarme:
@@ -787,6 +788,12 @@ Rama de seguridad, solo si el tercer ítem es 1 o 2: *"¿Es dolor muscular parej
 zona puntual que te molesta?"*. Si es puntual, selector de cadena y flag booleano. **Nunca
 promediar eso dentro del índice**: es información categórica de seguridad, no un grado de
 bienestar.
+
+Eso fue el diseño de partida, y la condición del tercer ítem resultó una traba: quien tenía
+los músculos bien y el codo avisando no tenía dónde decirlo, y con el chequeo apagado —que
+es como viene— no lo tenía nadie. Hoy la pregunta va siempre, se puede contestar sola desde
+Hoy con el chequeo apagado, incluye la bisagra, y ese día la cadena baja un eslabón o se
+saltea (`src/dominio/molestia.ts`). Sigue sin entrar al índice.
 
 Botón *"Hoy no"* siempre visible, sin culpa y sin racha rota: quien puede saltar responde
 más veces en el largo plazo.

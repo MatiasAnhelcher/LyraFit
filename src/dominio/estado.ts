@@ -68,13 +68,32 @@ export interface Lectura {
   molestia?: Patron
 }
 
+/** Una fila con las tres preguntas contestadas: la única que el índice lee. */
+export type Chequeo = Estado & { sueno: number; energia: number; musculos: number }
+
+/**
+ * Si la fila trae el chequeo entero o solo una molestia.
+ *
+ * Una molestia avisada con el chequeo apagado deja una fila sin sueño, sin
+ * energía y sin músculos. Esa fila no puede entrar al índice: no hay nada que
+ * promediar, y rellenarla con un valor neutro sería inventar un día normal
+ * que nadie contó. Sí cuenta para la molestia, que es lo único que dice.
+ */
+export function contestoElChequeo(estado: Estado): estado is Chequeo {
+  return (
+    typeof estado.sueno === 'number' &&
+    typeof estado.energia === 'number' &&
+    typeof estado.musculos === 'number'
+  )
+}
+
 /** Normaliza un ítem de 1 a 5 al rango 0-1. */
 function normalizar(valor: number): number {
   return (Math.min(Math.max(valor, 1), 5) - 1) / 4
 }
 
 /** El compuesto de un día: los tres ítems con el mismo peso. */
-export function compuesto(estado: Estado): number {
+export function compuesto(estado: Chequeo): number {
   return (
     (normalizar(estado.sueno) + normalizar(estado.energia) + normalizar(estado.musculos)) / 3
   )
@@ -110,7 +129,11 @@ function acotar(v: number, min: number, max: number): number {
  * corregir un error de la fórmula sin corromper el historial de nadie.
  */
 export function leerEstado(historial: Estado[], hoy: string): Lectura {
-  const orden = [...historial].sort((a, b) => a.fecha.localeCompare(b.fecha))
+  // Solo las filas con el chequeo entero: una molestia avisada sola no es un
+  // día del índice, ni para contar entradas ni para la línea de base.
+  const orden = historial
+    .filter(contestoElChequeo)
+    .sort((a, b) => a.fecha.localeCompare(b.fecha))
   const entradas = orden.length
   const vacia: Lectura = {
     banda: 'normal',
@@ -120,10 +143,12 @@ export function leerEstado(historial: Estado[], hoy: string): Lectura {
     faltan: Math.max(0, ENTRADAS_MINIMAS - entradas),
   }
 
-  const ultima = orden[orden.length - 1]
-  if (!ultima) return vacia
+  // La molestia sale de la fila de hoy, tenga o no el chequeo: se puede
+  // avisar sola, y es justo la que no puede perderse por un filtro.
+  const molestia = historial.find((e) => e.fecha === hoy)?.molestia
 
-  const molestia = ultima.fecha === hoy ? ultima.molestia : undefined
+  const ultima = orden[orden.length - 1]
+  if (!ultima) return molestia ? { ...vacia, molestia } : vacia
 
   if (entradas < ENTRADAS_MINIMAS) return { ...vacia, molestia }
   if (diasEntre(ultima.fecha, hoy) > DIAS_PARA_RANCIO) {
@@ -190,7 +215,10 @@ export function bandaSostenida(historial: Estado[], hoy: string): Banda {
   if (!lectura.confiable) return 'normal'
   if (lectura.banda === 'verde' || lectura.banda === 'normal') return lectura.banda
 
-  const orden = [...historial].sort((a, b) => a.fecha.localeCompare(b.fecha))
+  // Las mismas filas que lee el índice: una molestia sola no es un día flojo.
+  const orden = historial
+    .filter(contestoElChequeo)
+    .sort((a, b) => a.fecha.localeCompare(b.fecha))
   const ultimas = orden.slice(-3)
   const malas = ultimas.filter((e) => {
     const parcial = leerEstado(
@@ -256,6 +284,10 @@ export function ajusteDelDia(banda: Banda): AjusteDelDia {
  * Dolor muscular parejo es parte de entrenar. Una molestia en un lugar
  * concreto es otra cosa, y ahí la app no sube ni baja nada en esa cadena hasta
  * que deje de aparecer. No diagnostica: solo deja de empujar.
+ *
+ * Lee todas las filas, también las que traen solo la molestia: avisarla con
+ * el chequeo apagado tiene que proteger la cadena igual. Lo que cambia el
+ * plan del día —bajar un eslabón o saltear la cadena— está en `molestia.ts`.
  */
 export function cadenasCongeladas(historial: Estado[], hoy: string): Set<Patron> {
   const recientes = [...historial]

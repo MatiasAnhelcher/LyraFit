@@ -37,6 +37,12 @@
  *    repeticiones para decidir de nivel: leería menos repeticiones y bajaría de
  *    eslabón a alguien que no perdió fuerza, solo la gastó tres minutos antes.
  *
+ * 3. **La ráfaga nunca carga una cadena con molestia.** Ni en el descanso ni
+ *    en el bloque del final, y mirando TODO lo que la ráfaga carga, no solo el
+ *    patrón que viene: un burpee antes de una serie de core igual castiga la
+ *    muñeca que avisó. Una molestia en un lugar puntual no se entrena encima,
+ *    y el fuelle es justo lo que se hace sin que nadie lo mida.
+ *
  * Por eso esto es dominio puro y no una opción de la pantalla de entrenar: es
  * una regla del entrenamiento, y las reglas de esta app viven donde se pueden
  * verificar con un test que corre en milisegundos.
@@ -68,8 +74,8 @@ export interface Rafaga {
  * Las ráfagas.
  *
  * Ocho, y ninguna necesita comprar nada: el equipamiento máximo es un escalón,
- * un cajón o una silla firme. Están repartidas a propósito entre las cuatro
- * cargas posibles, porque la regla de "no compite" deja sin candidatas a
+ * un cajón o una silla firme. Están repartidas a propósito entre las cargas
+ * posibles, porque la regla de "no compite" deja sin candidatas a
  * cualquier patrón que no tenga alternativas — y un descanso sin ráfaga
  * disponible no es un error visible, es una función que calladamente no hace
  * nada. Hay un test que comprueba que cada patrón tenga siempre al menos una,
@@ -104,7 +110,10 @@ export const RAFAGAS: Rafaga[] = [
   {
     id: 'paso-al-cajon',
     nombre: 'Subidas al cajón',
-    carga: ['piernas'],
+    // La bisagra también: subir un escalón es extender la cadera contra el
+    // peso del cuerpo, y eso es glúteo e isquiotibial. Sin ella en la lista,
+    // la ráfaga podía caer justo antes de un curl nórdico.
+    carga: ['piernas', 'bisagra'],
     requiere: 'escalon',
     intensidad: 2,
     gesto: 'Subí y bajá del escalón alternando la pierna que empuja, sin saltar.',
@@ -128,7 +137,9 @@ export const RAFAGAS: Rafaga[] = [
   {
     id: 'salto-sentadilla',
     nombre: 'Saltos de sentadilla',
-    carga: ['piernas'],
+    // Saltar es extender la cadera de golpe: carga la bisagra tanto como las
+    // piernas.
+    carga: ['piernas', 'bisagra'],
     requiere: 'salto',
     intensidad: 3,
     gesto: 'Bajá a media sentadilla y saltá; caé blando y encadená.',
@@ -136,7 +147,7 @@ export const RAFAGAS: Rafaga[] = [
   {
     id: 'burpee',
     nombre: 'Burpees',
-    carga: ['empuje', 'piernas', 'core'],
+    carga: ['empuje', 'piernas', 'core', 'bisagra'],
     requiere: 'salto',
     intensidad: 3,
     gesto: 'Al piso, plancha, arriba y salto. Es la más dura de todas: administrala.',
@@ -200,11 +211,24 @@ export function rafagasDisponibles(equipo: Equipo, densidad: Densidad): Rafaga[]
 }
 
 /**
+ * Si la ráfaga carga alguno de estos patrones.
+ *
+ * Mira la lista entera de lo que carga, no un patrón suelto: el filtro viejo
+ * preguntaba solo por el de la serie que viene, y así un burpee —empuje,
+ * piernas, core y bisagra— pasaba antes de una serie de core con la muñeca
+ * avisando.
+ */
+export function cargaAlguno(rafaga: Rafaga, patrones: ReadonlySet<Patron>): boolean {
+  return rafaga.carga.some((patron) => patrones.has(patron))
+}
+
+/**
  * Qué ráfaga va en este descanso, y por cuánto tiempo.
  *
  * Devuelve `null` cuando no entra ninguna, que es un resultado legítimo y
  * frecuente: descanso corto, densidad apagada, o todas las candidatas cargan el
- * patrón que viene. La pantalla tiene que saber mostrar un descanso pelado.
+ * patrón que viene o una cadena con molestia. La pantalla tiene que saber
+ * mostrar un descanso pelado.
  *
  * `indice` es cuántas ráfagas van hechas en la sesión, y solo sirve para rotar:
  * tres descansos seguidos con el mismo movimiento se leen una vez y después son
@@ -217,12 +241,15 @@ export function rafagaDelDescanso(entrada: {
   equipo: Equipo
   densidad: Densidad
   indice: number
+  /** Las cadenas con una molestia avisada hoy. Ninguna ráfaga las carga. */
+  evitar?: Iterable<Patron>
 }): { rafaga: Rafaga; segundos: number } | null {
   const segundos = segundosDeRafaga(entrada.descansoSegundos, entrada.densidad)
   if (segundos === 0) return null
 
+  const prohibidos = new Set<Patron>([entrada.patronQueViene, ...(entrada.evitar ?? [])])
   const candidatas = rafagasDisponibles(entrada.equipo, entrada.densidad).filter(
-    (rafaga) => !rafaga.carga.includes(entrada.patronQueViene),
+    (rafaga) => !cargaAlguno(rafaga, prohibidos),
   )
   if (candidatas.length === 0) return null
 
@@ -312,13 +339,22 @@ export function minutosDelDiaDeFuelle(densidad: Densidad): number {
  * mismo cuando se puede evitar, y corta cuando se acabó el tiempo. Acá no
  * existe la regla de "no compite": el bloque es lo último que se hace con el
  * cuerpo fresco, no hay ninguna serie después que proteger.
+ *
+ * La de la molestia sí existe, y es la única: `evitar` son las cadenas con una
+ * molestia avisada hoy, y ninguna ráfaga que cargue alguna entra al bloque. Si
+ * no queda ninguna, no hay bloque: es preferible a un bloque encima de la zona
+ * que avisó.
  */
 export function bloqueDeFuelle(
   minutos: number,
   equipo: Equipo,
   densidad: Densidad,
+  evitar: Iterable<Patron> = [],
 ): PasoDeFuelle[] {
-  const disponibles = rafagasDisponibles(equipo, densidad)
+  const prohibidos = new Set(evitar)
+  const disponibles = rafagasDisponibles(equipo, densidad).filter(
+    (rafaga) => !cargaAlguno(rafaga, prohibidos),
+  )
   if (disponibles.length === 0 || minutos <= 0) return []
 
   const trabajo = densidad === 'suave' ? TOPE_SUAVE : TRABAJO_DEL_BLOQUE

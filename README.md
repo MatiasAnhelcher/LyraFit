@@ -60,6 +60,11 @@ muestra cada vez que decide algo. Nada de esperar a "sentirte listo".
   se atrasa aunque bloquees el teléfono, y la pantalla siempre encendida.
 - **Chequeo diario opcional** de tres preguntas, que sirve sobre todo para que
   el motor no te baje el objetivo por dos días malos.
+- **Avisar una molestia**, a un toque desde Hoy, con el chequeo prendido o
+  apagado y con los músculos como estén, la bisagra incluida. Ese día la
+  cadena baja un eslabón —o se saltea si ya está en el primero—, la sesión lo
+  dice en una línea, las ráfagas no la cargan y el motor no se entera: no es
+  un fallo ni un progreso. La app pregunta dónde, nunca por qué.
 - **Progreso** con una curva de fuerza que no se corta cuando cambiás de
   ejercicio, y el mapa de dónde estás en cada cadena.
 - **Una figura que se mueve** en cada ejercicio, de una postura a la otra. Lo
@@ -157,11 +162,12 @@ node movimiento.mjs # que nada se mueva en el esfuerzo y que haya un solo infini
 node carga.mjs     # los discos: que se ofrezcan con qué, y que lleguen a la base
 node colgado.mjs   # sin barra, nada colgado; y la palanca frontal, recién con 3×8 dominadas
 node datos.mjs     # que ningún dato se pierda sin que la persona lo vea y lo decida
+node molestia.mjs  # avisar una molestia baja la cadena, se dice, y el motor no se entera
 node logo.mjs     # regenera el favicon y los íconos desde el componente de Lyra
 ```
 
 `paleta.mjs` mide el contraste de cada par del sistema y de **todo el texto de
-seis pantallas**, contra el fondo efectivo —el primer ancestro opaco— y no
+siete pantallas**, contra el fondo efectivo —el primer ancestro opaco— y no
 contra el declarado. El proyecto afirmaba tener un validador de paleta desde
 hacía meses y nunca existió; mientras tanto cinco regletas ponían texto blanco
 sobre el acento, que da 2,6:1, mientras el propio CSS documentaba dos secciones
@@ -243,6 +249,7 @@ src/
     apertura.ts      qué eslabones están cerrados: sin barra, o sin dominadas
     adherencia.ts    lo que reemplaza a la racha
     estado.ts        el chequeo diario y su línea de base
+    molestia.ts      lo que cambia el día que avisás una molestia
     vitalidad.ts     el delta de energía y la calibración
     rutinas.ts       qué clase de día es cada día, y qué patrones toca
     siguiente.ts     qué viene después, y cómo se escribe y se dice

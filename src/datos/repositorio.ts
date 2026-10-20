@@ -192,6 +192,46 @@ export async function guardarEstado(
   return estado
 }
 
+/**
+ * Avisar una molestia, o retirarla, sin tocar el resto del día.
+ *
+ * Se puede avisar con el chequeo apagado, así que puede no haber fila de hoy:
+ * entonces se escribe una con la molestia sola, sin inventar sueño, energía ni
+ * músculos —el índice no la lee, ver `contestoElChequeo`—. Si ya había
+ * chequeo, se fusiona y las tres respuestas quedan como estaban. La fusión va
+ * adentro de una transacción por lo mismo que en el diario: dos toques
+ * rápidos leerían la misma fila vieja.
+ *
+ * Retirarla de una fila que no tenía nada más la borra: una fila sin chequeo
+ * y sin molestia no dice nada.
+ */
+export async function guardarMolestiaDeHoy(molestia: Patron | null): Promise<void> {
+  const fecha = fechaISO()
+  const operacion = await db.transaction('rw', db.estados, async () => {
+    const antes = await db.estados.get(fecha)
+    const nueva: Estado = { fecha, actualizadoEn: Date.now() }
+    if (antes?.sueno !== undefined) nueva.sueno = antes.sueno
+    if (antes?.energia !== undefined) nueva.energia = antes.energia
+    if (antes?.musculos !== undefined) nueva.musculos = antes.musculos
+    if (antes?.posterior !== undefined) nueva.posterior = antes.posterior
+    if (molestia) nueva.molestia = molestia
+
+    const vacia =
+      nueva.molestia === undefined &&
+      nueva.sueno === undefined &&
+      nueva.energia === undefined &&
+      nueva.musculos === undefined
+    if (vacia) {
+      if (!antes) return null
+      await db.estados.delete(fecha)
+      return 'borrar' as const
+    }
+    await db.estados.put(nueva)
+    return 'guardar' as const
+  })
+  if (operacion) await marcarPendiente('estados', fecha, operacion)
+}
+
 // ─── El diario: comida y sueño ───────────────────────────────────────────
 
 /**
@@ -365,7 +405,9 @@ export async function cerrarSesion(entrada: CierreDeSesion): Promise<ResumenSesi
 
     const avance = avances.get(ejercicio.patron)
     // Solo progresa el patrón si se entrenó el ejercicio que tocaba. Meter una
-    // flexión suelta un domingo no debería mover el plan.
+    // flexión suelta un domingo no debería mover el plan. Es también lo que
+    // deja quieto al motor el día de una molestia: el eslabón de abajo que
+    // pone `bloqueConMolestia` es otro ejercicio (y tiene su test).
     if (!avance || avance.ejercicioId !== ejercicio.id) continue
 
     // Un registro que solo tiene la serie de cierre no es una sesión de ese
