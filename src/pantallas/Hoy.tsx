@@ -60,6 +60,7 @@ import {
 import { laVezPasada } from '@/dominio/estadisticas'
 import { bandaSostenida, ajusteDelDia, cadenasCongeladas } from '@/dominio/estado'
 import { seAbreHoy } from '@/dominio/anticipacion'
+import { eslabonesCerrados } from '@/dominio/apertura'
 import { PISO_DE_PROTEINA, senalesDelDia } from '@/dominio/nutricion'
 import { mueveElPlan } from '@/dominio/progresion'
 import {
@@ -178,6 +179,9 @@ export function Hoy() {
   const factorDelDia = ajuste.factor * (vuelve ? RECORTE_DE_VUELTA : 1)
 
   const tieneBarraCargable = (preferencias.cargaMaximaKg ?? 0) > 0
+  // La de dominadas, que decide qué eslabones puede abrir el motor. Ausente
+  // cuenta como sí, que es lo que la app asumió siempre.
+  const tieneBarra = preferencias.tieneBarra !== false
 
   const bloques = rutina.bloques.flatMap((bloqueDelPlan) => {
     // Un bloque puede alternar entre dos patrones según el día. La resolución
@@ -232,8 +236,17 @@ export function Hoy() {
         // de eslabón la semana pasada no hay con qué comparar, y no se inventa.
         antes,
         // Un accesorio nunca abre un eslabón: no está en ninguna cadena, o es
-        // el anterior al que ya tenés. Anunciarlo sería una promesa falsa.
-        abre: accesorio ? null : seAbreHoy(avance, cadenaDe(bloque.patron), POR_ID, cuenta),
+        // el anterior al que ya tenés. Anunciarlo sería una promesa falsa. Y
+        // un eslabón cerrado tampoco: el motor no lo va a abrir aunque cumplas.
+        abre: accesorio
+          ? null
+          : seAbreHoy(
+              avance,
+              cadenaDe(bloque.patron),
+              POR_ID,
+              cuenta,
+              eslabonesCerrados(cadenaDe(bloque.patron), avances, tieneBarra),
+            ),
       },
     ]
   })

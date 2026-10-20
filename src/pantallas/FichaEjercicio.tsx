@@ -3,11 +3,12 @@ import { useLiveQuery } from 'dexie-react-hooks'
 import { NOMBRE_PATRON, POR_ID, buscarEjercicio, cadenaDe } from '@/dominio/biblioteca'
 import { historicoDeEjercicio, recordDe } from '@/dominio/estadisticas'
 import { proyectar } from '@/dominio/progresion'
+import { eslabonesCerrados } from '@/dominio/apertura'
 import { POSTURAS } from '@/dominio/posturas'
 import { FiguraEjercicio } from '@/componentes/figura'
 import { CuerpoDoble } from '@/componentes/cuerpo'
 import { APORTE, NOMBRE_MUSCULO, PISO_DE_DOSIS, type Aporte, type Musculo } from '@/dominio/musculos'
-import { fijarNivel, leerAvances, leerSesiones } from '@/datos/repositorio'
+import { fijarNivel, leerAvances, leerPreferencias, leerSesiones } from '@/datos/repositorio'
 import { Accion, AccionQuieta, Cargando, Glifo, Objetivo, Rotulo, nombreUnidad } from '@/componentes/ui'
 
 /**
@@ -28,6 +29,7 @@ export function FichaEjercicio() {
   const ejercicio = id ? buscarEjercicio(id) : undefined
   const avances = useLiveQuery(leerAvances, [])
   const sesiones = useLiveQuery(() => leerSesiones(), [])
+  const preferencias = useLiveQuery(leerPreferencias, [])
 
   if (!ejercicio) {
     return (
@@ -44,7 +46,7 @@ export function FichaEjercicio() {
     )
   }
 
-  if (!avances || !sesiones) return <Cargando filas={5} />
+  if (!avances || !sesiones || !preferencias) return <Cargando filas={5} />
 
   const cadena = cadenaDe(ejercicio.patron)
   const posicion = cadena.ejercicios.indexOf(ejercicio.id)
@@ -104,13 +106,25 @@ export function FichaEjercicio() {
    *
    * Para todo lo demás se cuenta en eslabones. Es igual de cierto, da la misma
    * sensación de escala y no le pide a nadie que le crea algo increíble.
+   *
+   * Y con los eslabones cerrados que mira el motor: si este no se abre
+   * cumpliendo —sin barra, o la palanca frontal sin dominadas—, contar
+   * sesiones hasta acá sería la misma promesa falsa.
    */
   const posicionActual = avance ? cadena.ejercicios.indexOf(avance.ejercicioId) : -1
   const eslabonesDeDistancia =
     esEslabon && posicionActual >= 0 ? posicion - posicionActual : null
   const sesionesHasta =
     avance && eslabonesDeDistancia === 1
-      ? proyectar(avance, { cadena, ejercicios: POR_ID }, ejercicio.id)
+      ? proyectar(
+          avance,
+          {
+            cadena,
+            ejercicios: POR_ID,
+            cerrados: eslabonesCerrados(cadena, avances, preferencias.tieneBarra !== false),
+          },
+          ejercicio.id,
+        )
       : null
 
   return (

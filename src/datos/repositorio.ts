@@ -27,9 +27,9 @@ import {
   mueveElPlan,
   rendimientoDeSesion,
   siguienteAvance,
-  ubicarEnCadena,
   type Decision,
 } from '@/dominio/progresion'
+import { eslabonesCerrados, ubicarDesdeElAlta, type PruebaDelAlta } from '@/dominio/apertura'
 import { ajusteDelDia, bandaSostenida, cadenasCongeladas } from '@/dominio/estado'
 import { animoReciente } from '@/dominio/vitalidad'
 
@@ -347,7 +347,20 @@ export async function cerrarSesion(entrada: CierreDeSesion): Promise<ResumenSesi
         protegida: ajuste.protegida,
         ...(animo !== undefined ? { animo } : {}),
       },
-      { cadena: cadenaDe(ejercicio.patron), ejercicios: POR_ID, ...(barra ? { barra } : {}) },
+      {
+        cadena: cadenaDe(ejercicio.patron),
+        ejercicios: POR_ID,
+        ...(barra ? { barra } : {}),
+        // Lo que el motor no puede abrir aunque se cumpla: lo colgado sin
+        // barra, y la palanca frontal antes de las dominadas completas. Se
+        // calcula con los avances de antes de esta sesión, así que una
+        // dominada completa lograda hoy abre la palanca desde la próxima.
+        cerrados: eslabonesCerrados(
+          cadenaDe(ejercicio.patron),
+          avances,
+          preferencias.tieneBarra !== false,
+        ),
+      },
     )
 
     decisiones.push({ patron: ejercicio.patron, decision })
@@ -425,15 +438,14 @@ export async function ajustarObjetivo(patron: Patron, objetivo: Objetivo): Promi
  * Guarda el punto de partida que salió del test de nivel del alta.
  *
  * Es la única escritura del alta y es lo que evita que alguien que ya hace
- * quince flexiones abra la app y le proponga la pared.
+ * quince flexiones abra la app y le proponga la pared. La cuenta, con sus
+ * techos, es la misma que el alta muestra: `ubicarDesdeElAlta`.
  */
 export async function ubicarDesdePrueba(
-  pruebas: { patron: Patron; ejercicioId: string; logrado: number }[],
+  pruebas: PruebaDelAlta[],
+  tieneBarra: boolean,
 ): Promise<void> {
-  const ahora = Date.now()
-  const avances = pruebas.map(({ patron, ejercicioId, logrado }) =>
-    ubicarEnCadena(cadenaDe(patron), POR_ID, ejercicioId, logrado, ahora),
-  )
+  const avances = ubicarDesdeElAlta(pruebas, tieneBarra, Date.now())
 
   await db.transaction('rw', db.avances, db.pendientes, async () => {
     for (const avance of avances) await guardarAvance(avance)

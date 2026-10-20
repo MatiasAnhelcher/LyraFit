@@ -398,6 +398,17 @@ export function Ajustes() {
               )}
             </>
           )}
+          {/* La barra de dominadas, que no es la cargable. Se contesta en el
+              alta y hasta ahora no se podía cambiar nunca, aunque el alta dice
+              "por ahora no". Ahora pesa más: sin barra el motor no sube a nada
+              colgado, así que quien la consigue tiene que poder decirlo. Ausente
+              cuenta como sí, igual que en el resto de la app. */}
+          <Interruptor
+            titulo="Tengo dónde colgarme"
+            detalle="Una barra de dominadas, unas anillas o una rama firme. Sin eso, el plan no te pide nada colgado."
+            activo={preferencias.tieneBarra !== false}
+            onCambiar={(v) => cambiar({ tieneBarra: v })}
+          />
         </div>
       </section>
 

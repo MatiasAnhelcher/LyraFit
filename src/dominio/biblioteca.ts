@@ -905,36 +905,18 @@ export const EJERCICIOS: Ejercicio[] = [
     ccr: 0.9,
     descansoSegundos: 120,
   },
-  {
-    id: 'palanca-frontal-negativa',
-    nombre: 'Palanca frontal negativa',
-    patron: 'core',
-    medida: 'segundos',
-    nivel: 8,
-    resumen:
-      'Desde colgado con las rodillas al pecho, bajar el cuerpo lo más lento posible hasta la horizontal. Los segundos que registrás son los de bajada controlada, sumados.',
-    tecnica: [
-      'Colgate con agarre prono, los brazos estirados y firmes, y llevá las rodillas al pecho.',
-      'Rotá hasta quedar horizontal de espaldas al piso, con la espalda plana.',
-      'Estirá las piernas de a poco mientras el cuerpo baja, resistiendo todo el camino.',
-      'Cortá cuando ya no podés frenar la bajada y contá solo los segundos en que tuviste el control.',
-    ],
-    erroresComunes: [
-      'Doblar los codos para aguantar un poco más. Van rectos y activos: el codo es lo que más se resiente acá, y se cuida cortando la serie antes.',
-      'Arquear la espalda baja para simular la horizontal. Si la cadera se hunde, volvé a agrupar las rodillas y terminá ahí.',
-      'Empezar con esto sin tener firmes la palanca agrupada y las dominadas completas.',
-    ],
-    ventana: { min: 8, max: 20 },
-    series: 3,
-    ccr: 1.0,
-    descansoSegundos: 150,
-  },
+  // La agrupada va antes que la negativa. Estuvieron al revés —la negativa en
+  // el 8 y la agrupada en el 9—, contra lo que dice la propia negativa: no se
+  // empieza "sin tener firmes la palanca agrupada y las dominadas completas".
+  // Se invirtieron el nivel y el `ccr` juntos, así que la escalera de carga
+  // sigue subiendo en cada eslabón. Y ninguna de las dos se abre sin llegar a
+  // las dominadas completas: eso lo dice `REQUISITOS`, más abajo.
   {
     id: 'palanca-frontal-agrupada',
     nombre: 'Palanca frontal agrupada',
     patron: 'core',
     medida: 'segundos',
-    nivel: 9,
+    nivel: 8,
     resumen:
       'Colgado y horizontal con las rodillas al pecho. La primera parada real en el camino a la palanca frontal.',
     tecnica: [
@@ -947,6 +929,30 @@ export const EJERCICIOS: Ejercicio[] = [
       'Doblar los codos para compensar.',
       'Arquear la espalda y perder la horizontal.',
       'Ir a esta posición sin tener dominadas y elevaciones de piernas firmes.',
+    ],
+    ventana: { min: 8, max: 20 },
+    series: 3,
+    ccr: 1.0,
+    descansoSegundos: 150,
+  },
+  {
+    id: 'palanca-frontal-negativa',
+    nombre: 'Palanca frontal negativa',
+    patron: 'core',
+    medida: 'segundos',
+    nivel: 9,
+    resumen:
+      'Desde colgado con las rodillas al pecho, bajar el cuerpo lo más lento posible hasta la horizontal. Los segundos que registrás son los de bajada controlada, sumados.',
+    tecnica: [
+      'Colgate con agarre prono, los brazos estirados y firmes, y llevá las rodillas al pecho.',
+      'Rotá hasta quedar horizontal de espaldas al piso, con la espalda plana.',
+      'Estirá las piernas de a poco mientras el cuerpo baja, resistiendo todo el camino.',
+      'Cortá cuando ya no podés frenar la bajada y contá solo los segundos en que tuviste el control.',
+    ],
+    erroresComunes: [
+      'Doblar los codos para aguantar un poco más. Van rectos y activos: el codo es lo que más se resiente acá, y se cuida cortando la serie antes.',
+      'Arquear la espalda baja para simular la horizontal. Si la cadera se hunde, volvé a agrupar las rodillas y terminá ahí.',
+      'Empezar con esto sin tener firmes la palanca agrupada y las dominadas completas.',
     ],
     ventana: { min: 8, max: 20 },
     series: 3,
@@ -1458,8 +1464,8 @@ export const CADENAS: Cadena[] = [
       'elevacion-piernas-suelo',
       'elevacion-rodillas-colgado',
       'elevacion-piernas-colgado',
-      'palanca-frontal-negativa',
       'palanca-frontal-agrupada',
+      'palanca-frontal-negativa',
     ],
   },
   {
@@ -1479,6 +1485,23 @@ export const CADENAS: Cadena[] = [
     ],
   },
 ]
+
+/**
+ * Eslabones que no se abren solo por dominar el anterior de su cadena.
+ *
+ * El motor sube de a un eslabón y no mira las otras cadenas, y casi siempre
+ * alcanza. Con la palanca frontal no: es un tirón con los brazos rectos,
+ * colgado de la barra, y las dos fichas piden llegar con las dominadas firmes.
+ * Sin esto, alguien con cero dominadas llegaba a la palanca apenas terminaba
+ * las elevaciones colgado.
+ *
+ * La clave es el eslabón cerrado; el valor, hasta dónde tiene que haber
+ * llegado la persona en OTRA cadena para que se abra. Lo aplica `apertura.ts`.
+ */
+export const REQUISITOS: ReadonlyMap<string, { patron: Patron; ejercicioId: string }> = new Map([
+  ['palanca-frontal-agrupada', { patron: 'traccion', ejercicioId: 'dominada-completa' }],
+  ['palanca-frontal-negativa', { patron: 'traccion', ejercicioId: 'dominada-completa' }],
+])
 
 /** Índice por id, para no recorrer el arreglo entero cada vez. */
 export const POR_ID: Map<string, Ejercicio> = new Map(
