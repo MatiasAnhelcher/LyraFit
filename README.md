@@ -167,6 +167,7 @@ node colgado.mjs   # sin barra, nada colgado; y la palanca frontal, recién con 
 node datos.mjs     # que ningún dato se pierda sin que la persona lo vea y lo decida
 node molestia.mjs  # avisar una molestia baja la cadena, se dice, y el motor no se entera
 node textos.mjs    # lo que se lee en pantalla: sin hora de acostarse inventada, sin género, sin "rinde más"
+node barra.mjs     # la barra de 28 días: que no le avise faltas a quien no faltó
 node logo.mjs     # regenera el favicon y los íconos desde el componente de Lyra
 ```
 
@@ -348,7 +349,10 @@ recortadas: suman 64 KB entre las cuatro.
 - **No hay racha de días.** En una app de fuerza el descanso es parte del plan,
   así que premiar días consecutivos premia lo que no hay que hacer. En su lugar
   hay una ventana rodante de 28 días que nunca vuelve a cero, créditos de perdón
-  para que faltar esté previsto, y un contador de sesiones que solo sube.
+  para que faltar esté previsto, y un contador de sesiones que solo sube. La
+  ventana mide solo los días del plan que ya pasaron desde la primera sesión, y
+  hoy entra cuando ya entrenaste: quien lleva una semana sin faltar ve "3 de 3",
+  no "3 de 12", y a quien no faltó no le aparece un día cubierto antes de entrenar.
 - **No hay rojo en nada del entrenamiento.** El techo de alarma es un ámbar. El
   rojo existe solo para borrar datos en Ajustes.
 - **Lyra habla, pero nunca en lugar de un dato.** §9 del documento de estrategia

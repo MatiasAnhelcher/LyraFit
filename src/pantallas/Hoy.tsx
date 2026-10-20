@@ -179,7 +179,7 @@ export function Hoy() {
   const entrenoHoy = sesiones.some((s) => s.fecha === fecha)
   const total = sesionesDeVida(sesiones)
   const hito = proximoHito(total)
-  const marcha = adherencia(sesiones, fecha, diasDe(semana).length)
+  const marcha = adherencia(sesiones, fecha, diasDe(semana))
   const banda = bandaSostenida(estados, fecha)
   const ajuste = ajusteDelDia(banda)
   const vuelve = esVuelta(sesiones, fecha)
@@ -1000,38 +1000,45 @@ export function Hoy() {
         <Carta filas={filasDeCarta} />
       </section>
 
-      <section className="mt-8">
-        <div className="flex items-baseline justify-between gap-4">
-          <Rotulo>ÚLTIMOS 28 DÍAS</Rotulo>
-          <p className="cifra text-sm">
-            {preferencias.encuadre === 'restante'
-              ? `faltan ${Math.max(0, marcha.meta - marcha.hechas - marcha.cubiertos)}`
-              : `${marcha.hechas} de ${marcha.meta}`}
-          </p>
-        </div>
-        <div className="mt-2 flex h-1.5 gap-px" aria-hidden>
-          {Array.from({ length: marcha.meta }, (_, i) => (
-            <span
-              key={i}
-              className="flex-1"
-              style={{
-                backgroundColor:
-                  i < marcha.hechas
-                    ? 'var(--color-vega)'
-                    : i < marcha.hechas + marcha.cubiertos
-                      ? 'var(--color-regla-fuerte)'
-                      : 'var(--color-regla)',
-              }}
-            />
-          ))}
-        </div>
-        {marcha.cubiertos > 0 && (
-          <p className="mt-2 text-xs text-[var(--color-glosa)]">
-            {marcha.cubiertos === 1 ? 'Un día cubierto' : `${marcha.cubiertos} días cubiertos`} con
-            tus créditos. Faltar estaba previsto.
-          </p>
-        )}
-      </section>
+      {/* La barra mide solo los días del plan que ya pasaron desde la primera
+          sesión (`adherencia()`), así que antes de la primera no hay nada que
+          medir: aparece con ella, y no como una fila de casillas vacías el día uno.
+          El aviso de créditos sale solo si de verdad pasó un día del plan sin
+          sesión; no entrenar todavía hoy no lo dispara. */}
+      {marcha.meta > 0 && (
+        <section className="mt-8">
+          <div className="flex items-baseline justify-between gap-4">
+            <Rotulo>ÚLTIMOS 28 DÍAS</Rotulo>
+            <p className="cifra text-sm">
+              {preferencias.encuadre === 'restante'
+                ? `faltan ${Math.max(0, marcha.meta - marcha.hechas - marcha.cubiertos)}`
+                : `${marcha.hechas} de ${marcha.meta}`}
+            </p>
+          </div>
+          <div className="mt-2 flex h-1.5 gap-px" aria-hidden>
+            {Array.from({ length: marcha.meta }, (_, i) => (
+              <span
+                key={i}
+                className="flex-1"
+                style={{
+                  backgroundColor:
+                    i < marcha.hechas
+                      ? 'var(--color-vega)'
+                      : i < marcha.hechas + marcha.cubiertos
+                        ? 'var(--color-regla-fuerte)'
+                        : 'var(--color-regla)',
+                }}
+              />
+            ))}
+          </div>
+          {marcha.cubiertos > 0 && (
+            <p className="mt-2 text-xs text-[var(--color-glosa)]">
+              {marcha.cubiertos === 1 ? 'Un día cubierto' : `${marcha.cubiertos} días cubiertos`} con
+              tus créditos. Faltar estaba previsto.
+            </p>
+          )}
+        </section>
+      )}
 
     </>
   )
