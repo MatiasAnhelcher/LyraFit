@@ -69,16 +69,16 @@ describe('las cuatro existen y dicen lo que cuestan', () => {
     expect(RUTINAS_POR_GRUPO.size).toBe(4)
   })
 
-  it('las cuatro advierten el costo, y ninguna otra lo hace', () => {
-    // El costo es real y va en pantalla: partir en cuatro días entrena cada
-    // grupo UNA vez por semana, y con el mismo volumen semanal la evidencia
-    // favorece dos. Decirlo es la diferencia entre ofrecer una opción y
-    // venderla.
+  it('las cuatro dicen lo que implican, y ninguna otra lo hace', () => {
+    // Va en pantalla: partir en cuatro días entrena cada grupo UNA vez por
+    // semana. Decirlo es la diferencia entre ofrecer una opción y venderla.
+    // Lo que no dice es que dos veces "rinde más": eso no tiene fuente.
     for (const r of RUTINAS) {
       const dicho = advertenciaDe(r)
       if (RUTINAS_POR_GRUPO.has(r.id)) {
         expect(dicho, r.id).toBeTruthy()
         expect(dicho, r.id).toContain('una vez por semana')
+        expect(dicho, r.id).not.toMatch(/rinde más/i)
       } else {
         expect(dicho, r.id).toBeNull()
       }

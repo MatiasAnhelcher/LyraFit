@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   CUANTAS,
+  DESDE_SESIONES,
   FRASES,
   LARGO_MAXIMO,
   MEMORIA,
@@ -55,7 +56,7 @@ describe('el banco de frases', () => {
     expect(repetidas, 'frases duplicadas').toEqual([])
   })
 
-  it('cubre los once momentos, y ninguno queda flaco', () => {
+  it('cubre los catorce momentos, y ninguno queda flaco', () => {
     for (const momento of MOMENTOS) {
       const grupo = FRASES.find((g) => g.momento === momento)
       expect(grupo, `falta el momento ${momento}`).toBeDefined()
@@ -159,6 +160,116 @@ describe('las cuatro reglas, que son el punto', () => {
     }
   })
 
+  /*
+   * Las reglas de la revisión del 20 de octubre de 2026.
+   *
+   * Las de arriba buscaban expresiones puntuales y por eso dejaron pasar
+   * "Un mes de esto se nota" (no dice "en un mes"), "Cuarenta minutos" (no
+   * tiene dígitos) y "Cuando el cuerpo dice basta y seguís un poco más", que
+   * salía en el cierre de cada salto de eslabón. Corren sobre TODAS las frases,
+   * también las de los bancos que hoy ninguna pantalla pide: activar uno no
+   * puede ser la forma de que vuelva una frase que acá ya se sacó.
+   *
+   * Las excepciones van con su motivo, igual que `CUANTAS`, para que nada se
+   * adapte en silencio.
+   */
+  const PERMITIDAS = new Map([
+    ['Siete minutos también cuentan.', 'es la sesión corta real, no una cifra inventada'],
+    ['Diez minutos de esto valen más que una hora de planearlo.', 'retórica: no describe a la persona'],
+    ['Si en diez minutos seguís sin querer, cortá.', 'es una salida, no una cifra sobre la persona'],
+  ])
+  const REGLAS: Record<string, RegExp[]> = {
+    'obliga o reta': [
+      /(?:^|[.!?]\s+)tenés que\b/i,
+      /\blo que no podés\b/i,
+      /\bexigite\b/i,
+      /\bcortala\b/i,
+      /\bla peor sesión es la que no\b/i,
+    ],
+    'empuja más allá del límite': [
+      /\bdice basta\b/i,
+      /\bno paraste\b/i,
+      /\bque no tenías\b/i,
+      /\bdale todo\b/i,
+      /\bya no querías\b/i,
+    ],
+    'promete, también en futuro corto': [
+      /\bte va a (salir|cambiar|parecer)\b/i,
+      /\bva a (ser|parecer)\b/i,
+      /\bno vas a reconocer\b/i,
+      /\bsiempre sale\b/i,
+      /\b(viene|llega) solo\b/i,
+      /\bte cambia el cuerpo\b/i,
+    ],
+    'inventa una cifra, también escrita con letras': [
+      /\b(un|una|dos|tres|cuatro|cinco|seis|siete|ocho|diez|quince|veinte|treinta|cuarenta|cien|doscientos)\s+(mes|meses|semanas?|años?|minutos|horas|kilos?|anteriores|cosas)\b/i,
+      /\bmedia hora\b/i,
+    ],
+    'compara con otra gente': [/\bmucha gente\b/i, /\bcasi nadie\b/i, /\beso es lo raro\b/i],
+    'afirma una causa que nadie midió': [
+      /\bdormiste mal\b/i,
+      /\bestás cansad[oa]\b/i,
+      /\bdonde estabas\b/i,
+      /\bcon la técnica puesta\b/i,
+    ],
+    // La app no pregunta el género, y está bien que no lo haga. Entonces Lyra
+    // no puede suponerlo: "con calma" en vez de "tranquilo", "qué bueno verte"
+    // en vez de "bienvenido".
+    'habla en masculino por defecto': [
+      /\btranquilo\b/i,
+      /\bbienvenido\b/i,
+      /\bcansado\b/i,
+      /\bvestido\b/i,
+      /\b(terminaste|seguís|te sentís|estás) entero\b/i,
+      /\bestás (listo|preparado|solo)\b/i,
+      /\bel que empezó\b/i,
+    ],
+  }
+  for (const [regla, patrones] of Object.entries(REGLAS)) {
+    it(`ninguna ${regla}`, () => {
+      for (const linea of TODAS) {
+        if (PERMITIDAS.has(linea)) continue
+        for (const p of patrones) expect(p.test(linea), `${regla}: "${linea}"`).toBe(false)
+      }
+    })
+  }
+
+  it('las excepciones existen: una permitida que ya no está no protege nada', () => {
+    for (const linea of PERMITIDAS.keys()) expect(TODAS, linea).toContain(linea)
+  })
+
+  it('ninguna habla de la comida como dieta, castigo o moral', () => {
+    // La lista de lo que el diario no dice nunca, de la revisión de nutrición
+    // de octubre de 2026, vale también para Lyra. "Hoy comer bien es tu
+    // entrenamiento" estaba en el banco del descanso: "bien" y "mal" le ponen
+    // moral a la comida, y a quien la comida le hace mal eso le pesa.
+    const prohibidas = [
+      /\bkcal\b/i,
+      /\bdéficit\b/i,
+      /\bquemar grasa\b/i,
+      /\blimpi[oa]s?\b/i,
+      /\bte pasaste\b/i,
+      // Sin `\b` al final: en una expresión sin `u`, la ó no es letra y el
+      // borde nunca se cumpliría.
+      /\bte faltó/i,
+      /\btrampa\b/i,
+      /\bdetox\b/i,
+      /\binflamatori/i,
+      /\bBCAA\b/i,
+      /\bquemador/i,
+      /\bcolágeno\b/i,
+      /\bayuno\b/i,
+      /% de grasa/i,
+      /\bIMC\b/,
+      /\bcomer (bien|mal)\b/i,
+    ]
+    for (const linea of TODAS) {
+      for (const patron of prohibidas) {
+        expect(patron.test(linea), `comida con moral o dieta: "${linea}"`).toBe(false)
+      }
+    }
+  })
+
   it('habla de vos, en voseo, sin tutear', () => {
     // La app entera está en rioplatense. Un "tú puedes" suelto rompe la voz más
     // que cualquier error de diseño.
@@ -185,11 +296,13 @@ describe('elegir una frase', () => {
   it('el azar recorre el grupo entero', () => {
     // Si la aritmética del índice estuviera mal —un off-by-one, un módulo de
     // más— habría frases inalcanzables: estarían escritas y no las vería nadie.
+    // Con historia de sobra, para que las que piden sesiones también cuenten.
+    const CON_HISTORIA = 1000
     for (const grupo of FRASES) {
       const salieron = new Set<string>()
       const pasos = grupo.lineas.length * 4
       for (let i = 0; i < pasos; i++) {
-        salieron.add(fraseDe(grupo.momento, i / pasos)!.texto)
+        salieron.add(fraseDe(grupo.momento, i / pasos, [], CON_HISTORIA)!.texto)
       }
       expect(salieron.size, `${grupo.momento}: hay frases inalcanzables`).toBe(
         grupo.lineas.length,
@@ -226,6 +339,78 @@ describe('elegir una frase', () => {
   it('la expresión de la cara viene con la frase', () => {
     for (const grupo of FRASES) {
       expect(fraseDe(grupo.momento, 0.5)!.expresion).toBe(grupo.expresion)
+    }
+  })
+})
+
+describe('las frases que piden historia', () => {
+  /** Todas las que pueden salir en un momento, recorriendo el azar entero. */
+  function alcanzables(momento: Momento, sesiones: number): Set<string> {
+    const salieron = new Set<string>()
+    const pasos = 400
+    for (let i = 0; i < pasos; i++) salieron.add(fraseDe(momento, i / pasos, [], sesiones)!.texto)
+    return salieron
+  }
+
+  it('cada condición apunta a una frase que existe', () => {
+    // Si alguien reescribe la frase y no la condición, la condición deja de
+    // aplicarse sin avisar y la frase vuelve a salir el primer día.
+    for (const [linea, desde] of DESDE_SESIONES) {
+      expect(TODAS, linea).toContain(linea)
+      expect(desde, linea).toBeGreaterThan(0)
+    }
+  })
+
+  it('no sale antes de tiempo, y a partir de su número sí', () => {
+    for (const grupo of FRASES) {
+      for (const linea of grupo.lineas) {
+        const desde = DESDE_SESIONES.get(linea)
+        if (desde === undefined) continue
+        expect(alcanzables(grupo.momento, desde - 1).has(linea), `${linea} con ${desde - 1}`).toBe(false)
+        expect(alcanzables(grupo.momento, desde).has(linea), `${linea} con ${desde}`).toBe(true)
+      }
+    }
+  })
+
+  it('el primer día, ninguna habla de una vez anterior', () => {
+    // Lo que puede salir con cero sesiones: Hoy al abrir y en un día de
+    // descanso. El cierre y la constancia salen con una sesión como mínimo,
+    // la que se acaba de hacer, así que ahí "anterior" quiere decir otra.
+    const HABLA_DE_ANTES = [
+      /\botra vez\b/i,
+      /\bde nuevo\b/i,
+      /\botra más\b/i,
+      /\buna sesión más\b/i,
+      /\bllevás\b/i,
+      /\blas que ya hiciste\b/i,
+      /\banteriores\b/i,
+    ]
+    const casos: [Momento, number][] = [
+      ['abrir', 0],
+      ['descanso', 0],
+      ['esfuerzo', 1],
+      ['reencuadre', 1],
+      ['cierre', 1],
+      ['constancia', 1],
+    ]
+    for (const [momento, sesiones] of casos) {
+      for (const linea of alcanzables(momento, sesiones)) {
+        for (const p of HABLA_DE_ANTES) {
+          expect(p.test(linea), `${momento} con ${sesiones}: "${linea}"`).toBe(false)
+        }
+      }
+    }
+  })
+
+  it('sin decir cuántas sesiones hay, no sale ninguna condicionada', () => {
+    // El valor por defecto es el prudente: una pantalla que se olvida de
+    // pasarlo pierde frases, no dice una falsa.
+    for (const grupo of FRASES) {
+      const pasos = grupo.lineas.length * 4
+      for (let i = 0; i < pasos; i++) {
+        const texto = fraseDe(grupo.momento, i / pasos)!.texto
+        expect(DESDE_SESIONES.has(texto), texto).toBe(false)
+      }
     }
   })
 })

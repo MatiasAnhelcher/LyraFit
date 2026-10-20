@@ -827,11 +827,15 @@ export function siguienteAvance(
       }
 
       // La barra se quedó corta. No es un final: es el momento de los recursos
-      // que no son discos —una pierna por vez, tempo, pausa—, y la app lo dice
-      // en vez de quedarse muda o proponer un peso que no existe.
+      // que no son discos —tempo, pausa—, y la app lo dice en vez de quedarse
+      // muda o proponer un peso que no existe. Los ofrece como otra forma de
+      // hacerlo más difícil, no como algo que "rinde más": la estrategia dice
+      // que el tempo no funciona como palanca de carga, y repeticiones de medio
+      // segundo a ocho dan un crecimiento parecido (Schoenfeld, Ogborn y
+      // Krieger 2015, metaanálisis).
       return ajustar(
         cantidad + incremento(medida, cantidad),
-        `Llegaste al tope de tu barra: ${ctx.barra.cargaMaximaKg} kg sobre ${actual.nombre}. Seguimos sumando repeticiones, pero a partir de acá rinde más bajar despacio o hacer una pausa abajo que agregar otra serie.`,
+        `Llegaste al tope de tu barra: ${ctx.barra.cargaMaximaKg} kg sobre ${actual.nombre}. Seguimos sumando repeticiones. Si querés otra forma de hacerlo más difícil sin más discos, probá bajar más despacio o hacer una pausa abajo.`,
         'subida',
       )
     }

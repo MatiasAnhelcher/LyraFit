@@ -59,23 +59,23 @@ Cada día mezcla tres clases de ejercicio:
 Si no cargaste la barra en Ajustes, los accesorios no aparecen y las rutinas
 siguen andando con los otros dos.
 
-> **El costo, dicho de frente.** Partir por grupo y hacer una por semana
-> entrena cada músculo **una vez cada siete días**, y con el mismo volumen
-> semanal la evidencia favorece dos. Lo que mejor funciona si vas a usarlas es
-> **alternar dos de las cuatro por semana** — por ejemplo pecho y espalda una
-> semana, piernas y brazos la otra, o directamente dos de cada una. La app te
-> lo dice en pantalla cuando elegís.
+> **Lo que implica, dicho de frente.** Partir por grupo y hacer una por semana
+> entrena cada músculo **una vez cada siete días**. La app te lo dice en
+> pantalla cuando elegís, y no dice más: que con el mismo volumen semanal dos
+> veces rinda más que una no tiene una cita verificada todavía (el metaanálisis
+> de frecuencia de Schoenfeld, Grgic y Krieger 2019 está pendiente de
+> revisar), y el consejo de alternar dos de las cuatro por semana, que estaba
+> acá, en promedio bajaba la frecuencia en vez de subirla.
 >
-> El plan de abajo —torso / pierna / torso / pierna— no tiene ese problema:
-> cada músculo cae dos veces por semana. Si podés elegir, elegí ese.
+> El plan de abajo —torso / pierna / torso / pierna— reparte cada músculo en
+> dos días por semana.
 
 ---
 
 ## La estructura: torso / pierna / torso / pierna
 
-Cuatro días, cada músculo dos veces por semana. Es la frecuencia que más rinde
-para hipertrofia cuando el volumen semanal es igual — entrenar algo una vez por
-semana desperdicia la mitad de los estímulos.
+Cuatro días, cada músculo dos veces por semana. Repartir las series de un
+músculo en dos días hace más fácil sumarlas sin sesiones eternas.
 
 **Días sugeridos:** lunes, martes, jueves, viernes. O lunes, miércoles, viernes,
 sábado. Lo que importa es que no caigan los cuatro pegados.
@@ -154,14 +154,17 @@ remo, curl). 5 kg en lo que mueve la cadera (peso muerto, sentadilla, rumano).
 ## Qué hacer cuando 45 kg te queden cortos
 
 Te van a quedar cortos, y primero en piernas: el peso muerto y la sentadilla se
-comen 45 kg en pocas semanas. Cuando pase, el orden de los recursos es este —y
-están ordenados a propósito, de más a menos efectivo:
+comen 45 kg en pocas semanas. Cuando pase, estos son los recursos, y no van
+ordenados por cuánto rinden:
 
 1. **Una pierna por vez.** Búlgara, zancada, peso muerto rumano a una pierna. 45
    kg sobre una pierna son 90 kg de estímulo por pierna, y encima te cobra el
    equilibrio y el glúteo medio, que es un músculo que hoy no entrena nada.
-2. **Tempo.** Bajar en 4 segundos con 40 kg cuesta más que bajar en 1 con 45. El
-   músculo no sabe cuántos discos hay; sabe cuánta tensión y cuánto tiempo.
+2. **Tempo.** Bajar en 3 o 4 segundos hace más difícil cada repetición y obliga
+   a controlar el recorrido. Sirve para la técnica; como palanca de carga no le
+   gana a sumar peso ni series (`estrategia-2026.md`: "el tempo no funciona como
+   palanca de carga"; repeticiones de medio segundo a ocho dan un crecimiento
+   parecido, Schoenfeld, Ogborn y Krieger 2015).
 3. **Pausa.** Dos segundos abajo del todo, sin rebote. Mata el reflejo elástico
    y te deja solo con la fuerza.
 4. **Más repeticiones.** De 8-10 pasás a 15-20. Sirve y está probado, pero es lo

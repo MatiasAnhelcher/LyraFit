@@ -198,18 +198,23 @@ export const RUTINAS_POR_GRUPO = new Set([
 /**
  * La advertencia que va en pantalla cuando alguien elige partir por grupo.
  *
- * No es letra chica y no es opcional: es el costo de la decisión, dicho en el
- * momento de tomarla. Partir en cuatro días significa entrenar cada grupo una
- * vez por semana, y con el mismo volumen semanal la evidencia favorece dos.
+ * No es letra chica y no es opcional: es lo que implica la decisión, dicho en
+ * el momento de tomarla. Partir en cuatro días significa entrenar cada grupo
+ * una vez por semana.
+ *
+ * Decía también que "con el mismo volumen semanal, dos veces rinde más", y no
+ * tenía ninguna fuente: el metaanálisis de frecuencia que podría decidirlo
+ * (Schoenfeld, Grgic y Krieger 2019) todavía no se verificó. El consejo que
+ * seguía, alternar de a dos por semana, en promedio bajaba la frecuencia en
+ * vez de subirla. Hasta tener la cita, se dice el hecho y nada más.
  *
  * Se dice y no se impide. El dueño pidió esto dos veces, sabe lo que quiere y
  * hay razones legítimas para elegirlo — más volumen por sesión, y una sesión
- * que se siente de algo. Lo que la app no puede hacer es callarse el costo y
- * después mostrar una curva que no sube tanto como debería.
+ * que se siente de algo.
  */
 export function advertenciaDe(rutina: Rutina): string | null {
   if (!RUTINAS_POR_GRUPO.has(rutina.id)) return null
-  return 'Partida por grupo, cada músculo se entrena una vez por semana. Con el mismo volumen semanal, dos veces rinde más: si podés, alterná estas cuatro de a dos por semana en vez de una cada una.'
+  return 'Partida por grupo, cada músculo se entrena una vez por semana.'
 }
 
 export const RUTINA_POR_ID = new Map(RUTINAS.map((r) => [r.id, r]))

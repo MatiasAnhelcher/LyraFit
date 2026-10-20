@@ -780,7 +780,7 @@ y produce errores:
 | Ítem | Pregunta | Escala |
 |---|---|---|
 | Sueño | *¿Cómo dormiste anoche?* | Muy mal · Mal · Más o menos · Bien · Muy bien |
-| **Energía** (el de mayor señal) | *¿Cómo está tu energía hoy?* | En el piso · Cansado · Normal · Con energía · A pleno |
+| **Energía** (el de mayor señal) | *¿Cómo está tu energía hoy?* | En el piso · Con poca energía · Normal · Con energía · A pleno |
 | Dolor muscular | *¿Cómo andan tus músculos del último entrenamiento?* | Muy doloridos · Doloridos · Algo cargados · Casi bien · Sin dolor |
 
 Rama de seguridad, solo si el tercer ítem es 1 o 2: *"¿Es dolor muscular parejo o hay una

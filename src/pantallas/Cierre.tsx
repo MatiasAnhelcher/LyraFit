@@ -77,7 +77,13 @@ export function Cierre({
     (d) => d.decision.movimiento === 'bajada' || d.decision.movimiento === 'nivel-abajo',
   )
   const [azar] = useState(() => Math.random())
-  const dijo = fraseDe(bajo ? 'reencuadre' : huboSalto ? 'esfuerzo' : 'cierre', azar)
+  // Con el número de esta sesión, para que "una sesión más" no salga en la 001.
+  const dijo = fraseDe(
+    bajo ? 'reencuadre' : huboSalto ? 'esfuerzo' : 'cierre',
+    azar,
+    [],
+    numeroDeSesion,
+  )
 
   /**
    * Suena una sola cosa, y casi nunca.

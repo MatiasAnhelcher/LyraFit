@@ -165,7 +165,7 @@ export const EJERCICIOS: Ejercicio[] = [
     medida: 'repeticiones',
     nivel: 7,
     resumen:
-      'Manos juntas debajo del pecho. Se lleva el trabajo al tríceps y a la parte interna del pectoral.',
+      'Manos juntas debajo del pecho: el tríceps pasa a trabajar tanto como el pectoral.',
     tecnica: [
       'Juntá las manos formando un triángulo con pulgares e índices.',
       'Ubicá el triángulo debajo del esternón, no debajo de la cara.',
@@ -1258,7 +1258,7 @@ export const EJERCICIOS: Ejercicio[] = [
       'Llevá la cadera hacia atrás como si cerraras una puerta con la cola, dejando que la barra baje rozando la pierna.',
       'Bajá hasta donde llegues SIN que la espalda baja se redondee. En la mayoría eso es a la mitad de la canilla, no al piso.',
       'Volvé estirando la cadera y apretando los glúteos arriba, sin arquearte hacia atrás.',
-      'Bajá en tres segundos: acá el tiempo bajo tensión rinde más que el peso.',
+      'Bajá en tres segundos: así controlás el recorrido.',
     ],
     erroresComunes: [
       'Doblar las rodillas para llegar más abajo. Eso lo convierte en un peso muerto convencional y el isquiotibial deja de estirarse.',

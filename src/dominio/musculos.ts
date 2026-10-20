@@ -16,8 +16,8 @@
  *    `curl-nordico-negativo` en `biblioteca.ts`) y subirlo acá sería contarlo
  *    dos veces. El régimen vive en `REGIMEN`.
  *  - No encoda "pectoral interno" ni ninguna región de un músculo. No existe un
- *    pectoral interno entrenable por separado; el `resumen` de la flexión
- *    diamante lo dice y el mapa no lo repite.
+ *    pectoral interno entrenable por separado, y por eso ni el mapa ni el
+ *    `resumen` de la flexión diamante lo nombran.
  *  - No encoda el lado, y es deliberado. Una serie de búlgaras es el doble de
  *    trabajo para la persona y UNA serie para cada pierna, que es lo que este
  *    mapa cuenta: un cuádriceps que hizo tres series de sentadilla y uno que

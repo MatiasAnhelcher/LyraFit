@@ -32,7 +32,9 @@ const ITEMS = [
   {
     clave: 'energia' as const,
     pregunta: '¿Cómo está tu energía hoy?',
-    opciones: ['En el piso', 'Cansado', 'Normal', 'Con energía', 'A pleno'],
+    // "Con poca energía" y no "Cansado": la app no sabe el género de nadie.
+    // Tiene que ser idéntica a la escala de las preguntas del final (`Entrenar`).
+    opciones: ['En el piso', 'Con poca energía', 'Normal', 'Con energía', 'A pleno'],
   },
   {
     clave: 'musculos' as const,

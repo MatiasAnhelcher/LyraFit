@@ -30,6 +30,22 @@
  * PNL es invisible.** No se nombra el mecanismo, no se explica que esto es
  * motivación, no se firma. Es una línea corta y se va.
  *
+ * ## Lo que se coló igual, y ahora tiene test
+ *
+ * La revisión del 20 de octubre de 2026 encontró 46 frases en uso que
+ * rompían el espíritu de las cuatro sin tocar las palabras que los tests
+ * buscaban: "cuando el cuerpo dice basta y seguís un poco más" en el cierre de
+ * un salto de eslabón, "no tenés que tener ganas, tenés que empezar", "un mes
+ * de esto se nota", "dormiste mal" dicho sin haber leído el sueño, y nueve en
+ * masculino. Se corrigieron o se borraron, y ahora hay un test por familia:
+ * obligar o retar, empujar más allá del límite, prometer (también en futuro
+ * corto), inventar una cifra escrita con letras, comparar con otra gente,
+ * afirmar una causa que nadie midió y el masculino por defecto. Lyra le habla a
+ * cualquiera: "con calma", no "tranquilo".
+ *
+ * Y una frase que solo es cierta con historia —"acá estás otra vez"— lleva su
+ * condición en `DESDE_SESIONES`, para que no salga el primer día.
+ *
  * ## Por qué no hay `Math.random()` acá
  *
  * Todo `src/dominio/` son funciones puras y se verifican con tests que corren
@@ -86,21 +102,21 @@ export const FRASES: Grupo[] = [
       'Acá estás otra vez. Vamos de a una serie.',
       'El plan ya está armado. Vos ponés el cuerpo.',
       'Hoy no hace falta que sea épico. Solo que pase.',
-      'Empezar es lo más caro. Lo demás ya viene solo.',
+      'Empezar es lo más caro. Después es de a una serie.',
       'Nadie entra en forma en una sesión. Se entra en todas.',
       'Buen momento para hacer algo que mañana agradezcas.',
       'La sesión más útil es la que hacés, no la perfecta.',
       'Estás a un toque de que hoy cuente.',
       'Lo tenés medido y escrito. Solo falta moverse.',
-      'Media hora tuya. Después el día sigue.',
+      'Un rato tuyo. Después el día sigue.',
       'Vení, que esto es más corto de lo que parece.',
       'Ponete la ropa. El resto se acomoda solo.',
-      'No tenés que tener ganas. Tenés que empezar.',
+      'No hace falta tener ganas. Alcanza con empezar.',
       'Cada vez que abrís esto, algo se está sosteniendo.',
       'El cuerpo arranca frío siempre. Es normal.',
-      'Hoy tocan cuatro cosas. Ni una más.',
+      'Lo de hoy es lo de la lista. Ni una cosa más.',
       'Vamos despacio, que tenemos tiempo.',
-      'Lo que hagas hoy lo vas a leer dentro de un año.',
+      'Lo que hagas hoy queda escrito para cuando quieras mirarlo.',
       'Dale que arrancamos.',
       'Un poco de ruido, un poco de aire, y a laburar.',
       'Lo difícil ya pasó: estás acá.',
@@ -121,27 +137,22 @@ export const FRASES: Grupo[] = [
       'Terminaste una que tenías ganas de saltear.',
       'Nadie te vio hacer eso. Yo sí.',
       'Apretaste los dientes. Se notó.',
-      'La última repetición es la que cambia algo.',
       'No fue linda, pero fue.',
       'Eso que acabás de hacer no se improvisa.',
-      'Seguiste cuando ya no querías. Eso es lo raro.',
       'Buen laburo. En serio.',
       'Te la bancaste entera.',
-      'Insistir cuando cuesta es la parte que casi nadie hace.',
+      'Insistir cuando cuesta es la parte difícil. La hiciste.',
       'Le pusiste. Se ve.',
       'Eso fue trabajo del bueno.',
-      'Una más de las que no tenías.',
+      'Lo de hoy movió la cadena un paso.',
       'Ahí está. Eso era.',
-      'Cuando el cuerpo dice basta y seguís un poco más, algo cambia.',
-      'Te costó respirar y no paraste.',
+      'Cambiaste de eslabón. Se ganó sesión a sesión.',
+      'Hoy se abrió un eslabón nuevo. Lo abriste vos.',
       'Esa serie ya quedó anotada para siempre.',
       'Hiciste la parte incómoda. Es la que paga.',
       'No aflojaste a la mitad.',
-      'Esa temblaba y salió igual.',
       'El esfuerzo de hoy no se ve hoy.',
       'Bien ahí. Descansá que sigue.',
-      'Lo hiciste con la técnica puesta. Doble mérito.',
-      'Te sostuviste hasta el final del tiempo.',
       'Eso fue elegir lo incómodo. Bien.',
       'Esa la sacaste de algún lado.',
     ],
@@ -152,19 +163,19 @@ export const FRASES: Grupo[] = [
     lineas: [
       'No pudiste hoy. Hoy, nada más.',
       'Un mal día es del día, no tuyo.',
-      'No perdiste fuerza. Dormiste mal.',
+      'Un día flojo no dice cuánta fuerza tenés.',
       'Quedar corto una vez es información, no un veredicto.',
       'El cuerpo tiene días. El plan lo contempla.',
       'Esto no es un techo, es una curva.',
       'No fallaste vos. Falló el intento.',
       'Bajar el objetivo no es retroceder. Es medir bien.',
-      'Salieron menos y seguís exactamente donde estabas.',
+      'El motor ajustó el objetivo. Es un ajuste, no un castigo.',
       'Nadie sube todas las semanas. Nadie.',
-      'Una sesión floja no borra las quince anteriores.',
+      'Una sesión floja no borra las que ya hiciste.',
       'Ojo con leer un número malo como una sentencia.',
       'Lo que pasó hoy no dice nada de mañana.',
-      'Estás cansado, no estancado.',
-      'El motor ya lo tuvo en cuenta. Quedate tranquilo.',
+      'Un día flojo no es un estancamiento.',
+      'El motor ya lo tuvo en cuenta. Con calma.',
       'Menos repeticiones no es menos vos.',
       'Es un dato, no un juicio.',
       'A veces el progreso se parece a quedarse quieto.',
@@ -174,7 +185,7 @@ export const FRASES: Grupo[] = [
       'Preferible una sesión corta que una historia que te contás.',
       'Si te dolió algo, hiciste bien en parar.',
       'Cortar a tiempo también es criterio.',
-      'Guardá esto: la peor sesión es la que no pasó.',
+      'Hoy salió lo que salió, y quedó anotado.',
       'Estuviste. Alcanza.',
       'Volvé mañana sin bronca.',
     ],
@@ -189,7 +200,6 @@ export const FRASES: Grupo[] = [
       'Las sesiones se suman aunque no lo sientas.',
       'Esto ya dejó de ser un intento.',
       'Llevás más de las que creías.',
-      'Un mes de esto se nota. Tres, se ve.',
       'No es motivación: es que volviste.',
       'Estás construyendo algo lento y difícil de romper.',
       'Lo que hacés seguido pesa más que lo que hacés fuerte.',
@@ -198,18 +208,17 @@ export const FRASES: Grupo[] = [
       'Faltar una vez no rompe nada. Volver lo arregla todo.',
       'Esto no se trata de no fallar. Se trata de volver.',
       'La suma no tiene apuro.',
-      'Ya sos alguien que entrena. Ya está.',
       'Nadie sostiene esto por ganas. Lo sostenés por costumbre.',
       'Sumaste otra sin hacer ruido.',
       'Semana tras semana, ahí seguís.',
       'Poco y siempre le gana a mucho y a veces.',
       'Otra vuelta al sol para el cuerpo.',
       'Se te está haciendo normal. Eso es lo bueno.',
-      'La versión tuya de dentro de un año va a mirar esto.',
+      'Esto queda anotado para cuando quieras mirar atrás.',
       'Hoy pusiste otro ladrillo.',
       'No pasó nada especial. Por eso funciona.',
       'Lo aburrido es lo que rinde.',
-      'Cuarenta minutos que no te van a devolver, y valió.',
+      'Un rato tuyo que ya quedó hecho.',
     ],
   },
   {
@@ -223,7 +232,7 @@ export const FRASES: Grupo[] = [
       'Ahí quedó anotado para siempre.',
       'Terminaste lo que empezaste.',
       'Eso estuvo bien hecho.',
-      'Andá tranquilo, hiciste la parte difícil.',
+      'Andá con calma, ya hiciste la parte difícil.',
       'Guardá cómo te sentís ahora.',
       'Buen laburo de hoy.',
       'Ya está. Respirá.',
@@ -238,7 +247,7 @@ export const FRASES: Grupo[] = [
       'Esto es lo que después se llama estar en forma.',
       'Bien. Nos vemos la próxima.',
       'Descansar ahora es parte del trabajo.',
-      'Terminaste entero. Buena señal.',
+      'Llegaste al final. Buena señal.',
       'Nada mal para un día cualquiera.',
       'Andá a hacer otra cosa, que ya está.',
       'Sesión hecha. Cabeza libre.',
@@ -251,16 +260,12 @@ export const FRASES: Grupo[] = [
     expresion: 'dormida',
     lineas: [
       'Hoy toca no entrenar. En serio.',
-      'El músculo se construye descansando, no entrenando.',
       'Descansar no es una pausa del plan. Es el plan.',
-      'Si entrenás hoy, mañana rendís menos.',
-      'Dormir bien hace más que una serie extra.',
       'Tomate el día. Está previsto.',
-      'La ansiedad de entrenar todos los días no construye nada.',
+      'No hace falta entrenar todos los días para avanzar.',
       'Nada que hacer hoy. Disfrutalo.',
       'Se descansa para poder volver a apretar.',
       'Dejá que el cuerpo termine lo que empezaste.',
-      'Hoy comer bien es tu entrenamiento.',
       'Un día libre no te atrasa.',
       'Caminá si querés moverte. Nada más.',
       'El progreso pasa mientras dormís.',
@@ -268,12 +273,11 @@ export const FRASES: Grupo[] = [
       'No hay nada que compensar.',
       'Descansar cuesta más que entrenar, a veces.',
       'Este también es un día del plan.',
-      'Mañana te va a salir mejor por esto.',
-      'Tranquilo. No estás perdiendo nada.',
+      'Tranqui. No estás perdiendo nada.',
       'Aprovechá y estirá un poco, si querés.',
       'Hoy no hace falta hacer nada.',
       'La recuperación es la mitad invisible.',
-      'Si te sentís entero, mejor: significa que descansaste.',
+      'Si te sentís con energía, mejor: es que descansaste.',
       'Nos vemos en el próximo.',
       'Agua, comida y sueño. Eso es hoy.',
       'Estar quieto también es entrenar.',
@@ -286,7 +290,7 @@ export const FRASES: Grupo[] = [
       'Volviste. Eso es todo lo que importa.',
       'Cuánto tiempo pasó no cambia nada. Estás acá.',
       'Arrancamos más liviano y listo.',
-      'No hay que recuperar nada. Hay que empezar.',
+      'No hay que recuperar nada. Se sigue desde acá.',
       'Nadie lleva la cuenta de los días que faltaste.',
       'Volver es más difícil que seguir. Y lo hiciste.',
       'El cuerpo se acuerda más rápido de lo que creés.',
@@ -295,20 +299,19 @@ export const FRASES: Grupo[] = [
       'Perfecto. Sin culpa y sin apuro.',
       'Esto no se reinicia desde cero.',
       'Lo que construiste sigue ahí abajo.',
-      'Dos semanas afuera no borran tres meses adentro.',
+      'El tiempo afuera no borra lo que hiciste antes.',
       'La vuelta siempre se siente peor de lo que es.',
       'Tomátelo con calma esta primera.',
-      'No te exijas hoy. Exigite la próxima.',
-      'Bienvenido de nuevo.',
+      'Hoy no hay nada que exigir. Solo retomar.',
+      'Qué bueno verte de nuevo.',
       'Lo importante no es no faltar. Es volver.',
       'Vamos de a poco que el cuerpo avisa.',
       'Hoy alcanza con hacer acto de presencia.',
       'Nadie vuelve en su mejor forma. Se vuelve y ya.',
       'Retomar es una habilidad. La estás usando.',
       'Faltar estaba previsto. Volver también.',
-      'Esta sesión vale doble aunque no lo parezca.',
-      'Empezamos de nuevo, sin drama.',
-      'Bajá las expectativas de hoy y subí las de la semana.',
+      'Esta sesión cuenta aunque no lo parezca.',
+      'Retomamos, sin drama.',
       'Ya está, ya volviste. Lo demás es cuesta abajo.',
     ],
   },
@@ -325,24 +328,19 @@ export const FRASES: Grupo[] = [
       'Cuando cambies de ejercicio vas a hacer menos. No te asustes.',
       'Menos repeticiones en algo más difícil es progreso.',
       'Falta poco para que esto quede atrás.',
-      'Lo que hoy es tu máximo va a ser tu calentamiento.',
       'Ya dominaste este. Se nota en los números.',
       'El techo no es el final: es la puerta.',
       'Guardá esta sensación de que te sale fácil.',
       'Acordate de cuando esto era imposible.',
       'Estás arriba del rango. Eso es lo que buscábamos.',
-      'El próximo eslabón te va a parecer otro deporte.',
       'Esto ya lo tenés. Vamos por lo que sigue.',
       'Cuidado con acelerar: el salto se gana consolidando.',
       'Una o dos sesiones más así y cambiás.',
       'Buen momento para revisar la técnica antes de subir.',
       'Cuando subas, el número baja. El nivel sube.',
-      'Lo estás haciendo mejor que hace un mes. Está medido.',
       'Casi. Falta muy poco.',
       'El cambio de eslabón se siente como retroceder. No lo es.',
-      'Ya no sos el que empezó esta cadena.',
       'Te queda un escalón de este tramo.',
-      'Mantené la calidad y el salto llega solo.',
     ],
   },
   {
@@ -361,20 +359,14 @@ export const FRASES: Grupo[] = [
       'Negociá con vos: solo el primer ejercicio.',
       'Si en diez minutos seguís sin querer, cortá.',
       'No busques motivación. Buscá las zapatillas.',
-      'El día que menos querés es el que más suma.',
       'Bajemos el objetivo y listo, pero hagamos algo.',
-      'Se puede entrenar cansado. Se hace siempre.',
       'No pienses en las tres series. Pensá en esta.',
-      'Cortala con el análisis y hacé una.',
-      'Ya estás vestido. Es medio camino.',
       'Hoy no busquemos récords. Busquemos presencia.',
       'Entrar es lo difícil, salir es fácil.',
-      'Diez minutos y te dejo en paz.',
       'Si te sale, seguimos. Si no, cortamos sin culpa.',
       'Lo peor que puede pasar es que hagas poco.',
       'Dale, una y vemos.',
       'No hace falta que salga bien.',
-      'Podés hacerlo mal. Lo que no podés es no hacerlo.',
       'Empezá con lo más fácil del plan.',
     ],
   },
@@ -390,15 +382,11 @@ export const FRASES: Grupo[] = [
       'Más repeticiones con mala forma no es más entrenamiento.',
       'El cuerpo aprende el movimiento antes que la fuerza.',
       'Respirá. Media sesión se arregla respirando.',
-      'Bajá despacio: la parte lenta es la que construye.',
       'Si no podés hablar, bajá un cambio.',
       'No hay que terminar destruido para que sirva.',
-      'Dejar una o dos en el tanque es mejor entrenamiento.',
       'El dolor muscular no mide nada.',
       'Que no te duela no significa que no sirvió.',
       'Tomá agua.',
-      'Comer proteína hace más que la última serie.',
-      'Dormir seis horas te cuesta más que saltear una sesión.',
       'El calentamiento no es tiempo perdido.',
       'Si algo se siente mal, se para. No se negocia.',
       'La fuerza que ganás acá se nota afuera.',
@@ -419,29 +407,22 @@ export const FRASES: Grupo[] = [
       'Nadie se puso fuerte en poco tiempo.',
       'La paciencia acá no es virtud: es el método.',
       'Lo que ganás despacio se pierde despacio.',
-      'Dentro de un año esto va a parecer poco.',
       'Las progresiones no se saltean. Se caminan.',
       'Vas a olvidarte de cuándo empezaste.',
       'El progreso no es una línea. Es un garabato que sube.',
       'Medir cada semana no sirve. Mirá los meses.',
-      'Un año de esto te cambia el cuerpo entero.',
       'El apuro es el único enemigo real acá.',
       'Vas a estancarte varias veces. Es parte.',
       'Lo lento también llega.',
       'No hay atajos que no se paguen después.',
-      'Tres años de constancia le ganan a cualquier plan perfecto.',
       'El objetivo no es esta sesión. Es la número doscientos.',
-      'Vas a mirar atrás y no vas a reconocer el punto de partida.',
-      'Lo que estás haciendo hoy ya funcionó para mucha gente.',
       'La fuerza es la única cosa que se acumula sin caducar.',
-      'Sumar un kilo de músculo lleva meses. Está bien.',
       'Nadie ve el progreso desde adentro. Por eso se mide.',
       'Cada eslabón tiene su tiempo y no se negocia.',
       'Las cadenas terminan en ejercicios que hoy parecen de otro planeta.',
       'La versión tuya del año que viene empieza hoy.',
       'Esto no tiene línea de llegada, y está bien.',
       'Lo que importa no es cuánto podés. Es cuánto tiempo seguís.',
-      'Mucha gente empieza. Poca sigue. Vos seguís.',
     ],
   },
   {
@@ -462,7 +443,7 @@ export const FRASES: Grupo[] = [
       'Estás en el medio, que es donde cuesta. Normal.',
       'Bajá las pulsaciones y arrancamos.',
       'Vas mejor de lo que creés.',
-      'Cuidá la técnica y el número viene solo.',
+      'Cuidá la técnica. Del número se ocupa el motor.',
       'No hace falta que sea rápido.',
       'Otra más y esto empieza a terminarse.',
       'Respirá. El descanso es para eso.',
@@ -470,21 +451,21 @@ export const FRASES: Grupo[] = [
       'Buen laburo hasta acá.',
       'Estás haciendo justo lo que había que hacer.',
       'Mantené la forma y listo.',
-      'Cuando vuelvas, empezá tranquilo.',
+      'Cuando vuelvas, empezá con calma.',
       'El cuerpo ya entró en calor. Ahora rinde.',
       'Falta poco para el próximo ejercicio.',
-      'Seguís entero. Aprovechalo.',
+      'Soltá los brazos y aprovechá el aire.',
     ],
   },
   {
     momento: 'ultima',
     expresion: 'guino',
     lineas: [
-      'Queda una. Esta es la que cuenta.',
-      'La última. Dale todo y después descansás.',
+      'Queda una. El número lo pone el motor; vos ponés la forma.',
+      'La última. Con buena forma, y después descansás.',
       'Una sola más y este ejercicio está.',
       'Ya casi. Queda la última.',
-      'Esta es la que más suma. Última.',
+      'Última de este ejercicio. Si la forma se rompe, ahí cortás.',
       'Última: la técnica primero, el número después.',
       'La que viene cierra el ejercicio.',
       'Una y listo. Vos podés.',
@@ -503,7 +484,7 @@ export const FRASES: Grupo[] = [
       'Ya la tenés. Es la última.',
       'Esta cierra. Después aflojás.',
       'Falta poco: una serie.',
-      'La última sale. Siempre sale.',
+      'La última. Si no sale entera, también cuenta.',
       'Una más y cambiamos de patrón.',
       'Terminala como si fuera la primera.',
     ],
@@ -552,7 +533,28 @@ export const TODAS: string[] = FRASES.flatMap((g) => g.lineas)
  * así el test falla si alguien saca o agrega una sin querer, en vez de
  * adaptarse en silencio a lo que haya.
  */
-export const CUANTAS = 378
+export const CUANTAS = 343
+
+/**
+ * Las frases que solo son ciertas a partir de cierta cantidad de sesiones.
+ *
+ * Sin esto, "Acá estás otra vez" salía el primer día y "Una sesión más en la
+ * columna que importa" en la sesión 001 —quedó en una captura—: Lyra
+ * desmentía el número que la pantalla tiene arriba, que es lo peor que le
+ * puede pasar a la regla 4. La condición va acá y no adentro de cada frase
+ * para que el banco siga siendo una lista que se lee de corrido.
+ *
+ * El número es el de sesiones de la persona cuando se muestra la frase: en
+ * Hoy, las que ya hizo; en el cierre, contando la que acaba de cerrar.
+ */
+export const DESDE_SESIONES: ReadonlyMap<string, number> = new Map([
+  ['Acá estás otra vez. Vamos de a una serie.', 1],
+  ['Otra más en la cuenta.', 2],
+  ['Apareciste de nuevo. Es lo único que hace falta.', 2],
+  ['Una sesión más en la columna que importa.', 2],
+  ['Una sesión floja no borra las que ya hiciste.', 3],
+  ['Llevás más de las que creías.', 10],
+])
 
 const POR_MOMENTO = new Map(FRASES.map((g) => [g.momento, g]))
 
@@ -567,19 +569,27 @@ const POR_MOMENTO = new Map(FRASES.map((g) => [g.momento, g]))
  * mostraron. Sin él, con doscientas aperturas de la app la misma frase cae dos
  * veces seguidas más seguido de lo que la intuición dice, y una frase repetida
  * deja de ser una voz y pasa a ser un cartel.
+ *
+ * `sesiones` es cuántas lleva la persona (ver `DESDE_SESIONES`). Por defecto
+ * es cero a propósito: una pantalla que se olvide de pasarlo se pierde algunas
+ * frases, pero no dice ninguna falsa.
  */
 export function fraseDe(
   momento: Momento,
   azar: number,
   dichas: readonly string[] = [],
+  sesiones = 0,
 ): { texto: string; expresion: Expresion } | null {
   const grupo = POR_MOMENTO.get(momento)
-  if (!grupo || grupo.lineas.length === 0) return null
+  if (!grupo) return null
+
+  const ciertas = grupo.lineas.filter((l) => (DESDE_SESIONES.get(l) ?? 0) <= sesiones)
+  if (ciertas.length === 0) return null
 
   const recientes = new Set(dichas)
-  const libres = grupo.lineas.filter((l) => !recientes.has(l))
+  const libres = ciertas.filter((l) => !recientes.has(l))
   // Si ya se dijeron todas, se permite repetir: es preferible repetir a callarse.
-  const candidatas = libres.length > 0 ? libres : grupo.lineas
+  const candidatas = libres.length > 0 ? libres : ciertas
 
   const i = Math.min(
     candidatas.length - 1,
