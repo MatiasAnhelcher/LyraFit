@@ -166,6 +166,7 @@ node carga.mjs     # los discos: que se ofrezcan con qué, y que lleguen a la ba
 node colgado.mjs   # sin barra, nada colgado; y la palanca frontal, recién con 3×8 dominadas
 node datos.mjs     # que ningún dato se pierda sin que la persona lo vea y lo decida
 node molestia.mjs  # avisar una molestia baja la cadena, se dice, y el motor no se entera
+node textos.mjs    # lo que se lee en pantalla: sin hora de acostarse inventada, sin género, sin "rinde más"
 node barra.mjs     # la barra de 28 días: que no le avise faltas a quien no faltó
 node logo.mjs     # regenera el favicon y los íconos desde el componente de Lyra
 ```
