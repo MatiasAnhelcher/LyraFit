@@ -209,6 +209,15 @@ describe('el vocabulario no promete lo que no puede', () => {
     'tonifica',
     'sistema inmune',
     'coherencia cardíaca',
+    // Lo que "rinde más" que otra cosa necesita una comparación medida, y las
+    // fichas no tienen ninguna: el tempo "rindiendo más que el peso" chocaba
+    // con un metaanálisis (Schoenfeld, Ogborn y Krieger 2015) y con la
+    // estrategia. Y el pectoral interno no se entrena por separado: el propio
+    // mapa muscular lo dice. Revisión de evidencia de octubre de 2026.
+    'rinde',
+    'tiempo bajo tensión',
+    'pectoral interno',
+    'interna del pectoral',
   ]
 
   it('ningún texto de la biblioteca afirma un mecanismo que no se pueda sostener', () => {

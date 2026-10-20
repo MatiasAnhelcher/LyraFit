@@ -160,9 +160,9 @@ export function Hoy() {
   }
 
   const rutina = rutinaActiva(preferencias)
-  // El costo de haber elegido partir por grupo, dicho en pantalla y no
-  // escondido en un comentario: cada músculo una vez por semana, cuando la
-  // evidencia favorece dos. Se dice y no se impide.
+  // Lo que implica haber elegido partir por grupo, dicho en pantalla y no
+  // escondido en un comentario: si se hacen las cuatro, a cada una le toca una
+  // vez por semana. Se dice y no se impide.
   const advertencia = advertenciaDe(rutina)
   const semana = semanaActiva(preferencias)
   /**
@@ -199,7 +199,7 @@ export function Hoy() {
    *
    * Hoy usaba solo `ajuste.factor` y `Entrenar` usa `ajuste.factor *
    * RECORTE_DE_VUELTA`. En una sesión de vuelta —después de faltar— Hoy
-   * ponía el encabezado "SESIÓN DE VUELTA", el botón "Volver a empezar", y al
+   * ponía el encabezado "SESIÓN DE VUELTA", el botón de la vuelta, y al
    * lado anunciaba el objetivo entero: la pantalla prometía 10 y la sesión
    * pedía 7. El recorte es lo correcto; lo que estaba mal era no decirlo.
    */
@@ -400,7 +400,7 @@ export function Hoy() {
    * importa: dos renders seguidos dan el mismo resultado.
    */
   if (!ultimoSorteo || ultimoSorteo.azar !== azar || ultimoSorteo.momento !== momento) {
-    const sorteada = fraseDe(momento, azar, dichas)
+    const sorteada = fraseDe(momento, azar, dichas, total)
     if (sorteada) dichas = recordar(dichas, sorteada.texto)
     ultimoSorteo = { azar, momento, dijo: sorteada }
   }
@@ -777,7 +777,10 @@ export function Hoy() {
             : esDiaDeFuelle
               ? 'Empezar el fuelle'
               : vuelve
-                ? 'Volver a empezar'
+                ? // "Volver a empezar" se lee como arrancar de cero, que es justo
+                  // el miedo de quien faltó, y Lyra al lado dice que esto no se
+                  // reinicia. No se reinicia: se retoma.
+                  'Retomar'
                 : 'Empezar'}
         </Accion>
         <button
@@ -845,10 +848,9 @@ export function Hoy() {
         Las tres con el mismo peso visual exacto —misma fila, mismo canal,
         misma tipografía— porque esa igualdad ES la afirmación. Una app de
         entrenamiento que pone la comida y el sueño en una pantalla secundaria
-        está diciendo que son secundarios, y la evidencia dice lo contrario:
-        con el mismo déficit, dormir cinco horas y media en vez de ocho y media
-        hace perder 55% menos grasa y más músculo. Eso no es un accesorio del
-        entrenamiento, es la mitad del resultado.
+        está diciendo que son secundarios, y no lo son: con dieta, dormir poco
+        hizo que una parte mayor de lo que se bajó fuera músculo (Nedeltcheva
+        2010, un ensayo chico). No es un accesorio del entrenamiento.
 
         Van DEBAJO de `Empezar` y no arriba. No es una decisión de jerarquía:
         es la regla del pliegue, medida en tres teléfonos. En un Android de
@@ -912,8 +914,8 @@ export function Hoy() {
        * teléfono chico, y ya se rompió una vez por un renglón de más. La marca
        * quieta, que es lo que hay que ver primero, está arriba y no cuesta alto.
        *
-       * Tocarla cambia la frase. Es la única forma de que 300 frases no sean
-       * 300 frases que nadie va a leer nunca. */}
+       * Tocarla cambia la frase. Es la única forma de que cientos de frases no
+       * sean cientos de frases que nadie va a leer nunca. */}
       {dijo && (
         <section className="mt-8 flex items-start gap-3">
           <Lyra
