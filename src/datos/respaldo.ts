@@ -17,12 +17,12 @@
  *   es agregar la app a la pantalla de inicio.
  */
 
-import { exportarTodo, validarRespaldo, type Respaldo } from './repositorio'
+import { CARPETA_DE_COPIAS, exportarTodo, validarRespaldo, type Respaldo } from './repositorio'
 
 /** Cuántas copias automáticas se conservan antes de pisar la más vieja. */
 const COPIAS = 3
 
-const CARPETA = 'respaldos'
+const CARPETA = CARPETA_DE_COPIAS
 
 type Directorio = {
   getDirectoryHandle(nombre: string, opciones?: { create?: boolean }): Promise<Directorio>
@@ -58,12 +58,35 @@ async function carpeta(): Promise<Directorio | null> {
  * es peor que no tener respaldo.
  */
 export async function respaldarEnSilencio(): Promise<boolean> {
+  return guardarCopia((datos) => `lyrafit-${datos.exportadoEn.slice(0, 10)}.json`)
+}
+
+/**
+ * La copia de lo que hay, justo antes de que una restauración lo reemplace.
+ *
+ * Es la misma copia automática, con la misma rotación, y con un nombre propio
+ * por dos motivos. Uno: la del cierre de sesión se llama con la fecha nada
+ * más, así que la próxima sesión del día la pisaría con los datos ya
+ * restaurados. Dos: lleva la hora, para que restaurar dos veces el mismo día
+ * —el archivo equivocado y después el bueno— no pise lo que había antes de la
+ * primera.
+ *
+ * Devuelve si se pudo. Si no, la pantalla lo dice antes de reemplazar nada.
+ */
+export async function respaldarAntesDeRestaurar(): Promise<boolean> {
+  return guardarCopia((datos) => {
+    const hora = datos.exportadoEn.slice(11, 19).replaceAll(':', '')
+    return `lyrafit-${datos.exportadoEn.slice(0, 10)}-${hora}-antes-de-restaurar.json`
+  })
+}
+
+async function guardarCopia(nombreDe: (datos: Respaldo) => string): Promise<boolean> {
   try {
     const dir = await carpeta()
     if (!dir) return false
 
     const datos = await exportarTodo()
-    const nombre = `lyrafit-${datos.exportadoEn.slice(0, 10)}.json`
+    const nombre = nombreDe(datos)
 
     const archivo = await dir.getFileHandle(nombre, { create: true })
     const escritor = await archivo.createWritable()
