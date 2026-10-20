@@ -79,6 +79,15 @@ describe('una copia sana entra entera', () => {
     expect(r.copia.avances).toEqual([avance])
   })
 
+  it('la hora de acostarse contestada vuelve con su marca', () => {
+    // Sin la marca, al restaurar la copia la hora pasaría por una de las
+    // 23:00 que la app inventaba y dejaría de usarse.
+    const dia = { fecha: '2026-08-30', horaDeDormir: 60, horaDeDormirContestada: true, actualizadoEn: 1 }
+    const r = revisarCopia(copia({ diario: [dia] }))
+    if ('problema' in r) throw new Error(r.problema)
+    expect(r.copia.diario).toEqual([dia])
+  })
+
   it('lo que no conoce lo deja pasar: un campo nuevo no vuelve rota una fila', () => {
     const conAlgoNuevo = { ...sesion('a', '2026-09-01'), algoDelFuturo: { x: 1 } }
     const r = revisarCopia(copia({ sesiones: [conAlgoNuevo] }))
@@ -160,6 +169,13 @@ describe('una sola fila rota rechaza el archivo, y dice cuál', () => {
     )
     expect(
       problemaDe(copia({ diario: [{ fecha: '2026-08-30', creatina: 'sí', actualizadoEn: 1 }] })),
+    ).toContain('sí o no')
+    // La marca de "esta hora la contestó la persona" es lo que separa una
+    // respuesta de las 23:00 que la app inventaba: rota, no puede entrar.
+    expect(
+      problemaDe(
+        copia({ diario: [{ fecha: '2026-08-30', horaDeDormir: 60, horaDeDormirContestada: 'sí', actualizadoEn: 1 }] }),
+      ),
     ).toContain('sí o no')
   })
 
