@@ -24,7 +24,7 @@
 import type { Objetivo, Patron, Serie, Sesion } from './tipos'
 import { POR_ID } from './biblioteca'
 import { indiceDeCarga } from './progresion'
-import { diasEntre, lunesDe } from './adherencia'
+import { diasEntre, lunesDe, sumarDias } from './adherencia'
 
 /**
  * Las series sin la de cierre.
@@ -288,6 +288,58 @@ export function curvaDeFuerza(sesiones: Sesion[], patron: Patron): PuntoDeFuerza
   }
 
   return [...porDia.values()].sort((a, b) => a.fecha.localeCompare(b.fecha))
+}
+
+/**
+ * Las semanas que se dibujan en Progreso: los lunes de las últimas `cuantas`,
+ * de la más vieja a la de hoy.
+ *
+ * Arrancan en la semana de la primera sesión si es más nueva que eso: quien
+ * entrena hace tres semanas ve tres columnas y no nueve semanas vacías antes
+ * de haber empezado. Las semanas del medio sin sesiones SÍ están, vacías: un
+ * mes de vacaciones es un hueco en el eje, no algo que se pliega y desaparece.
+ */
+export function ultimasSemanas(hoy: string, cuantas: number, primera?: string): string[] {
+  const actual = lunesDe(hoy)
+  const desdeHoy = sumarDias(actual, -7 * (cuantas - 1))
+  const inicio = primera && lunesDe(primera) > desdeHoy ? lunesDe(primera) : desdeHoy
+  const semanas: string[] = []
+  for (let lunes = inicio; lunes <= actual; lunes = sumarDias(lunes, 7)) semanas.push(lunes)
+  return semanas
+}
+
+export interface SemanaDeFuerza {
+  /** Lunes de esa semana, en formato AAAA-MM-DD. */
+  semana: string
+  /** El índice de carga de la mejor serie de la semana en esta cadena. */
+  carga: number
+  /** El ejercicio de esa mejor serie. */
+  ejercicioId: string
+}
+
+/**
+ * La fuerza de una cadena por semana: la mejor marca de cada una.
+ *
+ * Es `curvaDeFuerza` agrupada por semana, así que hereda sus filtros —ni la
+ * serie de cierre, ni la bajada, ni el reloj— y su escala. Devuelve una
+ * entrada por cada lunes de `semanas`, en el mismo orden, y `null` en las
+ * semanas en que esta cadena no se entrenó: la columna queda vacía, no en cero,
+ * porque no entrenar no es haber perdido fuerza.
+ */
+export function fuerzaPorSemana(
+  sesiones: Sesion[],
+  patron: Patron,
+  semanas: string[],
+): (SemanaDeFuerza | null)[] {
+  const mejores = new Map<string, SemanaDeFuerza>()
+  for (const punto of curvaDeFuerza(sesiones, patron)) {
+    const semana = lunesDe(punto.fecha)
+    const previa = mejores.get(semana)
+    if (!previa || punto.carga > previa.carga) {
+      mejores.set(semana, { semana, carga: punto.carga, ejercicioId: punto.ejercicioId })
+    }
+  }
+  return semanas.map((s) => mejores.get(s) ?? null)
 }
 
 export interface Totales {

@@ -113,6 +113,16 @@ describe('delta de vitalidad', () => {
     expect(v.delta).toBeLessThan(0)
     expect(v.subieron).toBeLessThan(10)
   })
+
+  it('da el cambio de cada sesión, de la más vieja a la más nueva', () => {
+    // Son los diez puntos de la baldosa de Energía en Progreso.
+    const sesiones = Array.from({ length: 10 }, (_, i) =>
+      sesion(i, [{ logrado: 10 }], { vitalidadPre: 5, vitalidadPost: i < 3 ? 6 : 3 }),
+    )
+    const v = vitalidad(sesiones)!
+    expect(v.serie).toEqual([1, 1, 1, -2, -2, -2, -2, -2, -2, -2])
+    expect(v.serie.filter((d) => d > 0)).toHaveLength(v.subieron)
+  })
 })
 
 describe('ánimo reciente', () => {

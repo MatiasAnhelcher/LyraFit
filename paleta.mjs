@@ -79,10 +79,16 @@ const PARES = [
   ['piernas', 'fondo', 3, 'el glifo de piernas'],
   ['core', 'fondo', 3, 'el glifo de core'],
   ['bisagra', 'fondo', 3, 'el glifo de bisagra'],
-  ['carta-estrella', 'carta-fondo', 4.5, 'la estrella sobre la carta'],
-  ['carta-rotulo', 'carta-fondo', 4.5, 'los rótulos de la carta'],
-  ['carta-futuro-nodo', 'carta-fondo', 3, 'lo que falta, en la carta'],
-  ['carta-futuro-linea', 'carta-fondo', 3, 'la línea punteada de lo que falta'],
+  // La barra de cadena vive sobre la placa: los eslabones hechos y el
+  // relleno van en la luz de la cadena, lo que falta en regla-fuerte (ya
+  // medido arriba contra papel), y la estrella lleva un aro del fondo que la
+  // separa del relleno, así que su núcleo se mide contra el fondo.
+  ['luz-empuje', 'papel', 3, 'los eslabones hechos de empuje'],
+  ['luz-traccion', 'papel', 3, 'los eslabones hechos de tracción'],
+  ['luz-piernas', 'papel', 3, 'los eslabones hechos de piernas'],
+  ['luz-core', 'papel', 3, 'los eslabones hechos de core'],
+  ['luz-bisagra', 'papel', 3, 'los eslabones hechos de bisagra'],
+  ['estrella', 'fondo', 3, 'el núcleo de la estrella, dentro de su aro'],
 ]
 
 /**
@@ -97,7 +103,7 @@ const CERCANIA_MAXIMA = 1.25
 /**
  * LAS CINCO CADENAS, CON DALTONISMO.
  *
- * Cada cadena es un color en la carta, en el glifo y en la curva, y con cinco
+ * Cada cadena es un color en la barra, en el glifo y en la fuerza, y con cinco
  * colores siempre hay dos que se acercan en alguna visión. Se simula cómo ve
  * cada par una persona con protanopía, deuteranopía y tritanopía —la
  * simulación de Machado, Oliveira y Fernandes (2009), con severidad completa

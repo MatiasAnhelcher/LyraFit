@@ -94,7 +94,7 @@ export async function leerAvances(): Promise<Map<Patron, Avance>> {
 
   // Se arma en el orden de las cadenas y no en el que devuelve la base: el
   // mapa se recorre para dibujar, y si el orden cambiara entre lecturas las
-  // cuatro constelaciones de la carta bailarían de lugar sin motivo.
+  // barras de las cadenas bailarían de lugar sin motivo.
   for (const cadena of CADENAS) {
     // Fecha 0 a propósito en el inicial: es un avance que todavía no se guardó
     // nunca, y un Date.now() acá haría que cada lectura devolviera un objeto

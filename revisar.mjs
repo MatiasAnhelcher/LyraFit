@@ -354,10 +354,45 @@ async function main() {
     }
 
     await pagina.goto(`${BASE}/#/progreso`, { waitUntil: 'networkidle' })
-    // Los novecientos milisegundos son por el chunk lazy de recharts.
+    // Los novecientos milisegundos son por el chunk lazy de Progreso y su encendido.
     await pagina.waitForTimeout(900)
     await capturar(pagina, `8-progreso-${tema}`)
     await revisarDesborde(pagina, `Progreso (${tema})`)
+
+    /*
+     * LAS BARRAS DE CADENA: una por cadena, y que digan lo que dibujan.
+     *
+     * Cada barra es un `role="img"` cuyo texto es lo único que oye un lector
+     * de pantalla, así que se verifica contra lo dibujado: tantos segmentos
+     * como el total que dice "eslabón N de T", N dentro del rango, y los N−1
+     * anteriores llenos. Una barra que dijera una cosa y mostrara otra pasaría
+     * cualquier captura.
+     */
+    const barras = await pagina.locator('section[aria-labelledby="tus-cadenas"] .bc').evaluateAll((els) =>
+      els.map((el) => ({
+        texto: el.getAttribute('aria-label') ?? '',
+        rol: el.getAttribute('role'),
+        segmentos: el.querySelectorAll('.bc-seg').length,
+        hechos: el.querySelectorAll('.bc-seg--hecho').length,
+        actuales: el.querySelectorAll('.bc-seg--actual').length,
+      })),
+    )
+    if (barras.length !== 5) {
+      problemas.push(`Progreso dibujó ${barras.length} barras de cadena y son cinco cadenas (${tema})`)
+    }
+    for (const b of barras) {
+      const m = /eslabón (\d+) de (\d+)/.exec(b.texto)
+      if (b.rol !== 'img' || !m) {
+        problemas.push(`Una barra de cadena no se anuncia como imagen con su eslabón: "${b.texto}" (${tema})`)
+        continue
+      }
+      const [n, total] = [Number(m[1]), Number(m[2])]
+      if (b.segmentos !== total || n < 1 || n > total || b.hechos !== n - 1 || b.actuales !== 1) {
+        problemas.push(
+          `La barra dice "${b.texto}" y dibuja ${b.segmentos} segmentos, ${b.hechos} llenos y ${b.actuales} actual (${tema})`,
+        )
+      }
+    }
 
     // Aserciones de contenido sobre Progreso, que hasta acá no tenía NINGUNA:
     // solo se le miraba el desborde y la consola, así que una sección entera

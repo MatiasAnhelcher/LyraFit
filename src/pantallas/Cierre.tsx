@@ -15,9 +15,10 @@
  *    sos, no qué hiciste. "Sesión 047" pesa más que "+2 repeticiones" porque
  *    habla de identidad, que es de los predictores más fuertes de que alguien
  *    siga entrenando dentro de un año.
- * 3. **La línea llega al nodo y recién ahí se enciende la estrella.** Cuando
- *    hubo cambio de eslabón, el movimiento se ve: queda la huella de dónde
- *    estabas y la luz aparece donde estás.
+ * 3. **El relleno entra al eslabón nuevo y recién ahí se posa la estrella.**
+ *    Cuando hubo cambio de eslabón, el movimiento se ve: queda la huella de
+ *    dónde estabas y la luz aparece donde estás. La cadena que saltó se abre;
+ *    las demás quedan en su fila chica.
  * 4. **El motor explica lo que decidió, en cursiva y con su regla firmada.**
  *
  * Nada de confeti, monedas ni insignias. Las recompensas tangibles y esperadas
@@ -25,13 +26,14 @@
  * competencia la construye. Si esto celebra, celebra con un dato.
  */
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { NOMBRE_PATRON, buscarEjercicio } from '@/dominio/biblioteca'
 import { seriesDeSesion } from '@/dominio/estadisticas'
 import { esHito } from '@/dominio/adherencia'
 import type { ResumenSesion } from '@/datos/repositorio'
 import { comoReloj } from '@/hooks/useTemporizador'
-import { Carta } from '@/componentes/carta'
+import { FilaDeCadenaChica, FilaDeSalto } from '@/componentes/filaDeCadena'
+import { enCadenaCon } from '@/componentes/enCadena'
 import { sonar, tocar } from '@/respuesta'
 import { AccionQuieta, Glosa, Rotulo } from '@/componentes/ui'
 import { Lyra } from '@/componentes/lyra'
@@ -94,38 +96,55 @@ export function Cierre({
    * juntas y se agrupan—, no una vez cada seis semanas. Un día común no suena
    * nada, y eso es lo que hace que estos dos se escuchen.
    *
-   * El retardo alinea el sonido con el momento en que la línea llega al nodo y
-   * la estrella se enciende: los tres canales convergen en un solo instante.
+   * El retardo alinea el sonido con el momento en que el relleno llega y la
+   * estrella se posa: los tres canales convergen en un solo instante. Si la
+   * persona terminó la coreografía antes, suena en el acto.
    */
+  const [terminada, setTerminada] = useState(false)
+  const sono = useRef(false)
   useEffect(() => {
-    if (!huboSalto && !hito) return
+    if ((!huboSalto && !hito) || sono.current) return
     const cual = huboSalto ? 'nivel' : 'hito'
-    const espera = huboSalto ? 1460 : 1700
+    const espera = terminada ? 0 : huboSalto ? 1460 : 1700
     const id = window.setTimeout(() => {
+      sono.current = true
       sonar(cual)
       tocar(cual)
     }, espera)
     return () => window.clearTimeout(id)
-  }, [huboSalto, hito])
+  }, [huboSalto, hito, terminada])
 
-  /** Dónde estaba cada patrón antes de esta sesión, para dibujar la huella. */
-  const huellas = new Map(
-    sesion.registros.map((r) => {
-      const e = buscarEjercicio(r.ejercicioId)
-      return [e?.patron ?? 'empuje', r.ejercicioId] as const
-    }),
+  /**
+   * Tocar la pantalla pasados 500 ms termina la coreografía: quien ya la vio
+   * veinte veces no tiene por qué esperar cuatro segundos a "Listo". Antes de
+   * los 500 ms no, para que el toque que cerró la sesión no se la saltee.
+   */
+  const [montada] = useState(() => performance.now())
+  const terminar = () => {
+    if (!terminada && performance.now() - montada > 500) setTerminada(true)
+  }
+
+  /**
+   * Dónde estaba cada patrón antes de esta sesión, para la huella: el
+   * ejercicio y el objetivo del registro que el motor evaluó. Ni la bajada ni
+   * el reloj, que no mueven el plan.
+   */
+  const antes = new Map(
+    sesion.registros
+      .filter((r) => !r.bajada && !r.reloj)
+      .reverse()
+      .flatMap((r) => {
+        const e = buscarEjercicio(r.ejercicioId)
+        return e ? [[e.patron, enCadenaCon(e.patron, r.ejercicioId, r.objetivo)] as const] : []
+      }),
   )
 
-  const filas = decisiones.map(({ patron, decision }) => ({
-    patron,
-    avance: decision.avance,
-    ...(decision.cambioDeNivel && huellas.get(patron)
-      ? { huella: huellas.get(patron)! }
-      : {}),
-  }))
-
   return (
-    <div className="flex min-h-dvh flex-col">
+    <div
+      className="flex min-h-dvh flex-col"
+      onPointerDown={terminar}
+      data-terminada={terminada ? '' : undefined}
+    >
       <main className="mx-auto w-full max-w-lg flex-1 px-4 pt-12">
         {/* La regla se imprime. Después, silencio. */}
         <div className="anim-regla h-px w-full bg-[var(--color-regla-fuerte)]" />
@@ -140,9 +159,15 @@ export function Cierre({
           </p>
         </div>
 
-        {filas.length > 0 && (
-          <div className="mt-8">
-            <Carta filas={filas} animar={huboSalto} />
+        {decisiones.length > 0 && (
+          <div className="placa mt-8">
+            {decisiones.map(({ patron, decision }) =>
+              decision.cambioDeNivel ? (
+                <FilaDeSalto key={patron} avance={decision.avance} antes={antes.get(patron) ?? null} />
+              ) : (
+                <FilaDeCadenaChica key={patron} avance={decision.avance} />
+              ),
+            )}
           </div>
         )}
 

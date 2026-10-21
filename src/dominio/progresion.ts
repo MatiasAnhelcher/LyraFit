@@ -1184,8 +1184,25 @@ export function ubicarEnCadena(
 }
 
 /**
+ * Cuánto de la ventana de un eslabón ya recorrió un objetivo, de 0 a 1.
+ *
+ * Es el relleno del segmento actual en la barra de cada cadena: el piso de la
+ * ventana es 0, el techo es 1, y lo de afuera se acota. No sirve
+ * `porcentajeDeCadena` para esto porque esa mide la cadena ENTERA y redondea
+ * a un entero: con once eslabones, un 60 % no dice dónde está la estrella
+ * dentro del séptimo.
+ *
+ * Una ventana sin recorrido (piso igual al techo) da 0 y no NaN.
+ */
+export function rellenoDeVentana(ejercicio: Ejercicio, cantidad: number): number {
+  const recorrido = ejercicio.ventana.max - ejercicio.ventana.min
+  if (recorrido <= 0) return 0
+  return Math.min(1, Math.max(0, (cantidad - ejercicio.ventana.min) / recorrido))
+}
+
+/**
  * Qué porcentaje de la cadena llevás recorrido, contando el ejercicio actual
- * y lo que falta para dominarlo. Sirve para la barra de progreso.
+ * y lo que falta para dominarlo.
  */
 export function porcentajeDeCadena(
   avance: Avance,
@@ -1201,9 +1218,7 @@ export function porcentajeDeCadena(
   const actual = ejercicios.get(avance.ejercicioId)
   if (!actual) return 0
 
-  const recorrido = actual.ventana.max - actual.ventana.min
-  const hecho = avance.objetivoActual.cantidad - actual.ventana.min
-  const dentroDelNivel = recorrido > 0 ? Math.min(1, Math.max(0, hecho / recorrido)) : 0
+  const dentroDelNivel = rellenoDeVentana(actual, avance.objetivoActual.cantidad)
 
   return Math.round(((posicion + dentroDelNivel) / total) * 100)
 }

@@ -130,6 +130,8 @@ export interface Vitalidad {
   delta: number
   /** Cuántas veces de las medidas subió. */
   subieron: number
+  /** El cambio de cada sesión medida, de la más vieja a la más nueva. */
+  serie: number[]
 }
 
 /**
@@ -152,6 +154,7 @@ export function vitalidad(sesiones: Sesion[], ultimas = 10): Vitalidad | null {
     sesiones: deltas.length,
     delta: Math.round((deltas.reduce((a, b) => a + b, 0) / deltas.length) * 10) / 10,
     subieron: deltas.filter((d) => d > 0).length,
+    serie: [...deltas].reverse(),
   }
 }
 

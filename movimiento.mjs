@@ -42,8 +42,8 @@ const fallos = []
  *
  * `.entrar-en-orden` está en Hoy, Cadenas, Progreso y el Diario: cualquier
  * ruta lo encuentra. Las otras cuatro existen ÚNICAMENTE en el cierre y en la
- * carta que el cierre dibuja, y al cierre no se llega navegando: hay que
- * entrenar la sesión entera.
+ * barra de cadena que el cierre llena, y al cierre no se llega navegando: hay
+ * que entrenar la sesión entera.
  *
  * Con los seis en una sola lista, el guardián «¿encontré alguno?» se
  * satisfacía con los diez `.entrar-en-orden` de las rutas comunes mientras
@@ -55,7 +55,7 @@ const fallos = []
  * haría fallar el portón para siempre por una línea de CSS sin usar.
  */
 const DE_ENTRADA = ['.entrar-en-orden']
-const DEL_CIERRE = ['.revelar', '.anim-estrella', '.anim-regla', '.anim-trazo']
+const DEL_CIERRE = ['.revelar', '.anim-estrella', '.anim-regla', '.anim-llenar']
 const SOSPECHOSAS = [...DE_ENTRADA, ...DEL_CIERRE]
 
 const dichos = new Set()
@@ -574,7 +574,7 @@ async function main() {
      *
      * La versión anterior recorría Hoy, Cadenas, Progreso y el Reloj, y
      * buscaba seis selectores de los cuales CUATRO solo existen en el cierre:
-     * `.revelar`, `.anim-regla`, `.anim-trazo` y `.anim-estrella` son la
+     * `.revelar`, `.anim-regla`, `.anim-llenar` y `.anim-estrella` son la
      * coreografía de esa pantalla y de ninguna otra. El bloque que el propio
      * comentario llama «la que de verdad importa» barría cuatro pantallas
      * donde no había nada que mirar.
@@ -616,12 +616,17 @@ async function main() {
             if (sel === '.anim-regla' && e.transform.includes('matrix') && e.transform.startsWith('matrix(0')) {
               salida.push('.anim-regla quedó en scaleX(0): la regla no se imprimió nunca')
             }
-            // `parseFloat` y no `Number`: Chrome serializa la propiedad
-            // calculada con unidad —"1px"— y `Number('1px')` es NaN, así que
-            // `NaN > 0.01` era SIEMPRE falso. La comprobación existía, se
-            // leía bien, y no podía disparar nunca.
-            if (sel === '.anim-trazo' && parseFloat(e.strokeDashoffset) > 0.01) {
-              salida.push(`.anim-trazo quedó con dashoffset ${e.strokeDashoffset}: el camino no se dibujó`)
+            // El relleno de la barra entra con `scaleX` desde la izquierda. Si
+            // la animación se apagara a mitad de camino sin que el estado
+            // final sea el propio del elemento, quedaría en `scaleX(0)`: el
+            // eslabón nuevo vacío justo el día que lo ganaste.
+            if (sel === '.anim-llenar' && e.transform.startsWith('matrix(0')) {
+              salida.push('.anim-llenar quedó en scaleX(0): el relleno del eslabón nuevo no entró nunca')
+            }
+            // Y que tenga ancho de verdad: la regla de arriba no ve un relleno
+            // que se dibujó con ancho cero, que se ve igual de vacío.
+            if (sel === '.anim-llenar' && el.getBoundingClientRect().width < 0.5 && el.style.width !== '0.00%') {
+              salida.push(`.anim-llenar mide ${el.getBoundingClientRect().width} px de ancho y tenía que medir ${el.style.width}`)
             }
           }
         }
@@ -663,13 +668,12 @@ async function main() {
     /*
      * Y POR QUÉ MÁS DE UNA SESIÓN.
      *
-     * Dos de las cuatro —`.anim-estrella` y `.anim-trazo`— cuelgan de
-     * `animar={huboSalto}` en `Cierre.tsx:139`: solo se dibujan el día que el
-     * motor te sube de eslabón. Una sola sesión desde cero nunca produce eso,
-     * así que el cierre de la primera trae `.revelar` y `.anim-regla` y nada
-     * más — y justamente `.anim-trazo` es donde vivía el `NaN > 0.01` que no
-     * podía disparar nunca. Medir el cierre sin salto deja esa comprobación
-     * tan sin ejercitar como estaba.
+     * Dos de las cuatro —`.anim-estrella` y `.anim-llenar`— viven en
+     * `FilaDeSalto`, que el Cierre dibuja solo para la cadena con
+     * `cambioDeNivel`: aparecen el día que el motor te sube de eslabón. Una
+     * sola sesión desde cero nunca produce eso, así que el cierre de la
+     * primera trae `.revelar` y `.anim-regla` y nada más. Medir el cierre sin
+     * salto deja las dos comprobaciones del relleno sin ejercitar.
      *
      * Así que se entrena hasta que el salto pase: el objetivo sube solo
      * mientras se cumple, y al llegar al techo el motor consolida dos

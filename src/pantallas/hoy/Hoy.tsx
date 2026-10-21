@@ -15,8 +15,9 @@
  *
  * - **Se fue el "volumen".** Sumaba repeticiones con segundos.
  *
- * - **Apareció la carta.** Una barra de porcentaje no ubica a nadie; un camino
- *   con nodos dice de dónde viniste, dónde estás y qué falta.
+ * - **Apareció DÓNDE ESTÁS.** Una barra de porcentaje no ubica a nadie; una
+ *   barra con un segmento por eslabón dice cuántos hiciste, dónde estás y
+ *   cuántos faltan.
  */
 
 import { useState } from 'react'
@@ -80,7 +81,7 @@ import {
 } from '@/datos/repositorio'
 import { respaldarEnSilencio } from '@/datos/respaldo'
 import { SesionSinCerrar } from '@/componentes/sinCerrar'
-import { Carta } from '@/componentes/carta'
+import { FilaDeCadenaChica } from '@/componentes/filaDeCadena'
 import { Lyra } from '@/componentes/lyra'
 import { useIrA } from '@/componentes/movimiento'
 import { fraseDe, recordar, type Momento } from '@/dominio/frases'
@@ -415,11 +416,6 @@ export function Hoy() {
     tieneBarra,
   )
 
-  const filasDeCarta = [...avances.values()].map((avance) => ({
-    patron: avance.patron,
-    avance,
-  }))
-
   return (
     <>
       {/* El título de la pantalla es para el lector: lo que se ve arriba es
@@ -631,9 +627,16 @@ export function Hoy() {
         </section>
       )}
 
+      {/* Mide menos de la mitad que la carta que reemplaza, así que Empezar
+          gana aire. Las filas no llevan a ningún lado hasta que exista la
+          pantalla de cada cadena. */}
       <section className="mt-8">
         <Rotulo className="mb-3">DÓNDE ESTÁS</Rotulo>
-        <Carta filas={filasDeCarta} rotulo="nombre" />
+        <div className="placa">
+          {[...avances.values()].map((avance) => (
+            <FilaDeCadenaChica key={avance.patron} avance={avance} />
+          ))}
+        </div>
       </section>
 
       {/* La barra mide solo los días del plan que ya pasaron desde la primera

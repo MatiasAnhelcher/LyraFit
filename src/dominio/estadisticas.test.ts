@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   curvaDeFuerza,
+  fuerzaPorSemana,
   haceCuanto,
   historicoDeEjercicio,
   laVezPasada,
@@ -12,7 +13,9 @@ import {
   seriesDeSesion,
   seriesPorPatron,
   totales,
+  ultimasSemanas,
 } from './estadisticas'
+import { POR_ID } from './biblioteca'
 import type { Sesion } from './tipos'
 
 function sesion(fecha: string, ejercicioId: string, logros: number[]): Sesion {
@@ -150,6 +153,89 @@ describe('curva de fuerza', () => {
 
     expect(curva).toHaveLength(1)
     expect(curva[0]!.ejercicioId).toBe('flexion-diamante')
+  })
+})
+
+describe('las semanas de Progreso', () => {
+  it('son los lunes de las últimas doce, de la más vieja a la de hoy', () => {
+    const semanas = ultimasSemanas('2026-10-21', 12)
+    expect(semanas).toHaveLength(12)
+    expect(semanas[0]).toBe('2026-08-03')
+    expect(semanas[11]).toBe('2026-10-19')
+  })
+
+  it('arrancan en la semana de la primera sesión si es más nueva', () => {
+    expect(ultimasSemanas('2026-10-21', 12, '2026-10-08')).toEqual(['2026-10-05', '2026-10-12', '2026-10-19'])
+    expect(ultimasSemanas('2026-10-21', 12, '2026-10-20')).toEqual(['2026-10-19'])
+  })
+
+  it('no se corren con el cambio de hora', () => {
+    // En Sídney la hora cambia el domingo 4 de octubre de 2026; el CI corre
+    // también con TZ=Australia/Sydney.
+    expect(ultimasSemanas('2026-10-07', 3)).toEqual(['2026-09-21', '2026-09-28', '2026-10-05'])
+  })
+})
+
+describe('fuerza por semana', () => {
+  const semanas = ['2026-09-07', '2026-09-14', '2026-09-21', '2026-09-28']
+
+  it('se queda con la mejor marca de cada semana y deja vacías las que no entrenaste', () => {
+    const fuerza = fuerzaPorSemana(
+      [
+        sesion('2026-09-08', 'flexion-completa', [6, 6, 6]),
+        sesion('2026-09-10', 'flexion-completa', [9, 8, 8]),
+        sesion('2026-09-29', 'flexion-completa', [10, 9, 9]),
+      ],
+      'empuje',
+      semanas,
+    )
+    const curva = curvaDeFuerza([sesion('2026-09-10', 'flexion-completa', [9, 8, 8])], 'empuje')
+    expect(fuerza).toHaveLength(4)
+    expect(fuerza[0]!.carga).toBe(curva[0]!.carga)
+    expect(fuerza[1]).toBeNull()
+    expect(fuerza[2]).toBeNull()
+    expect(fuerza[3]!.carga).toBeGreaterThan(fuerza[0]!.carga)
+  })
+
+  it('el domingo es de la semana del lunes anterior', () => {
+    const fuerza = fuerzaPorSemana([sesion('2026-09-20', 'flexion-completa', [8])], 'empuje', semanas)
+    expect(fuerza.map((f) => f?.semana ?? null)).toEqual([null, '2026-09-14', null, null])
+  })
+
+  it('dice el ejercicio de cada semana, que es de donde sale la marca del eslabón nuevo', () => {
+    const fuerza = fuerzaPorSemana(
+      [
+        sesion('2026-09-08', 'flexion-rodillas', [15, 15, 15]),
+        sesion('2026-09-15', 'flexion-completa', [6, 6, 6]),
+      ],
+      'empuje',
+      semanas,
+    )
+    expect(fuerza[0]!.ejercicioId).toBe('flexion-rodillas')
+    expect(fuerza[1]!.ejercicioId).toBe('flexion-completa')
+  })
+
+  it('y si el eslabón nuevo se mide distinto, también se ve', () => {
+    const fuerza = fuerzaPorSemana(
+      [
+        sesion('2026-09-08', 'remo-australiano-pies-elevados', [12, 12, 12]),
+        sesion('2026-09-15', 'dominada-negativa', [8, 8, 8]),
+      ],
+      'traccion',
+      semanas,
+    )
+    const [antes, despues] = [fuerza[0]!, fuerza[1]!]
+    expect(POR_ID.get(antes.ejercicioId)!.medida).toBe('repeticiones')
+    expect(POR_ID.get(despues.ejercicioId)!.medida).toBe('segundos')
+  })
+
+  it('una cadena que no se entrenó da todas vacías', () => {
+    expect(fuerzaPorSemana([sesion('2026-09-08', 'plancha', [30])], 'empuje', semanas)).toEqual([
+      null,
+      null,
+      null,
+      null,
+    ])
   })
 })
 
