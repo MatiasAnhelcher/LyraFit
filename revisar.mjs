@@ -10,11 +10,10 @@
  */
 
 import { chromium } from 'playwright'
-import { alta, revisarQueSirvaLoCompilado } from './lib/portones.mjs'
+import { BASE, CHROMIUM, alta, revisarQueSirvaLoCompilado } from './lib/portones.mjs'
 import { readFileSync } from 'node:fs'
 import { mkdir } from 'node:fs/promises'
 
-const BASE = 'http://localhost:4173'
 const SALIDA = 'capturas'
 
 const problemas = []
@@ -121,9 +120,7 @@ async function main() {
   await mkdir(SALIDA, { recursive: true })
 
   // El contenedor trae su propio Chromium; se lo señalamos en vez de bajar otro.
-  const navegador = await chromium.launch({
-    executablePath: process.env.CHROMIUM_PATH ?? '/opt/pw-browsers/chromium',
-  })
+  const navegador = await chromium.launch({ executablePath: CHROMIUM })
 
   // Una sola pasada. Hasta el rediseño había dos, una por tema, y tenía
   // sentido: la app tenía papel claro y oscuro. Ahora tiene un solo mundo —la

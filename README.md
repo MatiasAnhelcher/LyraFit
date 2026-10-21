@@ -175,6 +175,22 @@ node dormir.mjs    # la hora de acostarse: se pregunta con el café tarde, nunca
 node logo.mjs     # regenera el favicon y los íconos desde el componente de Lyra
 ```
 
+Todos juntos, de a uno y con un solo veredicto, es lo que corre la CI en cada
+push y en cada pull request, y lo que conviene correr antes de abrir uno:
+
+```bash
+npm run build
+npx vite preview --port 4173 --strictPort &
+npm run portones                    # todos los *.mjs de la raíz menos logo y figuras
+npm run portones -- pliegue datos   # o solo esos
+```
+
+Cada portón toma la dirección de `BASE` y el navegador de `CHROMIUM_PATH`, los
+dos a través de `lib/portones.mjs`: `BASE=http://localhost:4174 node pliegue.mjs`
+revisa lo que sirva otro puerto, así que dos árboles de trabajo se pueden revisar
+a la vez. `actualizacion.mjs` corre último porque recompila `dist/` con la
+subruta de Pages.
+
 `paleta.mjs` mide el contraste de cada par del sistema y de **todo el texto de
 siete pantallas**, contra el fondo efectivo —el primer ancestro opaco— y no
 contra el declarado. El proyecto afirmaba tener un validador de paleta desde
@@ -419,8 +435,9 @@ Greenwich. En UTC los errores de zona horaria no se ven.
 ## Publicar
 
 El workflow de `.github/workflows/ci.yml` revisa los tipos, corre los tests en
-dos husos, compila y publica en GitHub Pages en cada push a `main`. Para
-activarlo, una vez:
+dos husos, compila, corre los portones contra la app compilada y, si todo pasa,
+publica en GitHub Pages en cada push a `main`. Un pull request pasa por lo mismo
+menos la publicación. Para activarlo, una vez:
 
 **Settings → Pages → Source → GitHub Actions.**
 

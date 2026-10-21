@@ -29,10 +29,7 @@
  */
 
 import { chromium } from 'playwright'
-import { revisarQueSirvaLoCompilado } from './lib/portones.mjs'
-
-const BASE = 'http://localhost:4173'
-const CHROMIUM = process.env.CHROMIUM_PATH ?? '/opt/pw-browsers/chromium'
+import { BASE, CHROMIUM, revisarQueSirvaLoCompilado } from './lib/portones.mjs'
 
 /**
  * Los teléfonos.
@@ -73,22 +70,33 @@ const AIRE_MINIMO = 12
  * portón falla si alguno sube. Cuando bajen, hay que bajarlos acá — el propio
  * portón lo avisa cuando detecta una mejora sin trabar.
  *
- * Para contexto, lo mismo medido contra `origin/main`: 40 / 24 / 0. Esta
- * entrega mejoró los tres.
- *
- * Son el PEOR valor observado y no el último, y eso importa: el alto del
- * descanso depende de cuánto envuelve la indicación de técnica del ejercicio
- * que toque, así que la misma app mide distinto en dos corridas. Observado en
- * 320×568: 3 px en una corrida y 27 en la siguiente, sin tocar una línea.
+ * Son el PEOR valor y no el de una corrida, y eso importa: el alto del
+ * descanso depende de cuánto envuelve lo que dice Lyra, que se sortea en cada
+ * descanso, así que la misma app mide distinto en dos corridas: en 360×640,
+ * los botones terminan en 614 con una frase corta y en 638 con una larga.
  *
  * Por eso el portón AVISA cuando mide menos que el techo en vez de bajarlo
  * solo: bajarlo al número de una corrida afortunada haría un trinquete que
- * falla la próxima vez que toque un ejercicio con la indicación más larga. El
- * techo se baja a mano, cuando una mejora de verdad lo justifique.
+ * falla la próxima vez que toque la frase más larga. El techo se baja a mano,
+ * cuando una mejora de verdad lo justifique.
+ *
+ * Los de ahora salen de forzar, una por una, las veintiséis frases de "queda
+ * una" en este mismo recorrido, en los siete días de la semana: con la más
+ * larga terminan en 582 de 568, en 638 de 640 y en 704 de 844. En 360×640
+ * sobran dos píxeles, así que cualquier renglón nuevo en ese descanso hace
+ * fallar el portón, que es exactamente lo que tiene que pasar.
+ *
+ * Y ojo con lo que miden: el descanso se mide después de tocar "Hoy no", que
+ * queda abajo del borde, y para tocarlo la página scrollea entre 13 y 17 px.
+ * Desde arriba de la página, sin ese scroll, los mismos botones terminan en
+ * 595 de 568 y en 655 de 640, lo mismo que mide un día de fuerza sin ráfaga,
+ * donde no hay "Hoy no" que tocar. El trinquete igual agarra un renglón nuevo
+ * —con la frase larga en vez de la corta los botones bajan 24 px—, pero el
+ * desborde de verdad es ese, y llegar a cero es llegar a cero sin scroll.
  */
 const DESBORDE_ACEPTADO = {
-  '320×568': 30,
-  '360×640': 15,
+  '320×568': 14,
+  '360×640': 0,
   '390×844': 0,
 }
 
@@ -417,17 +425,26 @@ async function medirSemana(p, telefono) {
   await p.waitForTimeout(500)
 
   // Se toca un día para que la semana pase a ser propia, que es el estado nuevo
-  // y el que puede desbordar: la fila del sábado pasa de "—" a "FUERZA + FUELLE",
-  // que es el rótulo más largo de los cuatro.
+  // y el que puede desbordar: la fila del sábado pasa de "—" a "LAS DOS", que
+  // es el rótulo más largo de los cuatro.
+  //
+  // Hasta que diga "LAS DOS", y no dos toques a ciegas: un sábado,
+  // `ponerDiaDeEntrenar` ya la dejó ahí, y dos toques más la llevaban a
+  // descanso. Hoy dejaba de ser día de entrenar, y el descanso de más abajo se
+  // medía en una sesión de fuerza pelada en vez de en el día de "las dos": el
+  // portón medía otra pantalla según el día de la semana.
   const sabado = p.getByRole('button', { name: /Sábado/ })
   if (!(await sabado.isVisible().catch(() => false))) {
     culpar(telefono, `[${telefono.nombre}] No se encontró la fila del sábado en la grilla de la semana.`)
     return
   }
-  await sabado.click()
-  await p.waitForTimeout(200)
-  await sabado.click()
-  await p.waitForTimeout(300)
+  for (let i = 0; i < 4 && !/LAS DOS/i.test(await sabado.innerText().catch(() => '')); i++) {
+    await sabado.click()
+    await p.waitForTimeout(250)
+  }
+  if (!/LAS DOS/i.test(await sabado.innerText().catch(() => ''))) {
+    culpar(telefono, `[${telefono.nombre}] La fila del sábado no llegó a "LAS DOS", así que no se midió el rótulo más largo.`)
+  }
 
   const caja = await sabado.boundingBox()
   if (caja && caja.height < 44) {

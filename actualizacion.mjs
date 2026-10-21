@@ -33,9 +33,9 @@ import { readFile, writeFile, rm, cp, mkdtemp } from 'node:fs/promises'
 import { readFileSync, existsSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join, extname } from 'node:path'
+import { CHROMIUM } from './lib/portones.mjs'
 
 const PUBLICADA = process.argv[2] ?? 'origin/main'
-const PUERTO = 4190
 const SUBRUTA = '/LyraFit/'
 const fallos = []
 const sh = (cmd, args, opts = {}) =>
@@ -107,8 +107,10 @@ const servidor = createServer((pedido, respuesta) => {
   })
   respuesta.end(readFileSync(archivo))
 })
-await new Promise((listo) => servidor.listen(PUERTO, '127.0.0.1', listo))
-const BASE = `http://127.0.0.1:${PUERTO}${SUBRUTA.slice(0, -1)}`
+// Cualquier puerto libre: lo único que tiene que repetirse es el origen entre
+// las dos versiones de ESTA corrida, y así dos corridas en paralelo no se pisan.
+await new Promise((listo) => servidor.listen(0, '127.0.0.1', listo))
+const BASE = `http://127.0.0.1:${servidor.address().port}${SUBRUTA.slice(0, -1)}`
 
 // ─── El recorrido que genera datos de verdad ──────────────────────────────
 
@@ -174,9 +176,7 @@ const leerBase = (p) => p.evaluate(async () => {
   return { version: base.version, tablas, filas }
 })
 
-const navegador = await chromium.launch({
-  executablePath: process.env.CHROMIUM_PATH ?? '/opt/pw-browsers/chromium',
-})
+const navegador = await chromium.launch({ executablePath: CHROMIUM })
 
 // ─── 1. La migración del esquema ──────────────────────────────────────────
 {

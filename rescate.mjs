@@ -65,9 +65,8 @@
  */
 
 import { chromium } from 'playwright'
-import { revisarQueSirvaLoCompilado } from './lib/portones.mjs'
+import { BASE, CHROMIUM, revisarQueSirvaLoCompilado } from './lib/portones.mjs'
 
-const BASE = 'http://localhost:4173'
 const fallos = []
 
 /**
@@ -98,9 +97,7 @@ const fallos = []
 
 await revisarQueSirvaLoCompilado(BASE)
 
-const navegador = await chromium.launch({
-  executablePath: process.env.CHROMIUM_PATH ?? '/opt/pw-browsers/chromium',
-})
+const navegador = await chromium.launch({ executablePath: CHROMIUM })
 const contexto = await navegador.newContext({
   viewport: { width: 390, height: 844 },
   colorScheme: 'dark',

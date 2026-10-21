@@ -14,7 +14,8 @@
  * Uso: npm run dev &  →  node figuras.mjs  →  capturas/figuras.png
  */
 import { chromium } from 'playwright'
-const nav = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium' })
+import { CHROMIUM } from './lib/portones.mjs'
+const nav = await chromium.launch({ executablePath: CHROMIUM })
 const ctx = await nav.newContext({ viewport: { width: 1400, height: 1400 }, colorScheme: 'light', locale: 'es-AR', deviceScaleFactor: 2 })
 const p = await ctx.newPage()
 p.on('pageerror', (e) => console.log('JS:', e.message))

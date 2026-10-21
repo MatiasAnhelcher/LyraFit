@@ -1,7 +1,8 @@
 name: Verificar y publicar
 
-# Cada push a main verifica el proyecto y, si pasa, publica la app.
-# Los pull requests solo verifican: nada se publica sin haber sido integrado.
+# Cada push a main verifica el proyecto, corre los portones y, si todo pasa,
+# publica la app. Los pull requests solo verifican: nada se publica sin haber
+# sido integrado.
 on:
   push:
     branches: [main]
@@ -13,12 +14,6 @@ permissions:
   contents: read
   pages: write
   id-token: write
-
-# Si llegan dos pushes seguidos, se cancela el despliegue viejo. Nunca se
-# cancela uno en curso: una publicación a medias es peor que una tardía.
-concurrency:
-  group: pages
-  cancel-in-progress: false
 
 jobs:
   verificar:
@@ -60,11 +55,59 @@ jobs:
         with:
           path: dist
 
+  # Los portones de Playwright, contra la app compilada y servida como la ve
+  # una persona. Son los que agarran lo que los tests no ven: un botón abajo
+  # del pliegue, un contraste que no llega, un dato que se pierde al cerrar.
+  portones:
+    name: Portones
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # `actualizacion.mjs` compila la versión publicada desde `origin/main`
+          # para probar que actualizar no le borra nada a nadie.
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Instalar dependencias
+        run: npm ci
+
+      - name: Instalar Chromium
+        run: |
+          npx playwright install --with-deps chromium
+          echo "CHROMIUM_PATH=$(node -e "import('playwright').then((m) => console.log(m.chromium.executablePath()))")" >> "$GITHUB_ENV"
+
+      - name: Compilar
+        # Sin BASE_PATH: los portones abren la app desde la raíz.
+        run: npm run build
+
+      - name: Servir lo compilado
+        timeout-minutes: 2
+        run: |
+          npx vite preview --port 4173 --strictPort > "$RUNNER_TEMP/preview.log" 2>&1 &
+          until curl -s -o /dev/null http://localhost:4173/; do sleep 1; done
+
+      - name: Correr los portones
+        run: npm run portones
+
   publicar:
     name: Publicar en GitHub Pages
-    needs: verificar
+    needs: [verificar, portones]
     if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
     runs-on: ubuntu-latest
+    # Si llegan dos pushes seguidos, se cancela el despliegue viejo. Nunca se
+    # cancela uno en curso: una publicación a medias es peor que una tardía.
+    # Va en este job y no en todo el workflow: con el grupo arriba, un pull
+    # request hacía fila detrás de la publicación, y al encolarse podía
+    # desplazar a una publicación que esperaba su turno.
+    concurrency:
+      group: pages
+      cancel-in-progress: false
     environment:
       name: github-pages
       url: ${{ steps.despliegue.outputs.page_url }}
