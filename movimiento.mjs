@@ -683,10 +683,46 @@ async function main() {
      * sesiones y cambia de eslabón. El tope existe para que el portón termine
      * aunque algo cambie en el motor; si se agota, lo dice.
      */
+    /*
+     * Y CADA SESIÓN EN SU DÍA.
+     *
+     * Cada cadena se lee una vez por día: catorce sesiones en la misma tarde
+     * dejarían de leer desde la segunda y el salto no llegaría nunca. Así que
+     * el reloj se instala una vez y, antes de cada sesión, se pasa a las 9:00
+     * del siguiente día del plan con fuerza. `setSystemTime` y no
+     * `setFixedTime`: adentro de la sesión el tiempo tiene que correr, para el
+     * cronómetro, los descansos y la coreografía del cierre.
+     *
+     * Los días salen de la semana guardada; el alta de este bloque elige
+     * Cuerpo completo y no la escribe, y entonces son los de esa rutina:
+     * lunes, miércoles y viernes. La hora es la del navegador de `abrir`
+     * (Buenos Aires, UTC−3 todo el año).
+     */
+    const conFuerza =
+      (await conLaBase(pagina, ['preferencias'], async (leer) => {
+        const [preferencias] = await leer('preferencias')
+        if (!preferencias?.semana) return null
+        return Object.entries(preferencias.semana)
+          .filter(([, clase]) => clase === 'fuerza' || clase === 'ambos')
+          .map(([dia]) => Number(dia))
+      })) ?? [1, 3, 5]
+    const siguienteDiaConFuerza = (desde) => {
+      const fecha = new Date(`${desde}T12:00:00Z`)
+      do {
+        fecha.setUTCDate(fecha.getUTCDate() + 1)
+      } while (!conFuerza.includes(fecha.getUTCDay() || 7))
+      return fecha.toISOString().slice(0, 10)
+    }
+    let dia = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Argentina/Buenos_Aires' }).format(new Date())
+    await pagina.clock.install()
+    await pagina.reload({ waitUntil: 'networkidle' })
+
     const TOPE_DE_SESIONES = 14
     let sesiones = 0
     let porQueNo = null
     while (sesiones < TOPE_DE_SESIONES) {
+      dia = siguienteDiaConFuerza(dia)
+      await pagina.clock.setSystemTime(new Date(`${dia}T09:00:00-03:00`))
       porQueNo = await completarUnaSesion(pagina, {
         alVerElDescanso: sesiones === 0 ? () => mirar('El descanso') : null,
       })
@@ -701,6 +737,8 @@ async function main() {
       fallos.push(
         `No se llegó al cierre con movimiento reducido (${porQueNo}), así que las cuatro primitivas que solo existen ahí quedaron sin medir.`,
       )
+    } else if (DEL_CIERRE.every((sel) => vistos[sel] > 0)) {
+      console.log(`· Con movimiento reducido, el salto llegó al cierre en la sesión ${sesiones}, cada una en su día (la última, ${dia}).`)
     }
 
     const nuncaVistos = SOSPECHOSAS.filter((s) => vistos[s] === 0)

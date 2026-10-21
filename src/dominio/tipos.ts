@@ -202,7 +202,26 @@ export interface DecisionGuardada {
   movimiento: string
   explicacion: string
   cambioDeNivel: boolean
+  /**
+   * Por qué salió así, cuando el movimiento solo no lo dice. Ausente en las
+   * sesiones viejas y en las decisiones de siempre.
+   */
+  motivo?: MotivoDeDecision
+  /** Con `ya-leida-hoy`: a qué hora se leyó esa cadena antes, ese mismo día. */
+  leidaA?: number
 }
+
+/**
+ * Las tres razones que una decisión guarda aparte.
+ *
+ * - **ya-leida-hoy**: la cadena ya se leyó ese día en otra sesión. Es neutra y
+ *   no escribe el avance: cada cadena se lee una vez por día.
+ * - **a-medias**: la sesión se cerró desde afuera con el paso sin terminar. Es
+ *   neutra y no gasta la lectura del día.
+ * - **prefatiga**: el paso llegó después de muchas series de sus músculos, y
+ *   la lectura fue protegida. Gasta la lectura del día igual que cualquier otra.
+ */
+export type MotivoDeDecision = 'ya-leida-hoy' | 'a-medias' | 'prefatiga'
 
 /**
  * Una ráfaga metabólica efectivamente hecha.

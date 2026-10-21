@@ -11,6 +11,7 @@ import {
   recordar,
   type Momento,
 } from './frases'
+import { loProhibido } from './palabras'
 
 /**
  * Que la voz de Lyra no se convierta en un cartel.
@@ -82,45 +83,15 @@ describe('el banco de frases', () => {
 })
 
 describe('las cuatro reglas, que son el punto', () => {
-  it('ninguna promete un resultado', () => {
+  it('ninguna promete, culpa, aprieta ni reta', () => {
     // El motor es lo único que proyecta en esta app, y proyecta con una cuenta.
     // Una promesa de una mascota no se puede cumplir ni verificar, y cuando no
-    // se cumple se lleva puesta la credibilidad de lo que sí es cierto.
-    const promesas = [
-      /\bvas a (lograr|conseguir|poder|tener|llegar)\b/i,
-      /\bvas a estar\b/i,
-      /\bgarantiz/i,
-      /\ben (un|dos|tres|seis) (mes|meses|semanas?)\b/i,
-      /\bte lo prometo\b/i,
-      /\bseguro que\b/i,
-    ]
+    // se cumple se lleva puesta la credibilidad de lo que sí es cierto. La
+    // culpa, la urgencia y el reto (racha, "deberías", "te pasaste") no existen
+    // en esta app, y nombrarlos los resucitaría. La lista es una sola para
+    // toda la app y vive en `palabras.ts`: los portones leen la misma.
     for (const linea of TODAS) {
-      for (const patron of promesas) {
-        expect(patron.test(linea), `promete un resultado: "${linea}"`).toBe(false)
-      }
-    }
-  })
-
-  it('ninguna culpa, avergüenza ni mete urgencia', () => {
-    const feas = [
-      /\bno aflojes\b/i,
-      /\bsin excusas?\b/i,
-      /\bvago\b|\bvaga\b/i,
-      /\bperdiste la racha\b/i,
-      /\bracha\b/i, // no existe en esta app, y nombrarla la resucitaría
-      /\búltima oportunidad\b/i,
-      /\bte vas a arrepentir\b/i,
-      /\bnadie más\b.*\bque vos\b/i,
-      /\bdeberías\b/i,
-      /\b(es|fue|por) tu culpa\b/i,
-      /\bculpable\b/i,
-      /\bfracas/i,
-      /\bdébil\b/i,
-    ]
-    for (const linea of TODAS) {
-      for (const patron of feas) {
-        expect(patron.test(linea), `culpa o aprieta: "${linea}"`).toBe(false)
-      }
+      expect(loProhibido(linea), `"${linea}"`).toBeNull()
     }
   })
 

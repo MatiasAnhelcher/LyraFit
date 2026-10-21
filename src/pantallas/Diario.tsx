@@ -329,7 +329,7 @@ export function Diario() {
           ))}
         </Regleta>
 
-        <Pregunta porque="Con alcohol te dormís más rápido, pero la segunda mitad de la noche se vuelve más cortada. Es un dato, no una falta: acá no hay días limpios ni rachas de abstinencia.">
+        <Pregunta porque="Con alcohol te dormís más rápido, pero la segunda mitad de la noche se vuelve más cortada. Es un dato, no una falta: acá no se cuentan días sin tomar.">
           ¿Tomaste alcohol hoy?
         </Pregunta>
         <Regleta className="mt-3" etiqueta="Alcohol">
@@ -365,7 +365,7 @@ export function Diario() {
 
       <p className="mt-8 max-w-[40ch] text-xs leading-relaxed text-[var(--color-glosa)]">
         No hace falta contestar todo, ni contestar todos los días. Lo que quede
-        sin tocar queda sin tocar: acá no hay racha que romper.
+        sin tocar queda sin tocar, y no cuenta en contra de nada.
       </p>
     </div>
   )

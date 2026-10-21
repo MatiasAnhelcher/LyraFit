@@ -613,6 +613,36 @@ export function seriesPorMusculo(sesiones: Sesion[], hoy: string): Map<Musculo, 
   return cuenta
 }
 
+/**
+ * El principal de un ejercicio que más series trae encima, y cuántas.
+ *
+ * Es la cuenta de la prefatiga (`PREFATIGA`, en `progresion.ts`): cuántas
+ * series fraccionales recibió ya cada principal del ejercicio —los de aporte
+ * 1— en los registros que vinieron antes. Suma con la misma regla que
+ * `seriesPorMusculo`, cada serie por su aporte y del piso de dosis para
+ * arriba, para que el número que se diga sea el mismo que muestra el mapa.
+ * Null si el ejercicio no tiene principales o si nada los cargó todavía.
+ */
+export function principalMasCargado(
+  ejercicioId: string,
+  previos: readonly { ejercicioId: string; series: readonly unknown[] }[],
+): { musculo: Musculo; series: number } | null {
+  const vector = APORTE[ejercicioId]
+  if (!vector) return null
+
+  let mas: { musculo: Musculo; series: number } | null = null
+  for (const [musculo, aporte] of Object.entries(vector) as [Musculo, Aporte][]) {
+    if (aporte < 1) continue
+    let series = 0
+    for (const registro of previos) {
+      const suyo = APORTE[registro.ejercicioId]?.[musculo] ?? 0
+      if (suyo >= PISO_DE_DOSIS) series += registro.series.length * suyo
+    }
+    if (series > 0 && (mas === null || series > mas.series)) mas = { musculo, series }
+  }
+  return mas
+}
+
 /** Los músculos que un ejercicio carga como dosis, o sea de 0,5 para arriba. */
 export function musculosDe(ejercicioId: string): Musculo[] {
   const vector = APORTE[ejercicioId]
@@ -695,11 +725,17 @@ export const NECESITAN_BARRA = new Set([
 // El diagnóstico: qué te está faltando, y si la app puede hacer algo.
 // ─────────────────────────────────────────────────────────────────────────
 
-/** Con menos de esto no se afirma nada. Tres sesiones no son un mes. */
+/**
+ * Con menos de esto no se afirma nada. Son días con sesión y no sesiones: tres
+ * en una tarde son una tarde, no tres semanas de datos.
+ */
 export const MINIMO_PARA_OPINAR = 3
 
 export type LoQueFalta =
-  /** Todavía no hay con qué. No es un diagnóstico neutro: es no tener datos. */
+  /**
+   * Todavía no hay con qué. No es un diagnóstico neutro: es no tener datos.
+   * `sesiones` son las de la ventana, para decirlo; el umbral cuenta días.
+   */
   | { clase: 'sin-datos'; sesiones: number }
   /**
    * Un patrón entero que la rutina no incluye, así que no va a aparecer solo.
@@ -743,10 +779,10 @@ export function loQueFalta(entrada: {
   const { sesiones, hoy, rutina, tieneBarra, tieneBarraCargable = false } = entrada
   const dentro = enLaVentana(sesiones, hoy)
 
-  // Con dos sesiones, "te falta piernas" es ruido. La doctrina del documento de
+  // Con dos días, "te falta piernas" es ruido. La doctrina del documento de
   // estrategia lo dice para el peso y vale igual acá: hay que poder decir
   // "todavía no sé".
-  if (dentro.length < MINIMO_PARA_OPINAR) {
+  if (new Set(dentro.map((s) => s.fecha)).size < MINIMO_PARA_OPINAR) {
     return { clase: 'sin-datos', sesiones: dentro.length }
   }
 

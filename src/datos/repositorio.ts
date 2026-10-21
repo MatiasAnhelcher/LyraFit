@@ -28,10 +28,9 @@ import type {
 import { CADENAS, POR_ID, cadenaDe } from '@/dominio/biblioteca'
 import {
   avanceInicial,
-  logradoTipico,
+  leerLaSesion,
   mueveElPlan,
-  rendimientoDeSesion,
-  siguienteAvance,
+  pasosQueSiguenTuNivel,
   type Decision,
 } from '@/dominio/progresion'
 import {
@@ -324,6 +323,11 @@ export interface ResumenSesion {
   decisiones: { patron: Patron; decision: Decision; antes: Avance }[]
   /** El número de sesión en la vida de esta persona. */
   numeroDeSesion: number
+  /**
+   * Cuántos pasos seguían tu nivel, hechos o no. Con cero no había nada que
+   * leer, y es lo único que el Cierre dice del plan cuando no hay decisiones.
+   */
+  pasosDeCadena: number
 }
 
 export interface CierreDeSesion {
@@ -363,8 +367,8 @@ export interface CierreDeSesion {
 
 /**
  * Cierra una sesión: la guarda y hace avanzar (o retroceder) cada patrón que
- * se haya entrenado. Todo pasa dentro de una transacción, así que o queda
- * registrado entero o no queda nada a medias.
+ * se haya entrenado, una vez por día. Todo pasa dentro de una transacción, así
+ * que o queda registrado entero o no queda nada a medias.
  *
  * Acá es donde el chequeo diario se conecta con el motor. No sube ni baja nada
  * por su cuenta: lo único que hace es evitar que una sesión explicada por un
@@ -390,99 +394,70 @@ export async function cerrarSesion(entrada: CierreDeSesion): Promise<ResumenSesi
     ...(entrada.vitalidadPre !== undefined ? { vitalidadPre: entrada.vitalidadPre } : {}),
     ...(entrada.vitalidadPost !== undefined ? { vitalidadPost: entrada.vitalidadPost } : {}),
     ...(entrada.animo !== undefined ? { animo: entrada.animo } : {}),
-    // El fuelle se guarda aparte de los registros, y por eso el bucle de abajo
-    // ni lo ve: no hay forma de que una ráfaga toque una decisión del motor.
+    // El fuelle se guarda aparte de los registros, y por eso la lectura de
+    // abajo ni lo ve: no hay forma de que una ráfaga toque una decisión del motor.
     ...(entrada.rafagas?.length ? { rafagas: entrada.rafagas } : {}),
     ...(entrada.densa ? { densa: true as const } : {}),
   }
 
-  const [avances, estados, historial, preferencias] = await Promise.all([
-    leerAvances(),
-    leerEstados(),
-    leerSesiones(),
-    leerPreferencias(),
-  ])
+  // Todo adentro de una transacción, las lecturas también. Leer afuera y
+  // escribir adentro dejaba una ventana: dos cierres casi juntos (dos pestañas,
+  // o un borrador guardado mientras se cerraba otra sesión) leían el mismo
+  // historial, no se veían entre sí y leían la misma cadena dos veces en el
+  // día. `pendientes` va porque `marcarPendiente` escribe ahí. Adentro solo hay
+  // lecturas de Dexie y cuentas puras: nada que espere afuera de la base.
+  const tablas = [db.sesiones, db.avances, db.estados, db.preferencias, db.pendientes, db.curso]
+  return db.transaction('rw', tablas, async () => {
+    const [avances, estados, historial, preferencias] = await Promise.all([
+      leerAvances(),
+      leerEstados(),
+      leerSesiones(),
+      leerPreferencias(),
+    ])
 
-  // El estado del día de la sesión, que es el que Entrenar usó para armarla.
-  const ajuste = ajusteDelDia(bandaSostenida(estados, dia))
-  const congeladas = cadenasCongeladas(estados, dia)
-  const animo = entrada.animo ?? animoReciente(historial)
+    // El estado del día de la sesión, que es el que Entrenar usó para armarla.
+    const ajuste = ajusteDelDia(bandaSostenida(estados, dia))
+    const animo = entrada.animo ?? animoReciente(historial)
 
-  const decisiones: ResumenSesion['decisiones'] = []
+    /**
+     * La barra cargable, o nada.
+     *
+     * Los tres campos o ninguno: sin el peso corporal los kilos no se traducen
+     * a la escala del motor, sin el tope la app propondría un peso que no
+     * existe en la casa de la persona, y sin el paso de disco propondría 1,8
+     * kg, que no se puede poner con discos de 2,5. Mientras falte cualquiera,
+     * el motor se comporta exactamente como antes de que existieran los kilos
+     * — que es el caso de quien entrena con el piso y una barra de dominadas,
+     * o sea el caso por defecto.
+     */
+    const barra =
+      preferencias.pesoCorporalKg && preferencias.cargaMaximaKg && preferencias.pasoDeDiscoKg
+        ? {
+            pesoCorporalKg: preferencias.pesoCorporalKg,
+            cargaMaximaKg: preferencias.cargaMaximaKg,
+            pasoDeDiscoKg: preferencias.pasoDeDiscoKg,
+          }
+        : undefined
 
-  /**
-   * La barra cargable, o nada.
-   *
-   * Los tres campos o ninguno: sin el peso corporal los kilos no se traducen a
-   * la escala del motor, sin el tope la app propondría un peso que no existe
-   * en la casa de la persona, y sin el paso de disco propondría 1,8 kg, que no
-   * se puede poner con discos de 2,5. Mientras falte cualquiera, el motor se
-   * comporta exactamente como antes de que existieran los kilos — que es el
-   * caso de quien entrena con el piso y una barra de dominadas, o sea el caso
-   * por defecto.
-   */
-  const barra =
-    preferencias.pesoCorporalKg && preferencias.cargaMaximaKg && preferencias.pasoDeDiscoKg
-      ? {
-          pesoCorporalKg: preferencias.pesoCorporalKg,
-          cargaMaximaKg: preferencias.cargaMaximaKg,
-          pasoDeDiscoKg: preferencias.pasoDeDiscoKg,
-        }
-      : undefined
-
-  for (const registro of conSeries) {
-    const ejercicio = POR_ID.get(registro.ejercicioId)
-    if (!ejercicio) continue
-
-    const avance = avances.get(ejercicio.patron)
-    // Solo progresa el patrón si se entrenó el ejercicio que tocaba. Meter una
-    // flexión suelta un domingo no debería mover el plan. Es también lo que
-    // deja quieto al motor el día de una molestia: el eslabón de abajo que
-    // pone `bloqueConMolestia` es otro ejercicio (y tiene su test).
-    if (!avance || avance.ejercicioId !== ejercicio.id) continue
-
-    // Un registro que solo tiene la serie de cierre no es una sesión de ese
-    // ejercicio: es el saludo del final, que cae sobre el ejercicio más fácil
-    // del plan aunque lo hayas salteado. Sin esto, saltear piernas te BAJA de
-    // eslabón en piernas: la serie de cierre no cuenta para el rendimiento
-    // —eso es correcto y deliberado— así que el registro queda con cero series
-    // válidas contra un objetivo de tres, o sea rendimiento exactamente 0, que
-    // el motor lee como el peor fracaso posible. Saltear un ejercicio tiene que
-    // ser neutro, nunca un castigo: castigar por haber hecho algo es la peor
-    // lección que puede dar esta app.
-    if (!registro.series.some((serie) => !serie.cierre && serie.logrado > 0)) continue
-
-    // Qué tipos de sesión mueven el plan lo decide el motor, no esta capa:
-    // está en `mueveElPlan`, con las razones y con un test que las cubre.
-    const neutra =
-      !mueveElPlan(tipo) || ajuste.neutra || congeladas.has(ejercicio.patron)
-
-    const decision = siguienteAvance(
-      avance,
-      {
-        // El contexto es lo que deja comparar series con distinta carga. Sin
-        // peso corporal cargado en Ajustes no hay traducción posible y las
-        // cuentas quedan exactamente como estaban: `traducirAlObjetivo` lo
-        // resuelve adentro, así que acá no hay condicional que mantener.
-        rendimiento: rendimientoDeSesion(registro.objetivo, registro.series, {
-          ejercicio,
-          ...(preferencias.pesoCorporalKg !== undefined
-            ? { pesoCorporalKg: preferencias.pesoCorporalKg }
-            : {}),
-        }),
-        tipico: logradoTipico(registro.series, {
-          ejercicio,
-          objetivo: registro.objetivo,
-          ...(preferencias.pesoCorporalKg !== undefined
-            ? { pesoCorporalKg: preferencias.pesoCorporalKg }
-            : {}),
-        }),
-        neutra,
-        protegida: ajuste.protegida,
-        ...(animo !== undefined ? { animo } : {}),
-      },
-      {
-        cadena: cadenaDe(ejercicio.patron),
+    // Qué registro lee cada cadena, si ya se leyó hoy, la prefatiga y la
+    // decisión del motor: todo en `leerLaSesion`, que es lo mismo que corre la
+    // simulación. Acá queda lo que sale de la base.
+    const lecturas = leerLaSesion({
+      registros: conSeries,
+      avances,
+      dia,
+      historial,
+      // Qué tipos de sesión mueven el plan lo decide el motor, no esta capa:
+      // está en `mueveElPlan`, con las razones y con un test que las cubre.
+      neutra: !mueveElPlan(tipo) || ajuste.neutra,
+      congeladas: cadenasCongeladas(estados, dia),
+      protegida: ajuste.protegida,
+      ...(animo !== undefined ? { animo } : {}),
+      ...(preferencias.pesoCorporalKg !== undefined
+        ? { pesoCorporalKg: preferencias.pesoCorporalKg }
+        : {}),
+      contextoDe: (patron) => ({
+        cadena: cadenaDe(patron),
         ejercicios: POR_ID,
         ...(barra ? { barra } : {}),
         // Lo que el motor no puede abrir aunque se cumpla: lo colgado sin
@@ -490,48 +465,51 @@ export async function cerrarSesion(entrada: CierreDeSesion): Promise<ResumenSesi
         // completas. Se calcula con los avances de antes de esta sesión, así
         // que un objetivo de dominadas que llega a 8 hoy abre la palanca
         // desde la próxima.
-        cerrados: eslabonesCerrados(
-          cadenaDe(ejercicio.patron),
-          avances,
-          preferencias.tieneBarra !== false,
-        ),
-      },
-    )
-
-    decisiones.push({ patron: ejercicio.patron, decision, antes: avance })
-  }
-
-  // Lo que el motor acaba de decidir se guarda con la sesión, no solo se
-  // devuelve para pintar el cierre. Se copia el texto y no una referencia: si
-  // mañana cambian las reglas, el historial tiene que seguir diciendo lo que la
-  // app dijo esa noche.
-  if (decisiones.length > 0) {
-    sesion.decisiones = decisiones.map(({ patron, decision }) => ({
+        cerrados: eslabonesCerrados(cadenaDe(patron), avances, preferencias.tieneBarra !== false),
+      }),
+      ahora: sesion.finalizadaEn,
+    })
+    const decisiones: ResumenSesion['decisiones'] = lecturas.map(({ patron, decision, antes }) => ({
       patron,
-      movimiento: decision.movimiento,
-      explicacion: decision.explicacion,
-      cambioDeNivel: decision.cambioDeNivel,
+      decision,
+      antes,
     }))
-  }
 
-  const tablas = [
-    db.sesiones,
-    db.avances,
-    db.pendientes,
-    ...(entrada.cierraElBorrador ? [db.curso] : []),
-  ]
-  await db.transaction('rw', tablas, async () => {
+    // Lo que el motor acaba de decidir se guarda con la sesión, no solo se
+    // devuelve para pintar el cierre. Se copia el texto y no una referencia: si
+    // mañana cambian las reglas, el historial tiene que seguir diciendo lo que
+    // la app dijo esa noche.
+    if (decisiones.length > 0) {
+      sesion.decisiones = decisiones.map(({ patron, decision }) => ({
+        patron,
+        movimiento: decision.movimiento,
+        explicacion: decision.explicacion,
+        cambioDeNivel: decision.cambioDeNivel,
+        ...(decision.motivo ? { motivo: decision.motivo } : {}),
+        ...(decision.leidaA !== undefined ? { leidaA: decision.leidaA } : {}),
+      }))
+    }
+
     await db.sesiones.put(sesion)
     await marcarPendiente('sesiones', sesion.id)
-    for (const { decision } of decisiones) {
-      await guardarAvance(decision.avance)
+    // Una cadena ya leída hoy no se escribe: su avance queda idéntico, la
+    // fecha incluida.
+    for (const { decision, guardar } of lecturas) {
+      if (guardar) await guardarAvance(decision.avance)
     }
     // Adentro y no después: o quedan la sesión guardada y el borrador borrado,
     // o no queda ninguna de las dos cosas y la sesión sigue en pantalla.
     if (entrada.cierraElBorrador) await db.curso.delete('actual')
-  })
 
-  return { sesion, decisiones, numeroDeSesion: historial.length + 1 }
+    return {
+      sesion,
+      decisiones,
+      numeroDeSesion: historial.length + 1,
+      // Con todos los registros y no solo los que tienen series: un paso de
+      // cadena sin hacer sigue siendo un paso de cadena.
+      pasosDeCadena: pasosQueSiguenTuNivel(entrada.registros, avances),
+    }
+  })
 }
 
 export async function borrarSesion(id: string): Promise<void> {

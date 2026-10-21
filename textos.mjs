@@ -23,12 +23,18 @@
  *      veces por semana "rinde más", ni "cada músculo un solo día" (el core y
  *      los brazos se repiten entre las cuatro), ni el pectoral interno, ni el
  *      tempo "rindiendo más" que el peso.
+ *   5. **Ninguna pantalla recorrida dice algo de `PROHIBIDAS`**, la misma
+ *      lista que leen los tests de dominio (`lib/palabras.mjs`, copia de
+ *      `palabras.ts`): ni promesas, ni reto, ni "demasiado", ni "48 horas", ni
+ *      "previene". El Cierre de la tercera sesión del día lo lee
+ *      `tres-sesiones.mjs`.
  *
  * Uso: npm run build && npx vite preview --port 4173, y después `node textos.mjs`.
  * Con otro puerto: `BASE=http://localhost:4184 node textos.mjs`.
  */
 
 import { BASE, abrir, alta, conLaBase, revisarQueSirvaLoCompilado } from './lib/portones.mjs'
+import { loProhibido } from './lib/palabras.mjs'
 
 await revisarQueSirvaLoCompilado(BASE)
 
@@ -37,6 +43,14 @@ const { navegador, pagina: p, fallos } = await abrir({ viewport: { width: 360, h
 const notas = []
 
 const texto = async () => p.locator('body').innerText()
+/** Las pantallas que se leyeron enteras contra `PROHIBIDAS`. */
+const leidas = []
+/** Lo que dice la pantalla de ahora, contra la lista de lo que no se dice nunca. */
+const sinProhibidas = async (donde) => {
+  const dicho = loProhibido(await texto())
+  if (dicho) fallos.push(`${donde} dice "${dicho}", que la app no dice nunca (lib/palabras.mjs).`)
+  else leidas.push(donde)
+}
 const ir = async (ruta) => {
   await p.goto(`${BASE}/#${ruta}`, { waitUntil: 'networkidle' })
   await p.waitForTimeout(600)
@@ -63,6 +77,7 @@ try {
   if (/\bcansad[oa]\b/i.test(await texto())) {
     fallos.push('El chequeo diario sigue diciendo "Cansado": le supone un género a la persona.')
   }
+  await sinProhibidas('El chequeo diario')
 
   // ── 1. Café a las 20, sin hora de acostarse ───────────────────────────────
   await ir('/diario')
@@ -77,6 +92,7 @@ try {
   if (diarioSinHora.includes('Tomaste cafeína')) {
     fallos.push('Sin hora de acostarse, el diario igual avisa de la cafeína.')
   }
+  await sinProhibidas('El diario')
 
   const antes = await filaDeHoy()
   if (!antes.fila || antes.fila.ultimaCafeina !== 20 * 60) {
@@ -93,6 +109,7 @@ try {
   if ((await texto()).includes('Tomaste cafeína')) {
     fallos.push('Sin hora de acostarse, Hoy igual avisa de la cafeína.')
   }
+  await sinProhibidas('Hoy')
 
   // ── 2. Con la hora en la base, el aviso sale y habla de esta noche ────────
   // Una escritura cruda no despierta a `liveQuery`: hay que recargar.
@@ -133,6 +150,15 @@ try {
   if (/cada músculo/i.test(ajustes)) {
     fallos.push('Ajustes dice "cada músculo": el core y los brazos se repiten entre las cuatro rutinas por grupo.')
   }
+  await sinProhibidas('Ajustes')
+
+  for (const [ruta, nombre] of [
+    ['/progreso', 'Progreso'],
+    ['/biblioteca', 'Cadenas'],
+  ]) {
+    await ir(ruta)
+    await sinProhibidas(nombre)
+  }
 
   for (const [id, prohibidas, presente] of [
     ['flexion-diamante', /pectoral interno|interna del pectoral/i, 'Manos juntas debajo del pecho'],
@@ -146,6 +172,7 @@ try {
     } else if (prohibidas.test(ficha)) {
       fallos.push(`La ficha de ${id} afirma algo sin fuente (${prohibidas}).`)
     }
+    await sinProhibidas(`La ficha de ${id}`)
   }
 } catch (e) {
   fallos.push(`El recorrido se cortó: ${e.message}`)
@@ -153,6 +180,7 @@ try {
   await navegador.close()
 }
 
+if (leidas.length > 0) notas.push(`Sin nada de PROHIBIDAS: ${leidas.join(', ')}.`)
 for (const n of notas) console.log(`· ${n}`)
 if (fallos.length > 0) {
   console.error(`\n${fallos.length} problema(s):`)

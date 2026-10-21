@@ -167,19 +167,29 @@ export function vitalidad(sesiones: Sesion[], ultimas = 10): Vitalidad | null {
 }
 
 /**
- * Ánimo medio de las últimas sesiones, de -2 a +2.
+ * Ánimo medio de los últimos días con sesión, de -2 a +2.
  *
  * Lo mira el motor de progresión antes de subir la exigencia. La respuesta
  * afectiva al entrenamiento predice si va a haber una próxima sesión mejor que
  * cualquier medida de rendimiento, así que apretar el acelerador justo cuando
  * alguien la está pasando mal es la forma más segura de perderlo.
+ *
+ * Cuenta días y no sesiones: cada día vale el promedio de lo que se contestó
+ * ese día. Con sesiones, una tarde de tres sesiones mala tapaba la semana
+ * entera, y una buena la tapaba igual.
  */
-export function animoReciente(sesiones: Sesion[], ultimas = 3): number | undefined {
-  const valores = [...sesiones]
-    .sort((a, b) => b.finalizadaEn - a.finalizadaEn)
-    .slice(0, ultimas)
-    .map((s) => s.animo)
-    .filter((a): a is number => a !== undefined)
+export function animoReciente(sesiones: Sesion[], ultimos = 3): number | undefined {
+  const porDia = new Map<string, number[]>()
+  for (const s of [...sesiones].sort((a, b) => b.finalizadaEn - a.finalizadaEn)) {
+    const delDia = porDia.get(s.fecha)
+    if (!delDia && porDia.size >= ultimos) continue
+    const lista = delDia ?? []
+    if (s.animo !== undefined) lista.push(s.animo)
+    porDia.set(s.fecha, lista)
+  }
+  const valores = [...porDia.values()]
+    .filter((lista) => lista.length > 0)
+    .map((lista) => lista.reduce((a, b) => a + b, 0) / lista.length)
 
   if (valores.length < 2) return undefined
   return valores.reduce((a, b) => a + b, 0) / valores.length

@@ -8,6 +8,7 @@
 
 import { describe, expect, it } from 'vitest'
 import { CADENAS, EJERCICIOS, FUERA_DE_CADENA, POR_ID, REQUISITOS, cadenaDe } from './biblioteca'
+import { PROHIBIDAS, loProhibido } from './palabras'
 import { requisitoDicho } from './progresion'
 
 /**
@@ -199,7 +200,10 @@ describe('cada ejercicio está bien formado', () => {
 })
 
 describe('el vocabulario no promete lo que no puede', () => {
-  const PROHIBIDAS = [
+  // Los mecanismos son propios de las fichas: palabras que solo un texto de
+  // técnica tentaría a usar. Lo que la app no dice nunca, en ningún lado, es
+  // `PROHIBIDAS`, y se lee de `palabras.ts`.
+  const MECANISMOS = [
     'bdnf',
     'neuroplasticidad',
     'cortisol',
@@ -223,9 +227,20 @@ describe('el vocabulario no promete lo que no puede', () => {
   it('ningún texto de la biblioteca afirma un mecanismo que no se pueda sostener', () => {
     for (const e of EJERCICIOS) {
       const texto = [e.resumen, ...e.tecnica, ...e.erroresComunes].join(' ').toLowerCase()
-      for (const palabra of PROHIBIDAS) {
+      for (const palabra of MECANISMOS) {
         expect(texto, `${e.id} dice "${palabra}"`).not.toContain(palabra)
       }
     }
+  })
+
+  it('ninguna ficha dice algo de lo que la app no dice nunca', () => {
+    // Una ficha se lee con el ejercicio en la mano: "el peso es demasiado"
+    // suena a reto aunque hable de la barra, y "sobra peso" dice lo mismo.
+    for (const e of EJERCICIOS) {
+      for (const texto of [e.nombre, e.resumen, ...e.tecnica, ...e.erroresComunes]) {
+        expect(loProhibido(texto), `${e.id}: "${texto}"`).toBeNull()
+      }
+    }
+    expect(PROHIBIDAS.length).toBeGreaterThan(30)
   })
 })

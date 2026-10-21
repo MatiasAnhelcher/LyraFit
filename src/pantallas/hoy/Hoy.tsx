@@ -272,6 +272,7 @@ export function Hoy() {
         // el anterior al que ya tenés. Anunciarlo sería una promesa falsa. El
         // eslabón bajado por una molestia, tampoco: no es el del motor. Y un
         // eslabón cerrado tampoco: el motor no lo va a abrir aunque cumplas.
+        // Ni una cadena que ya se leyó hoy: hasta mañana no se vuelve a leer.
         abre:
           accesorio || porMolestia
             ? null
@@ -281,6 +282,7 @@ export function Hoy() {
                 POR_ID,
                 cuenta,
                 eslabonesCerrados(cadenaDe(bloque.patron), avances, tieneBarra),
+                { dia: fecha, historial: sesiones },
               ),
       },
     ]

@@ -20,6 +20,7 @@ import {
   tocaEntrenar,
 } from './rutinas'
 import type { ClaseDeDia } from './rutinas'
+import { loProhibido } from './palabras'
 import type { Semana } from './tipos'
 
 /**
@@ -300,5 +301,21 @@ describe('lo que la app tiene para decir de una semana', () => {
       expect(aviso.texto.length, aviso.clave).toBeGreaterThan(20)
       expect(aviso.texto.length, aviso.clave).toBeLessThan(240)
     }
+  })
+
+  it('los días seguidos se dicen con lo que el motor hace, sin reto', () => {
+    // Con una lectura por día, los días seguidos se leen uno por uno: decirlo
+    // así es verdad, y una regla de horas no lo sería.
+    for (const fuerza of [[1, 2, 3, 4, 5], [1, 2, 3, 4, 5, 6], [1, 2, 3, 4, 5, 6, 7]]) {
+      for (const aviso of revisarSemana(semana({ fuerza }), cuerpoCompleto)) {
+        expect(loProhibido(aviso.texto), aviso.texto).toBeNull()
+        expect(aviso.texto, aviso.clave).not.toMatch(/48|cansad|recuper/i)
+      }
+    }
+    const seis = revisarSemana(semana({ fuerza: [1, 2, 3, 4, 5, 6] }), cuerpoCompleto)
+    expect(seis.find((a) => a.clave === 'sin-recuperacion')?.texto).toMatch(/^Seis días de fuerza/)
+    expect(seis.find((a) => a.clave === 'seguidos')?.texto).toBe(
+      'Hay 6 días de fuerza seguidos. Cada uno lee tus cadenas una vez, con lo que salga ese día.',
+    )
   })
 })

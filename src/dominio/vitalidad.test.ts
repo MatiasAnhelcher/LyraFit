@@ -157,6 +157,34 @@ describe('ánimo reciente', () => {
   it('con un solo dato no dice nada', () => {
     expect(animoReciente([sesion(1, [{ logrado: 10 }], { animo: -2 })])).toBeUndefined()
   })
+
+  it('cuenta los tres últimos días distintos, no las tres últimas sesiones', () => {
+    // Una tarde con tres sesiones malas vale un día: no tapa los dos de antes.
+    const dia = (n: number, animo: number, extra: Partial<Sesion> = {}) =>
+      sesion(n, [{ logrado: 10 }], { animo, ...extra })
+    const sesiones = [
+      dia(1, 0),
+      dia(2, 2),
+      dia(3, 2),
+      dia(4, -2, { id: 'a', finalizadaEn: 4 * 86_400_000 + 1 }),
+      dia(4, -2, { id: 'b', finalizadaEn: 4 * 86_400_000 + 2 }),
+      dia(4, -2, { id: 'c', finalizadaEn: 4 * 86_400_000 + 3 }),
+    ]
+    // Días 2, 3 y 4: (2 + 2 - 2) / 3. Por sesiones habría dado -2.
+    expect(animoReciente(sesiones)).toBeCloseTo(2 / 3)
+  })
+
+  it('dentro de un día, promedia lo que se contestó ese día', () => {
+    const sesiones = [
+      sesion(1, [{ logrado: 10 }], { animo: 0 }),
+      sesion(2, [{ logrado: 10 }], { id: 'a', animo: 2, finalizadaEn: 2 * 86_400_000 + 1 }),
+      sesion(2, [{ logrado: 10 }], { id: 'b', animo: -2, finalizadaEn: 2 * 86_400_000 + 2 }),
+      sesion(2, [{ logrado: 10 }], { id: 'c', finalizadaEn: 2 * 86_400_000 + 3 }),
+    ]
+    expect(animoReciente(sesiones)).toBeCloseTo(0)
+    // Tres sesiones contestadas en un solo día son un dato, no tres.
+    expect(animoReciente(sesiones.slice(1))).toBeUndefined()
+  })
 })
 
 describe('carga interna', () => {

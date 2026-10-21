@@ -6,6 +6,7 @@ import {
   CONSOLIDACION,
   GRACIA,
   MESETA,
+  PREFATIGA,
 
   avanceInicial,
   cantidadParaCarga,
@@ -13,8 +14,10 @@ import {
   conUnidad,
   incremento,
   indiceDeCarga,
+  leerLaSesion,
   logradoTipico,
   mueveElPlan,
+  pasosQueSiguenTuNivel,
   porcentajeDeCadena,
   recalibrar,
   rellenoDeVentana,
@@ -23,9 +26,14 @@ import {
   requisitoDicho,
   siguienteAvance,
   ubicarEnCadena,
+  unaPorPatron,
+  yaLeidaHoy,
   type Cierre,
+  type Lectura,
+  type RegistroQueLee,
+  type SesionALeer,
 } from './progresion'
-import type { Avance, Objetivo, Serie, TipoSesion } from './tipos'
+import type { Avance, Objetivo, Patron, Serie, Sesion, TipoSesion } from './tipos'
 
 const empuje = cadenaDe('empuje')
 const ctx = { cadena: empuje, ejercicios: POR_ID }
@@ -899,5 +907,276 @@ describe('los kilos, que entran sin mover nada de lo que ya estaba', () => {
     const traducido = logradoTipico(series, { ejercicio, objetivo, pesoCorporalKg: PESO })
     expect(pelado).toBe(8)
     expect(traducido).toBeGreaterThan(pelado)
+  })
+})
+
+/**
+ * Varias sesiones por día.
+ *
+ * Una lectura por cadena y por día: la primera sesión que la sigue la lee, y
+ * las demás suman volumen. Todo pasa por `leerLaSesion`, que es exactamente lo
+ * que corre `cerrarSesion`.
+ */
+describe('varias sesiones por día', () => {
+  const DIA = '2026-10-21'
+  /** Un instante de ese día, en la hora local de quien corre el test. */
+  const a = (h: number, m: number) => new Date(2026, 9, 21, h, m).getTime()
+
+  const avances = new Map<Patron, Avance>([
+    ['empuje', avanceEn('flexion-completa', 8, { senal: 0.9, actualizadoEn: 7 })],
+    [
+      'traccion',
+      {
+        ...avanceEn('remo-australiano-alto', 10, { actualizadoEn: 7 }),
+        patron: 'traccion',
+      },
+    ],
+  ])
+
+  function registro(
+    ejercicioId: string,
+    logrados: number[],
+    extra: Partial<RegistroQueLee> = {},
+  ): RegistroQueLee {
+    return {
+      ejercicioId,
+      objetivo: { series: logrados.length, cantidad: 8 },
+      series: series(...logrados),
+      ...extra,
+    }
+  }
+
+  function leer(
+    registros: RegistroQueLee[],
+    historial: Sesion[] = [],
+    extra: Partial<SesionALeer> = {},
+  ): Lectura[] {
+    return leerLaSesion({
+      registros,
+      avances,
+      dia: DIA,
+      historial,
+      neutra: false,
+      congeladas: new Set(),
+      protegida: false,
+      contextoDe: (patron) => ({ cadena: cadenaDe(patron), ejercicios: POR_ID }),
+      ahora: a(9, 10),
+      ...extra,
+    })
+  }
+
+  /** La sesión como la guarda `cerrarSesion`, con sus decisiones copiadas. */
+  function guardada(
+    lecturas: Lectura[],
+    finalizadaEn: number,
+    registros: RegistroQueLee[] = [],
+  ): Sesion {
+    return {
+      id: `s-${finalizadaEn}`,
+      fecha: DIA,
+      finalizadaEn,
+      duracionSegundos: 1800,
+      tipo: 'plan',
+      registros: registros.map(({ ejercicioId, objetivo, series: hechas }) => ({
+        ejercicioId,
+        objetivo,
+        series: hechas,
+      })),
+      decisiones: lecturas.map(({ patron, decision }) => ({
+        patron,
+        movimiento: decision.movimiento,
+        explicacion: decision.explicacion,
+        cambioDeNivel: decision.cambioDeNivel,
+        ...(decision.motivo ? { motivo: decision.motivo } : {}),
+        ...(decision.leidaA !== undefined ? { leidaA: decision.leidaA } : {}),
+      })),
+    }
+  }
+
+  describe('yaLeidaHoy', () => {
+    const sesionCon = (
+      finalizadaEn: number,
+      movimiento: string,
+      patron: Patron = 'empuje',
+      fecha = DIA,
+    ): Sesion => ({
+      id: `s-${finalizadaEn}`,
+      fecha,
+      finalizadaEn,
+      duracionSegundos: 1800,
+      tipo: 'plan',
+      registros: [],
+      decisiones: [{ patron, movimiento, explicacion: '', cambioDeNivel: false }],
+    })
+
+    it('sin una lectura ese día, no', () => {
+      expect(yaLeidaHoy('empuje', DIA, [])).toBeNull()
+      const ayer = sesionCon(1, 'subida', 'empuje', '2026-10-20')
+      expect(yaLeidaHoy('empuje', DIA, [ayer])).toBeNull()
+      expect(yaLeidaHoy('empuje', DIA, [sesionCon(1, 'subida', 'traccion')])).toBeNull()
+    })
+
+    it('una decisión neutra no es una lectura', () => {
+      expect(yaLeidaHoy('empuje', DIA, [sesionCon(a(9, 10), 'neutra')])).toBeNull()
+    })
+
+    it('da la hora de la primera lectura del día', () => {
+      const historial = [sesionCon(a(13, 30), 'sostiene'), sesionCon(a(9, 10), 'subida')]
+      expect(yaLeidaHoy('empuje', DIA, historial)).toBe(a(9, 10))
+    })
+  })
+
+  describe('unaPorPatron', () => {
+    it('decide el primer paso de la cadena, en el orden de la sesión', () => {
+      const pasos = unaPorPatron(
+        [
+          registro('remo-australiano-alto', [10, 10, 10]),
+          registro('flexion-completa', [8, 8, 8]),
+          registro('flexion-completa', [3, 3, 3]),
+        ],
+        avances,
+      )
+      expect(pasos).toEqual([
+        { patron: 'traccion', indice: 0 },
+        { patron: 'empuje', indice: 1 },
+      ])
+    })
+
+    it('un registro fijo, de bajada, de calentamiento o del Reloj no decide', () => {
+      for (const marca of [
+        { fijo: true },
+        { bajada: true },
+        { calentamiento: true },
+        { reloj: true },
+      ] as const) {
+        const solo = unaPorPatron([registro('flexion-completa', [8, 8, 8], marca)], avances)
+        expect(solo, JSON.stringify(marca)).toEqual([])
+        // Y no le quita el lugar al paso que sí sigue tu nivel.
+        expect(
+          unaPorPatron(
+            [registro('flexion-completa', [8, 8, 8], marca), registro('flexion-completa', [8, 8, 8])],
+            avances,
+          ),
+        ).toEqual([{ patron: 'empuje', indice: 1 }])
+      }
+    })
+
+    it('ni otro eslabón, ni un paso salteado, ni la serie de cierre sola', () => {
+      expect(unaPorPatron([registro('flexion-diamante', [8, 8, 8])], avances)).toEqual([])
+      expect(unaPorPatron([registro('flexion-completa', [])], avances)).toEqual([])
+      const soloCierre: RegistroQueLee = {
+        ...registro('flexion-completa', []),
+        series: [{ logrado: 5, cierre: true }],
+      }
+      expect(unaPorPatron([soloCierre], avances)).toEqual([])
+    })
+  })
+
+  it('los pasos que siguen tu nivel se cuentan hechos o no', () => {
+    expect(
+      pasosQueSiguenTuNivel(
+        [
+          registro('flexion-completa', []),
+          registro('remo-australiano-alto', [10]),
+          registro('flexion-completa', [8], { fijo: true }),
+          registro('flexion-inclinada-baja', [8], { bajada: true }),
+          registro('flexion-diamante', [8]),
+        ],
+        avances,
+      ),
+    ).toBe(2)
+    expect(pasosQueSiguenTuNivel([registro('flexion-diamante', [8])], avances)).toBe(0)
+  })
+
+  it('una cadena ya leída hoy queda neutra, con la hora, y no devuelve avance para guardar', () => {
+    const manana = [registro('flexion-completa', [8, 8, 8])]
+    const primera = leer(manana)
+    expect(primera).toHaveLength(1)
+    expect(primera[0]!.guardar).toBe(true)
+    expect(primera[0]!.decision.movimiento).not.toBe('neutra')
+
+    const historial = [guardada(primera, a(9, 10), manana)]
+    const tarde = leer([registro('flexion-completa', [3, 3, 3])], historial, { ahora: a(19, 5) })
+    expect(tarde).toHaveLength(1)
+    const { decision, guardar } = tarde[0]!
+    expect(guardar).toBe(false)
+    expect(decision.movimiento).toBe('neutra')
+    expect(decision.motivo).toBe('ya-leida-hoy')
+    expect(decision.leidaA).toBe(a(9, 10))
+    expect(decision.cambioDeNivel).toBe(false)
+    expect(decision.explicacion).toBe('Empuje ya se leyó hoy a las 9:10: esta sesión sumó volumen.')
+    // El mismo avance, sin pasar por la rama neutra: `actualizadoEn` incluido.
+    expect(decision.avance).toBe(avances.get('empuje'))
+  })
+
+  it('al día siguiente se vuelve a leer', () => {
+    const manana = [registro('flexion-completa', [8, 8, 8])]
+    const historial = [guardada(leer(manana), a(9, 10), manana)]
+    const otroDia = leer(manana, historial, { dia: '2026-10-22' })
+    expect(otroDia[0]!.guardar).toBe(true)
+    expect(otroDia[0]!.decision.motivo).toBeUndefined()
+  })
+
+  it('una sesión neutra no gasta la lectura del día', () => {
+    // Una sesión corta o un día rojo no leyeron nada: la de la tarde lee.
+    const manana = [registro('flexion-completa', [8, 8, 8])]
+    const neutra = leer(manana, [], { neutra: true })
+    expect(neutra[0]!.decision.movimiento).toBe('neutra')
+    expect(neutra[0]!.decision.motivo).toBeUndefined()
+    const tarde = leer(manana, [guardada(neutra, a(9, 10), manana)], { ahora: a(19, 5) })
+    expect(tarde[0]!.decision.movimiento).not.toBe('neutra')
+    expect(tarde[0]!.guardar).toBe(true)
+  })
+
+  describe('la prefatiga', () => {
+    // Una lectura floja: tres series de 3 contra un objetivo de 3 × 8.
+    const floja = registro('flexion-completa', [3, 3, 3])
+    // Siete series de pectoral antes del paso de empuje.
+    const diamante = registro('flexion-diamante', [6, 6, 6, 6, 6, 6, 6])
+
+    it('después de muchas series de sus principales, la lectura va protegida', () => {
+      const sola = leer([floja])[0]!.decision
+      const despues = leer([diamante, floja])[0]!.decision
+      // Sin prefatiga, la floja arrastra la señal y baja el objetivo; con ella,
+      // esta vez no bajó.
+      expect(sola.movimiento).toBe('bajada')
+      expect(despues.avance.senal).toBe(avances.get('empuje')!.senal)
+      expect(despues.movimiento).toBe('sostiene')
+      expect(despues.motivo).toBe('prefatiga')
+    })
+
+    it('cuenta lo de las sesiones anteriores del día', () => {
+      const manana = [diamante, registro('remo-australiano-alto', [10, 10, 10])]
+      const historial = [guardada(leer(manana), a(9, 10), manana)]
+      // La de la mañana leyó tracción y no empuje: empuje se lee a la tarde,
+      // con las siete de pectoral de la mañana encima.
+      const tarde = leer([floja], historial, { ahora: a(19, 5) })[0]!.decision
+      expect(tarde.motivo).toBe('prefatiga')
+      expect(tarde.movimiento).toBe('sostiene')
+    })
+
+    it(`por debajo de ${PREFATIGA} series no protege`, () => {
+      const pocas = registro('flexion-diamante', [6, 6, 6, 6, 6])
+      const decision = leer([pocas, floja])[0]!.decision
+      expect(decision.motivo).toBeUndefined()
+      expect(decision.movimiento).toBe('bajada')
+    })
+
+    it('una lectura protegida gasta la lectura del día', () => {
+      const manana = [diamante, floja]
+      const primera = leer(manana)
+      expect(primera[0]!.decision.motivo).toBe('prefatiga')
+      const historial = [guardada(primera, a(9, 10), manana)]
+      // La de la tarde no puede volver a leer empuje para buscar otro resultado.
+      const tarde = leer([registro('flexion-completa', [8, 8, 8])], historial, { ahora: a(19, 5) })
+      expect(tarde[0]!.decision.motivo).toBe('ya-leida-hoy')
+      expect(tarde[0]!.guardar).toBe(false)
+    })
+
+    it('en una sesión neutra no hay nada que proteger, y no se dice', () => {
+      const decision = leer([diamante, floja], [], { neutra: true })[0]!.decision
+      expect(decision.movimiento).toBe('neutra')
+      expect(decision.motivo).toBeUndefined()
+    })
   })
 })

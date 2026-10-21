@@ -254,15 +254,20 @@ function huecoNormal(intervalos: number[]): number {
  * el hueco del fin de semana es exactamente 3. Eso recortaba el objetivo al
  * 70% un día de cada tres y, peor, dejaba de mover la progresión ese día. Un
  * tercio de las sesiones de alguien impecable no contaba para nada.
+ *
+ * Mira solo los días anteriores a hoy. Con la última fecha de todas, la
+ * segunda sesión del día de la vuelta encontraba la primera, contaba un hueco
+ * de cero días y dejaba de ser vuelta; todas las sesiones de ese día lo son.
  */
 export function esVuelta(sesiones: Sesion[], hoy: string): boolean {
-  const ultima = sesiones.reduce<string | null>(
+  const antes = sesiones.filter((s) => s.fecha < hoy)
+  const ultima = antes.reduce<string | null>(
     (max, s) => (max === null || s.fecha > max ? s.fecha : max),
     null,
   )
   if (ultima === null) return false
 
-  const dias = [...new Set(sesiones.map((s) => s.fecha))].sort().reverse().slice(0, 11)
+  const dias = [...new Set(antes.map((s) => s.fecha))].sort().reverse().slice(0, 11)
   if (dias.length < 3) return false
 
   const intervalos: number[] = []
@@ -275,11 +280,26 @@ export function esVuelta(sesiones: Sesion[], hoy: string): boolean {
 export const RECORTE_DE_VUELTA = 0.7
 
 /**
+ * La primera sesión de cada día, de la más nueva a la más vieja.
+ *
+ * Es la que dice a qué hora se entrena: con tres sesiones en un día, la de la
+ * tarde y la de la noche no son una costumbre nueva, son el mismo día.
+ */
+function primeraDeCadaDia(sesiones: Sesion[]): Sesion[] {
+  const primera = new Map<string, Sesion>()
+  for (const s of sesiones) {
+    const vista = primera.get(s.fecha)
+    if (!vista || s.finalizadaEn < vista.finalizadaEn) primera.set(s.fecha, s)
+  }
+  return [...primera.values()].sort((a, b) => b.finalizadaEn - a.finalizadaEn)
+}
+
+/**
  * Qué tan consistente es el horario de entrenamiento, de 0 a 1.
  *
- * Se calcula sobre la hora de inicio de las últimas diez sesiones, con
- * estadística circular: las 23 y la 1 están a dos horas de distancia, no a
- * veintidós.
+ * Se calcula sobre la hora de la primera sesión de los últimos diez días con
+ * sesión, con estadística circular: las 23 y la 1 están a dos horas de
+ * distancia, no a veintidós.
  *
  * Nunca se muestra como puntaje. Sería una segunda métrica que se puede
  * reprobar, y además la evidencia dice que la rigidez horaria no ayuda: lo que
@@ -288,9 +308,7 @@ export const RECORTE_DE_VUELTA = 0.7
  * frase cuando el patrón ya es claro.
  */
 export function consistenciaHoraria(sesiones: Sesion[]): number | null {
-  const ultimas = [...sesiones]
-    .sort((a, b) => b.finalizadaEn - a.finalizadaEn)
-    .slice(0, 10)
+  const ultimas = primeraDeCadaDia(sesiones).slice(0, 10)
   if (ultimas.length < 5) return null
 
   const angulos = ultimas.map((s) => {
@@ -309,11 +327,12 @@ export function consistenciaHoraria(sesiones: Sesion[]): number | null {
   return Math.min(1, Math.max(0, 1 - desvioHoras / 6))
 }
 
-/** La hora típica de entrenamiento, para el recordatorio. */
+/**
+ * La hora típica de entrenamiento, para el recordatorio. Con la primera sesión
+ * de cada día, como `consistenciaHoraria`.
+ */
 export function horaHabitual(sesiones: Sesion[]): number | null {
-  const ultimas = [...sesiones]
-    .sort((a, b) => b.finalizadaEn - a.finalizadaEn)
-    .slice(0, 10)
+  const ultimas = primeraDeCadaDia(sesiones).slice(0, 10)
   if (ultimas.length < 5) return null
 
   const angulos = ultimas.map((s) => {

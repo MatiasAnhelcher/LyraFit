@@ -70,6 +70,38 @@ describe('anticipación', () => {
     expect(a.cerca).toBe(true)
   })
 
+  it('la víspera calla sobre una cadena que ya se leyó hoy', () => {
+    // La cadena se lee una vez por día: si empuje ya se leyó a la mañana, la
+    // sesión de la tarde no abre nada en empuje aunque se cumpla entera.
+    const e = ejercicio('flexion-completa')
+    const avance = avanceEn('flexion-completa', e.ventana.max, { sesionesEnObjetivo: CONSOLIDACION })
+    const manana: Sesion = {
+      id: 'manana',
+      fecha: '2026-10-21',
+      finalizadaEn: 1,
+      duracionSegundos: 1800,
+      tipo: 'plan',
+      registros: [],
+      decisiones: [
+        { patron: 'empuje', movimiento: 'sostiene', explicacion: 'x', cambioDeNivel: false },
+      ],
+    }
+    const conDecision = (cambio: Partial<NonNullable<Sesion['decisiones']>[number]>) => ({
+      dia: '2026-10-21',
+      historial: [{ ...manana, decisiones: [{ ...manana.decisiones![0]!, ...cambio }] }],
+    })
+    const abre = (hoy?: { dia: string; historial: Sesion[] }) =>
+      seAbreHoy(avance, empuje, POR_ID, true, undefined, hoy)?.id ?? null
+
+    expect(abre()).toBe('flexion-diamante')
+    expect(abre({ dia: '2026-10-21', historial: [manana] })).toBeNull()
+    // Otra cadena leída, u otro día, no la callan.
+    expect(abre(conDecision({ patron: 'core' }))).toBe('flexion-diamante')
+    expect(abre({ dia: '2026-10-22', historial: [manana] })).toBe('flexion-diamante')
+    // Una sesión neutra de la mañana no leyó nada, y la víspera sigue.
+    expect(abre(conDecision({ movimiento: 'neutra' }))).toBe('flexion-diamante')
+  })
+
   it('la gracia después de un cambio de nivel aleja el salto siguiente', () => {
     const e = ejercicio('flexion-completa')
     const conGracia = anticipar(

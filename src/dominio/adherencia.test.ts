@@ -376,6 +376,20 @@ describe('consistencia horaria', () => {
     expect(horaHabitual([sesion('2026-01-05')])).toBeNull()
   })
 
+  it('la hora habitual es la de la primera sesión de cada día', () => {
+    // Siete días a las 8. Si contaran todas, la tarde de tres sesiones del
+    // último día movería la hora habitual hacia el mediodía.
+    const mananas = Array.from({ length: 7 }, (_, i) =>
+      sesion(`2026-01-${String(i + 5).padStart(2, '0')}`, 8),
+    )
+    const masDelUltimo = [13, 19, 21].map((h) => sesion('2026-01-11', h))
+    expect(horaHabitual(mananas)).toBe(8)
+    expect(horaHabitual([...mananas, ...masDelUltimo])).toBe(8)
+    expect(consistenciaHoraria([...mananas, ...masDelUltimo])).toBe(consistenciaHoraria(mananas))
+    // Y cinco sesiones en un día no son cinco días de datos.
+    expect(horaHabitual([8, 10, 13, 17, 21].map((h) => sesion('2026-01-05', h)))).toBeNull()
+  })
+
   it('la hora típica cruza la medianoche sin volverse loca', () => {
     // Las 23 y la 1 están a dos horas, no a veintidós: por eso la cuenta es
     // circular. El promedio ingenuo daría el mediodía.
@@ -437,6 +451,21 @@ describe('una vuelta es faltar, no es el fin de semana', () => {
       expect(esVuelta(sesiones, masTarde(ultima, vuelta)), `${vuelta} días`).toBe(true)
     })
   }
+
+  it('todas las sesiones del día de la vuelta son vuelta', () => {
+    // La segunda del día encuentra a la primera, que es de hoy: si contara,
+    // el hueco sería de cero días y dejaría de ser vuelta a la tarde.
+    const sesiones = impecable([0, 2, 4])
+    const ultima = sesiones[sesiones.length - 1]!.fecha
+    const dia = masTarde(ultima, 5)
+    const manana = { ...sesiones[0]!, id: 'manana', fecha: dia, finalizadaEn: 10_000 }
+    const tarde = { ...sesiones[0]!, id: 'tarde', fecha: dia, finalizadaEn: 20_000 }
+    expect(esVuelta(sesiones, dia)).toBe(true)
+    expect(esVuelta([...sesiones, manana], dia)).toBe(true)
+    expect(esVuelta([...sesiones, manana, tarde], dia)).toBe(true)
+    // Y al día siguiente ya no: la vuelta fue ayer.
+    expect(esVuelta([...sesiones, manana, tarde], masTarde(dia, 1))).toBe(false)
+  })
 
   it('y una ausencia real no le sube el umbral para siempre', () => {
     // Quien faltó una semana entera no puede quedar con un "hueco normal" de

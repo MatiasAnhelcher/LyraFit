@@ -30,19 +30,29 @@
  *    nivel sale de una cuenta y no de un número escrito a mano.
  */
 
+import { lineaYaLeida } from './lineas'
+import { principalMasCargado } from './musculos'
 import type {
   Avance,
   Cadena,
   Ejercicio,
   Medida,
+  MotivoDeDecision,
   Objetivo,
+  Patron,
+  RegistroEjercicio,
   Serie,
+  Sesion,
   TipoSesion,
 } from './tipos'
 
 // ─── Las constantes del motor ────────────────────────────────────────────
 // Están todas acá arriba y son públicas a propósito: la app le muestra sus
 // reglas a la persona, y no se puede mostrar lo que está escondido.
+//
+// Donde dicen "sesiones" se cuentan lecturas, y cada cadena se lee una vez por
+// día (`yaLeidaHoy`): tres sesiones en una tarde son un día con lectura, que
+// es como se pensaron estos números.
 
 /** Por encima de esta señal, el objetivo sube. */
 export const SUBE = 0.95
@@ -71,6 +81,18 @@ export const GRACIA = 3
  * semanas.
  */
 export const CONSOLIDACION = 2
+
+/**
+ * Series fraccionales de un principal, antes de un paso de cadena, desde las
+ * que esa lectura va protegida.
+ *
+ * Lo que va primero en una sesión rinde más (Nunes et al. 2021), así que un
+ * paso que llega después de mucho trabajo de sus mismos músculos mide menos de
+ * lo que la persona puede. Protegida, si sale bien cuenta y si sale floja no
+ * arrastra la señal. El 6 es un criterio del equipo y no una medición: dos
+ * ejercicios de tres series sobre el mismo músculo.
+ */
+export const PREFATIGA = 6
 
 /**
  * Tope de validez de la fórmula de Brzycki. Más allá de doce repeticiones la
@@ -386,6 +408,10 @@ export interface Decision {
   movimiento: Movimiento
   /** True si hubo cambio de ejercicio, para destacarlo en la interfaz. */
   cambioDeNivel: boolean
+  /** Por qué salió así, cuando el movimiento solo no lo dice. Se guarda con la sesión. */
+  motivo?: MotivoDeDecision
+  /** Con `ya-leida-hoy`: cuándo se leyó esa cadena, ese mismo día. */
+  leidaA?: number
 }
 
 /** Lo que el motor necesita saber de una sesión para decidir. */
@@ -422,7 +448,7 @@ export interface Evaluacion {
   animo?: number
 }
 
-interface Contexto {
+export interface Contexto {
   cadena: Cadena
   /** Los ejercicios de la cadena, indexados por id. */
   ejercicios: Map<string, Ejercicio>
@@ -1090,6 +1116,253 @@ export function siguienteAvance(
   return sostener(
     `Seguimos en ${actual.nombre} con la carga mínima. Hay semanas así, y no borran nada de lo que llevás hecho.`,
   )
+}
+
+// ─── Varias sesiones por día ─────────────────────────────────────────────
+//
+// Entrenar tres veces en un día está bien, y la app no lo discute. Lo que no
+// puede pasar es que el motor lea tres veces: con una sola tarde se subiría de
+// eslabón, o bajaría el objetivo por el cansancio de la segunda. Cada cadena
+// se lee una vez por día, en el primer paso que la sigue, y el resto suma
+// volumen, mapa y récord como cualquier otra serie.
+
+/**
+ * Un registro, como lo mira el motor al cerrar la sesión.
+ *
+ * `fijo` y `calentamiento` son pasos que no leen aunque tengan tu eslabón: el
+ * fijo mide contra números que escribiste vos, y el calentamiento no es
+ * trabajo. `RegistroEjercicio` todavía no las declara; llegan con los pasos de
+ * las rutinas propias, y el motor ya las respeta para que ese día no haya que
+ * tocarlo.
+ */
+export type RegistroQueLee = Pick<
+  RegistroEjercicio,
+  'ejercicioId' | 'objetivo' | 'series' | 'bajada' | 'reloj'
+> & {
+  fijo?: true
+  calentamiento?: true
+}
+
+/**
+ * A qué hora se leyó hoy esta cadena, o null si todavía no se leyó.
+ *
+ * Leída quiere decir una decisión no neutra guardada en una sesión de ese día:
+ * una que subió, sostuvo o bajó, protegida incluida. Una lectura protegida que
+ * salió floja también gasta el día; si no, una segunda sesión podría volver a
+ * leer para buscar otro resultado. Una neutra no lee: un día rojo, una sesión
+ * corta, un paso a medias o la misma `ya-leida-hoy`. Con más de una lectura en
+ * el día (sesiones guardadas antes de esta regla), la primera.
+ */
+export function yaLeidaHoy(
+  patron: Patron,
+  dia: string,
+  historial: readonly Sesion[],
+): number | null {
+  let hora: number | null = null
+  for (const sesion of historial) {
+    if (sesion.fecha !== dia) continue
+    const leyo = sesion.decisiones?.some((d) => d.patron === patron && d.movimiento !== 'neutra')
+    if (leyo && (hora === null || sesion.finalizadaEn < hora)) hora = sesion.finalizadaEn
+  }
+  return hora
+}
+
+/** Un paso que sigue tu nivel: el registro, por su lugar en la sesión, y su cadena. */
+export interface PasoQueLee {
+  patron: Patron
+  indice: number
+}
+
+/**
+ * El patrón cuyo eslabón actual es este ejercicio, si alguno lo es.
+ *
+ * Solo lee el ejercicio que tocaba: meter una flexión suelta un domingo no
+ * mueve el plan. Es también lo que deja quieto al motor el día de una
+ * molestia, porque el eslabón de abajo que pone `bloqueConMolestia` es otro
+ * ejercicio.
+ */
+function cadenaQueSigue(
+  registro: RegistroQueLee,
+  avances: ReadonlyMap<Patron, Avance>,
+): Patron | null {
+  // Antes que el id: un paso fijo con tu eslabón no sigue tu nivel aunque el
+  // ejercicio sea el mismo, y no tiene que llegar a compararse.
+  if (registro.fijo || registro.calentamiento) return null
+  // La bajada es volumen en el eslabón anterior, y una vuelta del Reloj son
+  // veinte segundos con el pulso alto: trabajo real, ninguna medida de
+  // capacidad.
+  if (registro.bajada || registro.reloj) return null
+  for (const avance of avances.values()) {
+    if (avance.ejercicioId === registro.ejercicioId) return avance.patron
+  }
+  return null
+}
+
+/**
+ * Cuántos pasos de la sesión seguían tu nivel, hechos o no.
+ *
+ * Con cero, la sesión no tenía nada que leer, y es la única razón verdadera
+ * para decir que las cadenas quedan como estaban. Con pasos sin hacer no se
+ * dice nada del plan: nombrar lo que no se hizo es lo que esta app no hace.
+ */
+export function pasosQueSiguenTuNivel(
+  registros: readonly RegistroQueLee[],
+  avances: ReadonlyMap<Patron, Avance>,
+): number {
+  return registros.filter((r) => cadenaQueSigue(r, avances) !== null).length
+}
+
+/**
+ * Qué registro lee cada cadena en esta sesión: uno por patrón, como mucho, en
+ * el orden de los pasos.
+ *
+ * Decide el primero que sea el ejercicio actual del avance y tenga una serie
+ * que cuente; los demás de ese patrón suman volumen. Antes decidían todos desde
+ * el mismo avance y ganaba el último, que es justo el que llega más cansado.
+ *
+ * Un registro con solo la serie de cierre no lee: es el saludo del final, que
+ * cae sobre el ejercicio más fácil del plan aunque lo hayas salteado. La serie
+ * de cierre no cuenta para el rendimiento —eso es correcto y deliberado—, así
+ * que ese registro quedaría con cero series válidas contra un objetivo de
+ * tres, o sea rendimiento exactamente 0, que el motor lee como el peor fracaso
+ * posible: saltear piernas te bajaba de eslabón en piernas. Saltear un
+ * ejercicio tiene que ser neutro, nunca un castigo: castigar por haber hecho
+ * algo es la peor lección que puede dar esta app.
+ */
+export function unaPorPatron(
+  registros: readonly RegistroQueLee[],
+  avances: ReadonlyMap<Patron, Avance>,
+): PasoQueLee[] {
+  const pasos: PasoQueLee[] = []
+  const decididos = new Set<Patron>()
+  registros.forEach((registro, indice) => {
+    const patron = cadenaQueSigue(registro, avances)
+    if (patron === null || decididos.has(patron)) return
+    if (!registro.series.some((serie) => !serie.cierre && serie.logrado > 0)) return
+    decididos.add(patron)
+    pasos.push({ patron, indice })
+  })
+  return pasos
+}
+
+/** Una cadena leída al cerrar una sesión. */
+export interface Lectura {
+  patron: Patron
+  decision: Decision
+  /** El avance que se evaluó: dónde estaba la cadena antes de esta sesión. */
+  antes: Avance
+  /**
+   * Si hay que escribir el avance de la decisión. Falso solo con
+   * `ya-leida-hoy`: esa cadena ya se leyó hoy y su avance queda como estaba,
+   * `actualizadoEn` incluido. La rama neutra de `siguienteAvance` lo reescribe,
+   * y por eso esta lectura no pasa por ahí.
+   */
+  guardar: boolean
+}
+
+/** Lo que hace falta para leer una sesión que se está cerrando. */
+export interface SesionALeer {
+  registros: readonly RegistroQueLee[]
+  /** Los avances de antes de esta sesión. */
+  avances: ReadonlyMap<Patron, Avance>
+  /** El día de la sesión, AAAA-MM-DD. */
+  dia: string
+  /** Las sesiones ya guardadas, sin esta. */
+  historial: readonly Sesion[]
+  /** La sesión entera no mueve el plan: por su tipo, o por un día rojo. */
+  neutra: boolean
+  /** Las cadenas quietas por una molestia que sigue. */
+  congeladas: ReadonlySet<Patron>
+  /** El chequeo del día explica una sesión floja. */
+  protegida: boolean
+  animo?: number
+  pesoCorporalKg?: number
+  /** El contexto de cada cadena: sus ejercicios, la barra y lo que está cerrado. */
+  contextoDe: (patron: Patron) => Contexto
+  ahora: number
+}
+
+/**
+ * Lee una sesión entera: una decisión por cadena, con las reglas del día.
+ *
+ * Es todo lo que `cerrarSesion` decide, y vive acá y no en el repositorio para
+ * que la simulación corra exactamente lo mismo que la app. Por cada paso que
+ * lee (`unaPorPatron`):
+ *
+ * - si la cadena ya se leyó hoy, una decisión neutra con `motivo:
+ *   'ya-leida-hoy'` y la hora, que no escribe el avance;
+ * - si no, `siguienteAvance`, protegida cuando el chequeo lo pide o cuando el
+ *   principal más cargado del eslabón ya trae `PREFATIGA` series de hoy, de
+ *   esta sesión antes de este paso o de las anteriores del día. Esas no leyeron
+ *   esta cadena, porque si no la lectura ya estaría hecha.
+ */
+export function leerLaSesion(sesion: SesionALeer): Lectura[] {
+  const { registros, avances, dia, historial } = sesion
+  // El calentamiento no es trabajo, tampoco para la prefatiga.
+  const deAntesHoy = historial
+    .filter((s) => s.fecha === dia)
+    .flatMap((s): readonly RegistroQueLee[] => s.registros)
+    .filter((r) => !r.calentamiento)
+
+  const lecturas: Lectura[] = []
+  for (const { patron, indice } of unaPorPatron(registros, avances)) {
+    const avance = avances.get(patron)
+    const registro = registros[indice]
+    if (!avance || !registro) continue
+
+    const leidaA = yaLeidaHoy(patron, dia, historial)
+    if (leidaA !== null) {
+      lecturas.push({
+        patron,
+        antes: avance,
+        guardar: false,
+        decision: {
+          avance,
+          movimiento: 'neutra',
+          cambioDeNivel: false,
+          explicacion: lineaYaLeida([{ patron, hora: leidaA }]) ?? '',
+          motivo: 'ya-leida-hoy',
+          leidaA,
+        },
+      })
+      continue
+    }
+
+    const ctx = sesion.contextoDe(patron)
+    const ejercicio = ctx.ejercicios.get(registro.ejercicioId)
+    if (!ejercicio) continue
+
+    const previos = [...deAntesHoy, ...registros.slice(0, indice).filter((r) => !r.calentamiento)]
+    const cargado = principalMasCargado(ejercicio.id, previos)
+    const prefatiga = cargado !== null && cargado.series >= PREFATIGA
+
+    // Sin peso corporal cargado en Ajustes no hay traducción posible y las
+    // cuentas quedan exactamente como estaban: `traducirAlObjetivo` lo
+    // resuelve adentro.
+    const carga: ContextoDeCarga = {
+      ejercicio,
+      ...(sesion.pesoCorporalKg !== undefined ? { pesoCorporalKg: sesion.pesoCorporalKg } : {}),
+    }
+    const decision = siguienteAvance(
+      avance,
+      {
+        rendimiento: rendimientoDeSesion(registro.objetivo, registro.series, carga),
+        tipico: logradoTipico(registro.series, { ...carga, objetivo: registro.objetivo }),
+        neutra: sesion.neutra || sesion.congeladas.has(patron),
+        protegida: sesion.protegida || prefatiga,
+        ...(sesion.animo !== undefined ? { animo: sesion.animo } : {}),
+      },
+      ctx,
+      sesion.ahora,
+    )
+    // El motivo solo si leyó: una sesión neutra no protegió nada.
+    const conMotivo =
+      prefatiga && decision.movimiento !== 'neutra'
+        ? { ...decision, motivo: 'prefatiga' as const }
+        : decision
+    lecturas.push({ patron, decision: conMotivo, antes: avance, guardar: true })
+  }
+  return lecturas
 }
 
 // ─── Puntos de partida ───────────────────────────────────────────────────
