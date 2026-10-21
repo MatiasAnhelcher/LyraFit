@@ -410,14 +410,14 @@ for (const telefono of TELEFONOS) {
           pruebas++
           await revisarRegletas(q, telefono, `Alta ${cual} · prueba ${paso === 'prueba' ? 1 : paso.slice(-1)}`)
         }
-        // Contra la caja del segmento, como en `revisarQueElegirNoCorra`: cada
-        // paso del alta arranca arriba, y tocar «12» scrollea la página para
-        // alcanzarlo. Eso mueve todo junto y no es el rótulo corriéndose.
+        // En coordenadas de documento: cada paso del alta arranca arriba, y
+        // tocar «12» scrollea la página para alcanzarlo, cosa que la pantalla
+        // no ve. Pero si al elegir se corre el segmento o la regleta entera,
+        // el rótulo se corre con ellos, y eso sí se ve.
         const rotuloDel12 = () =>
           q.getByRole('button', { name: '12', exact: true }).evaluate((s) => {
-            const de = s.getBoundingClientRect()
             const texto = s.querySelector('.segmento-texto')?.getBoundingClientRect()
-            return texto ? { x: texto.left - de.left, y: texto.top - de.top } : null
+            return texto ? { x: texto.left + window.scrollX, y: texto.top + window.scrollY } : null
           })
         if (paso === 'prueba') {
           rotuloAntes = await rotuloDel12()

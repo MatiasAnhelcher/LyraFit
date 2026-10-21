@@ -413,14 +413,8 @@ export function Ajustes() {
               cambia nada. */}
           <Interruptor
             titulo="Movimiento reducido"
-            detalle={
-              <>
-                {movimientoGuardado(preferencias) === 'sistema' && (
-                  <span className="block">Como en tu teléfono</span>
-                )}
-                Nada se anima y las pantallas cambian en seco. El arco del descanso sigue contando.
-              </>
-            }
+            detalle="Nada se anima y las pantallas cambian en seco. El arco del descanso sigue contando."
+            estado={{ texto: 'Como en tu teléfono', visible: movimientoGuardado(preferencias) === 'sistema' }}
             activo={reducido}
             onCambiar={() => cambiar({ movimiento: movimientoAlTocar(reducido) })}
           />

@@ -482,15 +482,23 @@ export function Segmento({
  * El "SÍ"/"NO" escrito es el último texto del botón a propósito: es lo que se
  * lee de reojo, y lo que `colgado.mjs` verifica. Para el lector lo dice
  * `aria-pressed`, así que el texto va oculto y no se anuncia dos veces.
+ *
+ * `estado` es lo que la fila dice solo a veces, en `.rotulo` como el resto de
+ * los estados de Ajustes, para que no se lea de corrido con la explicación.
+ * Va al final y su renglón queda reservado aunque no se vea: si se fuera con
+ * el toque, la fila se achicaría y la perilla saltaría bajo el dedo que la
+ * acaba de tocar.
  */
 export function Interruptor({
   titulo,
   detalle,
+  estado,
   activo,
   onCambiar,
 }: {
   titulo: string
   detalle?: ReactNode
+  estado?: { texto: string; visible: boolean }
   activo: boolean
   onCambiar: (v: boolean) => void
 }) {
@@ -500,6 +508,9 @@ export function Interruptor({
       <span className="min-w-0">
         <span className="nombre block">{titulo}</span>
         {detalle && <span className="texto-glosa mt-0.5 block">{detalle}</span>}
+        {estado && (
+          <span className={`rotulo mt-1 block${estado.visible ? '' : ' invisible'}`}>{estado.texto}</span>
+        )}
       </span>
       <span className="flex items-center gap-3">
         <span className="interruptor" data-activo={activo} aria-hidden="true" />

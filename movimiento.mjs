@@ -228,18 +228,46 @@ async function recorrerLaBarra(p) {
   return sinLlegar
 }
 
-/** El interruptor de Ajustes, leído como lo lee una persona. */
+/**
+ * Las animaciones de CSS que terminan y están corriendo: todas menos `latir`.
+ * Las transiciones no cuentan: la perilla se corre con una, y es el toque.
+ */
+const finitasCorriendo = (p) =>
+  p.evaluate(() =>
+    document
+      .getAnimations()
+      .filter((a) => a instanceof CSSAnimation && a.playState === 'running' && a.effect?.getTiming().iterations !== Infinity)
+      .map((a) => a.animationName),
+  )
+
+/**
+ * El interruptor de Ajustes, leído como lo lee una persona: "Como en tu
+ * teléfono" cuenta si se ve, porque su renglón queda reservado (invisible)
+ * cuando el valor es explícito. Y dónde está la perilla, en coordenadas de
+ * documento, para ver que no salte con el toque. Se mide quieta: la entrada
+ * de la pantalla la trae 4 px más abajo, y eso es llegar, no saltar.
+ */
 async function leerElInterruptor(p) {
   const boton = p.getByRole('button', { name: /Movimiento reducido/ })
   await boton.waitFor({ state: 'visible', timeout: 4000 }).catch(() => {})
   if (!(await boton.isVisible().catch(() => false))) return null
+  for (let i = 0; i < 20 && (await finitasCorriendo(p)).length > 0; i++) await p.waitForTimeout(100)
   return {
     boton,
     dice: await boton.getAttribute('aria-pressed'),
-    comoElTelefono: (await boton.textContent()).includes('Como en tu teléfono'),
+    comoElTelefono: await boton.getByText('Como en tu teléfono', { exact: true }).isVisible(),
     raiz: await p.evaluate(() => document.documentElement.getAttribute('data-movimiento')),
+    perilla: await boton.locator('.interruptor').evaluate((el) => {
+      const c = el.getBoundingClientRect()
+      return { x: c.left + window.scrollX, y: c.top + window.scrollY, ancho: c.width, alto: c.height }
+    }),
   }
 }
+
+/** Si la perilla quedó en otra caja después del toque. Medio píxel de redondeo. */
+const perillaMovida = (antes, despues) =>
+  !despues ||
+  ['x', 'y', 'ancho', 'alto'].some((k) => Math.abs(antes.perilla[k] - despues.perilla[k]) > 0.5)
 
 async function main() {
   await revisarQueSirvaLoCompilado(BASE)
@@ -737,6 +765,11 @@ async function main() {
       if (despues?.raiz !== 'reducido') fallos.push('[Interruptor] al prenderlo, <html> no pasó a data-movimiento="reducido" sin recargar.')
       if (despues?.dice !== 'true') fallos.push('[Interruptor] al prenderlo no dice SÍ.')
       if (despues?.comoElTelefono) fallos.push('[Interruptor] prendido a mano sigue diciendo "Como en tu teléfono".')
+      if (perillaMovida(antes, despues)) {
+        fallos.push(
+          `[Interruptor] la perilla saltó con el primer toque: estaba en ${JSON.stringify(antes.perilla)} y quedó en ${JSON.stringify(despues?.perilla)}. El control que se acaba de tocar no se corre.`,
+        )
+      }
       const guardado = await conLaBase(pagina, ['preferencias'], async (leer) => (await leer('preferencias'))[0]?.movimiento ?? null)
       if (guardado !== 'reducido') fallos.push(`[Interruptor] al prenderlo se guardó ${JSON.stringify(guardado)} y no "reducido".`)
     }
@@ -796,12 +829,26 @@ async function main() {
       await pagina.waitForFunction(() => document.documentElement.getAttribute('data-movimiento') === 'reducido', null, { timeout: 2000 }).catch(() => {})
       if ((await raiz()) !== 'reducido') fallos.push('[Sistema] el teléfono volvió a pedirlo con la app abierta y el atributo no volvió.')
 
-      // "NO" a mano: manda sobre el teléfono.
+      // "NO" a mano: manda sobre el teléfono. Y lo que ya está en pantalla
+      // no vuelve a entrar: sacar `animation: none` arranca de cero cada
+      // animación, y Ajustes entera parpadeaba bajo el dedo.
       await pedido.boton.click()
       await pagina.waitForFunction(() => !document.documentElement.hasAttribute('data-movimiento'), null, { timeout: 2000 }).catch(() => {})
+      const reentradas = await finitasCorriendo(pagina)
+      if (reentradas.length > 0) {
+        fallos.push(
+          `[Sistema] al poner el interruptor en NO, lo que ya estaba en pantalla volvió a entrar (${[...new Set(reentradas)].join(', ')}). Lo que llegó, queda llegado.`,
+        )
+      }
       const completo = await leerElInterruptor(pagina)
       if (completo?.raiz !== null) fallos.push('[Sistema] con el interruptor en NO, <html> sigue con data-movimiento aunque el teléfono lo pida.')
       if (completo?.dice !== 'false') fallos.push('[Sistema] tocado una vez, el interruptor no dice NO.')
+      if (completo?.comoElTelefono) fallos.push('[Sistema] en NO a mano sigue diciendo "Como en tu teléfono".')
+      if (perillaMovida(pedido, completo)) {
+        fallos.push(
+          `[Sistema] la perilla saltó con el primer toque: estaba en ${JSON.stringify(pedido.perilla)} y quedó en ${JSON.stringify(completo?.perilla)}.`,
+        )
+      }
       const guardado = await conLaBase(pagina, ['preferencias'], async (leer) => (await leer('preferencias'))[0]?.movimiento ?? null)
       if (guardado !== 'completo') fallos.push(`[Sistema] con el interruptor en NO se guardó ${JSON.stringify(guardado)} y no "completo".`)
 

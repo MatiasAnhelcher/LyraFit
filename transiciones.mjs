@@ -14,33 +14,49 @@
  *
  *   - que haya un pasaje, con la dirección que corresponde (un portón que
  *     no encuentra el pasaje no está en verde: está ciego);
+ *   - que la callback de la app —dibujar la pantalla nueva y esperar su
+ *     contenido— tarde 300 ms o menos (§9);
  *   - ningún cuadro largo (`long-animation-frame`) mientras se mueve;
  *   - que `finished` llegue a la duración más 150 ms o antes, contada desde
  *     que arranca el movimiento;
+ *   - que mientras se mueve, el contenido nuevo esté inerte (§6.4.7);
  *   - como mucho dos nombres compartidos, más `root` y `marco`;
  *   - cero avisos de `view-transition-name` repetido en la consola;
  *   - que en `finished` no quede ninguna animación de `::view-transition-*`;
  *   - y que 400 ms después no se mueva nada, salvo Lyra respirando si está
  *     viva en el destino.
  *
- * Y además que el atrás del sistema sea un corte, que volver a una sección
- * deje el scroll donde estaba, y que tocar la pestaña activa suba.
+ * Y además que el atrás del sistema sea un corte que devuelve el scroll, que
+ * volver a una sección deje el scroll donde estaba, que tocar la pestaña
+ * activa suba, que un segundo toque en medio de un pasaje llegue (§6.4.8) y
+ * que el foco no se pierda por el inerte.
  *
- * ## Desde cuándo se cuenta, y por qué no desde el toque
+ * ## Lo que pide la §9 y lo que se puede afirmar acá
  *
- * Un pasaje tiene dos tramos. En el primero el navegador saca la foto de lo
- * viejo, la app dibuja lo nuevo y el navegador le saca la foto: mientras
- * tanto NO PINTA —la pantalla queda en la foto vieja, quieta—, así que todo
- * ese tramo es, por construcción, un único cuadro. En el segundo tramo, de
- * `ready` a `finished`, se mueve. Un cuadro largo en el segundo tramo es un
- * tirón que se ve; en el primero es espera, no tirón.
+ * La §9 pide, con la CPU ×4, ningún cuadro largo durante un pasaje y
+ * `finished` a la duración más 150 ms o menos. Las dos cosas, contadas desde
+ * el toque, no se alcanzan en este Chromium aunque la app no haga nada:
+ * medido, un `startViewTransition` vacío —sin cambiar una sola cosa— tarda
+ * de 118 a 206 ms en llegar a `ready` y deja dos cuadros largos de 58 a 122
+ * ms, que son las dos fotos del navegador. No es una holgura que la app
+ * pueda cuidar, así que no se la redefine acá: quedó anotado para que lo
+ * decidan el rol 14 y Matias, y para medirlo en el teléfono real, donde las
+ * fotos las saca la GPU.
  *
- * La especificación (§9) pedía además que, con la CPU ×4, `finished` llegara
- * a 280 + 150 ms del toque. Medido acá no se puede: solo las dos fotos que
- * saca el navegador —sin una línea de la app— cuestan entre 115 y 165 ms con
- * la CPU frenada, y el primer tramo entero va de 130 a 290. Así que la
- * espera desde el toque no se afirma: se mide y se informa al final, para
- * que se vea si empeora, y queda anotada para medirla en el teléfono real.
+ * Lo que sí es de la app se afirma:
+ *
+ *   - la callback, de punta a punta, con el número que la §9 le da a la
+ *     callback de una transición: 300 ms. Ahí adentro la pantalla está
+ *     congelada en la foto vieja: el navegador no pinta, así que todo lo que
+ *     corre en ese tramo, por más tareas que sean, se lee como UN cuadro
+ *     largo. Por eso ese cuadro no se puede prohibir sin prohibir dibujar,
+ *     pero sí acotar, y se acota por la duración de la callback;
+ *   - el movimiento, de `ready` a `finished`: 280 + 150, y sin un solo cuadro
+ *     largo. Ahí un cuadro largo es un tirón que se ve.
+ *
+ * Y se informa, sin afirmarlo, cuánto le falta a cada pasaje para la holgura
+ * de 150 que la §9 pide en total: la callback más lo que el movimiento se
+ * pasa de 280. Es la deuda con la §9, a la vista en cada corrida.
  */
 
 import { BASE, abrir, alta, revisarQueSirvaLoCompilado } from './lib/portones.mjs'
@@ -57,6 +73,8 @@ const anotar = (linea) => {
 const DURACION = { puerta: 260 }
 const duracionDe = (direccion) => DURACION[direccion] ?? 280
 const HOLGURA = 150
+/** "La callback de una transición, 300 ms o menos" (§9). */
+const TOPE_DE_LA_CALLBACK = 300
 /** Medio cuadro a 60 Hz. */
 const MEDIO_CUADRO = 8
 /** Lo que el cuadro congelado sigue pintando después de `ready` (ver `revisarDesde`). */
@@ -71,8 +89,16 @@ const COLA_DEL_CONGELADO = 25
  * existen los pseudoelementos: así salen también los de la foto vieja, que
  * para entonces ya no están en el DOM. `marco` no aparece ahí porque va con
  * `animation: none`, y está permitido igual.
+ *
+ * La callback de la app se envuelve para saber cuándo empieza y cuándo
+ * termina. Y en `ready` se cuentan los controles de la pantalla nueva que no
+ * están inertes: fuera de la barra, que es el marco, tienen que ser cero.
+ * Los toques se anotan con su hora, para saber si uno cayó en medio de un
+ * pasaje.
  */
 function instalar() {
+  window.__toques = []
+  document.addEventListener('pointerdown', () => window.__toques.push(performance.now()), true)
   window.__loaf = []
   try {
     new PerformanceObserver((lista) => {
@@ -104,8 +130,23 @@ function instalar() {
       nombres: null,
       quedan: null,
       salteado: false,
+      cbIni: null,
+      cbFin: null,
+      vivos: null,
     }
     window.__pasajes.push(registro)
+    const callback = typeof args[0] === 'function' ? args[0] : args[0]?.update
+    if (callback) {
+      const envuelta = async () => {
+        registro.cbIni = performance.now()
+        try {
+          return await callback()
+        } finally {
+          registro.cbFin = performance.now()
+        }
+      }
+      args[0] = typeof args[0] === 'function' ? envuelta : { ...args[0], update: envuelta }
+    }
     const t = original.apply(this, args)
     t.ready.then(
       () => {
@@ -116,6 +157,10 @@ function instalar() {
           if (m) nombres.add(m[1])
         }
         registro.nombres = [...nombres]
+        registro.vivos = [...document.querySelectorAll('#root :is(a[href], button, input, select, textarea)')]
+          .filter((el) => !el.closest('nav') && !el.closest('[inert]'))
+          .slice(0, 3)
+          .map((el) => (el.textContent ?? '').trim().slice(0, 30) || el.tagName.toLowerCase())
       },
       () => (registro.salteado = true),
     )
@@ -138,6 +183,8 @@ const duplicados = []
 let cuantosVistos = 0
 /** Lo que tarda cada pasaje en empezar a moverse, desde el toque. */
 const esperas = []
+/** La callback de cada pasaje, y lo que le falta para la holgura de la §9. */
+const callbacks = []
 
 /**
  * Mide el pasaje que dispara `accion`.
@@ -234,6 +281,24 @@ async function revisarDesde(nombre, direccion, desde) {
       `[${nombre}] desde que arrancó, finished tardó ${Math.round(moviendose)} ms. Tope: ${duracionDe(direccion)} + ${HOLGURA} = ${tope}.`,
     )
   }
+  if (p.cbIni === null || p.cbFin === null) {
+    fallos.push(`[${nombre}] no se pudo medir la callback del pasaje: el gancho no la vio empezar o terminar.`)
+  } else {
+    const callback = p.cbFin - p.cbIni
+    if (callback > TOPE_DE_LA_CALLBACK) {
+      anotar(
+        `[${nombre}] la callback de la app tardó ${Math.round(callback)} ms con la pantalla congelada. Tope: ${TOPE_DE_LA_CALLBACK} (§9).`,
+      )
+    }
+    callbacks.push({ nombre, ms: callback, deuda: callback + Math.max(0, moviendose - duracionDe(direccion)) - HOLGURA })
+  }
+  if (p.vivos === null) {
+    fallos.push(`[${nombre}] no se pudo mirar en ready si el contenido nuevo estaba inerte.`)
+  } else if (p.vivos.length > 0) {
+    anotar(
+      `[${nombre}] mientras se movía, el contenido nuevo no estaba inerte (${p.vivos.map((v) => `«${v}»`).join(', ')}). Lo nuevo no se toca hasta que llega.`,
+    )
+  }
   // Los cuadros que caen mientras se mueve: los que empiezan después de
   // `ready`, y los que empezaron antes pero se comen el arranque. El cuadro
   // congelado de antes termina pintando la primera foto del movimiento, y
@@ -311,9 +376,22 @@ async function main() {
         await medir('Alta, volver a la prueba 1', 'paso-atras', () =>
           pagina.getByRole('button', { name: 'Volver', exact: true }).click(),
         )
-        await medir('Alta, otra vez a la prueba 2', 'paso-adelante', () =>
-          pagina.getByRole('button', { name: 'Siguiente', exact: true }).click(),
-        )
+        // Con el teclado: "Siguiente" queda en la pantalla nueva, y el inerte
+        // del pasaje no se puede quedar con su foco.
+        const siguiente = pagina.getByRole('button', { name: 'Siguiente', exact: true })
+        await siguiente.focus()
+        await pagina.evaluate(() => (window.__enfocado = document.activeElement))
+        await medir('Alta, otra vez a la prueba 2, con el teclado', 'paso-adelante', () => pagina.keyboard.press('Enter'))
+        const foco = await pagina.evaluate(() => ({
+          sigue: window.__enfocado?.isConnected === true,
+          tiene: document.activeElement === window.__enfocado,
+          donde: document.activeElement?.tagName ?? '(nadie)',
+        }))
+        if (!foco.sigue) {
+          fallos.push('"Siguiente" no quedó en la pantalla nueva del alta: el foco después del pasaje quedó sin medir.')
+        } else if (!foco.tiene) {
+          anotar(`Después del pasaje de paso, el foco quedó en ${foco.donde} y no en "Siguiente", que lo tenía. El inerte no se queda con el foco.`)
+        }
         await pagina.getByRole('button', { name: 'Sumar' }).waitFor({ state: 'visible' })
       }
       marca = await pagina.evaluate(() => window.__pasajes.length)
@@ -336,6 +414,45 @@ async function main() {
     ['hoy', 'lateral-izq'],
   ]) {
     await medir(`La barra, a ${nombre}`, direccion, () => pestaña(nombre).click())
+  }
+
+  // ── Un segundo toque en medio del pasaje ───────────────────────────────
+  //
+  // Mientras corre una View Transition, Chromium le manda todo toque a
+  // <html>: sin rescate, el segundo toque no le llega a nadie. Con la CPU
+  // frenada, 150 ms después del primero el pasaje está en plena foto.
+  {
+    const desde = await pagina.evaluate(() => window.__pasajes.length)
+    const centro = async (nombre) => {
+      const c = await pestaña(nombre).boundingBox()
+      return { x: c.x + c.width / 2, y: c.y + c.height / 2 }
+    }
+    const aCadenas = await centro('cadenas')
+    const aDiario = await centro('diario')
+    const toquesAntes = await pagina.evaluate(() => window.__toques.length)
+    await pagina.mouse.click(aCadenas.x, aCadenas.y)
+    await pagina.waitForTimeout(150)
+    await pagina.mouse.click(aDiario.x, aDiario.y)
+    await esperarSinMolestar(
+      (n) => window.__pasajes.length > n && window.__pasajes.slice(n).every((r) => r.fin !== null) && !document.documentElement.hasAttribute('data-vt'),
+      desde,
+    )
+    await pagina.waitForTimeout(400)
+    // Cayó en medio si llegó antes de que el primer pasaje terminara solo.
+    const enMedio = await pagina.evaluate(
+      ([n, t]) => {
+        const primero = window.__pasajes[n]
+        const segundo = window.__toques[t + 1]
+        return primero !== undefined && segundo !== undefined && primero.fin !== null && segundo < primero.fin
+      },
+      [desde, toquesAntes],
+    )
+    if (!enMedio) {
+      fallos.push('El segundo toque no cayó en medio del pasaje: "otro toque durante el pasaje" quedó sin medir.')
+    } else if ((await ruta()) !== '/diario') {
+      anotar(`Tocar Cadenas y, 150 ms después, el Diario terminó en ${await ruta()}. El segundo toque corta el pasaje y arranca el suyo (§6.4.8).`)
+    }
+    await medir('Del Diario a Hoy', 'lateral-izq', () => pestaña('hoy').click())
   }
 
   // ── Cadenas → Ficha → Cadenas, con el scroll guardado ──────────────────
@@ -363,6 +480,24 @@ async function main() {
     } else if (Math.abs(yDespues - yAntes) > 2) {
       anotar(`Al volver a Cadenas el scroll quedó en ${yDespues} y estaba en ${yAntes}. Volver es volver adonde estabas.`)
     }
+
+    // Y con el atrás del sistema, que en Android es el camino de vuelta más
+    // usado: un corte, pero al mismo lugar. Cadenas tarda en leer la base, y
+    // el navegador restaura su scroll antes de que haya contenido.
+    await medir('Cadenas a la ficha, otra vez', 'profundo', () => enlace.click())
+    const antesDelAtras = await pagina.evaluate(() => window.__pasajes.length)
+    await pagina.goBack()
+    await pagina.waitForFunction(() => location.hash === '#/biblioteca', null, { timeout: 3000 }).catch(() => {})
+    await esperarSinMolestar((y) => Math.abs(window.scrollY - y) <= 2, yAntes, 1500)
+    await pagina.waitForTimeout(200)
+    const yAtras = await pagina.evaluate(() => window.scrollY)
+    if ((await ruta()) !== '/biblioteca') {
+      fallos.push(`El atrás del sistema desde la ficha no volvió a Cadenas (la ruta es ${await ruta()}).`)
+    } else if (yAntes >= 50 && Math.abs(yAtras - yAntes) > 2) {
+      anotar(`Con el atrás del sistema desde la ficha, Cadenas quedó en ${yAtras} y estaba en ${yAntes}. El atrás también vuelve adonde estabas.`)
+    }
+    const conAtras = (await pagina.evaluate(() => window.__pasajes.length)) - antesDelAtras
+    if (conAtras !== 0) anotar(`El atrás del sistema desde la ficha arrancó ${conAtras} pasaje(s). El atrás es un corte.`)
   }
 
   // ── Hoy → Estado → Hoy no, y el atrás del sistema ──────────────────────
@@ -436,14 +571,24 @@ async function main() {
     process.exit(1)
   }
   console.log(
-    `Pasajes verificados con la CPU frenada ×4: ${cuantosVistos} pasajes (alta, barra, ficha, chequeo y molestia), todos a tiempo, sin cuadros largos mientras se mueven, sin nombres de más y quietos 400 ms después. El atrás es un corte, el scroll vuelve adonde estaba y la pestaña activa sube.`,
+    `Pasajes verificados con la CPU frenada ×4: ${cuantosVistos} pasajes (alta, barra, ficha, chequeo y molestia), con la callback en ${TOPE_DE_LA_CALLBACK} ms o menos, a tiempo, sin cuadros largos mientras se mueven, con lo nuevo inerte, sin nombres de más y quietos 400 ms después. El atrás es un corte que devuelve el scroll, volver a una sección también, la pestaña activa sube, un segundo toque en medio del pasaje llega y el foco no se pierde.`,
   )
-  // La espera desde el toque, informada y no afirmada (ver arriba).
-  const ordenadas = [...esperas].sort((a, b) => a.ms - b.ms)
-  const mediana = ordenadas[Math.floor(ordenadas.length / 2)]
-  const peor = ordenadas[ordenadas.length - 1]
+  // Lo que se informa y no se afirma (ver arriba): la espera desde el toque
+  // y la deuda con la holgura de 150 ms de la §9.
+  const resumen = (lista) => {
+    const ordenadas = [...lista].sort((a, b) => a.ms - b.ms)
+    return { mediana: ordenadas[Math.floor(ordenadas.length / 2)], peor: ordenadas[ordenadas.length - 1] }
+  }
+  const espera = resumen(esperas)
+  const callback = resumen(callbacks)
+  const enDeuda = callbacks.filter((c) => c.deuda > 0).sort((a, b) => b.deuda - a.deuda)
   console.log(
-    `Del toque a que arranca el movimiento, con la CPU ×4: mediana ${Math.round(mediana.ms)} ms, la peor ${Math.round(peor.ms)} ms (${peor.nombre}). La §9 pedía 150: queda para medir en el teléfono real.`,
+    `Del toque a que arranca el movimiento: mediana ${Math.round(espera.mediana.ms)} ms, la peor ${Math.round(espera.peor.ms)} ms (${espera.peor.nombre}). La callback de la app: mediana ${Math.round(callback.mediana.ms)} ms, la peor ${Math.round(callback.peor.ms)} ms (${callback.peor.nombre}).`,
+  )
+  console.log(
+    enDeuda.length === 0
+      ? `Deuda con la holgura de ${HOLGURA} ms de la §9 (la callback más lo que el movimiento se pasa): ninguna.`
+      : `Deuda con la holgura de ${HOLGURA} ms de la §9 (la callback más lo que el movimiento se pasa), sin contar las fotos del navegador: ${enDeuda.length} de ${callbacks.length} pasajes, la mayor de ${Math.round(enDeuda[0].deuda)} ms (${enDeuda[0].nombre}). Lo deciden el rol 14 y Matias, y se mide en el teléfono real.`,
   )
 }
 

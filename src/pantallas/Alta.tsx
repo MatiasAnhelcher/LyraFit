@@ -207,9 +207,11 @@ export function Alta() {
 
   // Las acciones van en cajas con borde y radio, no a sangre: abajo llevan el
   // mismo aire que el pie del cierre, 16 por encima del canto y del área
-  // segura, para que la caja se vea entera y no cortada por el borde.
+  // segura, para que la caja se vea entera y no cortada por el borde. Es el
+  // `main` de la pantalla, como en las que tienen barra: es lo que el pasaje
+  // de paso deja inerte mientras se mueve.
   return (
-    <div className="mx-auto flex min-h-dvh w-full max-w-lg flex-col px-4 pt-10 pb-[calc(1rem+env(safe-area-inset-bottom))]">
+    <main className="mx-auto flex min-h-dvh w-full max-w-lg flex-col px-4 pt-10 pb-[calc(1rem+env(safe-area-inset-bottom))]">
       {paso === 'propuesta' && (
         <Propuesta
           aviso={aviso}
@@ -258,7 +260,7 @@ export function Alta() {
       )}
 
       {paso === 'dias' && <Dias guardando={guardando} onElegir={(id) => void terminar(id)} />}
-    </div>
+    </main>
   )
 }
 

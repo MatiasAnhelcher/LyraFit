@@ -173,6 +173,7 @@ node textos.mjs    # lo que se lee en pantalla: sin hora de acostarse inventada,
 node barra.mjs     # la barra de 28 días: que no le avise faltas a quien no faltó
 node dormir.mjs    # la hora de acostarse: se pregunta con el café tarde, nunca se inventa, y con ella sale el corte
 node toques.mjs    # que lo que se toca mida un dedo: la barra, las regletas, las filas y el descanso
+node transiciones.mjs # los pasajes con la CPU ×4: la callback a tiempo, sin cuadros largos ni nombres de más, y ningún toque perdido
 node logo.mjs     # regenera el favicon y los íconos desde el componente de Lyra
 ```
 
@@ -218,10 +219,21 @@ brillante y el blanco encima parece que se lee.
 
 `movimiento.mjs` convierte en medición tres reglas que eran comentarios y se
 erosionaron: que nada se mueva durante el esfuerzo, que haya un solo
-`infinite` en toda la app, y que con `prefers-reduced-motion` todo quede
+`infinite` en toda la app, y que con movimiento reducido —el que pide el
+teléfono o el interruptor de Ajustes, que manda sobre el teléfono— todo quede
 quieto **sin perder información** — que es la difícil, porque apagar una
 animación con `animation: none` deja el elemento en su estado inicial, y el
 estado inicial de casi todas es "invisible".
+
+`transiciones.mjs` recorre los pasajes entre pantallas con la CPU frenada
+cuatro veces, que es lo más parecido acá a un Android de gama baja: que la
+callback de la app no congele la pantalla más de 300 ms, que mientras se
+mueve no haya un solo cuadro largo, que lo nuevo esté inerte hasta que llega,
+y que un toque en medio de un pasaje, el atrás del sistema y el foco del
+teclado lleguen adonde tienen que llegar. La holgura de 150 ms que la
+especificación pide desde el toque no se alcanza en este Chromium ni con un
+pasaje vacío; el portón la informa como deuda en cada corrida, y la medida de
+verdad es la del teléfono real.
 
 `pliegue.mjs` existe porque la regla de que `Empezar` tenga aire sobre la barra
 de navegación ya se rompió **dos veces**, las dos por un renglón que parecía

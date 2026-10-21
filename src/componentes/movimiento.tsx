@@ -24,7 +24,6 @@
 
 import {
   useCallback,
-  useEffect,
   useLayoutEffect,
   useRef,
   useState,
@@ -70,8 +69,9 @@ export function useAplicarMovimiento(guardado: Movimiento | undefined): boolean 
     const aplicar = () => {
       if (rigeReducido(guardado, raiz.dataset.movimientoSistema === 'reducido')) {
         raiz.dataset.movimiento = 'reducido'
-      } else {
+      } else if (raiz.dataset.movimiento === 'reducido') {
         delete raiz.dataset.movimiento
+        terminarLoQueYaLlego()
       }
     }
     aplicar()
@@ -82,6 +82,22 @@ export function useAplicarMovimiento(guardado: Movimiento | undefined): boolean 
     return () => observador.disconnect()
   }, [guardado])
   return aplicado
+}
+
+/**
+ * Sacar el reducido saca el `animation: none`, y eso arranca de cero cada
+ * animación de lo que ya está en pantalla: Ajustes entera volvería a entrar,
+ * desde opacidad 0, bajo el dedo que acaba de tocar el interruptor. Lo que ya
+ * llegó queda llegado. Lyra, que no termina nunca, vuelve a respirar.
+ *
+ * `getAnimations()` recalcula los estilos antes de responder, así que las
+ * animaciones recién arrancadas ya están ahí y se terminan antes del cuadro
+ * siguiente: no llega a verse ninguna.
+ */
+function terminarLoQueYaLlego() {
+  for (const animacion of document.getAnimations()) {
+    if (animacion instanceof CSSAnimation && animacion.effect?.getTiming().iterations !== Infinity) animacion.finish()
+  }
 }
 
 /** Lo vivo se apaga con movimiento reducido y bajo el esfuerzo, sin excepciones. */
@@ -118,9 +134,9 @@ export function debeQuedarseQuieto(elemento: Element | null): boolean {
 /**
  * `debeQuedarseQuieto`, para un componente.
  *
- * El esfuerzo no se le pide a cada pantalla que lo pase como prop: una pieza
- * que se olvida de pasarlo es una Lyra parpadeando en el descanso, que es
- * exactamente lo que pasaba. Lo lee sola, como el CSS lee el atributo.
+ * La quietud se lee sola, como el CSS lee el atributo, y no se le pide a cada
+ * pantalla que la pase como prop: así ninguna pantalla tiene que acordarse de
+ * pedirla, y una pieza nueva adentro del esfuerzo nace quieta.
  */
 export function useQuieto(ref: RefObject<Element | null>): boolean {
   const porLaRaiz = useSyncExternalStore(suscribirLaRaiz, quietoPorLaRaiz, () => false)
@@ -236,22 +252,17 @@ let enCurso: ViewTransition | null = null
  *
  * Lo usa `useModoDePantalla`: si la pantalla de esfuerzo llega por un pasaje,
  * `data-pantalla` se pone recién en su `finished`, porque mientras el pasaje
- * corre todavía hay algo moviéndose.
+ * corre todavía hay algo moviéndose. Lo mismo vale para mover el foco al
+ * llegar (el `h1` de la pantalla nueva): va en el `finished`, o en el acto si
+ * esto da `null`, y nunca en el efecto de layout del destino, porque mientras
+ * el pasaje corre el contenido nuevo está inerte y `focus()` falla callado.
  */
 export function pasajeEnCurso(): ViewTransition | null {
   return enCurso
 }
 
-// Un atrás del sistema en medio de un pasaje lo corta en seco. El atrás nunca
-// tiene pasaje propio: si el navegador ya hizo su animación de gesto, otra
-// encima sería doble, y si no la hizo, el atrás se siente como un atrás.
-// `volviendo` marca el atrás que dispara "Volver", que sí va adentro de uno.
+/** Marca el atrás que dispara "Volver", que va adentro de un pasaje. */
 let volviendo = false
-if (typeof window !== 'undefined') {
-  window.addEventListener('popstate', () => {
-    if (!volviendo) enCurso?.skipTransition()
-  })
-}
 
 // ─── Esperar al destino ──────────────────────────────────────────────────
 
@@ -361,12 +372,40 @@ export function subirAlPrincipio(): void {
   window.scrollTo({ top: 0, behavior: movimientoReducido() ? 'instant' : 'smooth' })
 }
 
+// ─── El atrás del sistema ────────────────────────────────────────────────
+
+// Un atrás del sistema en medio de un pasaje lo corta en seco. El atrás nunca
+// tiene pasaje propio: si el navegador ya hizo su animación de gesto, otra
+// encima sería doble, y si no la hizo, el atrás se siente como un atrás.
+//
+// Lo que sí tiene es scroll que devolver. El navegador restaura el suyo en el
+// acto, cuando la pantalla todavía no tiene su contenido —Cadenas mide un
+// solo alto mientras lee la base— y lo topea en 0. Por eso se espera a que
+// llegue el contenido y se vuelve adonde estabas, si esta visita lo anotó. En
+// Android este atrás es el camino más usado para salir de una ficha.
+if (typeof window !== 'undefined') {
+  window.addEventListener('popstate', () => {
+    if (volviendo) return
+    enCurso?.skipTransition()
+    const ruta = rutaActual()
+    const y = memoriaDeScroll.get(ruta)
+    if (y === undefined) return
+    void lugarNuevo(TOPE_DEL_DESTINO * 3)
+      .then(() => destinoListo(TOPE_DEL_DESTINO * 3))
+      .then(() => {
+        if (rutaActual() === ruta) irAlScroll(y)
+      })
+  })
+}
+
 // ─── Correr un pasaje ────────────────────────────────────────────────────
 
 /**
  * Lo que queda inerte mientras corre el pasaje: el contenido nuevo, que
- * todavía se está corriendo de lugar. Se suelta en `finished`, que llega
- * siempre, y no en `animationend`, que no llega si el pasaje se saltea.
+ * todavía se está corriendo de lugar. Es el `main` de cada pantalla, también
+ * el del alta; la barra no, porque es el marco y no se mueve. Se suelta en
+ * `finished`, que llega siempre, y no en `animationend`, que no llega si el
+ * pasaje se saltea.
  */
 function marcarInerte() {
   for (const principal of document.querySelectorAll('main')) {
@@ -383,6 +422,65 @@ function soltarInerte() {
 }
 
 /**
+ * Quién tenía el foco cuando arrancó el pasaje.
+ *
+ * El inerte se lo saca —el enlace al eslabón siguiente, "Siguiente" en el
+ * alta—, y el teclado y el lector quedarían en `<body>`, con el cursor
+ * perdido. Se devuelve en `finished` si sigue en la pantalla y nadie movió el
+ * foco mientras tanto. Vive en el módulo y no en cada pasaje porque uno puede
+ * cortar al anterior: el segundo ya encuentra el foco en `<body>`.
+ */
+let focoDelPasaje: HTMLElement | null = null
+
+function guardarElFoco() {
+  const activo = document.activeElement
+  if (focoDelPasaje === null && activo instanceof HTMLElement && activo !== document.body) focoDelPasaje = activo
+}
+
+function devolverElFoco() {
+  const foco = focoDelPasaje
+  focoDelPasaje = null
+  const perdido = document.activeElement === null || document.activeElement === document.body
+  if (foco?.isConnected && perdido) foco.focus({ preventScroll: true })
+}
+
+/**
+ * Un toque que cae en medio de un pasaje no se pierde (§6.4.8).
+ *
+ * Mientras corre una View Transition, Chromium le manda todo toque a
+ * `<html>`: el de la barra o el del contenido nuevo no le llegaba a nadie, y
+ * la app quedaba sorda hasta medio segundo después de cada navegación. Acá se
+ * corta el pasaje en seco y el toque se vuelve a dar en el mismo punto, que
+ * para entonces ya es la pantalla nueva, quieta y sin inerte. Si caen varios,
+ * vale el último.
+ */
+let toqueEnEspera: { x: number; y: number } | null = null
+
+function rescatarElToque(evento: MouseEvent) {
+  const pasaje = enCurso
+  if (pasaje === null || evento.target !== document.documentElement) return
+  const yaEsperaba = toqueEnEspera !== null
+  toqueEnEspera = { x: evento.clientX, y: evento.clientY }
+  if (yaEsperaba) return
+  pasaje.skipTransition()
+  // Se anota después de la limpieza de `correrPasaje` en el mismo `finished`,
+  // así que corre cuando el contenido ya no está inerte.
+  void pasaje.finished.finally(() => {
+    const toque = toqueEnEspera
+    toqueEnEspera = null
+    if (toque === null) return
+    // Un evento y no `click()`: lo que queda bajo el dedo puede ser el
+    // dibujo de un ícono, que es SVG y no tiene `click()`. El evento sube
+    // hasta el enlace o el botón igual que un toque.
+    document.elementFromPoint(toque.x, toque.y)?.dispatchEvent(
+      new MouseEvent('click', { bubbles: true, cancelable: true, clientX: toque.x, clientY: toque.y, view: window }),
+    )
+  })
+}
+
+if (typeof document !== 'undefined') document.addEventListener('click', rescatarElToque, true)
+
+/**
  * El pasaje, para los tres que lo usan: ir, volver y cambiar de paso.
  *
  * `actualizar` cambia el DOM adentro de la foto y devuelve el scroll que
@@ -397,6 +495,7 @@ function correrPasaje(direccion: Direccion, compartidos: readonly Compartido[], 
     : compartidos.filter((c): c is { origen: HTMLElement; nombre: string } => c.origen != null && estaEnPantalla(c.origen))
   for (const c of nombrados) c.origen.style.viewTransitionName = c.nombre
   raiz.dataset.vt = direccion
+  guardarElFoco()
 
   const pasaje = document.startViewTransition(async () => {
     // Inerte ANTES de dibujar lo nuevo: así el contenido nuevo nace inerte y
@@ -420,6 +519,7 @@ function correrPasaje(direccion: Direccion, compartidos: readonly Compartido[], 
     enCurso = null
     delete raiz.dataset.vt
     soltarInerte()
+    devolverElFoco()
   })
 }
 
@@ -586,43 +686,4 @@ export function LinkConPasaje({
       }}
     />
   )
-}
-
-/**
- * El nombre con que la pantalla de destino recibe lo que viaja.
- *
- * Se pone en el render, mientras haya un pasaje en curso, y se saca cuando
- * termina: un elemento que queda nombrado viajaría en el pasaje siguiente,
- * que es de otra cosa. Si el elemento se repite —una fila de una lista—, el
- * que llama pasa `null` en todas menos la que vino en `location.state`.
- * Un texto lleva la clase `texto` y su ancho justo, para que la foto no se
- * estire al cambiar de cuerpo de letra.
- */
-export function useNombreDePasaje(nombre: string | null, { texto = false } = {}): CSSProperties | undefined {
-  const [vigente, setVigente] = useState(
-    () =>
-      nombre !== null &&
-      pasajeEnCurso() !== null &&
-      !document.documentElement.hasAttribute('data-liviano'),
-  )
-  useEffect(() => {
-    if (!vigente) return
-    const pasaje = pasajeEnCurso()
-    if (!pasaje) {
-      setVigente(false)
-      return
-    }
-    let montado = true
-    void pasaje.finished.finally(() => {
-      if (montado) setVigente(false)
-    })
-    return () => {
-      montado = false
-    }
-  }, [vigente])
-  if (!vigente || nombre === null) return undefined
-  return {
-    viewTransitionName: nombre,
-    ...(texto ? { ['viewTransitionClass' as string]: 'texto', width: 'fit-content' } : {}),
-  }
 }

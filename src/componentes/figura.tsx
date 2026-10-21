@@ -218,9 +218,9 @@ export type PosturaDeLaFigura = 'animada' | 'inicio' | 'ambas-quietas'
 /**
  * La figura de un ejercicio.
  *
- * Quieta no corre ningún `requestAnimationFrame`. Antes, `animar={false}`
- * dejaba quieto el dibujo pero no el bucle, y en el esfuerzo cada cuadro
- * despertaba a React para no cambiar nada.
+ * Quieta no pide ningún `requestAnimationFrame`: no alcanza con no mover el
+ * dibujo, porque un bucle que sigue andando despierta a React en cada cuadro
+ * para no cambiar nada, y en el esfuerzo no se despierta a nadie.
  */
 export function FiguraEjercicio({
   figura,
