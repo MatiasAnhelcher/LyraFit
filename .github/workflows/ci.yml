@@ -78,9 +78,19 @@ jobs:
         run: npm ci
 
       - name: Instalar Chromium
+        # El Chromium con el que se calibraron los portones (141, la revisión
+        # 1194, que es la de Playwright 1.56.1) y no el que trae el Playwright
+        # del proyecto. Los portones miden al píxel y hay medidas con 2 px de
+        # margen: entre dos versiones de Chromium el texto se arma distinto por
+        # uno a tres píxeles, y eso alcanza para un rojo que no es de nadie.
+        # Cambiar de versión es recalibrar, no subir un número acá.
+        env:
+          PLAYWRIGHT_BROWSERS_PATH: ${{ runner.temp }}/navegadores
         run: |
-          npx playwright install --with-deps chromium
-          echo "CHROMIUM_PATH=$(node -e "import('playwright').then((m) => console.log(m.chromium.executablePath()))")" >> "$GITHUB_ENV"
+          npx --yes playwright@1.56.1 install --with-deps chromium
+          CHROMIUM="$PLAYWRIGHT_BROWSERS_PATH/chromium-1194/chrome-linux/chrome"
+          "$CHROMIUM" --version
+          echo "CHROMIUM_PATH=$CHROMIUM" >> "$GITHUB_ENV"
 
       - name: Compilar
         # Sin BASE_PATH: los portones abren la app desde la raíz.
@@ -89,11 +99,45 @@ jobs:
       - name: Servir lo compilado
         timeout-minutes: 2
         run: |
-          npx vite preview --port 4173 --strictPort > "$RUNNER_TEMP/preview.log" 2>&1 &
+          mkdir -p "$RUNNER_TEMP/registros"
+          npx vite preview --port 4173 --strictPort > "$RUNNER_TEMP/registros/preview.log" 2>&1 &
           until curl -s -o /dev/null http://localhost:4173/; do sleep 1; done
 
       - name: Correr los portones
-        run: npm run portones
+        run: |
+          set -o pipefail
+          npm run portones 2>&1 | tee "$RUNNER_TEMP/registros/portones.log"
+
+      # La hoja de contacto de los dibujos. No afirma nada, así que no entra en
+      # el veredicto: corre aunque haya fallado un portón y, si se cae ella, el
+      # job sigue. `/figuras` existe solo en desarrollo, por eso va contra
+      # `vite` y no contra lo compilado.
+      - name: Sacar la hoja de las figuras
+        if: ${{ !cancelled() }}
+        continue-on-error: true
+        timeout-minutes: 5
+        run: |
+          npx vite --port 5173 --strictPort > "$RUNNER_TEMP/registros/vite-dev.log" 2>&1 &
+          until curl -s -o /dev/null http://localhost:5173/; do sleep 1; done
+          node figuras.mjs
+
+      # Las capturas (las figuras y las de `revisar.mjs`) y lo que dijo cada
+      # portón, también cuando algo falla: es con lo que se diagnostica un rojo.
+      - name: Guardar las capturas
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: capturas
+          path: capturas/
+          if-no-files-found: warn
+
+      - name: Guardar lo que dijeron los portones
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: registros
+          path: ${{ runner.temp }}/registros/
+          if-no-files-found: warn
 
   publicar:
     name: Publicar en GitHub Pages

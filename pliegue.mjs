@@ -15,7 +15,8 @@
  *   1. `Empezar` con aire suficiente sobre la barra, en tres teléfonos, con
  *      hoy puesto como día de entrenar: es el estado alto, y el que ya se
  *      rompió. Un día de descanso sobran 188 px y uno de entrenar quedan 12.
- *   2. Los botones del descanso —`+30 s` y `Saltear`— adentro de la pantalla.
+ *   2. Los botones del descanso —`+30 s` y `Saltear`— adentro de la pantalla,
+ *      con la página arriba de todo, en un día de las dos y en uno de fuerza.
  *      Esta es la que decide si el aviso de "qué viene después" se queda en el
  *      descanso o se va: esa pantalla ya estaba a pocos píxeles del borde.
  *   3. La grilla de la semana en Ajustes, sin desborde y con las filas
@@ -65,15 +66,15 @@ function culpar(telefono, texto) {
 const AIRE_MINIMO = 12
 
 /**
- * Cuánto se le permite salirse al ÚLTIMO descanso, por teléfono. Es deuda
- * declarada, no un objetivo: los tres números son lo que mide hoy, y el
- * portón falla si alguno sube. Cuando bajen, hay que bajarlos acá — el propio
- * portón lo avisa cuando detecta una mejora sin trabar.
+ * Cuánto se le permite salirse al ÚLTIMO descanso, por teléfono, con la página
+ * arriba de todo. Es deuda declarada, no un objetivo: los tres números son lo
+ * que mide hoy, y el portón falla si alguno sube. Cuando bajen, hay que
+ * bajarlos acá — el propio portón lo avisa cuando detecta una mejora sin trabar.
  *
  * Son el PEOR valor y no el de una corrida, y eso importa: el alto del
  * descanso depende de cuánto envuelve lo que dice Lyra, que se sortea en cada
  * descanso, así que la misma app mide distinto en dos corridas: en 360×640,
- * los botones terminan en 614 con una frase corta y en 638 con una larga.
+ * los botones terminan en 631 con una frase corta y en 655 con una larga.
  *
  * Por eso el portón AVISA cuando mide menos que el techo en vez de bajarlo
  * solo: bajarlo al número de una corrida afortunada haría un trinquete que
@@ -81,28 +82,38 @@ const AIRE_MINIMO = 12
  * cuando una mejora de verdad lo justifique.
  *
  * Los de ahora salen de forzar, una por una, las veintiséis frases de "queda
- * una" en este mismo recorrido, en los siete días de la semana: con la más
- * larga terminan en 582 de 568, en 638 de 640 y en 704 de 844. En 360×640
- * sobran dos píxeles, así que cualquier renglón nuevo en ese descanso hace
- * fallar el portón, que es exactamente lo que tiene que pasar.
+ * una" en este mismo recorrido, en los siete días de la semana, en un día de
+ * las dos y en uno de fuerza, que dan lo mismo: con la más larga terminan en
+ * 671,5 de 568, en 655,1 de 640 y en 703,8 de 844. `boundingBox` da fracciones,
+ * así que el techo es ese desborde redondeado al píxel de arriba, y en 360×640
+ * y 320×568 queda a menos de un píxel del peor caso: cualquier renglón nuevo
+ * en ese descanso hace fallar el portón, que es exactamente lo que tiene que
+ * pasar.
  *
- * Y ojo con lo que miden: el descanso se mide después de tocar "Hoy no", que
- * queda abajo del borde, y para tocarlo la página scrollea entre 13 y 17 px.
- * Desde arriba de la página, sin ese scroll, los mismos botones terminan en
- * 595 de 568 y en 655 de 640, lo mismo que mide un día de fuerza sin ráfaga,
- * donde no hay "Hoy no" que tocar. El trinquete igual agarra un renglón nuevo
- * —con la frase larga en vez de la corta los botones bajan 24 px—, pero el
- * desborde de verdad es ese, y llegar a cero es llegar a cero sin scroll.
+ * Y se miden con la página arriba. Para tocar "Hoy no", "Anotar serie" o
+ * "Saltear" la página scrollea —17 px en 360×640, casi 90 en 320×568— y
+ * `boundingBox` es relativo a lo que se ve: medidos así, estos mismos botones
+ * daban 638 de 640 y 582 de 568, y el techo había bajado a 0 y a 14 restando
+ * ese scroll, sin que el descanso cambiara un píxel. Llegar a cero es llegar a
+ * cero sin scroll.
  */
 const DESBORDE_ACEPTADO = {
-  '320×568': 14,
-  '360×640': 0,
+  '320×568': 104,
+  '360×640': 16,
   '390×844': 0,
 }
 
 const fallos = []
 const deudas = []
 const medidas = []
+
+/**
+ * Lo que se fue el último descanso en cada día medido, por teléfono. La mejora
+ * se avisa con el peor de los días y no día por día: el techo es uno solo por
+ * teléfono, y un día que sorteó una frase corta no lo puede bajar mientras el
+ * otro sigue llegando hasta ahí.
+ */
+const desbordesDelUltimo = {}
 
 async function alta(p) {
   await p.goto(`${BASE}/#/`, { waitUntil: 'networkidle' })
@@ -157,7 +168,7 @@ async function quienDesborda(p) {
  * hay lugar para un renglón más en Hoy, y por eso la fila del reloj se quedó en
  * Cadenas.
  */
-async function ponerDiaDeEntrenar(p) {
+async function ponerDiaDeEntrenar(p, clase = /LAS DOS/i) {
   const DIAS = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado']
   /*
    * QUÉ DÍA ES HOY LO DICE EL NAVEGADOR, NO NODE.
@@ -181,13 +192,14 @@ async function ponerDiaDeEntrenar(p) {
   const hoy = DIAS[await p.evaluate(() => new Date().getDay())]
   const fila = p.getByRole('button', { name: new RegExp(hoy) })
   // El ciclo es descanso → fuerza → las dos → fuelle, así que en tres toques se
-  // llega desde cualquier estado. Se para en "las dos", que es el más alto.
+  // llega desde cualquier estado. Se para en "las dos", que es el más alto,
+  // salvo que se pida otra clase.
   for (let i = 0; i < 4; i++) {
-    if (/LAS DOS/i.test(await fila.innerText().catch(() => ''))) return true
+    if (clase.test(await fila.innerText().catch(() => ''))) return true
     await fila.click()
     await p.waitForTimeout(250)
   }
-  return /LAS DOS/i.test(await fila.innerText().catch(() => ''))
+  return clase.test(await fila.innerText().catch(() => ''))
 }
 
 /**
@@ -205,7 +217,7 @@ async function ponerDiaDeEntrenar(p) {
  * Hoy tiene un tope de cuatro filas y cuenta el resto en un renglón, y esto es
  * lo que verifica que ese tope esté puesto y alcance.
  */
-async function ponerLaRutinaMasAlta(p) {
+async function ponerLaRutinaMasAlta(p, clase) {
   await p.goto(`${BASE}/#/ajustes`, { waitUntil: 'networkidle' })
   await p.waitForTimeout(500)
 
@@ -246,7 +258,7 @@ async function ponerLaRutinaMasAlta(p) {
   // Pasó, y el síntoma era elocuente: cero filas y `Empezar` ciento trece
   // píxeles más arriba que en la medición anterior. Sin la verificación de
   // "¿son cinco filas?" habría pasado en verde con muchísimo aire.
-  return ponerDiaDeEntrenar(p)
+  return ponerDiaDeEntrenar(p, clase)
 }
 
 async function medirHoy(p, telefono, rutina) {
@@ -286,7 +298,7 @@ async function medirHoy(p, telefono, rutina) {
   }
 }
 
-async function medirDescanso(p, telefono) {
+async function medirDescanso(p, telefono, dia) {
   await p.getByRole('button', { name: /^Empezar$/ }).click()
   await p.waitForTimeout(600)
 
@@ -300,8 +312,16 @@ async function medirDescanso(p, telefono) {
     await p.waitForTimeout(500)
   }
 
-  /** Dónde termina el último botón del descanso. Es lo que decide si se ve. */
+  /**
+   * Dónde termina el último botón del descanso. Es lo que decide si se ve.
+   *
+   * Al tope antes de medir, como en `medirHoy`: tocar un botón que queda abajo
+   * scrollea la página para alcanzarlo, `boundingBox` es relativo al viewport,
+   * y sin volver arriba el número sale con ese scroll restado.
+   */
   const fondoDeLosBotones = async () => {
+    await p.evaluate(() => window.scrollTo(0, 0))
+    await p.waitForTimeout(100)
     let fondo = 0
     for (const nombre of ['+30 s', 'Saltear']) {
       const caja = await p.getByRole('button', { name: nombre, exact: true }).boundingBox()
@@ -353,7 +373,7 @@ async function medirDescanso(p, telefono) {
   const ultimo = await fondoDeLosBotones()
 
   if (medio === null || ultimo === null) {
-    culpar(telefono, `[${telefono.nombre}] No se encontraron los botones del descanso.`)
+    culpar(telefono, `[${telefono.nombre}] No se encontraron los botones del descanso de ${dia}.`)
     return
   }
 
@@ -362,12 +382,12 @@ async function medirDescanso(p, telefono) {
     // Esta sí falla siempre: es la función que se está entregando. Si no está,
     // no hay nada que medir.
     fallos.push(
-      `[${telefono.nombre}] En el último descanso no apareció el aviso de lo que viene.`,
+      `[${telefono.nombre}] En el último descanso de ${dia} no apareció el aviso de lo que viene.`,
     )
   }
 
   medidas.push(
-    `[${telefono.nombre}] Descanso · los botones terminan en ${Math.round(medio)} en el del medio y ${Math.round(ultimo)} en el último, de ${telefono.height}.`,
+    `[${telefono.nombre}] Descanso de ${dia} · los botones terminan en ${Math.round(medio)} en el del medio y ${Math.round(ultimo)} en el último, de ${telefono.height}.`,
   )
 
   /*
@@ -401,21 +421,17 @@ async function medirDescanso(p, telefono) {
   if (desborde > tope) {
     culpar(
       telefono,
-      `[${telefono.nombre}] El último descanso se va ${Math.round(desborde)} px abajo del borde y el tope aceptado es ${tope}. Algo nuevo lo empujó: o se saca, o se baja el tope con el número medido.`,
+      `[${telefono.nombre}] El último descanso de ${dia} se va ${Math.round(desborde)} px abajo del borde y el tope aceptado es ${tope}. Algo nuevo lo empujó: o se saca, o se baja el tope con el número medido.`,
     )
   }
-  if (desborde < tope) {
-    deudas.push(
-      `[${telefono.nombre}] El último descanso ahora se va ${Math.round(desborde)} px en vez de ${tope}: bajá DESBORDE_ACEPTADO a ${Math.round(desborde)} para que la mejora quede trabada.`,
-    )
-  }
+  desbordesDelUltimo[telefono.nombre] = [...(desbordesDelUltimo[telefono.nombre] ?? []), desborde]
 
   const ancho = await p.evaluate(() => document.documentElement.scrollWidth)
   if (ancho > telefono.width + 1) {
     const quien = await quienDesborda(p)
     culpar(
       telefono,
-      `[${telefono.nombre}] El descanso desborda a lo ancho: ${ancho} px en ${telefono.width}. Lo empuja ${quien?.que ?? 'algo que ya no está'}.`,
+      `[${telefono.nombre}] El descanso de ${dia} desborda a lo ancho: ${ancho} px en ${telefono.width}. Lo empuja ${quien?.que ?? 'algo que ya no está'}.`,
     )
   }
 }
@@ -558,7 +574,7 @@ await revisarQueSirvaLoCompilado(BASE)
 
 const navegador = await chromium.launch({ executablePath: CHROMIUM })
 
-for (const telefono of TELEFONOS) {
+async function abrir(telefono) {
   const contexto = await navegador.newContext({
     viewport: { width: telefono.width, height: telefono.height },
     locale: 'es-AR',
@@ -571,6 +587,11 @@ for (const telefono of TELEFONOS) {
   })
   const pagina = await contexto.newPage()
   pagina.on('pageerror', (e) => fallos.push(`[${telefono.nombre}] Error de JavaScript: ${e.message}`))
+  return { contexto, pagina }
+}
+
+for (const telefono of TELEFONOS) {
+  const { contexto, pagina } = await abrir(telefono)
 
   // Cada teléfono en su propio try: que uno se caiga no puede dejar sin medir a
   // los otros dos, que es justo cuando una regresión se escapa.
@@ -637,13 +658,52 @@ for (const telefono of TELEFONOS) {
     await medirSemana(pagina, telefono)
     await pagina.goto(`${BASE}/#/`, { waitUntil: 'networkidle' })
     await pagina.waitForTimeout(400)
-    await medirDescanso(pagina, telefono)
+    await medirDescanso(pagina, telefono, 'las dos')
     await medirReloj(pagina, telefono)
   } catch (e) {
     fallos.push(`[${telefono.nombre}] El recorrido se cortó: ${e.message.split('\n')[0]}`)
   }
 
   await contexto.close()
+
+  /*
+   * Y el descanso de un día de FUERZA, que no tiene ráfaga.
+   *
+   * Forzado a "las dos", el descanso arranca con ráfaga y la forma con Lyra
+   * sale de tocar "Hoy no". Un día de fuerza llega a esa forma sin tocar nada,
+   * y hasta acá ningún recorrido lo medía. Hoy las dos dan lo mismo; medirlas
+   * por separado es lo que avisa si dejan de dar lo mismo. Va en un contexto
+   * nuevo porque la sesión de arriba quedó a medias y Hoy ya no dice "Empezar".
+   */
+  const fuerza = await abrir(telefono)
+  try {
+    await alta(fuerza.pagina)
+    if (!(await ponerLaRutinaMasAlta(fuerza.pagina, /FUERZA/i))) {
+      culpar(
+        telefono,
+        `[${telefono.nombre}] No se pudo poner hoy como día de fuerza, así que el descanso sin ráfaga quedó sin medir.`,
+      )
+    } else {
+      await fuerza.pagina.goto(`${BASE}/#/`, { waitUntil: 'networkidle' })
+      await fuerza.pagina.waitForTimeout(400)
+      await medirDescanso(fuerza.pagina, telefono, 'fuerza')
+    }
+  } catch (e) {
+    fallos.push(`[${telefono.nombre}] El recorrido del día de fuerza se cortó: ${e.message.split('\n')[0]}`)
+  }
+  await fuerza.contexto.close()
+
+  // La mejora, con los dos días medidos o con ninguno: con uno solo, el otro
+  // pudo haber llegado al techo. El techo es el desborde redondeado para
+  // arriba, así que se compara igual: 15,1 contra 16 es el mismo peor caso.
+  const medidos = desbordesDelUltimo[telefono.nombre] ?? []
+  const tope = DESBORDE_ACEPTADO[telefono.nombre] ?? 0
+  const peor = Math.ceil(Math.max(0, ...medidos))
+  if (medidos.length === 2 && peor < tope) {
+    deudas.push(
+      `[${telefono.nombre}] El último descanso ahora se va ${peor} px en vez de ${tope}, el peor de los dos días: bajá DESBORDE_ACEPTADO a ${peor} para que la mejora quede trabada.`,
+    )
+  }
 }
 
 await navegador.close()

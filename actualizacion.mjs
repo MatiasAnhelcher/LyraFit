@@ -47,15 +47,25 @@ const sh = (cmd, args, opts = {}) =>
 
 const taller = await mkdtemp(join(tmpdir(), 'lyrafit-act-'))
 const dir = { previa: join(taller, 'previa'), siguiente: join(taller, 'siguiente') }
-const dist = { previa: join(dir.previa, 'dist'), actual: 'dist', siguiente: join(dir.siguiente, 'dist') }
+// La actual se compila en el taller y no en `dist/`: `dist/` es lo que sirve
+// `vite preview` para los demás portones, y compilado con la subruta deja una
+// app en blanco para el próximo que corra, que falla sin decir por qué.
+const dist = {
+  previa: join(dir.previa, 'dist'),
+  actual: join(taller, 'actual'),
+  siguiente: join(dir.siguiente, 'dist'),
+}
 
 /** Marca visible que distingue una versión de la otra desde el navegador. */
 const MARCA = 'HISTORIAL DE LA VERSIÓN SIGUIENTE'
 const ARCHIVO_MARCA = 'src/pantallas/Progreso.tsx'
 const ORIGINAL = '<Rotulo>HISTORIAL</Rotulo>'
 
-async function compilar(donde) {
-  sh('npx', ['vite', 'build'], { cwd: donde, env: { ...process.env, BASE_PATH: SUBRUTA } })
+async function compilar(donde, salida = 'dist') {
+  sh('npx', ['vite', 'build', '--outDir', salida], {
+    cwd: donde,
+    env: { ...process.env, BASE_PATH: SUBRUTA },
+  })
 }
 
 async function worktree(destino, ref) {
@@ -69,7 +79,7 @@ await worktree(dir.previa, PUBLICADA)
 await compilar(dir.previa)
 
 console.log('Compilando la versión que se va a publicar…')
-await compilar('.')
+await compilar('.', dist.actual)
 
 // La "siguiente" sale de un worktree y no del árbol de trabajo, para no tocar
 // ni un archivo de lo que la persona tenga sin commitear.

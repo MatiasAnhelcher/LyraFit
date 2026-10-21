@@ -313,10 +313,6 @@ export function Entrenar() {
   const paso = plan[enCurso]!
   const { ejercicio, objetivo, antes, descansoSegundos, bajada } = paso
 
-  /* Los kilos arrancan donde quedaron la vez pasada. Va en un efecto y no en
-     el estado inicial porque el ejercicio cambia sin que el componente se
-     vuelva a montar, y arrancar siempre en cero costaría ocho toques por
-     ejercicio y por sesión para volver a veinte kilos. */
   /* Los kilos del ejercicio en curso, derivados, y el ORDEN importa:
      lo que tocaste hoy, después lo que el MOTOR propuso, y recién después lo
      que usaste la vez pasada.

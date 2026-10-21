@@ -9,18 +9,23 @@
  * continuo.
  *
  * La hoja vive solo en desarrollo, así que esto necesita `npm run dev`
- * corriendo, no `npm run preview`.
+ * corriendo, no `npm run preview`: `BASE_DEV` dice dónde (el 5173 si no se
+ * dice otra cosa), igual que `BASE` para los portones. No afirma nada, así que
+ * no entra en `npm run portones`; la CI la saca aparte y sube las capturas.
  *
  * Uso: npm run dev &  →  node figuras.mjs  →  capturas/figuras.png
  */
+import { mkdirSync } from 'node:fs'
 import { chromium } from 'playwright'
 import { CHROMIUM } from './lib/portones.mjs'
+const BASE_DEV = process.env.BASE_DEV ?? 'http://localhost:5173'
+mkdirSync('capturas', { recursive: true })
 const nav = await chromium.launch({ executablePath: CHROMIUM })
 const ctx = await nav.newContext({ viewport: { width: 1400, height: 1400 }, colorScheme: 'light', locale: 'es-AR', deviceScaleFactor: 2 })
 const p = await ctx.newPage()
 p.on('pageerror', (e) => console.log('JS:', e.message))
 // El portero manda todo a /alta: se hace el alta, que es lo que anda seguro.
-await p.goto('http://localhost:5173/#/', { waitUntil: 'networkidle' })
+await p.goto(`${BASE_DEV}/#/`, { waitUntil: 'networkidle' })
 await p.waitForTimeout(500)
 await p.getByRole('button', { name: 'Empezar', exact: true }).click()
 await p.getByRole('button', { name: 'Sí, tengo barra' }).click()
@@ -38,7 +43,7 @@ await p.getByRole('button', { name: 'Seguir', exact: true }).click()
 await p.waitForTimeout(250)
 await p.getByRole('button', { name: /Cuerpo completo/ }).click()
 await p.waitForTimeout(700)
-await p.goto('http://localhost:5173/#/figuras', { waitUntil: 'networkidle' })
+await p.goto(`${BASE_DEV}/#/figuras`, { waitUntil: 'networkidle' })
 await p.waitForTimeout(1200)
 await p.screenshot({ path: 'capturas/figuras.png', fullPage: true })
 // Una lámina por cadena, para poder mirarlas de cerca sin abrir la de 2800px.

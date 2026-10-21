@@ -188,8 +188,16 @@ npm run portones -- pliegue datos   # o solo esos
 Cada portón toma la dirección de `BASE` y el navegador de `CHROMIUM_PATH`, los
 dos a través de `lib/portones.mjs`: `BASE=http://localhost:4174 node pliegue.mjs`
 revisa lo que sirva otro puerto, así que dos árboles de trabajo se pueden revisar
-a la vez. `actualizacion.mjs` corre último porque recompila `dist/` con la
-subruta de Pages.
+a la vez. Ninguno escribe en `dist/`: `actualizacion.mjs` compila sus versiones
+en una carpeta temporal, así que después de una corrida se puede correr otra
+contra el mismo `vite preview`.
+
+La CI los corre con el mismo Chromium con el que se calibraron (el 141, de
+Playwright 1.56.1), porque miden al píxel y otra versión arma el texto distinto.
+Después saca la hoja de las figuras, que no afirma nada y por eso no entra en el
+veredicto: `/figuras` existe solo en desarrollo, así que va contra `npm run dev`,
+en el 5173 o en lo que diga `BASE_DEV`. Las capturas y lo que dijo cada portón
+quedan como artefactos del job, también cuando algo falla.
 
 `paleta.mjs` mide el contraste de cada par del sistema y de **todo el texto de
 siete pantallas**, contra el fondo efectivo —el primer ancestro opaco— y no
@@ -288,7 +296,7 @@ src/
     db.ts            el esquema de IndexedDB y sus migraciones
     repositorio.ts   la única puerta entre la app y la base
     respaldo.ts      la copia que ocurre sola
-  pantallas/     una pantalla por archivo; Hoy y Entrenar, una carpeta cada una
+  pantallas/     una pantalla por archivo; Hoy, Entrenar, Reloj y Ajustes, una carpeta cada una
   componentes/   las piezas visuales compartidas
   hooks/         temporizadores, tema, pantalla despierta
 ```
