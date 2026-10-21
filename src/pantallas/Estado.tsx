@@ -21,12 +21,12 @@
  */
 
 import { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { ENTRADAS_MINIMAS, leerEstado } from '@/dominio/estado'
 import type { Patron } from '@/dominio/tipos'
 import { fechaISO, guardarEstado, leerEstadoDeHoy, leerEstados } from '@/datos/repositorio'
-import { Accion, AccionQuieta, Rotulo, Segmento } from '@/componentes/ui'
+import { useVolver } from '@/componentes/movimiento'
+import { Accion, AccionQuieta, Regleta, Rotulo, Segmento } from '@/componentes/ui'
 import { ElegirMolestia, LO_QUE_PASA_CON_LA_MOLESTIA } from '@/componentes/molestia'
 
 const ITEMS = [
@@ -50,7 +50,7 @@ const ITEMS = [
 ]
 
 export function Estado() {
-  const navegar = useNavigate()
+  const volver = useVolver()
   const historial = useLiveQuery(leerEstados, [])
   const deHoy = useLiveQuery(leerEstadoDeHoy, [])
 
@@ -80,10 +80,13 @@ export function Estado() {
         musculos: actual.musculos ?? 3,
         ...(molestiaElegida && molestiaElegida !== 'ninguna' ? { molestia: molestiaElegida } : {}),
       })
-      navegar('/', { replace: true })
-    } finally {
+    } catch (error) {
       setGuardando(false)
+      throw error
     }
+    // "Guardando…" se queda hasta irse: la foto vieja del pasaje se saca un
+    // cuadro después, y un "Listo" que reaparece en ese cuadro parpadea.
+    volver('/')
   }
 
   return (
@@ -94,7 +97,7 @@ export function Estado() {
         {ITEMS.map((item) => (
           <section key={item.clave} className="mt-7">
             <p className="nombre">{item.pregunta}</p>
-            <div className="mt-3 flex gap-px">
+            <Regleta className="mt-3" etiqueta={item.pregunta}>
               {item.opciones.map((etiqueta, i) => {
                 const valor = i + 1
                 const elegido = actual[item.clave] === valor
@@ -103,13 +106,12 @@ export function Estado() {
                     key={valor}
                     elegido={elegido}
                     onClick={() => setValores((v) => ({ ...v, [item.clave]: valor }))}
-                    className="flex-1 px-1 text-center leading-tight"
                   >
                     {etiqueta}
                   </Segmento>
                 )
               })}
-            </div>
+            </Regleta>
           </section>
         ))}
 
@@ -131,11 +133,11 @@ export function Estado() {
         )}
       </main>
 
-      <div className="mt-8">
+      <div className="mt-8 flex flex-col gap-3">
         <Accion deshabilitado={!completo || guardando} onClick={() => void guardar()}>
           {guardando ? 'Guardando…' : 'Listo'}
         </Accion>
-        <AccionQuieta onClick={() => navegar('/', { replace: true })}>Hoy no</AccionQuieta>
+        <AccionQuieta onClick={() => volver('/')}>Hoy no</AccionQuieta>
       </div>
     </div>
   )

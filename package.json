@@ -10,7 +10,8 @@
     "preview": "vite preview",
     "test": "vitest run",
     "test:watch": "vitest",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "portones": "node lib/correr-portones.mjs"
   },
   "dependencies": {
     "dexie": "^4.4.5",

@@ -17,12 +17,14 @@
  * camino entre las dos.
  *
  * La regla igual manda en lo demás: es lineal y lenta, no tiene rebote, no
- * llama la atención, y con `prefers-reduced-motion` desaparece y quedan las dos
- * posturas una al lado de la otra, que es la versión honesta de lo mismo sin
- * una sola cosa moviéndose.
+ * llama la atención, y con movimiento reducido —el de Ajustes o el del
+ * teléfono— o en medio del esfuerzo desaparece y quedan las dos posturas una
+ * al lado de la otra, que es la versión honesta de lo mismo sin una sola cosa
+ * moviéndose.
  */
 
 import { useEffect, useRef, useState } from 'react'
+import { debeQuedarseQuieto, useQuieto } from './movimiento'
 import {
   ALTO_CUERPO,
   ALTURA_BARRA,
@@ -200,31 +202,46 @@ function Cuerpo({ e }: { e: Esqueleto }) {
 }
 
 /**
+ * Cómo se dibuja la figura.
+ *
+ * - `animada`: va y vuelve entre las dos posturas. Es lo de siempre, y se
+ *   convierte sola en `ambas-quietas` con movimiento reducido o dentro del
+ *   esfuerzo, sin que nadie se lo pase: una pantalla que se olvida de pedirlo
+ *   es una figura moviéndose en el descanso.
+ * - `inicio`: quieta en la postura de inicio. Es para cuando hay varias en
+ *   pantalla, donde media docena de cuerpos moviéndose sería exactamente el
+ *   ruido que el sistema visual trata de evitar.
+ * - `ambas-quietas`: las dos posturas lado a lado.
+ */
+export type PosturaDeLaFigura = 'animada' | 'inicio' | 'ambas-quietas'
+
+/**
  * La figura de un ejercicio.
  *
- * `animar` en false la deja quieta en la postura de inicio: es lo que se usa
- * cuando hay varias en pantalla, donde media docena de cuerpos moviéndose sería
- * exactamente el ruido que el sistema visual trata de evitar.
+ * Quieta no pide ningún `requestAnimationFrame`: no alcanza con no mover el
+ * dibujo, porque un bucle que sigue andando despierta a React en cada cuadro
+ * para no cambiar nada, y en el esfuerzo no se despierta a nadie.
  */
 export function FiguraEjercicio({
   figura,
-  animar = true,
+  postura = 'animada',
   className = '',
 }: {
   figura: Figura
-  animar?: boolean
+  postura?: PosturaDeLaFigura
   className?: string
 }) {
+  const caja = useRef<HTMLDivElement>(null)
+  const quieta = useQuieto(caja)
   const [t, setT] = useState(0)
-  const quieto = useRef(false)
+  const anima = postura === 'animada' && !quieta
 
   useEffect(() => {
-    if (!animar) return
-    const prefiereQuieto =
-      typeof window.matchMedia === 'function' &&
-      window.matchMedia('(prefers-reduced-motion: reduce)').matches
-    quieto.current = prefiereQuieto
-    if (prefiereQuieto) return
+    if (!anima) return
+    // Se vuelve a mirar el DOM antes de arrancar: `useQuieto` se entera del
+    // esfuerzo recién en un efecto de layout, y este efecto puede correr con
+    // el valor de antes. Sin esta pregunta habría un primer cuadro pedido.
+    if (debeQuedarseQuieto(caja.current)) return
 
     let cuadro = 0
     const arranque = performance.now()
@@ -244,26 +261,25 @@ export function FiguraEjercicio({
     }
     cuadro = requestAnimationFrame(paso)
     return () => cancelAnimationFrame(cuadro)
-  }, [animar, figura])
+  }, [anima, figura])
 
-  const reducido =
-    typeof window !== 'undefined' &&
-    typeof window.matchMedia === 'function' &&
-    window.matchMedia('(prefers-reduced-motion: reduce)').matches
-
-  // Con el movimiento apagado se muestran los dos extremos, que es la misma
-  // información sin nada moviéndose.
-  if (animar && reducido) {
+  // Quieta en lugar de animada muestra los dos extremos, que es la misma
+  // información sin nada moviéndose. La segunda no se anuncia: el lector de
+  // pantalla ya leyó el gesto en la primera, y repetirlo no agrega nada.
+  if (postura === 'ambas-quietas' || (postura === 'animada' && quieta)) {
     return (
-      <div className={`flex gap-2 ${className}`}>
+      <div ref={caja} className={`flex gap-2 ${className}`} data-animada="false">
         <Lienzo figura={figura} postura={figura.inicio} />
-        <Lienzo figura={figura} postura={figura.fin} />
+        <Lienzo figura={figura} postura={figura.fin} oculto />
       </div>
     )
   }
 
-  const postura = animar ? entre(figura.inicio, figura.fin, t) : figura.inicio
-  return <Lienzo figura={figura} postura={postura} className={className} />
+  return (
+    <div ref={caja} className={className} data-animada={anima}>
+      <Lienzo figura={figura} postura={anima ? entre(figura.inicio, figura.fin, t) : figura.inicio} />
+    </div>
+  )
 }
 
 /**
@@ -304,19 +320,18 @@ function encuadre(figura: Figura): string {
 function Lienzo({
   figura,
   postura,
-  className = '',
+  oculto = false,
 }: {
   figura: Figura
   postura: Postura
-  className?: string
+  oculto?: boolean
 }) {
   const e = ubicar(postura, figura.apoyo, figura.inicio)
   return (
     <svg
       viewBox={encuadre(figura)}
-      className={`w-full ${className}`}
-      role="img"
-      aria-label={figura.gesto}
+      className="w-full"
+      {...(oculto ? { 'aria-hidden': true } : { role: 'img', 'aria-label': figura.gesto })}
     >
       {figura.apoyo !== 'colgado' && (
         <line

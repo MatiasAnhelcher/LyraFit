@@ -123,6 +123,34 @@ describe('una copia sana entra entera', () => {
   })
 })
 
+describe('el movimiento reducido viaja en la copia', () => {
+  it('una copia que lo trae lo restaura tal cual', () => {
+    for (const movimiento of ['reducido', 'completo', 'sistema'] as const) {
+      const r = revisarCopia(
+        copia({ preferencias: { id: 'unico', rutinaActivaId: 'cuerpo-completo', movimiento } }),
+      )
+      if ('problema' in r) throw new Error(r.problema)
+      expect(r.copia.preferencias.movimiento).toBe(movimiento)
+    }
+  })
+
+  it('una copia de antes del interruptor se lee como seguir al teléfono', () => {
+    const r = revisarCopia(copia())
+    if ('problema' in r) throw new Error(r.problema)
+    expect(copia().preferencias).not.toHaveProperty('movimiento')
+    expect(r.copia.preferencias.movimiento).toBe('sistema')
+  })
+
+  it('un valor que no se entiende no rompe la copia: vuelve a seguir al teléfono', () => {
+    const r = revisarCopia(
+      copia({ preferencias: { id: 'unico', rutinaActivaId: 'cuerpo-completo', movimiento: 'quieto' } }),
+    )
+    if ('problema' in r) throw new Error(r.problema)
+    expect(r.copia.preferencias.movimiento).toBe('sistema')
+    expect(r.copia.preferencias.rutinaActivaId).toBe('cuerpo-completo')
+  })
+})
+
 describe('una sola fila rota rechaza el archivo, y dice cuál', () => {
   it('la sesión sin registros, que dejaba Hoy en blanco para siempre', () => {
     const { registros, ...sinRegistros } = sesion('b', '2026-10-03')

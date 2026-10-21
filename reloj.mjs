@@ -23,10 +23,7 @@
  */
 
 import { chromium } from 'playwright'
-import { conLaBase, revisarQueSirvaLoCompilado } from './lib/portones.mjs'
-
-const BASE = 'http://localhost:4173'
-const CHROMIUM = process.env.CHROMIUM_PATH ?? '/opt/pw-browsers/chromium'
+import { BASE, CHROMIUM, conLaBase, revisarQueSirvaLoCompilado } from './lib/portones.mjs'
 
 /** Cuánto puede desviarse un tramo de lo que promete, en segundos. */
 const TOLERANCIA = 2

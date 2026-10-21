@@ -287,22 +287,6 @@ export const NOMBRE_CLASE: Record<ClaseDeDia, string> = {
  */
 export const CICLO: readonly ClaseDeDia[] = ['descanso', 'fuerza', 'ambos', 'fuelle']
 
-/**
- * El glifo de cada clase, para el canal de la grilla.
- *
- * Son cuatro distintos y no dos, porque el canal existe para escanear la
- * columna sin leer: con el mismo rombo lleno en fuerza, en fuelle y en las dos,
- * la única diferencia quedaba en el rótulo de la derecha y había que leerlo día
- * por día. Van de menos a más peso —punto, hueco, lleno, lleno con núcleo— así
- * que la semana se lee de un vistazo como lo que es, una tira de intensidad.
- */
-export const GLIFO_CLASE: Record<ClaseDeDia, string> = {
-  descanso: '·',
-  fuelle: '◇',
-  fuerza: '◆',
-  ambos: '◈',
-}
-
 export function siguienteClase(clase: ClaseDeDia): ClaseDeDia {
   const i = CICLO.indexOf(clase)
   return CICLO[(i + 1) % CICLO.length]!

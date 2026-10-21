@@ -163,7 +163,7 @@ node rescate.mjs   # revisa los datos: que no se pierda una sesión y que se mid
 node fuelle.mjs    # que el trabajo metabólico no le cueste fuerza a nadie
 node despues.mjs   # que se sepa qué viene, se vea todo el descanso y se diga una sola vez
 node pliegue.mjs   # que nada quede abajo del pliegue, medido en tres teléfonos
-node paleta.mjs    # contraste de cada par del sistema y de cada texto en pantalla
+node paleta.mjs    # contraste de cada par, de cada texto y del foco; las cadenas con daltonismo
 node movimiento.mjs # que nada se mueva en el esfuerzo y que haya un solo infinito
 node carga.mjs     # los discos: que se ofrezcan con qué, y que lleguen a la base
 node colgado.mjs   # sin barra, nada colgado; y la palanca frontal, recién con 3×8 dominadas
@@ -172,23 +172,68 @@ node molestia.mjs  # avisar una molestia baja la cadena, se dice, y el motor no 
 node textos.mjs    # lo que se lee en pantalla: sin hora de acostarse inventada, sin género, sin "rinde más"
 node barra.mjs     # la barra de 28 días: que no le avise faltas a quien no faltó
 node dormir.mjs    # la hora de acostarse: se pregunta con el café tarde, nunca se inventa, y con ella sale el corte
+node toques.mjs    # que lo que se toca mida un dedo: la barra, las regletas, las filas y el descanso
+node transiciones.mjs # los pasajes con la CPU ×4: la callback a tiempo, sin cuadros largos ni nombres de más, y ningún toque perdido
 node logo.mjs     # regenera el favicon y los íconos desde el componente de Lyra
 ```
 
+Todos juntos, de a uno y con un solo veredicto, es lo que corre la CI en cada
+push y en cada pull request, y lo que conviene correr antes de abrir uno:
+
+```bash
+npm run build
+npx vite preview --port 4173 --strictPort &
+npm run portones                    # todos los *.mjs de la raíz menos logo y figuras
+npm run portones -- pliegue datos   # o solo esos
+```
+
+Cada portón toma la dirección de `BASE` y el navegador de `CHROMIUM_PATH`, los
+dos a través de `lib/portones.mjs`: `BASE=http://localhost:4174 node pliegue.mjs`
+revisa lo que sirva otro puerto, así que dos árboles de trabajo se pueden revisar
+a la vez. Ninguno escribe en `dist/`: `actualizacion.mjs` compila sus versiones
+en una carpeta temporal, así que después de una corrida se puede correr otra
+contra el mismo `vite preview`.
+
+La CI los corre con el mismo Chromium con el que se calibraron (el 141, de
+Playwright 1.56.1), porque miden al píxel y otra versión arma el texto distinto.
+Después saca la hoja de las figuras, que no afirma nada y por eso no entra en el
+veredicto: `/figuras` existe solo en desarrollo, así que va contra `npm run dev`,
+en el 5173 o en lo que diga `BASE_DEV`. Las capturas y lo que dijo cada portón
+quedan como artefactos del job, también cuando algo falla.
+
 `paleta.mjs` mide el contraste de cada par del sistema y de **todo el texto de
-siete pantallas**, contra el fondo efectivo —el primer ancestro opaco— y no
-contra el declarado. El proyecto afirmaba tener un validador de paleta desde
-hacía meses y nunca existió; mientras tanto cinco regletas ponían texto blanco
-sobre el acento, que da 2,6:1, mientras el propio CSS documentaba dos secciones
-más abajo que ahí va tinta oscura. Mirar una captura no mide contraste: el
-naranja es brillante y el blanco encima parece que se lee.
+veintiuna pantallas** —el alta paso por paso, las secciones, una ficha, el
+chequeo, la molestia, el reloj, la serie, el descanso, la serie de cierre, las
+preguntas y el cierre—, contra el fondo efectivo —el primer ancestro opaco— y
+no contra el declarado. Mide también lo que no es texto (el borde de un
+segmento y el glifo de cada cadena) y el contorno de foco de cada pantalla,
+recorrido con Tab: sobre el trazo de verdad, lado por lado, con lo que queda
+fuera de la pantalla, lo que tapa algo fijo y lo que cae sobre otro relleno.
+Y que las cinco cadenas se distingan con protanopía, deuteranopía y
+tritanopía, por color y por forma.
+El proyecto afirmaba tener un validador de paleta desde hacía meses y nunca
+existió; mientras tanto cinco regletas ponían texto blanco sobre el acento,
+que da 2,6:1, mientras el propio CSS documentaba dos secciones más abajo que
+ahí va tinta oscura. Mirar una captura no mide contraste: el naranja es
+brillante y el blanco encima parece que se lee.
 
 `movimiento.mjs` convierte en medición tres reglas que eran comentarios y se
 erosionaron: que nada se mueva durante el esfuerzo, que haya un solo
-`infinite` en toda la app, y que con `prefers-reduced-motion` todo quede
+`infinite` en toda la app, y que con movimiento reducido —el que pide el
+teléfono o el interruptor de Ajustes, que manda sobre el teléfono— todo quede
 quieto **sin perder información** — que es la difícil, porque apagar una
 animación con `animation: none` deja el elemento en su estado inicial, y el
 estado inicial de casi todas es "invisible".
+
+`transiciones.mjs` recorre los pasajes entre pantallas con la CPU frenada
+cuatro veces, que es lo más parecido acá a un Android de gama baja: que la
+callback de la app no congele la pantalla más de 300 ms, que mientras se
+mueve no haya un solo cuadro largo, que lo nuevo esté inerte hasta que llega,
+y que un toque en medio de un pasaje, el atrás del sistema y el foco del
+teclado lleguen adonde tienen que llegar. La holgura de 150 ms que la
+especificación pide desde el toque no se alcanza en este Chromium ni con un
+pasaje vacío; el portón la informa como deuda en cada corrida, y la medida de
+verdad es la del teléfono real.
 
 `pliegue.mjs` existe porque la regla de que `Empezar` tenga aire sobre la barra
 de navegación ya se rompió **dos veces**, las dos por un renglón que parecía
@@ -272,7 +317,7 @@ src/
     db.ts            el esquema de IndexedDB y sus migraciones
     repositorio.ts   la única puerta entre la app y la base
     respaldo.ts      la copia que ocurre sola
-  pantallas/     una pantalla por archivo
+  pantallas/     una pantalla por archivo; Hoy, Entrenar, Reloj y Ajustes, una carpeta cada una
   componentes/   las piezas visuales compartidas
   hooks/         temporizadores, tema, pantalla despierta
 ```
@@ -334,19 +379,21 @@ lee: es la costura por donde va a entrar la sincronización.
 
 ### El sistema visual
 
-Se llama **Efeméride**, que es como se llama una tabla astronómica: filas de
-números, en silencio, que dicen dónde va a estar un cuerpo mañana.
+Se llama **Pulso**. LyraFit es un instrumento de noche: un solo negro grafito,
+tinta casi blanca y una sola luz menta, que marca qué hacer ahora. El coral es
+de Lyra, el ámbar de lo que pide cuidado, y el resto del color es de las cinco
+cadenas, que llevan además su forma (▲ ▼ ■ ● ▬) porque nada depende solo del
+color.
 
-Tiene dos registros y ninguno más. **El registro** es papel cálido con filas
-regladas: cero tarjetas, cero sombras, cero esquinas redondeadas, cifras
-monoespaciadas. **La carta** es una banda de cielo nocturno a sangre, idéntica
-en tema claro y oscuro, donde cada cadena se dibuja como una constelación con
+Tiene dos registros y ninguno más. **El registro** son filas regladas con
+filetes de 1 px, cero sombras y cifras tabulares. **La carta** es una banda de
+cielo nocturno a sangre donde cada cadena se dibuja como una constelación con
 su propia silueta y el "estás acá" es lo único que brilla en toda la app.
 
-Cuatro voces con jurisdicción estricta: mono para el dato, serif romana para la
-identidad y solo a tamaño monumental, serif cursiva para el motor —nada más usa
-cursiva— y la sans del sistema para la interfaz. Las fuentes van autoalojadas y
-recortadas: suman 64 KB entre las cuatro.
+Tres voces con jurisdicción estricta: Sora para el dato (cifras, títulos y la
+acción), Inter para la interfaz y la cursiva de Newsreader para el motor —nada
+más usa cursiva—. Las fuentes van autoalojadas y recortadas: suman 96,8 kB
+entre las tres, y solo se precarga Sora.
 
 ### Decisiones que se ven raras hasta que se explican
 
@@ -419,8 +466,9 @@ Greenwich. En UTC los errores de zona horaria no se ven.
 ## Publicar
 
 El workflow de `.github/workflows/ci.yml` revisa los tipos, corre los tests en
-dos husos, compila y publica en GitHub Pages en cada push a `main`. Para
-activarlo, una vez:
+dos husos, compila, corre los portones contra la app compilada y, si todo pasa,
+publica en GitHub Pages en cada push a `main`. Un pull request pasa por lo mismo
+menos la publicación. Para activarlo, una vez:
 
 **Settings → Pages → Source → GitHub Actions.**
 

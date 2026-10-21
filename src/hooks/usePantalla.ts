@@ -1,4 +1,5 @@
-import { useEffect } from 'react'
+import { useEffect, useLayoutEffect } from 'react'
+import { pasajeEnCurso } from '@/componentes/movimiento'
 
 /**
  * Mantiene la pantalla encendida mientras dura la sesión.
@@ -53,12 +54,28 @@ export function usePantallaDespierta(activo: boolean): void {
  * Entrenar conmuta el tema entero a noche fija, y eso pasa por CSS y no por
  * disciplina de cada componente: así ninguna pieza se puede olvidar de
  * apagarse.
+ *
+ * Va en un efecto de layout, antes del primer pintado: con un efecto común,
+ * el primer cuadro de la sesión salía con la letra y el movimiento de afuera.
+ * Si la pantalla llega por un pasaje, el atributo se pone recién cuando el
+ * pasaje termina, porque hasta ahí algo se está moviendo; lo que se ve del
+ * esfuerzo no lo espera, porque el CSS también lo lee de la clase de la
+ * pantalla, que está desde el primer cuadro.
  */
 export function useModoDePantalla(nombre: string | null): void {
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (!nombre) return
     const raiz = document.documentElement
-    raiz.setAttribute('data-pantalla', nombre)
-    return () => raiz.removeAttribute('data-pantalla')
+    let vigente = true
+    const marcar = () => {
+      if (vigente) raiz.setAttribute('data-pantalla', nombre)
+    }
+    const pasaje = pasajeEnCurso()
+    if (pasaje) void pasaje.finished.then(marcar, marcar)
+    else marcar()
+    return () => {
+      vigente = false
+      raiz.removeAttribute('data-pantalla')
+    }
   }, [nombre])
 }

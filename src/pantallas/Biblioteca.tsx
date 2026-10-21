@@ -1,10 +1,9 @@
-import { Link } from 'react-router-dom'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { CADENAS, EJERCICIOS, FUERA_DE_CADENA, NOMBRE_PATRON, POR_ID } from '@/dominio/biblioteca'
 import { leerAvances, leerPreferencias } from '@/datos/repositorio'
-import { Cargando, Glifo, Objetivo, Rotulo } from '@/componentes/ui'
+import { Cargando, Glifo, Objetivo, Rotulo, Simbolo } from '@/componentes/ui'
 import { IconoFuerza, IconoReloj } from '@/componentes/iconos'
-import { orden } from '@/componentes/movimiento'
+import { LinkConPasaje, orden } from '@/componentes/movimiento'
 
 /**
  * La biblioteca.
@@ -59,7 +58,7 @@ export function Biblioteca() {
 
           Acá además pertenece: esta es la pantalla de los ejercicios, y un
           tabata es elegir ejercicios y arrancar. */}
-      <Link to="/reloj" className="registro mt-6 block">
+      <LinkConPasaje a="/reloj" direccion="profundo" className="registro mt-6 block">
         <div className="fila-pulsable">
           <span className="canal" style={{ color: 'var(--dominio-fuelle-luz)' }}>
             <IconoReloj className="h-[18px] w-[18px]" />
@@ -72,7 +71,7 @@ export function Biblioteca() {
           </span>
           <span className="rotulo">4 min</span>
         </div>
-      </Link>
+      </LinkConPasaje>
 
       {CADENAS.map((cadena, i) => {
         const avance = avances.get(cadena.patron)
@@ -96,13 +95,16 @@ export function Biblioteca() {
                 const hecho = i < actual
 
                 return (
-                  <Link key={id} to={`/biblioteca/${id}`} className="fila-pulsable">
+                  <LinkConPasaje key={id} a={`/biblioteca/${id}`} direccion="profundo" className="fila-pulsable">
                     <span className="canal" style={aca ? { color: 'var(--color-vega)' } : undefined}>
-                      {aca ? '◆' : String(i + 1).padStart(2, '0')}
+                      {aca ? <Simbolo nombre="rombo" /> : String(i + 1).padStart(2, '0')}
                     </span>
                     <span className="min-w-0">
+                      {/* El nombre parte en dos renglones antes que cortarse:
+                          es lo que se viene a buscar a esta lista, y con
+                          "3×15" a la derecha los largos no entran en uno. */}
                       <span
-                        className="nombre block truncate"
+                        className="nombre block"
                         style={hecho ? { color: 'var(--color-glosa)' } : undefined}
                       >
                         {ejercicio.nombre}
@@ -114,7 +116,7 @@ export function Biblioteca() {
                       cantidad={ejercicio.ventana.max}
                       medida={ejercicio.medida}
                     />
-                  </Link>
+                  </LinkConPasaje>
                 )
               })}
             </div>
@@ -154,12 +156,17 @@ export function Biblioteca() {
           </p>
           <div className="registro mt-3">
             {deLaBarra.map((ejercicio) => (
-              <Link key={ejercicio.id} to={`/biblioteca/${ejercicio.id}`} className="fila-pulsable">
+              <LinkConPasaje
+                key={ejercicio.id}
+                a={`/biblioteca/${ejercicio.id}`}
+                direccion="profundo"
+                className="fila-pulsable"
+              >
                 <span className="canal">
                   <Glifo patron={ejercicio.patron} />
                 </span>
                 <span className="min-w-0">
-                  <span className="nombre block truncate">{ejercicio.nombre}</span>
+                  <span className="nombre block">{ejercicio.nombre}</span>
                   <span className="rotulo mt-0.5 block truncate">
                     {NOMBRE_PATRON[ejercicio.patron]} · con discos
                   </span>
@@ -169,7 +176,7 @@ export function Biblioteca() {
                   cantidad={ejercicio.ventana.max}
                   medida={ejercicio.medida}
                 />
-              </Link>
+              </LinkConPasaje>
             ))}
           </div>
         </section>

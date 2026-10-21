@@ -117,7 +117,14 @@ export type Toque = keyof typeof TOQUE
 
 export function tocar(cual: Toque): void {
   if (!hapticaActiva || !HAY_HAPTICA) return
+  // Con la página oculta no vibra: el teléfono está en el bolsillo o en otra
+  // app, y una vibración sin la pantalla que la explica es un susto, no un
+  // aviso. El gemelo en sonido ya avisó, si estaba prendido.
+  if (document.visibilityState !== 'visible') return
   try {
+    // Primero se corta el que haya quedado a medias. Dos patrones encimados
+    // no se leen como dos: se leen como uno largo que no significa nada.
+    navigator.vibrate(0)
     navigator.vibrate(TOQUE[cual] as unknown as number[])
   } catch {
     /* Un dispositivo que no vibra no es motivo para romper nada. */

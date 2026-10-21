@@ -1,4 +1,4 @@
-import { Link, useParams } from 'react-router-dom'
+import { useParams } from 'react-router-dom'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { NOMBRE_PATRON, POR_ID, buscarEjercicio, cadenaDe } from '@/dominio/biblioteca'
 import { historicoDeEjercicio, recordDe } from '@/dominio/estadisticas'
@@ -6,10 +6,11 @@ import { proyectar, requisitoDicho } from '@/dominio/progresion'
 import { eslabonesCerrados } from '@/dominio/apertura'
 import { POSTURAS } from '@/dominio/posturas'
 import { FiguraEjercicio } from '@/componentes/figura'
+import { LinkConPasaje } from '@/componentes/movimiento'
 import { CuerpoDoble } from '@/componentes/cuerpo'
 import { APORTE, NOMBRE_MUSCULO, PISO_DE_DOSIS, type Aporte, type Musculo } from '@/dominio/musculos'
 import { fijarNivel, leerAvances, leerPreferencias, leerSesiones } from '@/datos/repositorio'
-import { Accion, AccionQuieta, Cargando, Glifo, Objetivo, Rotulo, nombreUnidad } from '@/componentes/ui'
+import { Accion, AccionQuieta, Cargando, Glifo, Objetivo, Rotulo, Simbolo, nombreUnidad } from '@/componentes/ui'
 
 /**
  * La ficha de un ejercicio.
@@ -37,9 +38,9 @@ export function FichaEjercicio() {
         <Rotulo>NO ENCONTRADO</Rotulo>
         <p className="mt-3 text-sm text-[var(--color-glosa)]">
           Ese ejercicio no está en la biblioteca.{' '}
-          <Link to="/biblioteca" className="underline underline-offset-4">
+          <LinkConPasaje a="/biblioteca" direccion="superficie" className="underline underline-offset-4">
             Volver
-          </Link>
+          </LinkConPasaje>
           .
         </p>
       </>
@@ -206,7 +207,9 @@ export function FichaEjercicio() {
 
       <div className="registro mt-6">
         <div>
-          <span className="canal">↔</span>
+          <span className="canal">
+            <Simbolo nombre="rango" />
+          </span>
           <span className="nombre">Ventana de trabajo</span>
           <span className="cifra-fila">
             {ejercicio.ventana.min}–{ejercicio.ventana.max}
@@ -214,7 +217,9 @@ export function FichaEjercicio() {
           </span>
         </div>
         <div>
-          <span className="canal">◇</span>
+          <span className="canal">
+            <Simbolo nombre="rombo-vacio" />
+          </span>
           <span className="nombre">Se domina con</span>
           <Objetivo
             series={ejercicio.series}
@@ -223,7 +228,9 @@ export function FichaEjercicio() {
           />
         </div>
         <div>
-          <span className="canal">◷</span>
+          <span className="canal">
+            <Simbolo nombre="reloj" />
+          </span>
           <span className="nombre">Descanso entre series</span>
           <span className="cifra-fila">
             {ejercicio.descansoSegundos}
@@ -232,7 +239,9 @@ export function FichaEjercicio() {
         </div>
         {record > 0 && (
           <div>
-            <span className="canal">★</span>
+            <span className="canal">
+              <Simbolo nombre="tope" />
+            </span>
             <span className="min-w-0">
               <span className="nombre block">Tu mejor serie</span>
               <span className="rotulo mt-0.5 block">
@@ -301,7 +310,9 @@ export function FichaEjercicio() {
         <ul className="registro mt-3">
           {ejercicio.erroresComunes.map((error, i) => (
             <li key={i}>
-              <span className="canal">✕</span>
+              <span className="canal">
+                <Simbolo nombre="cruz" />
+              </span>
               <span className="text-sm leading-relaxed text-[var(--color-glosa)]">{error}</span>
               <span />
             </li>
@@ -332,26 +343,33 @@ export function FichaEjercicio() {
       {esEslabon && (
       <section className="mt-8">
         <Rotulo>EN LA CADENA</Rotulo>
+        {/* Ir al eslabón de al lado es un paso por la misma cadena, no bajar
+            un nivel: va con el pasaje de paso y reemplaza la entrada, así
+            "Volver" y el atrás llevan a las cadenas y no a la ficha de antes. */}
         <div className="registro mt-3">
           {anterior && (
-            <Link to={`/biblioteca/${anterior.id}`} className="fila-pulsable">
-              <span className="canal">←</span>
+            <LinkConPasaje a={`/biblioteca/${anterior.id}`} direccion="paso-atras" replace className="fila-pulsable">
+              <span className="canal">
+                <Simbolo nombre="flecha-izq" />
+              </span>
               <span className="min-w-0">
                 <span className="rotulo block">ANTES</span>
                 <span className="nombre mt-0.5 block truncate">{anterior.nombre}</span>
               </span>
               <span />
-            </Link>
+            </LinkConPasaje>
           )}
           {siguiente && (
-            <Link to={`/biblioteca/${siguiente.id}`} className="fila-pulsable">
-              <span className="canal">→</span>
+            <LinkConPasaje a={`/biblioteca/${siguiente.id}`} direccion="paso-adelante" replace className="fila-pulsable">
+              <span className="canal">
+                <Simbolo nombre="flecha-der" />
+              </span>
               <span className="min-w-0">
                 <span className="rotulo block">DESPUÉS</span>
                 <span className="nombre mt-0.5 block truncate">{siguiente.nombre}</span>
               </span>
               <span />
-            </Link>
+            </LinkConPasaje>
           )}
         </div>
       </section>
@@ -362,11 +380,11 @@ export function FichaEjercicio() {
           cadena, y a partir de ahí la app no puede resolver dónde estás: es
           corrupción de datos, no un texto raro. */}
       {!esActual && esEslabon && (
-        <div className="mt-8 -mx-4">
+        <div className="mt-8">
           <AccionQuieta onClick={() => void fijarNivel(ejercicio.patron, ejercicio.id)}>
             Empezar la cadena de {NOMBRE_PATRON[ejercicio.patron].toLowerCase()} acá
           </AccionQuieta>
-          <p className="mt-3 px-4 text-xs leading-relaxed text-[var(--color-glosa)]">
+          <p className="mt-3 text-xs leading-relaxed text-[var(--color-glosa)]">
             El motor decide solo, pero vos mandás. Si te ubicó en un ejercicio que no corresponde,
             corregilo desde acá: arranca en {ejercicio.ventana.min}{' '}
             {nombreUnidad(ejercicio.medida)} por serie.
@@ -375,7 +393,7 @@ export function FichaEjercicio() {
       )}
 
       {esActual && (
-        <div className="mt-8 -mx-4">
+        <div className="mt-8">
           <Accion className="pointer-events-none opacity-60">Estás acá</Accion>
         </div>
       )}

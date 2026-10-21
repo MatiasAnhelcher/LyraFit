@@ -9,6 +9,11 @@ import { revisarRequisitosUnaVez } from './datos/repositorio'
 // Se usa HashRouter y no BrowserRouter a propósito: así la app anda igual en
 // GitHub Pages, en un subdirectorio o abierta desde un archivo, sin necesidad
 // de configurar redirecciones en el servidor.
+//
+// Y con `useTransitions={false}`: si no, el router cambia de ruta adentro de
+// `startTransition`, que `flushSync` no apura, y el pasaje entre pantallas
+// sacaría la foto de la pantalla nueva antes de que exista
+// (`componentes/movimiento.tsx`).
 
 /**
  * Recargar una sola vez cuando entra una versión nueva.
@@ -58,7 +63,7 @@ if (!contenedor) throw new Error('No se encontró el elemento raíz.')
 
 createRoot(contenedor).render(
   <StrictMode>
-    <HashRouter>
+    <HashRouter useTransitions={false}>
       <App />
     </HashRouter>
   </StrictMode>,

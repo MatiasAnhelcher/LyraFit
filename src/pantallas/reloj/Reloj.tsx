@@ -34,27 +34,24 @@ import {
   TOPE_DE_EJERCICIOS,
   anteriorDelMismo,
   cuentaEnLaVuelta,
-  registrosDelReloj,
   dichoDelTramo,
   duracionDelReloj,
-  peorPorEjercicio,
-  peorVuelta,
   planDelReloj,
   rotuloDelTramo,
-  vueltaSinPausa,
-  vueltasSinContar,
   type Formato,
   type Opcion,
   type Tramo,
 } from '@/dominio/reloj'
-import { cerrarSesion, leerAvances, leerPreferencias } from '@/datos/repositorio'
+import { leerAvances, leerPreferencias } from '@/datos/repositorio'
 import { useTemporizador, comoReloj } from '@/hooks/useTemporizador'
 import { useModoDePantalla, usePantallaDespierta } from '@/hooks/usePantalla'
 import { despertarAudio, configurarHaptica, configurarSonido, sonar, tocar } from '@/respuesta'
 import { callar, configurarVoz, decir, prepararVoz } from '@/voz'
 import { Arco } from '@/componentes/arco'
 import { FiguraEjercicio } from '@/componentes/figura'
-import { Accion, AccionQuieta, Cargando, Rotulo } from '@/componentes/ui'
+import { Accion, Cargando, MarcaRadio, Rotulo, Simbolo } from '@/componentes/ui'
+import { Cuenta, anotar, opcionDeVuelta } from './Cuenta'
+import { Final } from './Final'
 
 export function Reloj() {
   const navegar = useNavigate()
@@ -211,11 +208,18 @@ export function Reloj() {
           <Rotulo>FORMATO</Rotulo>
           <div className="registro mt-3">
             {FORMATOS.map((f) => (
-              <button key={f.id} onClick={() => setFormatoId(f.id)} className="fila-pulsable">
-                <span className="canal">{f.id === formatoId ? '◆' : '◇'}</span>
+              <button
+                key={f.id}
+                onClick={() => setFormatoId(f.id)}
+                aria-pressed={f.id === formatoId}
+                className="fila-pulsable"
+              >
+                <span className="canal">
+                  <MarcaRadio elegida={f.id === formatoId} />
+                </span>
                 <span className="min-w-0">
                   <span className="nombre block">{f.nombre}</span>
-                  <span className="mt-0.5 block text-xs leading-relaxed text-[var(--color-glosa)]">
+                  <span className="mt-0.5 block texto-glosa">
                     {f.nota}
                   </span>
                 </span>
@@ -227,7 +231,7 @@ export function Reloj() {
 
         <section className="mt-8">
           <Rotulo>EJERCICIOS</Rotulo>
-          <p className="mt-2 max-w-[42ch] text-xs leading-relaxed text-[var(--color-glosa)]">
+          <p className="mt-2 max-w-[42ch] texto-glosa">
             De uno a {TOPE_DE_EJERCICIOS}. Si elegís varios, rotan vuelta por vuelta: el músculo
             que descansa es otro y por eso se sostiene mejor.
           </p>
@@ -238,7 +242,9 @@ export function Reloj() {
                 <button key={o.id} onClick={() => alternar(o.id)} className="fila-pulsable">
                   {/* El número en el canal y no un tilde: en una rotación el
                       ORDEN es información, y un tilde no la lleva. */}
-                  <span className="canal">{puesto >= 0 ? String(puesto + 1) : '◇'}</span>
+                  <span className="canal">
+                    {puesto >= 0 ? String(puesto + 1) : <Simbolo nombre="rombo-vacio" />}
+                  </span>
                   <span className="min-w-0">
                     <span className="nombre block">{o.nombre}</span>
                   </span>
@@ -437,8 +443,8 @@ function Corriendo({
           <Arco restante={reloj.restante} total={tramo.segundos} />
         </div>
 
-        {/* El ejercicio: el nombre y el dibujo. El dibujo va quieto —`animar`
-            en false— porque esta pantalla apaga el movimiento y porque acá no
+        {/* El ejercicio: el nombre y el dibujo. El dibujo va quieto —en la
+            postura de inicio— porque esta pantalla apaga el movimiento y porque acá no
             hace falta aprender el gesto, hace falta reconocerlo de un vistazo. */}
         {tramo.clase !== 'pausa' && ejercicioId && (
           <>
@@ -451,7 +457,7 @@ function Corriendo({
             {aContar === null &&
               (dibujo ? (
                 <div className="mt-2 w-32 opacity-70">
-                  <FiguraEjercicio figura={dibujo} animar={false} />
+                  <FiguraEjercicio figura={dibujo} postura="inicio" />
                 </div>
               ) : (
                 // Las ráfagas no tienen dibujo pero tienen gesto, que es la
@@ -491,264 +497,6 @@ function Corriendo({
           </div>
         )}
       </main>
-    </div>
-  )
-}
-
-/** Escribe el logro de una vuelta. Fuera del componente para no recrearla. */
-function anotar(
-  set: React.Dispatch<React.SetStateAction<(number | null)[]>>,
-  vuelta: number,
-  cuanto: (previo: number | null) => number,
-) {
-  set((previos) => previos.map((n, i) => (i === vuelta ? cuanto(n) : n)))
-}
-
-// ─────────────────────────────────────────────────────────────────────────
-
-/** El ejercicio que le toca a una vuelta. */
-function opcionDeVuelta(
-  plan: readonly Tramo[],
-  opciones: readonly Opcion[],
-  vuelta: number,
-): Opcion | undefined {
-  const tramo = plan.find((t) => t.clase === 'trabajo' && t.vuelta === vuelta)
-  if (!tramo || tramo.clase !== 'trabajo') return undefined
-  return opciones.find((o) => o.id === tramo.ejercicioId)
-}
-
-/**
- * La cuenta de una vuelta: menos, el número, más.
- *
- * El número que se OFRECE va en gris y el que está anotado va en tinta, y la
- * diferencia no es decorativa. La versión anterior mostraba la vuelta anterior
- * en tinta sin haberla guardado: la pantalla decía "doce" y la base guardaba
- * "no contada". Mostrar en gris lo que todavía no es, y en tinta lo que ya es,
- * es la misma regla que usa toda la app para lo que falta.
- */
-function Cuenta({
-  vuelta,
-  logro,
-  sugerido,
-  sugeridoEs,
-  enSegundos,
-  set,
-}: {
-  vuelta: number
-  logro: number | null
-  /** Lo que se ofrece sin haberlo guardado: la vuelta anterior del mismo
-      ejercicio, o la vuelta entera si es un sostén. */
-  sugerido: number | undefined
-  sugeridoEs: 'anterior' | 'entera'
-  enSegundos: boolean
-  set: (cuanto: (previo: number | null) => number) => void
-}) {
-  const anotado = logro !== null
-  const mostrado = logro ?? sugerido
-  return (
-    <>
-      <p className="text-center text-sm text-[var(--color-glosa)]">
-        {enSegundos
-          ? `¿Cuántos segundos aguantaste en la vuelta ${vuelta + 1}?`
-          : `¿Cuántas en la vuelta ${vuelta + 1}?`}
-      </p>
-      <div className="mt-3 flex items-center justify-center gap-5">
-        <button
-          onClick={() => set((n) => Math.max(0, (n ?? sugerido ?? 0) - 1))}
-          className="paso h-14 w-14 text-2xl"
-          aria-label="Restar"
-        >
-          −
-        </button>
-        <p
-          className="cifra w-24 text-center text-5xl"
-          style={anotado ? undefined : { color: 'var(--color-glosa)' }}
-        >
-          {mostrado ?? '—'}
-        </p>
-        <button
-          onClick={() => set((n) => (n ?? sugerido ?? 0) + 1)}
-          className="paso h-14 w-14 text-2xl"
-          aria-label="Sumar"
-        >
-          +
-        </button>
-      </div>
-      {!anotado && sugerido !== undefined && (
-        <button
-          onClick={() => set(() => sugerido)}
-          className="rotulo mt-3 block w-full text-center underline underline-offset-4"
-        >
-          {sugeridoEs === 'entera' ? 'La aguanté entera' : 'Las mismas que la anterior'}
-        </button>
-      )}
-    </>
-  )
-}
-
-// ─────────────────────────────────────────────────────────────────────────
-
-function Final({
-  plan,
-  formato,
-  logros,
-  setLogros,
-  opciones,
-  duracion,
-  alSalir,
-}: {
-  plan: Tramo[]
-  formato: Formato
-  logros: (number | null)[]
-  setLogros: React.Dispatch<React.SetStateAction<(number | null)[]>>
-  opciones: Opcion[]
-  duracion: number
-  alSalir: () => void
-}) {
-  const puntajes = peorPorEjercicio(plan, logros)
-  const unEjercicio = puntajes.length === 1
-  const peor = peorVuelta(logros)
-  const sinContar = vueltasSinContar(logros)
-  const nombreDe = (id: string) => opciones.find((o) => o.id === id)?.nombre ?? id
-
-  /**
-   * La última vuelta no tuvo pausa, así que no hubo dónde contarla. Se cuenta
-   * acá y no es un detalle: es la vuelta más dura, la que suele SER el puntaje,
-   * y antes quedaba sin contar siempre.
-   */
-  const ultima = vueltaSinPausa(formato)
-  const faltaLaUltima = ultima !== null && (logros[ultima] ?? null) === null
-  const opcionUltima = ultima === null ? undefined : opcionDeVuelta(plan, opciones, ultima)
-
-  // Se guarda al salir, como la sesión, y no al entrar: acá todavía se puede
-  // anotar la última vuelta, y guardar antes sería guardarla sin ella.
-  const guardado = useRef(false)
-  const [guardada, setGuardada] = useState(false)
-  const ultimos = useRef(logros)
-  ultimos.current = logros
-  const guardar = useCallback(() => {
-    if (guardado.current) return
-    guardado.current = true
-    setGuardada(true)
-    const registros = registrosDelReloj(plan, ultimos.current, opciones)
-    if (registros.length === 0) return
-    void cerrarSesion({ registros, duracionSegundos: duracion, tipo: 'reloj' })
-  }, [plan, opciones, duracion])
-
-  // Y también si la app se va al fondo sin que nadie toque nada: es la única
-  // copia que existe y el teléfono puede matar la pestaña sin avisar.
-  useEffect(() => {
-    const alOcultarse = () => {
-      if (document.visibilityState === 'hidden') guardar()
-    }
-    document.addEventListener('visibilitychange', alOcultarse)
-    return () => document.removeEventListener('visibilitychange', alOcultarse)
-  }, [guardar])
-
-  const salir = () => {
-    guardar()
-    alSalir()
-  }
-
-  return (
-    <div className="flex min-h-dvh flex-col" data-pantalla="cierre">
-      <main className="mx-auto flex w-full max-w-lg flex-1 flex-col justify-center px-4">
-        <Rotulo>TERMINASTE</Rotulo>
-
-        {peor === null ? (
-          <p className="mt-4 max-w-[34ch] text-sm leading-relaxed text-[var(--color-glosa)]">
-            No contaste ninguna vuelta, así que no hay puntaje ni repeticiones que anotarle a
-            ningún ejercicio. La sesión queda en el historial igual.
-          </p>
-        ) : unEjercicio ? (
-          <>
-            <p className="cifra mt-2 text-7xl" data-prueba="puntaje">
-              {peor}
-            </p>
-            <p className="mt-2 max-w-[34ch] text-sm leading-relaxed text-[var(--color-glosa)]">
-              Tu peor vuelta, que es el puntaje que vale. No el total: un total premia salir a lo
-              loco y apagarse, y esto premia sostener, que es lo que el tabata mide.
-            </p>
-          </>
-        ) : (
-          <>
-            {/* Con rotación no hay un número: un mínimo entre flexiones y
-                sentadillas no es un puntaje, es la noticia de que las flexiones
-                son más duras. Uno por ejercicio, que sí se puede comparar con
-                el de la próxima vez. */}
-            <div className="registro mt-4">
-              {puntajes.map((p) => (
-                <div key={p.ejercicioId}>
-                  <span className="canal">◆</span>
-                  <span className="nombre min-w-0">{nombreDe(p.ejercicioId)}</span>
-                  <span className="cifra-fila">{p.peor ?? '—'}</span>
-                </div>
-              ))}
-            </div>
-            <p className="mt-3 max-w-[34ch] text-sm leading-relaxed text-[var(--color-glosa)]">
-              La peor vuelta de cada uno, que es el puntaje que vale. Uno por ejercicio y no uno
-              solo: comparar una flexión con una sentadilla no diría nada.
-            </p>
-          </>
-        )}
-
-        {sinContar > 0 && peor !== null && !faltaLaUltima && (
-          <p className="mt-2 text-xs leading-relaxed text-[var(--color-glosa)]">
-            {sinContar === 1 ? 'Una vuelta quedó' : `${sinContar} vueltas quedaron`} sin contar,
-            así que el puntaje sale de las demás.
-          </p>
-        )}
-
-        {/* Si se guardó sola —porque el teléfono se fue al fondo— se dice, en
-            vez de dejar unos botones que ya no van a cambiar nada. */}
-        {faltaLaUltima && guardada && (
-          <p className="mt-6 text-xs leading-relaxed text-[var(--color-glosa)]">
-            La sesión ya quedó guardada, así que la última vuelta queda sin contar.
-          </p>
-        )}
-
-        {faltaLaUltima && !guardada && ultima !== null && (
-          <div className="mt-6 w-full max-w-[20rem] self-center">
-            <Cuenta
-              vuelta={ultima}
-              logro={logros[ultima] ?? null}
-              sugerido={
-                anteriorDelMismo(plan, logros, ultima) ??
-                (opcionUltima?.enSegundos ? formato.trabajo : undefined)
-              }
-              sugeridoEs={
-                anteriorDelMismo(plan, logros, ultima) !== undefined ? 'anterior' : 'entera'
-              }
-              enSegundos={opcionUltima?.enSegundos === true}
-              set={(cuanto) => anotar(setLogros, ultima, cuanto)}
-            />
-          </div>
-        )}
-
-        <div className="registro mt-8">
-          {logros.map((n, i) => {
-            const suyo = opcionDeVuelta(plan, opciones, i)
-            return (
-              <div key={i}>
-                <span className="canal">{i + 1}</span>
-                {/* El nombre solo cuando hay rotación: con un solo ejercicio
-                    repetirlo ocho veces es ruido. */}
-                <span className="min-w-0 text-sm text-[var(--color-glosa)]">
-                  {unEjercicio ? '' : (suyo?.nombre ?? '')}
-                </span>
-                <span className="cifra-fila">{n ?? '—'}</span>
-              </div>
-            )
-          })}
-        </div>
-      </main>
-
-      <div className="mt-auto">
-        <Accion esfuerzo onClick={salir}>
-          Listo
-        </Accion>
-        <AccionQuieta onClick={salir}>Salir sin mirar</AccionQuieta>
-      </div>
     </div>
   )
 }

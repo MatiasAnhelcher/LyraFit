@@ -22,7 +22,7 @@ import { useEffect } from 'react'
 import type { Ejercicio } from '@/dominio/tipos'
 import { POSTURAS } from '@/dominio/posturas'
 import { FiguraEjercicio } from './figura'
-import { AccionQuieta, Rotulo } from './ui'
+import { AccionQuieta, Rotulo, Simbolo } from './ui'
 
 export function ComoSeHace({ ejercicio, alCerrar }: { ejercicio: Ejercicio; alCerrar: () => void }) {
   const figura = POSTURAS[ejercicio.id]
@@ -56,7 +56,10 @@ export function ComoSeHace({ ejercicio, alCerrar }: { ejercicio: Ejercicio; alCe
 
         {figura && (
           <>
-            <FiguraEjercicio figura={figura} className="mt-4" />
+            {/* Quieta y con las dos posturas: esto se abre en medio del
+                esfuerzo, donde nada se mueve. La figura lo sabría sola, pero
+                acá no hay otro caso y se escribe para que se lea. */}
+            <FiguraEjercicio figura={figura} postura="ambas-quietas" className="mt-4" />
             <p className="mt-2 max-w-[38ch] text-sm leading-relaxed text-[var(--color-glosa)]">
               {figura.gesto}
             </p>
@@ -77,7 +80,9 @@ export function ComoSeHace({ ejercicio, alCerrar }: { ejercicio: Ejercicio; alCe
         <ul className="registro mt-3">
           {ejercicio.erroresComunes.map((error, i) => (
             <li key={i}>
-              <span className="canal">✕</span>
+              <span className="canal">
+                <Simbolo nombre="cruz" />
+              </span>
               <span className="text-sm leading-relaxed text-[var(--color-glosa)]">{error}</span>
               <span />
             </li>
@@ -88,13 +93,16 @@ export function ComoSeHace({ ejercicio, alCerrar }: { ejercicio: Ejercicio; alCe
       {/* Fondo sólido y una regla arriba: la barra es fija, así que sin esto el
           texto se ve pasar por detrás y parece un error de dibujo. */}
       <div
-        className="fixed inset-x-0 bottom-0"
+        className="fixed inset-x-0 bottom-0 px-4 pt-3"
         style={{
           backgroundColor: 'var(--color-fondo)',
           borderTop: '1px solid var(--color-regla)',
+          paddingBottom: 'calc(0.75rem + env(safe-area-inset-bottom))',
         }}
       >
-        <AccionQuieta onClick={alCerrar}>Volver a la serie</AccionQuieta>
+        <div className="mx-auto w-full max-w-lg">
+          <AccionQuieta onClick={alCerrar}>Volver a la serie</AccionQuieta>
+        </div>
       </div>
     </div>
   )

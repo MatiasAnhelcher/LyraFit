@@ -18,10 +18,13 @@
  */
 
 import { chromium } from 'playwright'
-import { completarUnaSesion, conLaBase, revisarQueSirvaLoCompilado } from './lib/portones.mjs'
-
-const BASE = 'http://localhost:4173'
-const CHROMIUM = process.env.CHROMIUM_PATH ?? '/opt/pw-browsers/chromium'
+import {
+  BASE,
+  CHROMIUM,
+  completarUnaSesion,
+  conLaBase,
+  revisarQueSirvaLoCompilado,
+} from './lib/portones.mjs'
 
 const fallos = []
 const notas = []

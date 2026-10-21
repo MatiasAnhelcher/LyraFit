@@ -399,6 +399,9 @@ export interface Rutina {
   diasDensos?: number[]
 }
 
+/** Qué hace la app con el movimiento: lo que pide el teléfono, o lo elegido. */
+export type Movimiento = 'sistema' | 'reducido' | 'completo'
+
 /** Preferencias de la app, guardadas junto con el resto de los datos. */
 export interface Preferencias {
   id: 'unico'
@@ -503,6 +506,15 @@ export interface Preferencias {
    * vibración en iOS.
    */
   voz?: boolean
+  /**
+   * Movimiento reducido: seguir al teléfono, o lo que se eligió en Ajustes.
+   *
+   * Son tres valores y no un sí o no porque con dos no se puede volver a
+   * seguir al teléfono. Ausente quiere decir `'sistema'`: las bases y las
+   * copias de antes no lo traen, y "Borrar todos mis datos" lo borra con el
+   * resto. Vive acá y no en el navegador para que viaje en la copia.
+   */
+  movimiento?: Movimiento
   /** Cómo se quiere describir dentro de un año. Se usa en el cierre de sesión. */
   identidad?: string
   /**

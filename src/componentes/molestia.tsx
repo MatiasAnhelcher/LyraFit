@@ -9,7 +9,7 @@
 
 import { NOMBRE_PATRON } from '@/dominio/biblioteca'
 import type { Patron } from '@/dominio/tipos'
-import { Segmento } from './ui'
+import { Regleta, Segmento } from './ui'
 
 /** Las cinco cadenas, con la bisagra. */
 const CADENAS_DE_LA_MOLESTIA: Patron[] = ['empuje', 'traccion', 'piernas', 'bisagra', 'core']
@@ -36,7 +36,7 @@ export function ElegirMolestia({
   ninguna: string | null
 }) {
   return (
-    <div className="mt-3 flex flex-wrap gap-px" role="group" aria-label="Dónde molesta">
+    <Regleta className="mt-3" etiqueta="Dónde molesta">
       {ninguna && (
         <Segmento elegido={valor === 'ninguna'} onClick={() => onElegir('ninguna')}>
           {ninguna}
@@ -47,6 +47,6 @@ export function ElegirMolestia({
           {NOMBRE_PATRON[p]}
         </Segmento>
       ))}
-    </div>
+    </Regleta>
   )
 }

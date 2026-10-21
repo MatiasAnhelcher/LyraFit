@@ -1,7 +1,8 @@
 name: Verificar y publicar
 
-# Cada push a main verifica el proyecto y, si pasa, publica la app.
-# Los pull requests solo verifican: nada se publica sin haber sido integrado.
+# Cada push a main verifica el proyecto, corre los portones y, si todo pasa,
+# publica la app. Los pull requests solo verifican: nada se publica sin haber
+# sido integrado.
 on:
   push:
     branches: [main]
@@ -13,12 +14,6 @@ permissions:
   contents: read
   pages: write
   id-token: write
-
-# Si llegan dos pushes seguidos, se cancela el despliegue viejo. Nunca se
-# cancela uno en curso: una publicación a medias es peor que una tardía.
-concurrency:
-  group: pages
-  cancel-in-progress: false
 
 jobs:
   verificar:
@@ -60,11 +55,103 @@ jobs:
         with:
           path: dist
 
+  # Los portones de Playwright, contra la app compilada y servida como la ve
+  # una persona. Son los que agarran lo que los tests no ven: un botón abajo
+  # del pliegue, un contraste que no llega, un dato que se pierde al cerrar.
+  portones:
+    name: Portones
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # `actualizacion.mjs` compila la versión publicada desde `origin/main`
+          # para probar que actualizar no le borra nada a nadie.
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Instalar dependencias
+        run: npm ci
+
+      - name: Instalar Chromium
+        # El Chromium con el que se calibraron los portones (141, la revisión
+        # 1194, que es la de Playwright 1.56.1) y no el que trae el Playwright
+        # del proyecto. Los portones miden al píxel y hay medidas con 2 px de
+        # margen: entre dos versiones de Chromium el texto se arma distinto por
+        # uno a tres píxeles, y eso alcanza para un rojo que no es de nadie.
+        # Cambiar de versión es recalibrar, no subir un número acá.
+        env:
+          PLAYWRIGHT_BROWSERS_PATH: ${{ runner.temp }}/navegadores
+        run: |
+          npx --yes playwright@1.56.1 install --with-deps chromium
+          CHROMIUM="$PLAYWRIGHT_BROWSERS_PATH/chromium-1194/chrome-linux/chrome"
+          "$CHROMIUM" --version
+          echo "CHROMIUM_PATH=$CHROMIUM" >> "$GITHUB_ENV"
+
+      - name: Compilar
+        # Sin BASE_PATH: los portones abren la app desde la raíz.
+        run: npm run build
+
+      - name: Servir lo compilado
+        timeout-minutes: 2
+        run: |
+          mkdir -p "$RUNNER_TEMP/registros"
+          npx vite preview --port 4173 --strictPort > "$RUNNER_TEMP/registros/preview.log" 2>&1 &
+          until curl -s -o /dev/null http://localhost:4173/; do sleep 1; done
+
+      - name: Correr los portones
+        run: |
+          set -o pipefail
+          npm run portones 2>&1 | tee "$RUNNER_TEMP/registros/portones.log"
+
+      # La hoja de contacto de los dibujos. No afirma nada, así que no entra en
+      # el veredicto: corre aunque haya fallado un portón y, si se cae ella, el
+      # job sigue. `/figuras` existe solo en desarrollo, por eso va contra
+      # `vite` y no contra lo compilado.
+      - name: Sacar la hoja de las figuras
+        if: ${{ !cancelled() }}
+        continue-on-error: true
+        timeout-minutes: 5
+        run: |
+          npx vite --port 5173 --strictPort > "$RUNNER_TEMP/registros/vite-dev.log" 2>&1 &
+          until curl -s -o /dev/null http://localhost:5173/; do sleep 1; done
+          node figuras.mjs
+
+      # Las capturas (las figuras y las de `revisar.mjs`) y lo que dijo cada
+      # portón, también cuando algo falla: es con lo que se diagnostica un rojo.
+      - name: Guardar las capturas
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: capturas
+          path: capturas/
+          if-no-files-found: warn
+
+      - name: Guardar lo que dijeron los portones
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: registros
+          path: ${{ runner.temp }}/registros/
+          if-no-files-found: warn
+
   publicar:
     name: Publicar en GitHub Pages
-    needs: verificar
+    needs: [verificar, portones]
     if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
     runs-on: ubuntu-latest
+    # Si llegan dos pushes seguidos, se cancela el despliegue viejo. Nunca se
+    # cancela uno en curso: una publicación a medias es peor que una tardía.
+    # Va en este job y no en todo el workflow: con el grupo arriba, un pull
+    # request hacía fila detrás de la publicación, y al encolarse podía
+    # desplazar a una publicación que esperaba su turno.
+    concurrency:
+      group: pages
+      cancel-in-progress: false
     environment:
       name: github-pages
       url: ${{ steps.despliegue.outputs.page_url }}

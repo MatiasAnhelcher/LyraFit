@@ -33,9 +33,9 @@ import { readFile, writeFile, rm, cp, mkdtemp } from 'node:fs/promises'
 import { readFileSync, existsSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join, extname } from 'node:path'
+import { CHROMIUM } from './lib/portones.mjs'
 
 const PUBLICADA = process.argv[2] ?? 'origin/main'
-const PUERTO = 4190
 const SUBRUTA = '/LyraFit/'
 const fallos = []
 const sh = (cmd, args, opts = {}) =>
@@ -47,15 +47,25 @@ const sh = (cmd, args, opts = {}) =>
 
 const taller = await mkdtemp(join(tmpdir(), 'lyrafit-act-'))
 const dir = { previa: join(taller, 'previa'), siguiente: join(taller, 'siguiente') }
-const dist = { previa: join(dir.previa, 'dist'), actual: 'dist', siguiente: join(dir.siguiente, 'dist') }
+// La actual se compila en el taller y no en `dist/`: `dist/` es lo que sirve
+// `vite preview` para los demás portones, y compilado con la subruta deja una
+// app en blanco para el próximo que corra, que falla sin decir por qué.
+const dist = {
+  previa: join(dir.previa, 'dist'),
+  actual: join(taller, 'actual'),
+  siguiente: join(dir.siguiente, 'dist'),
+}
 
 /** Marca visible que distingue una versión de la otra desde el navegador. */
 const MARCA = 'HISTORIAL DE LA VERSIÓN SIGUIENTE'
 const ARCHIVO_MARCA = 'src/pantallas/Progreso.tsx'
 const ORIGINAL = '<Rotulo>HISTORIAL</Rotulo>'
 
-async function compilar(donde) {
-  sh('npx', ['vite', 'build'], { cwd: donde, env: { ...process.env, BASE_PATH: SUBRUTA } })
+async function compilar(donde, salida = 'dist') {
+  sh('npx', ['vite', 'build', '--outDir', salida], {
+    cwd: donde,
+    env: { ...process.env, BASE_PATH: SUBRUTA },
+  })
 }
 
 async function worktree(destino, ref) {
@@ -69,7 +79,7 @@ await worktree(dir.previa, PUBLICADA)
 await compilar(dir.previa)
 
 console.log('Compilando la versión que se va a publicar…')
-await compilar('.')
+await compilar('.', dist.actual)
 
 // La "siguiente" sale de un worktree y no del árbol de trabajo, para no tocar
 // ni un archivo de lo que la persona tenga sin commitear.
@@ -107,8 +117,10 @@ const servidor = createServer((pedido, respuesta) => {
   })
   respuesta.end(readFileSync(archivo))
 })
-await new Promise((listo) => servidor.listen(PUERTO, '127.0.0.1', listo))
-const BASE = `http://127.0.0.1:${PUERTO}${SUBRUTA.slice(0, -1)}`
+// Cualquier puerto libre: lo único que tiene que repetirse es el origen entre
+// las dos versiones de ESTA corrida, y así dos corridas en paralelo no se pisan.
+await new Promise((listo) => servidor.listen(0, '127.0.0.1', listo))
+const BASE = `http://127.0.0.1:${servidor.address().port}${SUBRUTA.slice(0, -1)}`
 
 // ─── El recorrido que genera datos de verdad ──────────────────────────────
 
@@ -174,9 +186,7 @@ const leerBase = (p) => p.evaluate(async () => {
   return { version: base.version, tablas, filas }
 })
 
-const navegador = await chromium.launch({
-  executablePath: process.env.CHROMIUM_PATH ?? '/opt/pw-browsers/chromium',
-})
+const navegador = await chromium.launch({ executablePath: CHROMIUM })
 
 // ─── 1. La migración del esquema ──────────────────────────────────────────
 {

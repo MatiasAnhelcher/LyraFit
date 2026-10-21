@@ -48,7 +48,8 @@ import { ubicarDesdeElAlta, ultimoSinBarra } from '@/dominio/apertura'
 import { RUTINAS } from '@/dominio/rutinas'
 import type { Avance, Patron } from '@/dominio/tipos'
 import { guardarPreferencias, saltearElAlta, ubicarDesdePrueba } from '@/datos/repositorio'
-import { Accion, AccionQuieta, Glifo, Rotulo, Segmento, unidad } from '@/componentes/ui'
+import { Accion, AccionQuieta, Glifo, MarcaRadio, Regleta, Rotulo, Segmento, unidad } from '@/componentes/ui'
+import { usePasoConPasaje } from '@/componentes/movimiento'
 
 interface Prueba {
   patron: Patron
@@ -155,6 +156,13 @@ export function Alta() {
   })
   const [guardando, setGuardando] = useState(false)
 
+  // Cada paso entra de costado, hacia adelante o hacia atrás, como pasar una
+  // hoja. Los pasos no navegan —es una sola ruta—, así que el pasaje envuelve
+  // el cambio de estado y no una navegación.
+  const pasar = usePasoConPasaje()
+  const adelante = (cambiar: () => void) => pasar('paso-adelante', cambiar)
+  const atras = (cambiar: () => void) => pasar('paso-atras', cambiar)
+
   function pruebaDe(p: Prueba): string {
     return !tieneBarra && p.sinBarra ? p.sinBarra : p.ejercicioId
   }
@@ -197,22 +205,29 @@ export function Alta() {
     }
   }
 
+  // Las acciones van en cajas con borde y radio, no a sangre: abajo llevan el
+  // mismo aire que el pie del cierre, 16 por encima del canto y del área
+  // segura, para que la caja se vea entera y no cortada por el borde. Es el
+  // `main` de la pantalla, como en las que tienen barra: es lo que el pasaje
+  // de paso deja inerte mientras se mueve.
   return (
-    <div className="mx-auto flex min-h-dvh w-full max-w-lg flex-col px-4 pt-10">
+    <main className="mx-auto flex min-h-dvh w-full max-w-lg flex-col px-4 pt-10 pb-[calc(1rem+env(safe-area-inset-bottom))]">
       {paso === 'propuesta' && (
         <Propuesta
           aviso={aviso}
-          onSeguir={() => setPaso('equipo')}
+          onSeguir={() => adelante(() => setPaso('equipo'))}
           onSaltear={() => void saltear()}
         />
       )}
 
       {paso === 'equipo' && (
         <Equipo
-          onElegir={(barra) => {
-            setTieneBarra(barra)
-            setPaso('pruebas')
-          }}
+          onElegir={(barra) =>
+            adelante(() => {
+              setTieneBarra(barra)
+              setPaso('pruebas')
+            })
+          }
         />
       )}
 
@@ -226,11 +241,13 @@ export function Alta() {
           onCambiar={(n) =>
             setRespuestas((r) => ({ ...r, [PRUEBAS[indice]!.patron]: Math.max(0, n) }))
           }
-          onSeguir={() => {
-            if (indice + 1 < PRUEBAS.length) setIndice(indice + 1)
-            else setPaso('plan')
-          }}
-          onVolver={() => (indice === 0 ? setPaso('equipo') : setIndice(indice - 1))}
+          onSeguir={() =>
+            adelante(() => {
+              if (indice + 1 < PRUEBAS.length) setIndice(indice + 1)
+              else setPaso('plan')
+            })
+          }
+          onVolver={() => atras(() => (indice === 0 ? setPaso('equipo') : setIndice(indice - 1)))}
         />
       )}
 
@@ -238,12 +255,12 @@ export function Alta() {
         <Plan
           ubicaciones={ubicaciones}
           tieneBarra={tieneBarra}
-          onSeguir={() => setPaso('dias')}
+          onSeguir={() => adelante(() => setPaso('dias'))}
         />
       )}
 
       {paso === 'dias' && <Dias guardando={guardando} onElegir={(id) => void terminar(id)} />}
-    </div>
+    </main>
   )
 }
 
@@ -281,7 +298,7 @@ function Propuesta({
         </p>
       </div>
 
-      <div className="mt-10 -mx-4">
+      <div className="mt-10 flex flex-col gap-3">
         <Accion onClick={onSeguir}>Empezar</Accion>
         <AccionQuieta onClick={onSaltear}>Prefiero arrancar desde cero</AccionQuieta>
       </div>
@@ -303,7 +320,7 @@ function Equipo({ onElegir }: { onElegir: (tieneBarra: boolean) => void }) {
         </p>
       </div>
 
-      <div className="mt-10 -mx-4">
+      <div className="mt-10 flex flex-col gap-3">
         <Accion onClick={() => onElegir(true)}>Sí, tengo barra</Accion>
         <AccionQuieta onClick={() => onElegir(false)}>No, por ahora no</AccionQuieta>
       </div>
@@ -376,22 +393,16 @@ function Pruebas({
             forma de las respuestas es distinta en cada una: casi nadie hace
             dominadas y mucha gente hace cuarenta sentadillas.
 
-            El más y el menos siguen estando, para el que hace veintitrés. */}
-        <div
-          className="mt-6 grid gap-px"
-          style={{
-            // Dos filas parejas, siempre. Con `flex-wrap` los que sobraban
-            // quedaban centrados abajo como huérfanos y la regleta se leía
-            // como un accidente en vez de como un teclado.
-            gridTemplateColumns: `repeat(${Math.ceil(regleta.length / 2)}, minmax(0, 1fr))`,
-          }}
-        >
+            El más y el menos siguen estando, para el que hace veintitrés.
+            Siete u ocho valores no dan 48 por celda en una fila: van en dos
+            filas parejas, que es lo que hace sola la regleta. */}
+        <Regleta className="mt-6" etiqueta={ejercicio.medida === 'segundos' ? 'Segundos' : 'Repeticiones'}>
           {regleta.map((n) => (
-            <Segmento key={n} elegido={valor === n} onClick={() => onCambiar(n)} cifra className="flex-1">
+            <Segmento key={n} elegido={valor === n} onClick={() => onCambiar(n)} cifra>
               {n}
             </Segmento>
           ))}
-        </div>
+        </Regleta>
 
         <div className="mt-4 flex items-center justify-center gap-3">
           <button
@@ -411,7 +422,7 @@ function Pruebas({
         </div>
       </div>
 
-      <div className="mt-10 -mx-4">
+      <div className="mt-10 flex flex-col gap-3">
         <Accion onClick={onSeguir}>{numero === total ? 'Ver mi plan' : 'Siguiente'}</Accion>
         <AccionQuieta onClick={onVolver}>Volver</AccionQuieta>
       </div>
@@ -519,7 +530,7 @@ function Plan({
         )}
       </div>
 
-      <div className="mt-10 -mx-4">
+      <div className="mt-10">
         <Accion onClick={onSeguir}>Seguir</Accion>
       </div>
     </>
@@ -554,10 +565,12 @@ function Dias({
                 disabled={guardando}
                 className="fila-pulsable disabled:opacity-60"
               >
-                <span className="canal">◇</span>
+                <span className="canal">
+                  <MarcaRadio elegida={false} />
+                </span>
                 <span className="min-w-0">
                   <span className="nombre block">{rutina.nombre}</span>
-                  <span className="mt-0.5 block text-xs leading-relaxed text-[var(--color-glosa)]">
+                  <span className="mt-0.5 block texto-glosa">
                     {rutina.descripcion}
                   </span>
                 </span>

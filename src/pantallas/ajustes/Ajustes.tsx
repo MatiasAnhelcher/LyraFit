@@ -1,10 +1,6 @@
-import { useEffect, useRef, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
 import { useLiveQuery } from 'dexie-react-hooks'
 import {
   DIAS,
-  DIA_CORTO,
-  GLIFO_CLASE,
   NOMBRE_CLASE,
   NOMBRE_DIA,
   RUTINAS,
@@ -17,72 +13,30 @@ import {
   siguienteClase,
 } from '@/dominio/rutinas'
 import type { ClaseDeDia } from '@/dominio/rutinas'
-import type { Preferencias, SesionEnCurso } from '@/dominio/tipos'
-import {
-  avisoDeRestaurada,
-  cuantasSesiones,
-  detalleDelResumen,
-  fechaCorta,
-  fraseDelReemplazo,
-  resumenDeCopia,
-  type ResumenDeCopia,
-} from '@/dominio/copia'
-import { diaLocal, textoDelBorradorAlRestaurar, tieneTrabajo } from '@/dominio/borrador'
-import {
-  RespaldoInvalido,
-  borrarTodo,
-  cambiarBarraDeDominadas,
-  exportarTodo,
-  guardarPreferencias,
-  importarTodo,
-  leerPreferencias,
-  leerSesionEnCurso,
-  validarRespaldo,
-  type Respaldo,
-} from '@/datos/repositorio'
-import {
-  estadoDeAlmacenamiento,
-  respaldarAntesDeRestaurar,
-  type EstadoDeAlmacenamiento,
-} from '@/datos/respaldo'
+import type { Preferencias } from '@/dominio/tipos'
+import { cambiarBarraDeDominadas, guardarPreferencias, leerPreferencias } from '@/datos/repositorio'
 import { HAY_HAPTICA } from '@/respuesta'
 import { HAY_VOZ, vozElegida } from '@/voz'
-import { orden } from '@/componentes/movimiento'
-import { Accion, AccionQuieta, Cargando, Regleta, Rotulo, Segmento } from '@/componentes/ui'
-import { avisarEnElAlta } from './Alta'
-
-/**
- * Una restauración a la espera de que la persona la confirme.
- *
- * `sinCopia` se prende si la copia automática de lo que hay falló: entonces no
- * se reemplaza nada sin decirlo, y el botón pasa a decir que va sin copia.
- *
- * `borrador` es la sesión a medio hacer, si tiene algo hecho: restaurar la
- * borra y no va en ninguna copia, así que se nombra antes de confirmar.
- */
-interface Restauracion {
-  copia: Respaldo
-  deLaCopia: ResumenDeCopia
-  actual: ResumenDeCopia
-  sinCopia: boolean
-  borrador: SesionEnCurso | null
-}
+import { orden, useMovimientoReducido } from '@/componentes/movimiento'
+import { movimientoAlTocar, movimientoGuardado } from '@/dominio/movimiento'
+import {
+  Cargando,
+  Interruptor,
+  MarcaRadio,
+  Regleta,
+  Rotulo,
+  SIMBOLO_CLASE,
+  Segmento,
+  SemanaDeRutina,
+  Simbolo,
+} from '@/componentes/ui'
+import { BorrarTodo } from './BorrarTodo'
+import { TusDatos, useAlmacenamiento } from './TusDatos'
 
 export function Ajustes() {
-  const navegar = useNavigate()
   const preferencias = useLiveQuery(leerPreferencias, [])
-  const archivo = useRef<HTMLInputElement>(null)
-  const [aviso, setAviso] = useState<string | null>(null)
-  const [confirmando, setConfirmando] = useState(false)
-  const [borrando, setBorrando] = useState(false)
-  const [errorAlBorrar, setErrorAlBorrar] = useState<string | null>(null)
-  const [restauracion, setRestauracion] = useState<Restauracion | null>(null)
-  const [restaurando, setRestaurando] = useState(false)
-  const [almacenamiento, setAlmacenamiento] = useState<EstadoDeAlmacenamiento | null>(null)
-
-  useEffect(() => {
-    void estadoDeAlmacenamiento().then(setAlmacenamiento)
-  }, [])
+  const [almacenamiento, releerAlmacenamiento] = useAlmacenamiento()
+  const reducido = useMovimientoReducido()
 
   if (!preferencias) return <Cargando filas={6} />
 
@@ -111,118 +65,6 @@ export function Ajustes() {
     cambiar({ rutinaActivaId: id, semana: semanaDe(nueva) })
   }
 
-  async function descargar() {
-    const datos = await exportarTodo()
-    const blob = new Blob([JSON.stringify(datos, null, 2)], { type: 'application/json' })
-    const nombre = `lyrafit-${datos.exportadoEn.slice(0, 10)}.json`
-
-    // Compartir es el camino portable: `showSaveFilePicker` no existe en Safari
-    // y WebKit tiene posición oficial de no implementarlo.
-    const puedeCompartir =
-      typeof navigator.canShare === 'function' &&
-      navigator.canShare({ files: [new File([blob], nombre, { type: 'application/json' })] })
-
-    if (puedeCompartir) {
-      try {
-        await navigator.share({
-          files: [new File([blob], nombre, { type: 'application/json' })],
-          title: 'Copia de LyraFit',
-        })
-        return
-      } catch {
-        /* Si cancela, se cae al camino de descarga de siempre. */
-      }
-    }
-
-    const url = URL.createObjectURL(blob)
-    const enlace = document.createElement('a')
-    enlace.href = url
-    enlace.download = nombre
-    enlace.click()
-    URL.revokeObjectURL(url)
-  }
-
-  /**
-   * Elegir el archivo ya no reemplaza nada: lo revisa entero y muestra qué
-   * trae al lado de lo que hay.
-   *
-   * Antes reemplazaba todo en el acto, sin preguntar y sin guardar lo
-   * anterior, y el comentario de `importarTodo` decía que la pantalla pedía
-   * confirmación. Con los nombres de archivo todos parecidos, equivocarse de
-   * fecha costaba el historial entero.
-   */
-  async function importar(entrada: File) {
-    setAviso(null)
-    setRestauracion(null)
-    try {
-      const copia = validarRespaldo(JSON.parse(await entrada.text()))
-      const [actual, borrador] = await Promise.all([exportarTodo(), leerSesionEnCurso()])
-      setRestauracion({
-        copia,
-        deLaCopia: resumenDeCopia(copia),
-        actual: resumenDeCopia(actual),
-        sinCopia: false,
-        borrador: borrador && tieneTrabajo(borrador) ? borrador : null,
-      })
-    } catch (error) {
-      setAviso(
-        error instanceof RespaldoInvalido
-          ? `${error.message} No se cambió nada.`
-          : 'No se pudo leer el archivo. ¿Es una copia de LyraFit? No se cambió nada.',
-      )
-    }
-  }
-
-  /**
-   * Confirmado: primero la copia automática de lo que hay, después el
-   * reemplazo, que es todo o nada.
-   *
-   * Si la copia automática no se puede guardar —un navegador sin sistema de
-   * archivos privado— no se reemplaza en silencio: se avisa, y recién un
-   * segundo toque, que ya dice "sin copia", reemplaza igual. Bloquearlo del
-   * todo dejaría sin salida a quien perdió la base y viene a restaurar, que
-   * es justo para lo que existe este botón.
-   */
-  async function confirmarRestauracion(r: Restauracion) {
-    setRestaurando(true)
-    try {
-      if (!r.sinCopia && !(await respaldarAntesDeRestaurar())) {
-        setRestauracion({ ...r, sinCopia: true })
-        return
-      }
-      await importarTodo(r.copia)
-      setRestauracion(null)
-      setAviso(avisoDeRestaurada(r.copia.sesiones.length, !r.sinCopia))
-      void estadoDeAlmacenamiento().then(setAlmacenamiento)
-    } catch {
-      setAviso('No se pudo restaurar. Tus datos quedaron como estaban.')
-    } finally {
-      setRestaurando(false)
-    }
-  }
-
-  /**
-   * Borrar todo, y decir "Listo" recién cuando es cierto.
-   *
-   * Antes se llamaba sin esperar y el "Listo. No quedó nada." salía en el
-   * acto, aunque la carpeta de copias automáticas —con el historial adentro—
-   * no se tocaba nunca. Ahora se espera todo. Si sale bien, la base vacía
-   * manda al alta, y el "Listo" se dice allá; si algo falla, se dice acá.
-   */
-  async function borrarDeVerdad() {
-    setBorrando(true)
-    setErrorAlBorrar(null)
-    try {
-      await borrarTodo()
-      avisarEnElAlta('Listo. Se borró todo lo que la app guardaba en este teléfono.')
-      navegar('/alta', { replace: true })
-    } catch {
-      setErrorAlBorrar('No se pudo borrar todo. Probá de nuevo.')
-    } finally {
-      setBorrando(false)
-    }
-  }
-
   return (
     <>
       <Rotulo>AJUSTES</Rotulo>
@@ -238,24 +80,18 @@ export function Ajustes() {
             <button
               key={rutina.id}
               onClick={() => elegirPreset(rutina.id)}
+              aria-pressed={rutina.id === preferencias.rutinaActivaId}
               className="fila-pulsable"
             >
               <span className="canal">
-                {rutina.id === preferencias.rutinaActivaId ? '◆' : '◇'}
+                <MarcaRadio elegida={rutina.id === preferencias.rutinaActivaId} />
               </span>
               <span className="min-w-0">
                 <span className="nombre block">{rutina.nombre}</span>
-                <span className="rotulo mt-0.5 block">
-                  {/* Lo que el preset trae es su semana, y se dibuja con las
-                      mismas letras que la grilla de abajo para que se vea que es
-                      lo mismo: elegirlo escribe eso ahí. */}
-                  {DIAS.map((d) => {
-                    const clase = semanaDe(rutina)[d] ?? 'descanso'
-                    return clase === 'descanso'
-                      ? DIA_CORTO[d]!.toLowerCase()
-                      : `${DIA_CORTO[d]}${clase === 'fuelle' ? '·f' : clase === 'ambos' ? '·+' : ''}`
-                  }).join(' ')}
-                </span>
+                {/* Lo que el preset trae es su semana, y se dibuja con los
+                    mismos símbolos que la grilla de abajo para que se vea que
+                    es lo mismo: elegirlo escribe eso ahí. */}
+                <SemanaDeRutina semana={semanaDe(rutina)} />
               </span>
               <span className="cifra-fila">{rutina.dias.length}</span>
             </button>
@@ -278,7 +114,7 @@ export function Ajustes() {
           algo en vez de un poco de todo— y si la cosa se sostiene seis meses
           porque dan ganas de entrar, eso también cuenta.
         */}
-        <p className="mt-2 max-w-[42ch] text-xs leading-relaxed text-[var(--color-glosa)]">
+        <p className="mt-2 max-w-[42ch] texto-glosa">
           Cada una entrena un grupo por sesión, con cuatro o cinco ejercicios en
           vez de uno. Si hacés las cuatro en la semana, a cada una le toca un
           día.
@@ -288,10 +124,11 @@ export function Ajustes() {
             <button
               key={rutina.id}
               onClick={() => elegirPreset(rutina.id)}
+              aria-pressed={rutina.id === preferencias.rutinaActivaId}
               className="fila-pulsable"
             >
               <span className="canal">
-                {rutina.id === preferencias.rutinaActivaId ? '◆' : '◇'}
+                <MarcaRadio elegida={rutina.id === preferencias.rutinaActivaId} />
               </span>
               <span className="min-w-0">
                 <span className="nombre block">{rutina.nombre}</span>
@@ -321,7 +158,7 @@ export function Ajustes() {
        */}
       <section className="entrar-en-orden mt-8" style={orden(1)}>
         <Rotulo>LA SEMANA</Rotulo>
-        <p className="mt-2 max-w-[42ch] text-xs leading-relaxed text-[var(--color-glosa)]">
+        <p className="mt-2 max-w-[42ch] texto-glosa">
           Tocá un día para cambiarlo. Fuerza es la sesión de siempre; fuelle es
           acondicionamiento, sin una sola serie de la que el motor opine; las dos mete
           las ráfagas adentro de los descansos y un bloque metabólico al final.
@@ -331,7 +168,9 @@ export function Ajustes() {
             const clase: ClaseDeDia = semana[dia] ?? 'descanso'
             return (
               <button key={dia} onClick={() => ciclarDia(dia)} className="fila-pulsable">
-                <span className="canal">{GLIFO_CLASE[clase]}</span>
+                <span className="canal">
+                  <Simbolo nombre={SIMBOLO_CLASE[clase]} />
+                </span>
                 <span className="min-w-0">
                   <span className="nombre block">{NOMBRE_DIA[dia]}</span>
                 </span>
@@ -359,7 +198,7 @@ export function Ajustes() {
             {avisos.map((aviso) => (
               <p
                 key={aviso.clave}
-                className="max-w-[42ch] text-xs leading-relaxed"
+                className="max-w-[42ch] texto-glosa"
                 style={{
                   color:
                     aviso.gravedad === 'impide'
@@ -379,7 +218,7 @@ export function Ajustes() {
           que la app te va a pedir que hagas, no cómo se ve. */}
       <section className="entrar-en-orden mt-8" style={orden(2)}>
         <Rotulo>EL FUELLE</Rotulo>
-        <p className="mt-2 max-w-[42ch] text-xs leading-relaxed text-[var(--color-glosa)]">
+        <p className="mt-2 max-w-[42ch] texto-glosa">
           Trabajo metabólico en los huecos que la sesión ya tenía. Nunca sale del descanso
           que hace falta para la serie que viene, y nunca carga el patrón que estás
           entrenando: eso es lo que evita que transpirar te cueste fuerza. Acá elegís cuán
@@ -403,28 +242,31 @@ export function Ajustes() {
               ['suave', 'Suave', 'Tramos cortos, nada explosivo y un bloque de ocho minutos. Para empezar o para semanas cargadas.'],
               ['fuerte', 'Fuerte', 'Ráfagas más largas y un bloque de hasta doce minutos al final, antes de la serie de cierre.'],
             ] as const
-          ).map(([valor, titulo, detalle]) => (
+          ).map(([valor, titulo, detalle]) => {
+            const elegida =
+              (preferencias.densidad === undefined || preferencias.densidad === 'apagada'
+                ? 'suave'
+                : preferencias.densidad) === valor
+            return (
             <button
               key={valor}
               onClick={() => cambiar({ densidad: valor })}
+              aria-pressed={elegida}
               className="fila-pulsable"
             >
               <span className="canal">
-                {(preferencias.densidad === undefined || preferencias.densidad === 'apagada'
-                  ? 'suave'
-                  : preferencias.densidad) === valor
-                  ? '◆'
-                  : '◇'}
+                <MarcaRadio elegida={elegida} />
               </span>
               <span className="min-w-0">
                 <span className="nombre block">{titulo}</span>
-                <span className="mt-0.5 block text-xs leading-relaxed text-[var(--color-glosa)]">
+                <span className="mt-0.5 block texto-glosa">
                   {detalle}
                 </span>
               </span>
               <span />
             </button>
-          ))}
+            )
+          })}
         </div>
 
         {/* El equipo solo aparece si algún día lleva fuelle: sin ninguno no
@@ -460,7 +302,7 @@ export function Ajustes() {
             y el motor BAJABA el objetivo cuando la carga había subido.
 
             Mientras no esté, nada cambia y los kilos no se ofrecen. */}
-        <p className="mt-2 max-w-[42ch] text-xs leading-relaxed text-[var(--color-glosa)]">
+        <p className="mt-2 max-w-[42ch] texto-glosa">
           Tu peso es lo único que deja convertir los kilos de la barra a la escala en la que el
           motor mide la carga. No se publica, no se compara con nada y no sale del teléfono. Sin
           él, la app sigue funcionando igual que siempre y no te va a ofrecer poner discos.
@@ -564,6 +406,18 @@ export function Ajustes() {
               onCambiar={(v) => cambiar({ voz: v })}
             />
           )}
+          {/* Muestra lo que rige y no lo guardado: con el valor en
+              "sistema" y el teléfono pidiendo calma, dice SÍ aunque nadie lo
+              haya tocado, porque eso es lo que se ve. Tocarlo escribe siempre
+              lo contrario de lo que se ve, así que nunca hay un toque que no
+              cambia nada. */}
+          <Interruptor
+            titulo="Movimiento reducido"
+            detalle="Nada se anima y las pantallas cambian en seco. El arco del descanso sigue contando."
+            estado={{ texto: 'Como en tu teléfono', visible: movimientoGuardado(preferencias) === 'sistema' }}
+            activo={reducido}
+            onCambiar={() => cambiar({ movimiento: movimientoAlTocar(reducido) })}
+          />
           <div>
             <span className="canal">%</span>
             <span className="min-w-0">
@@ -586,167 +440,14 @@ export function Ajustes() {
       </section>
 
       <section className="entrar-en-orden mt-8" style={orden(5)}>
-        <Rotulo>TUS DATOS</Rotulo>
-        {almacenamiento && (
-          <>
-            <div className="registro mt-3">
-              <div>
-                <span className="canal">{almacenamiento.persistente ? '◆' : '◇'}</span>
-                <span className="min-w-0">
-                  <span className="nombre block">Almacenamiento</span>
-                  <span className="rotulo mt-0.5 block">
-                    {almacenamiento.persistente ? 'PROTEGIDO' : 'SIN PROTEGER'}
-                  </span>
-                </span>
-                <span className="cifra-fila">
-                  {almacenamiento.usado ? Math.round(almacenamiento.usado / 1024) : '—'}
-                  <span className="unidad">kB</span>
-                </span>
-              </div>
-              <div>
-                <span className="canal">⟳</span>
-                <span className="min-w-0">
-                  <span className="nombre block">Copias automáticas</span>
-                  <span className="rotulo mt-0.5 block">al cerrar cada sesión</span>
-                </span>
-                <span className="cifra-fila">{almacenamiento.copias}</span>
-              </div>
-            </div>
-
-            {!almacenamiento.persistente && !almacenamiento.instalada && (
-              <p className="mt-3 max-w-[42ch] text-xs leading-relaxed text-[var(--color-ambar)]">
-                No hay servidor: esta base no es una copia de tus datos, es la única. Sin instalar
-                la app, el navegador puede borrarla para liberar espacio, y Safari lo hace tras unos
-                días sin abrirla. Instalarla lo resuelve: compartir → agregar a inicio.
-              </p>
-            )}
-          </>
-        )}
-
-        <div className="mt-4 -mx-4">
-          <AccionQuieta onClick={() => void descargar()}>Descargar una copia</AccionQuieta>
-          <AccionQuieta onClick={() => archivo.current?.click()}>Restaurar una copia</AccionQuieta>
-        </div>
-        <input
-          ref={archivo}
-          type="file"
-          accept="application/json,.json"
-          className="hidden"
-          onChange={(e) => {
-            const f = e.target.files?.[0]
-            if (f) void importar(f)
-            e.target.value = ''
-          }}
+        <TusDatos
+          almacenamiento={almacenamiento}
+          releerAlmacenamiento={releerAlmacenamiento}
         />
-        {aviso && (
-          <p className="mt-3 text-sm text-[var(--color-glosa)]" role="status">
-            {aviso}
-          </p>
-        )}
-
-        {restauracion && (
-          <div className="mt-6" data-prueba="confirmar-restauracion">
-            <Rotulo>ANTES DE REEMPLAZAR</Rotulo>
-            <div className="registro mt-3">
-              {(
-                [
-                  [
-                    '◇',
-                    'El archivo',
-                    restauracion.deLaCopia,
-                    `copia del ${fechaCorta(diaLocal(Date.parse(restauracion.copia.exportadoEn)))}`,
-                  ],
-                  ['◆', 'Lo que tenés ahora', restauracion.actual, null],
-                ] as const
-              ).map(([canal, titulo, resumen, extra]) => (
-                <div key={titulo}>
-                  <span className="canal">{canal}</span>
-                  <span className="min-w-0">
-                    <span className="nombre block">{titulo}</span>
-                    <span className="mt-0.5 block text-xs leading-relaxed text-[var(--color-glosa)]">
-                      {[cuantasSesiones(resumen.sesiones), detalleDelResumen(resumen), extra]
-                        .filter(Boolean)
-                        .join(' · ')}
-                    </span>
-                  </span>
-                  <span />
-                </div>
-              ))}
-            </div>
-            <p className="mt-4 max-w-[40ch] text-sm leading-relaxed">
-              {fraseDelReemplazo(restauracion.deLaCopia, restauracion.actual)}{' '}
-              {restauracion.sinCopia
-                ? ''
-                : 'Antes de reemplazar guardo una copia automática de lo que tenés ahora.'}
-            </p>
-            {restauracion.borrador && (
-              <p className="mt-3 max-w-[42ch] text-xs leading-relaxed text-[var(--color-ambar)]">
-                {textoDelBorradorAlRestaurar(restauracion.borrador, diaLocal(Date.now()))}
-              </p>
-            )}
-            {restauracion.sinCopia && (
-              <p
-                role="alert"
-                className="mt-3 max-w-[42ch] text-xs leading-relaxed text-[var(--color-ambar)]"
-              >
-                No pude guardar una copia automática en este navegador, así que todavía no cambié
-                nada. Si querés conservar lo que tenés, descargá una copia antes de seguir.
-              </p>
-            )}
-            <div className="mt-4 -mx-4">
-              <Accion
-                deshabilitado={restaurando}
-                onClick={() => void confirmarRestauracion(restauracion)}
-              >
-                {restauracion.sinCopia ? 'Reemplazar sin copia' : 'Sí, reemplazar'}
-              </Accion>
-              <AccionQuieta deshabilitado={restaurando} onClick={() => setRestauracion(null)}>
-                Mejor no
-              </AccionQuieta>
-            </div>
-          </div>
-        )}
       </section>
 
       <section className="entrar-en-orden mt-10 pb-4" style={orden(6)}>
-        {!confirmando ? (
-          <button
-            onClick={() => setConfirmando(true)}
-            className="text-sm text-[var(--color-destructivo)] underline underline-offset-4"
-          >
-            Borrar todos mis datos
-          </button>
-        ) : (
-          <div>
-            <p className="max-w-[40ch] text-sm leading-relaxed">
-              Esto borra tu historial, tu diario, tu peso y las copias automáticas de este
-              teléfono. No se puede deshacer.
-            </p>
-            <p className="mt-2 max-w-[40ch] text-xs leading-relaxed text-[var(--color-glosa)]">
-              Las copias que descargaste o compartiste no las puede borrar la app: están donde las
-              guardaste.
-            </p>
-            {errorAlBorrar && (
-              <p role="alert" className="mt-3 max-w-[40ch] text-sm text-[var(--color-destructivo)]">
-                {errorAlBorrar}
-              </p>
-            )}
-            <div className="mt-4 -mx-4">
-              <Accion deshabilitado={borrando} onClick={() => void borrarDeVerdad()}>
-                {borrando ? 'Borrando…' : 'Sí, borrar todo'}
-              </Accion>
-              <AccionQuieta
-                deshabilitado={borrando}
-                onClick={() => {
-                  setConfirmando(false)
-                  setErrorAlBorrar(null)
-                }}
-              >
-                Mejor no
-              </AccionQuieta>
-            </div>
-          </div>
-        )}
+        <BorrarTodo />
       </section>
     </>
   )
@@ -789,11 +490,13 @@ function Numero({
   }
   return (
     <div>
-      <span className="canal">{valor === undefined ? '◇' : '◆'}</span>
+      <span className="canal">
+        <Simbolo nombre={valor === undefined ? 'rombo-vacio' : 'rombo'} />
+      </span>
       <span className="min-w-0">
         <span className="nombre block">{titulo}</span>
         {detalle && (
-          <span className="mt-0.5 block text-xs leading-relaxed text-[var(--color-glosa)]">
+          <span className="mt-0.5 block texto-glosa">
             {detalle}
           </span>
         )}
@@ -818,32 +521,5 @@ function Numero({
         </button>
       </span>
     </div>
-  )
-}
-
-function Interruptor({
-  titulo,
-  detalle,
-  activo,
-  onCambiar,
-}: {
-  titulo: string
-  detalle?: string
-  activo: boolean
-  onCambiar: (v: boolean) => void
-}) {
-  return (
-    <button onClick={() => onCambiar(!activo)} className="fila-pulsable">
-      <span className="canal">{activo ? '◆' : '◇'}</span>
-      <span className="min-w-0">
-        <span className="nombre block">{titulo}</span>
-        {detalle && (
-          <span className="mt-0.5 block text-xs leading-relaxed text-[var(--color-glosa)]">
-            {detalle}
-          </span>
-        )}
-      </span>
-      <span className="rotulo">{activo ? 'SÍ' : 'NO'}</span>
-    </button>
   )
 }

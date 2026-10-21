@@ -28,8 +28,10 @@ export default defineConfig({
         description:
           'Progresiones de calistenia, registro de entrenamientos y temporizador. Funciona sin conexión.',
         lang: 'es-AR',
-        theme_color: '#0d1117',
-        background_color: '#0d1117',
+        // El mismo negro que --color-fondo: si no, la pantalla de arranque y la
+        // barra de estado de Android muestran otro negro mientras carga.
+        theme_color: '#07090C',
+        background_color: '#07090C',
         display: 'standalone',
         orientation: 'portrait',
         start_url: base,
@@ -37,8 +39,12 @@ export default defineConfig({
         icons: [
           { src: 'icon-192.png', sizes: '192x192', type: 'image/png' },
           { src: 'icon-512.png', sizes: '512x512', type: 'image/png' },
+          // El enmascarable va aparte: a sangre y con Lyra adentro del círculo
+          // que Android no recorta. El de arriba tiene las esquinas
+          // transparentes, y una máscara que recorta menos que su radio las
+          // dejaría a la vista.
           {
-            src: 'icon-512.png',
+            src: 'icon-512-maskable.png',
             sizes: '512x512',
             type: 'image/png',
             purpose: 'maskable',
