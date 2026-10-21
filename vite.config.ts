@@ -28,8 +28,10 @@ export default defineConfig({
         description:
           'Progresiones de calistenia, registro de entrenamientos y temporizador. Funciona sin conexión.',
         lang: 'es-AR',
-        theme_color: '#0d1117',
-        background_color: '#0d1117',
+        // El mismo negro que --color-fondo: si no, la pantalla de arranque y la
+        // barra de estado de Android muestran otro negro mientras carga.
+        theme_color: '#07090C',
+        background_color: '#07090C',
         display: 'standalone',
         orientation: 'portrait',
         start_url: base,

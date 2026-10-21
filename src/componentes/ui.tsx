@@ -52,11 +52,16 @@ export function Registro({ children, className = '' }: { children: ReactNode; cl
   return <div className={`registro ${className}`}>{children}</div>
 }
 
-/** El cuadradito de 8px que marca el patrón en el canal de la izquierda. */
+/**
+ * La marca de 10px del patrón en el canal de la izquierda. `data-patron` le da
+ * la forma (▲ ▼ ■ ● ▬): el color solo no alcanza para distinguir cinco
+ * cadenas en todas las visiones.
+ */
 export function Glifo({ patron }: { patron: Patron }) {
   return (
     <span
       className="glifo"
+      data-patron={patron}
       style={{ ['--tinta-patron' as string]: COLOR_PATRON[patron] }}
       aria-hidden
     />

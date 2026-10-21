@@ -119,10 +119,13 @@ function Pregunta({
             key={n}
             onClick={() => onElegir(n)}
             className="flex-1 px-1 py-3 text-[0.6875rem] leading-tight"
+            // Lo mismo que un segmento: el borde en regla-fuerte, que es lo que
+            // dice que esto se toca, y lo elegido en tinta, no en el acento,
+            // que acá es de "Cerrar la sesión".
             style={{
-              border: '1px solid var(--color-regla)',
-              backgroundColor: valor === n ? 'var(--color-vega)' : 'transparent',
-              color: valor === n ? 'var(--color-sobre-acento)' : 'var(--color-glosa)',
+              border: `1px solid ${valor === n ? 'var(--color-tinta)' : 'var(--color-regla-fuerte)'}`,
+              backgroundColor: valor === n ? 'var(--color-tinta)' : 'transparent',
+              color: valor === n ? 'var(--color-fondo)' : 'var(--color-glosa)',
             }}
           >
             {etiqueta}

@@ -163,7 +163,7 @@ node rescate.mjs   # revisa los datos: que no se pierda una sesión y que se mid
 node fuelle.mjs    # que el trabajo metabólico no le cueste fuerza a nadie
 node despues.mjs   # que se sepa qué viene, se vea todo el descanso y se diga una sola vez
 node pliegue.mjs   # que nada quede abajo del pliegue, medido en tres teléfonos
-node paleta.mjs    # contraste de cada par del sistema y de cada texto en pantalla
+node paleta.mjs    # contraste de cada par, de cada texto y del foco; las cadenas con daltonismo
 node movimiento.mjs # que nada se mueva en el esfuerzo y que haya un solo infinito
 node carga.mjs     # los discos: que se ofrezcan con qué, y que lleguen a la base
 node colgado.mjs   # sin barra, nada colgado; y la palanca frontal, recién con 3×8 dominadas
@@ -200,12 +200,17 @@ en el 5173 o en lo que diga `BASE_DEV`. Las capturas y lo que dijo cada portón
 quedan como artefactos del job, también cuando algo falla.
 
 `paleta.mjs` mide el contraste de cada par del sistema y de **todo el texto de
-siete pantallas**, contra el fondo efectivo —el primer ancestro opaco— y no
-contra el declarado. El proyecto afirmaba tener un validador de paleta desde
-hacía meses y nunca existió; mientras tanto cinco regletas ponían texto blanco
-sobre el acento, que da 2,6:1, mientras el propio CSS documentaba dos secciones
-más abajo que ahí va tinta oscura. Mirar una captura no mide contraste: el
-naranja es brillante y el blanco encima parece que se lee.
+diecinueve pantallas** —el alta paso por paso, las secciones, una ficha, el
+chequeo, la molestia, el reloj, la serie, el descanso y el cierre—, contra el
+fondo efectivo —el primer ancestro opaco— y no contra el declarado. Mide
+también lo que no es texto (el contorno de foco, recorrido con Tab, el borde
+de un segmento y el glifo de cada cadena) y que las cinco cadenas se
+distingan con protanopía, deuteranopía y tritanopía, por color y por forma.
+El proyecto afirmaba tener un validador de paleta desde hacía meses y nunca
+existió; mientras tanto cinco regletas ponían texto blanco sobre el acento,
+que da 2,6:1, mientras el propio CSS documentaba dos secciones más abajo que
+ahí va tinta oscura. Mirar una captura no mide contraste: el naranja es
+brillante y el blanco encima parece que se lee.
 
 `movimiento.mjs` convierte en medición tres reglas que eran comentarios y se
 erosionaron: que nada se mueva durante el esfuerzo, que haya un solo
@@ -358,19 +363,21 @@ lee: es la costura por donde va a entrar la sincronización.
 
 ### El sistema visual
 
-Se llama **Efeméride**, que es como se llama una tabla astronómica: filas de
-números, en silencio, que dicen dónde va a estar un cuerpo mañana.
+Se llama **Pulso**. LyraFit es un instrumento de noche: un solo negro grafito,
+tinta casi blanca y una sola luz menta, que marca qué hacer ahora. El coral es
+de Lyra, el ámbar de lo que pide cuidado, y el resto del color es de las cinco
+cadenas, que llevan además su forma (▲ ▼ ■ ● ▬) porque nada depende solo del
+color.
 
-Tiene dos registros y ninguno más. **El registro** es papel cálido con filas
-regladas: cero tarjetas, cero sombras, cero esquinas redondeadas, cifras
-monoespaciadas. **La carta** es una banda de cielo nocturno a sangre, idéntica
-en tema claro y oscuro, donde cada cadena se dibuja como una constelación con
+Tiene dos registros y ninguno más. **El registro** son filas regladas con
+filetes de 1 px, cero sombras y cifras tabulares. **La carta** es una banda de
+cielo nocturno a sangre donde cada cadena se dibuja como una constelación con
 su propia silueta y el "estás acá" es lo único que brilla en toda la app.
 
-Cuatro voces con jurisdicción estricta: mono para el dato, serif romana para la
-identidad y solo a tamaño monumental, serif cursiva para el motor —nada más usa
-cursiva— y la sans del sistema para la interfaz. Las fuentes van autoalojadas y
-recortadas: suman 64 KB entre las cuatro.
+Tres voces con jurisdicción estricta: Sora para el dato (cifras, títulos y la
+acción), Inter para la interfaz y la cursiva de Newsreader para el motor —nada
+más usa cursiva—. Las fuentes van autoalojadas y recortadas: suman 96,8 kB
+entre las tres, y solo se precarga Sora.
 
 ### Decisiones que se ven raras hasta que se explican
 

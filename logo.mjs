@@ -69,7 +69,7 @@ const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" role=
       <stop offset="100%" stop-color="rgba(255,122,69,0)"/>
     </radialGradient>
   </defs>
-  <rect width="100" height="100" rx="22" fill="#0b0e13"/>
+  <rect width="100" height="100" rx="22" fill="#07090C"/>
   <g transform="translate(4.3 6.3) scale(0.92)">
     <circle cx="50" cy="52" r="46" fill="url(#h)"/>
     ${cresta}

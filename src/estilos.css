@@ -1,31 +1,29 @@
 @import 'tailwindcss';
 
 /**
- * EFEMÉRIDE — el sistema visual de LyraFit.
+ * PULSO — el sistema visual de LyraFit.
  *
- * Una efeméride es una tabla astronómica: filas de números, en silencio, que
- * dicen dónde va a estar un cuerpo mañana. Es exactamente lo que hace esta app.
+ * LyraFit es un instrumento de noche: grafito azulado, tinta casi blanca y una
+ * sola luz menta, que marca QUÉ HACER AHORA. Tu historia es una carta de
+ * estrellas, y la estrella blanca quiere decir "estás acá": nada más brilla
+ * así. El coral es de Lyra y el ámbar de lo que pide cuidado. El resto del
+ * color es de las cinco cadenas, y cada una lleva además su forma, porque
+ * nada depende solo del color.
  *
  * El sistema tiene DOS REGISTROS y ninguno más:
  *
- *   EL REGISTRO es papel cálido: filas regladas con hairlines, cero tarjetas,
- *   cero sombras, cero esquinas redondeadas, cifras monoespaciadas tabulares.
- *   Densidad de instrumento. El 68% de los días la app es solo esto.
+ *   EL REGISTRO: filas regladas con filetes de 1 px, cero sombras y cifras
+ *   tabulares. Densidad de instrumento. El 68% de los días la app es solo esto.
  *
- *   LA CARTA es una banda de cielo a sangre, y es NOCHE FIJA: idéntica en tema
- *   claro y en oscuro. Las estrellas solo funcionan sobre negro, y la silueta
- *   de cada cadena tiene que ser memorizable, así que no puede cambiar de
- *   aspecto según la hora del día.
+ *   LA CARTA es una banda de cielo a sangre. Las estrellas solo funcionan
+ *   sobre negro, y la silueta de cada cadena tiene que ser memorizable, así
+ *   que no cambia nunca de aspecto. Con un solo negro en toda la app, la
+ *   carta no se separa por su valor sino por sus cantos y sus estrellas.
  *
- * En LyraFit la superficie destacada HUNDE, nunca levanta: la carta es más
- * oscura que la página en los dos temas. Es lo contrario de todas las apps con
- * tarjetas elevadas, y no cuesta ni un byte.
- *
- * CUATRO VOCES, con jurisdicción estricta:
- *   mono            -> el dato y la nomenclatura (el instrumento)
- *   serif romana    -> la identidad, y SOLO a tamaño monumental (quién sos)
- *   serif cursiva   -> el motor hablando, y NADA más usa cursiva
- *   sans del sistema-> interfaz y esfuerzo (cero bytes, hinting nativo)
+ * TRES VOCES, con jurisdicción estricta:
+ *   Sora            -> el dato: cifras, títulos y la acción (el instrumento)
+ *   Inter           -> la interfaz: cuerpo, rótulos, nombres, controles y Lyra
+ *   cursiva (Motor) -> el motor hablando, y NADA más usa cursiva
  *
  * Si un texto no sabe qué voz le toca, la pantalla está mal armada.
  */
@@ -35,54 +33,48 @@
    pedir nada a fonts.gstatic.com: sin conexión, un <link> a Google Fonts
    deja la app sin tipografía y sin fallback controlado.
 
-   Dos familias, cuatro archivos, 57 kB en total — menos que una sola foto.
-   Lo que hace barato el presupuesto es la jurisdicción tipográfica: cuando
-   una voz tiene un trabajo estrecho, el archivo puede ser igual de estrecho.
+   Tres archivos, uno por voz, 96,8 kB en total:
 
-     plex-mono-400.woff2      9.1 kB  estática
-     plex-mono-600.woff2      9.9 kB  estática
-     newsreader.woff2        23.8 kB  variable SOLO en opsz 56-72
-     newsreader-italic.woff2 14.5 kB  estática (opsz 20 / wght 380 horneados)
+     sora.woff2               33,7 kB  variable en wght 100-800
+     inter.woff2              48,3 kB  variable en wght 100-900
+     newsreader-italic.woff2  14,9 kB  estática (opsz 20 / wght 380 horneados)
 
-   La romana conserva el eje óptico porque la identidad se ve a dos tamaños
-   (la cifra de Cierre y el acumulador de Progreso) y el eje hace ese ajuste
-   mejor que escalar el mismo dibujo. La cursiva no lo necesita: aparece
-   siempre al mismo cuerpo, así que se hornea en una instancia fija.
+   Las dos variables resuelven cada peso con el eje, así que una clase que
+   pide 300 o 600 no suma un archivo. La cursiva del motor aparece siempre al
+   mismo cuerpo y al mismo peso, así que se hornea en una instancia fija.
 
    Ojo con `font-variation-settings`: pedir un eje que el archivo no tiene
-   NO da error, se ignora en silencio. Por eso acá solo se pide 'opsz', y
-   solo sobre la romana. El peso viene del @font-face.
+   NO da error, se ignora en silencio. Ninguna de las tres tiene 'opsz' para
+   pedir, ni el rasgo `zero` del cero tachado. El peso viene de `font-weight`.
 
-   En vite.config.ts hay que sumar woff2 al globPatterns de workbox para que
-   el service worker las precachee junto al js, el css y el html.
+   Sora se precarga en index.html: dibuja la cifra de identidad, que es lo más
+   grande de Hoy, y un `swap` tardío ahí se ve como un salto.
+
+   El globPatterns de workbox (vite.config.ts) precachea todo public/fuentes:
+   un archivo que deja de usarse se borra, o se sigue bajando en cada
+   instalación.
    ========================================================================== */
 
 @font-face {
-  font-family: 'Plex';
-  src: url('/fuentes/plex-mono-400.woff2') format('woff2');
-  font-weight: 400;
-  font-display: swap;
-}
-@font-face {
-  font-family: 'Plex';
-  src: url('/fuentes/plex-mono-600.woff2') format('woff2');
-  font-weight: 600;
-  font-display: swap;
-}
-/* Newsreader, recortada a lo que el sistema usa de verdad: la romana solo
-   compone cifras de identidad, la cursiva solo la voz del motor.
-   `font-synthesis: none` en body es obligatorio con instancias estáticas —
-   sin eso el navegador inventa una negrita o una cursiva falsa cuando pide
-   un peso que el archivo no tiene, y la voz del motor deja de ser una voz. */
-@font-face {
-  font-family: 'Lectura';
-  src: url('/fuentes/newsreader.woff2') format('woff2');
-  font-weight: 500;
+  font-family: 'Sora';
+  src: url('/fuentes/sora.woff2') format('woff2');
+  font-weight: 100 800;
   font-style: normal;
   font-display: swap;
 }
 @font-face {
-  font-family: 'Lectura';
+  font-family: 'Inter';
+  src: url('/fuentes/inter.woff2') format('woff2');
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+}
+/* La cursiva de Newsreader, con nombre de voz: solo la usa el motor.
+   `font-synthesis: none` en body es obligatorio con una instancia estática —
+   sin eso el navegador inventa una negrita o una cursiva falsa cuando pide
+   un peso que el archivo no tiene, y la voz del motor deja de ser una voz. */
+@font-face {
+  font-family: 'Motor';
   src: url('/fuentes/newsreader-italic.woff2') format('woff2');
   font-weight: 380;
   font-style: italic;
@@ -91,47 +83,68 @@
 
 /* ==========================================================================
    TOKENS
+
+   Van todos en hex de seis dígitos y con nombre de rol, nunca en oklch() ni
+   con color-mix(): `paleta.mjs` los lee de la app viva por nombre
+   (`--color-<n>` o `--<n>`) y solo sabe medir hex y rgb(). Un token que no
+   puede medir es un par que nadie verifica.
+
+   `static` porque Tailwind emite solo las variables de tema que algún estilo
+   usa, y el portón lee también las que todavía no usa nadie: sin esto, un
+   token nuevo no existe en la app hasta que una pantalla lo pinta.
    ========================================================================== */
 
-@theme {
-  /* --- LA NOCHE. Un solo mundo. ---
-         Durante un año hubo dos: papel cálido de día y oscuro de noche, más
-         una tercera noche fija para la carta y una cuarta para el esfuerzo.
-         Cuatro juegos de tokens para mantener sincronizados, con los
-         overrides de oscuro escritos DOS veces idénticos, un flash de blanco
-         a negro cada vez que empezabas una serie, y cinco lugares con blanco
-         sobre Vega que daban 2,6:1 — por debajo del mínimo legible— porque
-         nadie podía tener los cuatro mundos en la cabeza a la vez.
+@theme static {
+  /* --- LOS NEUTROS. Un solo negro. ---
+         El mismo piso de día y de noche: entrar a Entrenar o al Cierre cambia
+         la tinta, no el fondo, y así empezar una serie no es un salto de
+         valor. La profundidad la dan tres valores de superficie y un canto,
+         no las sombras, que no existen. */
+  --color-fondo: #07090c;
+  --color-papel: #10141a;        /* la superficie: la placa, la regleta, el paso */
+  --color-papel-alto: #171c24;   /* lo que va encima: el presionado, la hoja, "estás acá" */
+  --color-tinta: #f2f5f7;        /* 18,21:1 sobre el fondo */
+  --color-glosa: #9aa6b2;        /* 6,90:1 aun sobre papel-alto */
+  /* Lo terciario: la vara, el canal. Sobre papel-alto da 4,93:1, sin margen,
+     así que ahí lo terciario va en glosa y este token no se usa. */
+  --color-tenue: #7f8b98;
+  --color-regla: #222a35;        /* filetes de 1 px y la pista del arco */
+  /* Los bordes que informan —el contorno de un control, el anillo de la
+     semana—: 3,20:1 sobre papel-alto, que es el peor fondo donde aparecen. */
+  --color-regla-fuerte: #606c7b;
+  --color-canto-placa: #1a2029;  /* el borde de 1 px de la placa y de la hoja */
 
-         Ahora hay uno. El negro es cálido (#100f0d, no un gris azulado) para
-         que la tinta clara encima se lea como papel revelado y no como una
-         pantalla apagada. La carta y el esfuerzo siguen siendo una noche más
-         profunda y más fría: es un hundimiento adentro de la noche, no un
-         mundo aparte. --- */
-  --color-fondo: #100f0d;
-  --color-papel: #1b1915;
-  --color-tinta: #f2efe6;
-  --color-glosa: #a49b8c;
-  --color-regla: #35302a;
-  --color-regla-fuerte: #6b6459;
+  /* --- LA LUZ: menta, y un solo trabajo ---
+         Marca QUÉ HACER AHORA: la acción que avanza —un relleno menta por
+         pantalla— y el contorno de foco. Lo elegido no es menta, va en tinta:
+         con menta en las dos cosas, la pantalla de preguntas tendría cuatro
+         rellenos compitiendo con "Cerrar la sesión". */
+  --color-acento: #3df5b0;
+  /* El presionado de la acción. En hex y no con color-mix(): lo que no es
+     hex no lo mide nadie. */
+  --color-acento-hundido: #2ccb91;
+  /* La tinta que va ENCIMA de un relleno claro —la menta, el ámbar, el
+     destructivo— y el foco que va hacia adentro sobre la menta. Afuera,
+     contra el fondo, da 1,05:1: por eso el foco de afuera nunca la usa. */
+  --color-sobre-acento: #04140d;
 
-  /* Vega: la estrella más brillante de Lyra, y el único acento del sistema.
-     Racionado a TRES apariciones por pantalla como máximo: la barra de
-     acción, la estrella "estás acá", y el filete de la glosa del motor.
-     7,4:1 contra el fondo, y lleva tinta OSCURA encima cuando es superficie. */
+  /* Vega: la estrella más brillante de Lyra, y su voz. Su único trabajo es
+     Lyra; la última marca de la tira y "SESIÓN REDONDA" son tu marca en su
+     cielo. Contra la menta da 1,83:1 y en deuteranopía son casi el mismo
+     color, así que nunca se tocan: Lyra no va sobre la menta ni al lado de
+     la acción. */
   --color-vega: #ff7a45;
 
-  /* El techo de alarma. No existe rojo para nada del entrenamiento. */
-  --color-ambar: #eeb43c;
+  /* El cuidado: el motor que baja, la molestia elegida, el aviso que impide y
+     el error. Nunca decora y nunca aparece en un festejo. No existe rojo para
+     nada del entrenamiento. Va en este amarillo y no en uno más cálido para
+     separarse del empuje en tritanopía (4,1 contra 1,4). */
+  --color-ambar: #f4c542;
 
-  /* Solo para acciones destructivas del usuario en Ajustes (borrar datos).
-     Por contrato: ninguna pantalla de entrenamiento puede usar este token. */
+  /* Solo para acciones destructivas del usuario: "Borrar todos mis datos",
+     "Borrar todo" y "Reemplazar sin copia". Por contrato, ninguna pantalla de
+     entrenamiento puede usar este token. */
   --color-destructivo: #f08a7e;
-
-  /* La tinta que va ENCIMA de una superficie clara (la barra de acción, un
-     glifo relleno). Un solo token para que nadie vuelva a escribir #fff
-     sobre naranja. */
-  --color-sobre-acento: #100f0d;
 
   /* --- LOS CUATRO DOMINIOS: atmósfera, nunca marca --- *
    *
@@ -139,7 +152,7 @@
    *
    *   dominio = atmósfera. Baja saturación, superficie grande, campo entero.
    *             Dice EN QUÉ MUNDO ESTÁS.
-   *   cadena  = marca. Alta saturación, 8 px, el glifo. Dice QUÉ PATRÓN ES,
+   *   cadena  = marca. Alta saturación, el glifo de 10 px. Dice QUÉ PATRÓN ES,
    *             y vive solo adentro de fuerza.
    *
    * Nunca compiten porque nunca aparecen al mismo tamaño. Los cuatro campos
@@ -148,64 +161,73 @@
    * que es lo que se percibe sin poder nombrarlo.
    *
    * La luz de cada dominio se usa de 24 px para arriba (el ícono, el rótulo,
-   * una regla). NUNCA en un glifo de 8 px: ese tamaño es de las cadenas.
+   * una regla). NUNCA en un glifo de 10 px: ese tamaño es de las cadenas.
    */
-  --dominio-fuerza-campo: #191310;
-  --dominio-fuerza-luz: #ff7a45;   /* la brasa: es Vega, y es a propósito —
-                                      el acento del sistema SIEMPRE fue el de
-                                      la fuerza, no hace falta un quinto naranja */
-  --dominio-fuelle-campo: #0b1715;
-  --dominio-fuelle-luz: #49cfb4;   /* el aire: verde azulado, 9,9:1 */
+  --dominio-fuerza-campo: #110e0c;
+  --dominio-fuerza-luz: #ebcdb6;   /* la brasa apagada, 12,77:1. No es
+                                      coral: el coral es de Lyra */
+  --dominio-fuelle-campo: #081013;
+  --dominio-fuelle-luz: #a6e1f5;   /* el aire, 13,45:1 */
 
-  --dominio-comida-campo: #121710;
-  --dominio-comida-luz: #9fc46a;   /* lo que crece, 9,7:1 */
+  --dominio-comida-campo: #0d110b;
+  --dominio-comida-luz: #a9cf72;   /* lo que crece, 10,76:1 */
 
-  --dominio-sueno-campo: #12131f;
-  --dominio-sueno-luz: #9aa5e8;    /* el índigo de antes del amanecer, 8,1:1 */
+  --dominio-sueno-campo: #0d0e18;
+  --dominio-sueno-luz: #a0aaee;    /* el índigo de antes del amanecer, 8,67:1 */
 
-  /* --- LA CARTA: la noche profunda. Más fría y más honda que la página. --- */
-  --carta-fondo: #080b11;
-  --carta-canto: #1a2230;
+  /* --- LA CARTA: el hueco del cielo, la única superficie sin placa ---
+         Contra el fondo da 1,01:1: se lee por sus cantos (1,29:1) y por sus
+         estrellas, no por su valor. */
+  --carta-fondo: #05070a;
+  --carta-canto: #1c2430;
   --carta-estrella: #ffffff;
   --carta-rotulo: #8d99ad;
-  --carta-futuro-nodo: #79859a;
-  --carta-futuro-linea: #55637a;
+  --carta-futuro-nodo: #7a869b;
+  /* 3,46:1 sobre la carta, pero 2,94 sobre papel-alto: en la fila "estás
+     acá" el punteado va en regla-fuerte. */
+  --carta-futuro-linea: #5a6678;
 
-  /* Rampa de patrón. Un solo juego: sobre la noche, el color del nodo de la
-     carta y el color del glifo de la fila son el mismo problema. Mientras
-     hubo papel claro hacían falta dos rampas y las dos se desincronizaban. */
-  --color-empuje: #ff7a45;
-  --color-traccion: #38bdf8;
-  --color-piernas: #a3e635;
-  --color-core: #c084fc;
-  /* La bisagra entra en el hueco que quedaba en la rueda: naranja 22°, verde
-     82°, azul 199°, violeta 276°. El rosa profundo es el único lugar donde una
-     quinta cadena no se confunde con ninguna de las cuatro, ni siquiera con el
-     violeta del core, que es lo más cerca que está. */
-  --color-bisagra: #fb7185;
+  /* Rampa de patrón. Un solo juego: el nodo de la carta, el glifo de la fila
+     y la línea de la curva son el mismo color, en este orden.
+     Cada cadena tiene además su FORMA (`.glifo[data-patron]`), porque con
+     cinco colores alguno siempre se parece a otro en alguna visión. Medido
+     con la simulación de Machado 2009 en OKLab, el par más cercano es
+     empuje–piernas en deuteranopía: 10,3, sobre un umbral de 10. El empuje
+     va en albaricoque: un naranja queda a 5,1 de Vega y a 9,5 de la
+     bisagra, y el coral dejaría de ser solo de Lyra. */
+  --color-empuje: #ffb08c;
+  --color-traccion: #5bc0ff;
+  --color-piernas: #d3f57a;
+  --color-core: #8a73ff;
+  --color-bisagra: #f25c9c;
 
-  --luz-empuje: #ff7a45;
-  --luz-traccion: #38bdf8;
-  --luz-piernas: #a3e635;
-  --luz-core: #c084fc;
-  --luz-bisagra: #fb7185;
+  --luz-empuje: #ffb08c;
+  --luz-traccion: #5bc0ff;
+  --luz-piernas: #d3f57a;
+  --luz-core: #8a73ff;
+  --luz-bisagra: #f25c9c;
 
-  /* Gráficos: mantienen su paleta propia, ya verificada. Un color pensado
-     para iluminar un nodo de 7px no es un buen relleno de barra de 40px. */
-  --color-grafico-1: #ff7a45;
-  --color-grafico-2: #38bdf8;
-  --color-grafico-3: #a3e635;
-  --color-grafico-4: #c084fc;
-  --color-grafico-5: #fb7185;
-  --color-grafico-grilla: #35302a;
+  --color-grafico-1: #ffb08c;
+  --color-grafico-2: #5bc0ff;
+  --color-grafico-3: #d3f57a;
+  --color-grafico-4: #8a73ff;
+  --color-grafico-5: #f25c9c;
+  --color-grafico-grilla: #222a35;
 
-  --font-cifra: 'Plex', ui-monospace, 'SF Mono', 'Roboto Mono', monospace;
-  --font-lectura: 'Lectura', ui-serif, Georgia, 'Times New Roman', serif;
-  --font-sans: ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  /* Inter va antes de las fuentes del sistema también en la cifra: un glifo
+     que Sora no tiene (como ↑) cae en Inter y no en la letra del teléfono. */
+  --font-cifra: 'Sora', 'Inter', ui-sans-serif, system-ui, sans-serif;
+  --font-sans: 'Inter', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  --font-motor: 'Motor', ui-serif, Georgia, serif;
 
-  /* Geometría. Tres radios en todo el sistema y ninguno más. */
+  /* Geometría. `--radio` queda en 0 y solo reinicia el button: el radio lo
+     dice cada clase, porque una barra a sangre y una placa no pueden
+     compartirlo. */
   --radio: 0px;
-  --radio-foco: 2px;
+  --radio-placa: 22px;
+  --radio-control: 16px;
+  --radio-chico: 12px;
+  --radio-hoja: 28px;
   --margen: 1rem;    /* 16px de inset del texto */
   --canal: 2.75rem;  /* 44px: la columna del glifo de patrón */
   --fila: 3.5rem;    /* 56px: alto mínimo de fila tocable */
@@ -225,28 +247,27 @@
   }
 
   /*
-   * EL ESFUERZO Y EL CIERRE — la noche profunda.
+   * EL ESFUERZO Y EL CIERRE — la misma noche, con más tinta.
    *
-   * Blanco puro sobre #080b11 = 19,7:1, el par de mayor contraste que existe
-   * en el sistema. Está justo donde la persona tiene el pulso a 140, el sol
-   * de frente y las manos transpiradas.
+   * No es otro negro: cambia solo la tinta. Blanco puro sobre el fondo da
+   * 19,94:1, el par de mayor contraste del sistema, justo donde la persona
+   * tiene el pulso a 140, el sol de frente y las manos transpiradas.
    *
-   * Ya no es un salto de mundo: la página entera es noche, y acá se hunde un
-   * paso más. Eso es lo que mata el flash de blanco a negro que había cada
-   * vez que empezaba una serie.
+   * Se dispara también por `:has()`: `.pantalla-esfuerzo` y `.pantalla-cierre`
+   * están en el DOM desde el primer cuadro, y `data-pantalla` puede llegar
+   * después. Sin esto, la primera foto de un pasaje saldría con la tinta de
+   * día y saltaría al llegar el atributo.
    *
    * El cierre comparte la noche —es el mismo momento, con el pulso todavía
    * alto— pero NO comparte el apagado de decoración de más abajo. Ahí la
    * carta y la voz del motor son el contenido, no el adorno.
    */
   :root[data-pantalla='entrenar'],
-  :root[data-pantalla='cierre'] {
-    --color-fondo: #080b11;
-    --color-papel: #0f1620;
+  :root[data-pantalla='cierre'],
+  :root:has(.pantalla-esfuerzo),
+  :root:has(.pantalla-cierre) {
     --color-tinta: #ffffff;
-    --color-glosa: #8d99ad;
-    --color-regla: #202b3a;
-    --color-regla-fuerte: #55637a;
+    --color-glosa: #aab5c1;
   }
 }
 
@@ -286,17 +307,37 @@
   }
 
   /* Cero sombras en todo el sistema. La profundidad la dan las reglas de 1px
-     y la inversión de valor de la banda de noche. */
+     y los valores de superficie. */
   hr {
     border: 0;
     border-top: 1px solid var(--color-regla);
     margin: 0;
   }
 
+  /* El foco va AFUERA y en acento, también alrededor de la acción menta:
+     queda sobre el fondo o el papel (14,13 y 13,09:1) y los 3 px de aire lo
+     separan del relleno. No lleva radio propio: el contorno sigue el del
+     elemento, y uno puesto acá le cambiaría la forma al botón enfocado. */
   :focus-visible {
-    outline: 2px solid var(--color-vega);
+    outline: 2px solid var(--color-acento);
     outline-offset: 3px;
-    border-radius: var(--radio-foco);
+  }
+
+  /* Hacia adentro donde afuera no hay lugar: la fila dentro de una placa,
+     que la placa recortaría, y la acción del esfuerzo, que va contra el
+     canto. Sobre la menta, y solo ahí, el contorno va en sobre-acento
+     (13,40:1): el acento sobre el acento no se vería. */
+  .placa .fila-pulsable:focus-visible,
+  .accion-esfuerzo:focus-visible {
+    outline-offset: -2px;
+  }
+  /* En la acción del esfuerzo, 2 px más adentro. Pegado al canto, el contorno
+     oscuro se funde con el fondo de al lado (1,05:1) y se lee como un botón
+     que se achicó, no como un foco; con una franja de menta afuera se ve
+     como lo que es. */
+  .accion-esfuerzo:focus-visible {
+    outline-color: var(--color-sobre-acento);
+    outline-offset: -4px;
   }
 }
 
@@ -306,16 +347,17 @@
 
 @layer components {
   /* ------------------------------------------------------------------ *
-   * 1. LAS CUATRO VOCES
+   * 1. LAS VOCES
    * ------------------------------------------------------------------ */
 
-  /* -- mono: el dato. El instrumento. --
+  /* -- Sora: el dato. El instrumento. --
      tabular porque el temporizador no puede bailar de ancho al pasar de 60
-     a 59; slashed-zero porque desambigua 0/O bajo el sol y porque es el
-     rasgo que dice "instrumento". */
+     a 59, y lining para que la cifra se pare en la misma línea que las
+     mayúsculas. Ninguna de las tres fuentes trae el cero tachado, así que
+     no se pide: un rasgo que el archivo no tiene se ignora en silencio. */
   .cifra {
     font-family: var(--font-cifra);
-    font-variant-numeric: tabular-nums slashed-zero;
+    font-variant-numeric: tabular-nums lining-nums;
     font-weight: 600;
     letter-spacing: -0.015em;
   }
@@ -323,17 +365,20 @@
   /* La cifra de la fila del registro: el objetivo, a la derecha. */
   .cifra-fila {
     font-family: var(--font-cifra);
-    font-variant-numeric: tabular-nums slashed-zero;
+    font-variant-numeric: tabular-nums lining-nums;
     font-weight: 600;
     font-size: 1.125rem;
     letter-spacing: -0.015em;
   }
 
-  /* El "×" del objetivo no compite con los dos números que importan. */
+  /* El "×" del objetivo no compite con los dos números que importan, y es lo
+     que cede cuando falta ancho. Sora dibuja los números anchos, y con el ×
+     a 0,7em y aire a los costados "3×8" le come al nombre de al lado los
+     3 px que le faltan para no cortarse ("Dominadas con banda liviana", a
+     360). Los números no se achican; el signo, que va en tenue, sí. */
   .cifra-fila .por {
-    font-size: 0.7em;
-    opacity: 0.55;
-    padding-inline: 0.1em;
+    font-size: 0.6em;
+    color: var(--color-tenue);
   }
 
   /* La cifra de comparación: mismo tamaño, otro color. El contraste
@@ -346,14 +391,15 @@
   }
 
   /* La vara: el número que dejaste la vez pasada, adentro del casillero que
-     todavía no llenaste. Es un fantasma a propósito —más chico y en glosa— y
+     todavía no llenaste. Es un fantasma a propósito —más chico y terciario— y
      nunca en Vega: no es un objetivo que puso la app, es un dato que pusiste
      vos, y en cuanto anotás la serie de hoy el número de hoy lo tapa. La
-     comparación importa antes de la serie, no después. */
+     comparación importa antes de la serie, no después.
+     Terciario con su token y no con opacidad: la glosa al 65% da 3,5:1,
+     por debajo del mínimo, y el tenue da 5,74. */
   .vara {
     font-size: 0.8em;
-    color: var(--color-glosa);
-    opacity: 0.65;
+    color: var(--color-tenue);
   }
 
   /* Las unidades nunca compiten con el número. */
@@ -364,8 +410,8 @@
   }
 
   /* La cifra del esfuerzo: el número de la serie actual en Entrenar.
-     Único uso en toda la app. Sans del sistema, no mono: a 130px lo que
-     hace falta es masa y hinting nativo, no carácter. */
+     Único uso en toda la app. En la sans y en 800: a 130px lo que hace
+     falta es masa, no carácter. */
   .cifra-esfuerzo {
     font-family: var(--font-sans);
     font-variant-numeric: tabular-nums;
@@ -376,19 +422,16 @@
     color: var(--color-tinta);
   }
 
-  /* -- serif romana: LA IDENTIDAD, y solo a tamaño monumental --
+  /* -- Sora liviana: LA IDENTIDAD, a tamaño monumental --
      "Sesión 047" pesa más que "+2 reps". Este es el hallazgo 3 hecho
      tipografía: lo más grande de la pantalla es quién sos, no qué hiciste.
      Los ceros a la izquierda se conservan a propósito: convierten un número
-     en una matrícula, y una matrícula es identidad. */
+     en una matrícula, y una matrícula es identidad.
+     En 300 y no más fina: el 200 se deshace en las pantallas de baja
+     densidad, que son las de los teléfonos baratos. */
   .cifra-identidad {
-    font-family: var(--font-lectura);
-    /* opsz 72 es un eje real del woff2 (56-72). No se pide 'wght': ese eje
-       no existe en el archivo, viene horneado en 500 desde el @font-face.
-       Pedir un eje inexistente no da error, se ignora — y eso es peor, porque
-       parece que funciona. */
-    font-optical-sizing: none;
-    font-variation-settings: 'opsz' 72;
+    font-family: var(--font-cifra);
+    font-weight: 300;
     font-variant-numeric: lining-nums tabular-nums;
     font-size: clamp(4.5rem, 30vw, 8rem);
     line-height: 0.82;
@@ -401,22 +444,19 @@
 
   /* Un escalón menos: los acumuladores monotónicos de Progreso. */
   .cifra-acumulador {
-    font-family: var(--font-lectura);
-    /* Mas chico que la identidad, asi que le toca el otro extremo del eje
-       optico: trazos apenas mas robustos y espaciado mas abierto. */
-    font-optical-sizing: none;
-    font-variation-settings: 'opsz' 56;
+    font-family: var(--font-cifra);
+    font-weight: 300;
     font-variant-numeric: lining-nums tabular-nums;
     font-size: clamp(2.5rem, 13vw, 3.5rem);
     line-height: 0.9;
     letter-spacing: -0.025em;
   }
 
-  /* -- serif cursiva: EL MOTOR. Nada más en la app usa cursiva. --
+  /* -- la cursiva: EL MOTOR. Nada más en la app usa cursiva. --
      Deliberadamente MÁS grande que el cuerpo: la explicación del algoritmo
      no es letra chica. Es el activo diferencial del producto. */
   .glosa {
-    font-family: var(--font-lectura);
+    font-family: var(--font-motor);
     font-style: italic;
     /* La cursiva es una instancia estatica: opsz 20 y wght 380 ya vienen
        horneados en el archivo. No hay ejes que pedir. */
@@ -445,7 +485,7 @@
   .cita {
     display: block;
     margin-top: 0.75rem;
-    font-family: var(--font-cifra);
+    font-family: var(--font-sans);
     font-style: normal;
     font-weight: 600;
     font-size: 0.6875rem;
@@ -455,9 +495,10 @@
   }
 
   /* -- nomenclatura de lámina. El título de pantalla es una placa, no un
-        titular: el tamaño grande está reservado siempre al contenido. -- */
+        titular: el tamaño grande está reservado siempre al contenido.
+        Es interfaz y no dato, así que va en Inter. -- */
   .rotulo {
-    font-family: var(--font-cifra);
+    font-family: var(--font-sans);
     font-weight: 600;
     font-size: 0.6875rem;
     line-height: 1.4;
@@ -515,20 +556,30 @@
     justify-content: center;
     align-self: stretch;
     font-family: var(--font-cifra);
-    font-variant-numeric: tabular-nums slashed-zero;
+    font-variant-numeric: tabular-nums lining-nums;
     font-size: 0.6875rem;
     font-weight: 600;
     letter-spacing: 0.06em;
     color: var(--color-glosa);
   }
 
-  /* El glifo de patrón: un cuadrado de 8px. Nunca una píldora rellena de
-     color — ese chip de color es medio uniforme de app de fitness. */
+  /* El glifo de patrón: 10px de color con la FORMA de su cadena. Nunca una
+     píldora rellena de color — ese chip de color es medio uniforme de app de
+     fitness.
+     La forma es lo que hace que el color no esté solo: en alguna visión dos
+     cadenas siempre se parecen (empuje y piernas quedan a 10,3 en
+     deuteranopía), y un triángulo no se confunde con un cuadrado. Sale de
+     CSS estático, sin un byte de SVG. */
   .glifo {
-    width: 8px;
-    height: 8px;
+    width: 10px;
+    height: 10px;
     background-color: var(--tinta-patron, var(--color-glosa));
   }
+  .glifo[data-patron='empuje']   { clip-path: polygon(50% 0, 100% 100%, 0 100%); } /* ▲ */
+  .glifo[data-patron='traccion'] { clip-path: polygon(0 0, 100% 0, 50% 100%); }    /* ▼ */
+  .glifo[data-patron='piernas']  { clip-path: none; }                              /* ■ */
+  .glifo[data-patron='core']     { border-radius: 50%; }                           /* ● */
+  .glifo[data-patron='bisagra']  { clip-path: inset(30% 0 30% 0); }                /* ▬ */
 
   /* ------------------------------------------------------------------ *
    * 3. LA CARTA — banda de noche a sangre.
@@ -610,7 +661,7 @@
 
   /* Rótulos de nodo (solo en la carta vertical, donde hay lugar de sobra). */
   .nodo-rotulo {
-    font-family: var(--font-cifra);
+    font-family: var(--font-sans);
     font-size: 10px;
     font-weight: 600;
     letter-spacing: 0.1em;
@@ -692,7 +743,7 @@
     background-color: var(--carta-fondo);
     border: 1px solid var(--carta-canto);
     color: var(--carta-estrella);
-    font-family: var(--font-cifra);
+    font-family: var(--font-sans);
     font-size: 0.6875rem;
     font-weight: 600;
     letter-spacing: 0.14em;
@@ -750,12 +801,11 @@
     min-height: 3.75rem;
     padding: 0 1rem;
     border-radius: 0;
-    background-color: var(--color-vega);
-    /* Tinta OSCURA sobre la barra naranja, siempre: #100f0d sobre #ff7a45 da
-       7,4:1 y blanco daría 2,6:1 — por debajo del mínimo. El CSS documentaba
-       esto desde hace meses y había cinco lugares que igual ponían #fff,
-       porque la regla vivía en tres selectores condicionales que había que
-       acordarse de copiar. Ahora es un token y no hay nada que recordar. */
+    /* La menta es la luz de QUÉ HACER AHORA, y esta es su único relleno en
+       la pantalla. Lleva tinta OSCURA encima, siempre (13,40:1), y la pone el
+       token: una regla que hay que acordarse de copiar en cada selector
+       termina, tarde o temprano, con blanco sobre el acento. */
+    background-color: var(--color-acento);
     color: var(--color-sobre-acento);
     font-family: var(--font-cifra);
     font-weight: 600;
@@ -767,7 +817,7 @@
       transform var(--dur-responder) var(--sal-responder);
   }
   .accion:active {
-    background-color: color-mix(in oklab, var(--color-vega) 82%, #000);
+    background-color: var(--color-acento-hundido);
   }
   .accion:disabled {
     background-color: var(--color-papel);
@@ -785,7 +835,7 @@
     color: var(--color-tinta);
     border-top: 1px solid var(--color-regla-fuerte);
     border-radius: 0;
-    font-family: var(--font-cifra);
+    font-family: var(--font-sans);
     font-weight: 600;
     font-size: 0.6875rem;
     letter-spacing: 0.16em;
@@ -1211,10 +1261,13 @@
     justify-content: center;
     min-height: 2.75rem;
     padding: 0 0.75rem;
-    border: 1px solid var(--color-regla);
+    /* El borde es lo que dice que esto se toca: va en regla-fuerte, a 3:1 o
+       más contra el fondo y el papel. En regla queda a 1,4 y el segmento
+       sin elegir se lee como texto suelto. */
+    border: 1px solid var(--color-regla-fuerte);
     background-color: transparent;
     color: var(--color-glosa);
-    font-family: var(--font-cifra);
+    font-family: var(--font-sans);
     font-size: 0.6875rem;
     font-weight: 600;
     letter-spacing: 0.08em;
@@ -1224,11 +1277,15 @@
       border-color var(--dur-instante) var(--sal-ambas);
   }
 
+  /* Lo elegido va en TINTA, no en menta: la menta es de la acción que
+     avanza, y una pantalla de preguntas con cuatro rellenos menta no sabe
+     cuál es el botón. Se distingue por la inversión de valor (18,21:1) y
+     por el peso, no por un color. */
   .segmento[aria-pressed='true'],
   .segmento[data-elegido='true'] {
-    background-color: var(--color-vega);
-    border-color: var(--color-vega);
-    color: var(--color-sobre-acento);
+    background-color: var(--color-tinta);
+    border-color: var(--color-tinta);
+    color: var(--color-fondo);
   }
 
   /* La molestia puntual se elige en ámbar y no en Vega: no es una preferencia,
@@ -1257,7 +1314,7 @@
     align-items: center;
     justify-content: center;
     font-family: var(--font-cifra);
-    font-variant-numeric: tabular-nums slashed-zero;
+    font-variant-numeric: tabular-nums lining-nums;
     font-weight: 600;
     border: 1px solid var(--color-regla);
     color: var(--color-tinta);
@@ -1285,7 +1342,7 @@
     min-height: 2.75rem;
     padding: 0 1rem;
     border: 1px solid var(--color-regla);
-    font-family: var(--font-cifra);
+    font-family: var(--font-sans);
     font-size: 0.6875rem;
     font-weight: 600;
     letter-spacing: 0.14em;
@@ -1307,9 +1364,11 @@
   }
 
   /* La variante del alta y del estado: más alta y con cifra tabular, porque
-     ahí los segmentos son números y tienen que alinearse. */
+     ahí los segmentos son números y tienen que alinearse. Un número es dato,
+     así que vuelve a la voz del instrumento. */
   .segmento-cifra {
-    font-variant-numeric: tabular-nums slashed-zero;
+    font-family: var(--font-cifra);
+    font-variant-numeric: tabular-nums lining-nums;
     min-height: 3rem;
     font-size: 1rem;
     letter-spacing: -0.015em;

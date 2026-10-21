@@ -541,9 +541,9 @@ async function main() {
    */
   await alta(paginaClara)
   const fondo = await paginaClara.evaluate(() => getComputedStyle(document.body).backgroundColor)
-  if (fondo !== 'rgb(16, 15, 13)') {
+  if (fondo !== 'rgb(7, 9, 12)') {
     problemas.push(
-      `Con el sistema en tema claro el fondo es ${fondo} y tiene que ser rgb(16, 15, 13): el sistema tiene un solo mundo.`,
+      `Con el sistema en tema claro el fondo es ${fondo} y tiene que ser rgb(7, 9, 12): el sistema tiene un solo mundo.`,
     )
   }
   await enClaro.close()
