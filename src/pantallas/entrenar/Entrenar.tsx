@@ -287,7 +287,7 @@ export function Entrenar() {
             Sin esa cadena, la sesión de hoy se queda sin ejercicios.
           </p>
         </main>
-        <div className="mt-auto">
+        <div className="mx-auto w-full max-w-lg px-4 mt-auto pb-[calc(1rem+env(safe-area-inset-bottom))]">
           <AccionQuieta onClick={() => navegar('/')}>Volver</AccionQuieta>
         </div>
       </div>
@@ -576,6 +576,13 @@ export function Entrenar() {
     )
   }
 
+  // La secundaria va arriba de la acción y 16 px antes, adentro del margen;
+  // la acción va a sangre contra el canto. Sin acción —en el descanso— la
+  // secundaria es lo último y se separa sola del canto.
+  const pieDeLaSecundaria = `mx-auto w-full max-w-lg px-4 ${
+    descanso.activo ? 'pb-[calc(1rem+env(safe-area-inset-bottom))]' : 'pb-4'
+  }`
+
   return (
     <div className="flex min-h-dvh flex-col">
       {explicando && <ComoSeHace ejercicio={ejercicio} alCerrar={() => setExplicando(false)} />}
@@ -636,6 +643,18 @@ export function Entrenar() {
       </main>
 
       <div className="mt-auto">
+        {!completo && !esUltimo && (
+          <div className={pieDeLaSecundaria}>
+            <AccionQuieta onClick={avanzar}>Saltear este ejercicio</AccionQuieta>
+          </div>
+        )}
+        {!completo && esUltimo && algoRegistrado && (
+          <div className={pieDeLaSecundaria}>
+            <AccionQuieta onClick={() => setEtapa(fuelle.length > 0 ? 'fuelle' : 'cierre-serie')}>
+              Terminar acá
+            </AccionQuieta>
+          </div>
+        )}
         {!completo && !descanso.activo && (
           <Accion
             esfuerzo
@@ -657,14 +676,6 @@ export function Entrenar() {
           <Accion esfuerzo onClick={avanzar}>
             {esUltimo ? 'Terminar' : 'Siguiente ejercicio'}
           </Accion>
-        )}
-        {!completo && !esUltimo && (
-          <AccionQuieta onClick={avanzar}>Saltear este ejercicio</AccionQuieta>
-        )}
-        {!completo && esUltimo && algoRegistrado && (
-          <AccionQuieta onClick={() => setEtapa(fuelle.length > 0 ? 'fuelle' : 'cierre-serie')}>
-            Terminar acá
-          </AccionQuieta>
         )}
       </div>
     </div>

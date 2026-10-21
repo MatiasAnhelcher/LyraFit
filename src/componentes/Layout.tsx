@@ -101,11 +101,7 @@ export function Layout() {
                   }
                 >
                   <Icono className="h-[18px] w-[18px]" />
-                  <span
-                    className="font-[var(--font-cifra)] text-[0.625rem] font-semibold uppercase leading-[1.1] tracking-[0.06em]"
-                  >
-                    {etiqueta}
-                  </span>
+                  <span className="etiqueta-barra">{etiqueta}</span>
                 </NavLink>
               </li>
             )

@@ -48,7 +48,7 @@ import { ubicarDesdeElAlta, ultimoSinBarra } from '@/dominio/apertura'
 import { RUTINAS } from '@/dominio/rutinas'
 import type { Avance, Patron } from '@/dominio/tipos'
 import { guardarPreferencias, saltearElAlta, ubicarDesdePrueba } from '@/datos/repositorio'
-import { Accion, AccionQuieta, Glifo, Rotulo, Segmento, unidad } from '@/componentes/ui'
+import { Accion, AccionQuieta, Glifo, MarcaRadio, Regleta, Rotulo, Segmento, unidad } from '@/componentes/ui'
 
 interface Prueba {
   patron: Patron
@@ -281,7 +281,7 @@ function Propuesta({
         </p>
       </div>
 
-      <div className="mt-10 -mx-4">
+      <div className="mt-10 flex flex-col gap-3">
         <Accion onClick={onSeguir}>Empezar</Accion>
         <AccionQuieta onClick={onSaltear}>Prefiero arrancar desde cero</AccionQuieta>
       </div>
@@ -303,7 +303,7 @@ function Equipo({ onElegir }: { onElegir: (tieneBarra: boolean) => void }) {
         </p>
       </div>
 
-      <div className="mt-10 -mx-4">
+      <div className="mt-10 flex flex-col gap-3">
         <Accion onClick={() => onElegir(true)}>Sí, tengo barra</Accion>
         <AccionQuieta onClick={() => onElegir(false)}>No, por ahora no</AccionQuieta>
       </div>
@@ -376,22 +376,16 @@ function Pruebas({
             forma de las respuestas es distinta en cada una: casi nadie hace
             dominadas y mucha gente hace cuarenta sentadillas.
 
-            El más y el menos siguen estando, para el que hace veintitrés. */}
-        <div
-          className="mt-6 grid gap-px"
-          style={{
-            // Dos filas parejas, siempre. Con `flex-wrap` los que sobraban
-            // quedaban centrados abajo como huérfanos y la regleta se leía
-            // como un accidente en vez de como un teclado.
-            gridTemplateColumns: `repeat(${Math.ceil(regleta.length / 2)}, minmax(0, 1fr))`,
-          }}
-        >
+            El más y el menos siguen estando, para el que hace veintitrés.
+            Siete u ocho valores no dan 48 por celda en una fila: van en dos
+            filas parejas, que es lo que hace sola la regleta. */}
+        <Regleta className="mt-6" etiqueta={ejercicio.medida === 'segundos' ? 'Segundos' : 'Repeticiones'}>
           {regleta.map((n) => (
-            <Segmento key={n} elegido={valor === n} onClick={() => onCambiar(n)} cifra className="flex-1">
+            <Segmento key={n} elegido={valor === n} onClick={() => onCambiar(n)} cifra>
               {n}
             </Segmento>
           ))}
-        </div>
+        </Regleta>
 
         <div className="mt-4 flex items-center justify-center gap-3">
           <button
@@ -411,7 +405,7 @@ function Pruebas({
         </div>
       </div>
 
-      <div className="mt-10 -mx-4">
+      <div className="mt-10 flex flex-col gap-3">
         <Accion onClick={onSeguir}>{numero === total ? 'Ver mi plan' : 'Siguiente'}</Accion>
         <AccionQuieta onClick={onVolver}>Volver</AccionQuieta>
       </div>
@@ -519,7 +513,7 @@ function Plan({
         )}
       </div>
 
-      <div className="mt-10 -mx-4">
+      <div className="mt-10">
         <Accion onClick={onSeguir}>Seguir</Accion>
       </div>
     </>
@@ -554,7 +548,9 @@ function Dias({
                 disabled={guardando}
                 className="fila-pulsable disabled:opacity-60"
               >
-                <span className="canal">◇</span>
+                <span className="canal">
+                  <MarcaRadio elegida={false} />
+                </span>
                 <span className="min-w-0">
                   <span className="nombre block">{rutina.nombre}</span>
                   <span className="mt-0.5 block text-xs leading-relaxed text-[var(--color-glosa)]">

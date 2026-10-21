@@ -2,7 +2,7 @@ import { Link } from 'react-router-dom'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { CADENAS, EJERCICIOS, FUERA_DE_CADENA, NOMBRE_PATRON, POR_ID } from '@/dominio/biblioteca'
 import { leerAvances, leerPreferencias } from '@/datos/repositorio'
-import { Cargando, Glifo, Objetivo, Rotulo } from '@/componentes/ui'
+import { Cargando, Glifo, Objetivo, Rotulo, Simbolo } from '@/componentes/ui'
 import { IconoFuerza, IconoReloj } from '@/componentes/iconos'
 import { orden } from '@/componentes/movimiento'
 
@@ -98,7 +98,7 @@ export function Biblioteca() {
                 return (
                   <Link key={id} to={`/biblioteca/${id}`} className="fila-pulsable">
                     <span className="canal" style={aca ? { color: 'var(--color-vega)' } : undefined}>
-                      {aca ? '◆' : String(i + 1).padStart(2, '0')}
+                      {aca ? <Simbolo nombre="rombo" /> : String(i + 1).padStart(2, '0')}
                     </span>
                     <span className="min-w-0">
                       {/* El nombre parte en dos renglones antes que cortarse:

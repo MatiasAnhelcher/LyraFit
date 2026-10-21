@@ -59,7 +59,7 @@ export function BorrarTodo() {
           {errorAlBorrar}
         </p>
       )}
-      <div className="mt-4 -mx-4">
+      <div className="mt-4 flex flex-col gap-3">
         <Accion tono="destructivo" deshabilitado={borrando} onClick={() => void borrarDeVerdad()}>
           {borrando ? 'Borrando…' : 'Sí, borrar todo'}
         </Accion>

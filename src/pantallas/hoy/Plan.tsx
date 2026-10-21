@@ -256,7 +256,7 @@ export function Plan({
           días— es contexto: se mira cuando uno quiere mirarlo, no antes de
           poder empezar. El orden ahora es quién sos, qué toca hoy, empezar, y
           después dónde estás parado. */}
-      <div className="mt-10 -mx-4">
+      <div className="mt-10 flex flex-col gap-3">
         <Accion
           onClick={() => {
             // El audio se despierta acá y no cuando el descanso termina: en

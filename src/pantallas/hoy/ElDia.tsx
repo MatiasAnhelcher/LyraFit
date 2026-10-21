@@ -8,7 +8,7 @@ import {
 } from '@/dominio/nutricion'
 import { IconoComida, IconoFuerza, IconoSueno } from '@/componentes/iconos'
 import { orden } from '@/componentes/movimiento'
-import { Rotulo } from '@/componentes/ui'
+import { Rotulo, Simbolo } from '@/componentes/ui'
 
 /**
  * EL DÍA: entrenaste · comiste · dormiste.
@@ -76,7 +76,7 @@ export function ElDia({
         : esDiaDeEntrenar
           ? `hoy toca · ${minutos} min`
           : 'hoy toca descansar',
-      valor: entrenoHoy ? '✓' : esDiaDeEntrenar ? null : '·',
+      valor: entrenoHoy ? <Simbolo nombre="tilde" /> : esDiaDeEntrenar ? null : '·',
     },
     {
       clave: 'comiste',

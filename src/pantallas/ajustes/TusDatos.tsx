@@ -23,7 +23,7 @@ import {
   respaldarAntesDeRestaurar,
   type EstadoDeAlmacenamiento,
 } from '@/datos/respaldo'
-import { Accion, AccionQuieta, Rotulo } from '@/componentes/ui'
+import { Accion, AccionQuieta, Rotulo, Simbolo } from '@/componentes/ui'
 
 /**
  * Una restauración a la espera de que la persona la confirme.
@@ -170,7 +170,9 @@ export function TusDatos({
         <>
           <div className="registro mt-3">
             <div>
-              <span className="canal">{almacenamiento.persistente ? '◆' : '◇'}</span>
+              <span className="canal">
+                <Simbolo nombre={almacenamiento.persistente ? 'rombo' : 'rombo-vacio'} />
+              </span>
               <span className="min-w-0">
                 <span className="nombre block">Almacenamiento</span>
                 <span className="rotulo mt-0.5 block">
@@ -183,7 +185,9 @@ export function TusDatos({
               </span>
             </div>
             <div>
-              <span className="canal">⟳</span>
+              <span className="canal">
+                <Simbolo nombre="ciclo" />
+              </span>
               <span className="min-w-0">
                 <span className="nombre block">Copias automáticas</span>
                 <span className="rotulo mt-0.5 block">al cerrar cada sesión</span>
@@ -196,13 +200,15 @@ export function TusDatos({
             <p className="mt-3 max-w-[42ch] text-xs leading-relaxed text-[var(--color-ambar)]">
               No hay servidor: esta base no es una copia de tus datos, es la única. Sin instalar
               la app, el navegador puede borrarla para liberar espacio, y Safari lo hace tras unos
-              días sin abrirla. Instalarla lo resuelve: compartir → agregar a inicio.
+              días sin abrirla. Instalarla lo resuelve: compartir{' '}
+              <Simbolo nombre="flecha-der" />
+              <span className="sr-only">y después</span> agregar a inicio.
             </p>
           )}
         </>
       )}
 
-      <div className="mt-4 -mx-4">
+      <div className="mt-4 flex flex-col gap-3">
         <AccionQuieta onClick={() => void descargar()}>Descargar una copia</AccionQuieta>
         <AccionQuieta onClick={() => archivo.current?.click()}>Restaurar una copia</AccionQuieta>
       </div>
@@ -230,16 +236,18 @@ export function TusDatos({
             {(
               [
                 [
-                  '◇',
+                  'rombo-vacio',
                   'El archivo',
                   restauracion.deLaCopia,
                   `copia del ${fechaCorta(diaLocal(Date.parse(restauracion.copia.exportadoEn)))}`,
                 ],
-                ['◆', 'Lo que tenés ahora', restauracion.actual, null],
+                ['rombo', 'Lo que tenés ahora', restauracion.actual, null],
               ] as const
             ).map(([canal, titulo, resumen, extra]) => (
               <div key={titulo}>
-                <span className="canal">{canal}</span>
+                <span className="canal">
+                  <Simbolo nombre={canal} />
+                </span>
                 <span className="min-w-0">
                   <span className="nombre block">{titulo}</span>
                   <span className="mt-0.5 block text-xs leading-relaxed text-[var(--color-glosa)]">
@@ -272,7 +280,7 @@ export function TusDatos({
               nada. Si querés conservar lo que tenés, descargá una copia antes de seguir.
             </p>
           )}
-          <div className="mt-4 -mx-4">
+          <div className="mt-4 flex flex-col gap-3">
             <Accion
               tono={restauracion.sinCopia ? 'destructivo' : undefined}
               deshabilitado={restaurando}

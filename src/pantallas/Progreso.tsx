@@ -39,7 +39,7 @@ import { leerAvances, leerSesiones } from '@/datos/repositorio'
 import { Carta } from '@/componentes/carta'
 import { CuerpoDoble } from '@/componentes/cuerpo'
 import { orden } from '@/componentes/movimiento'
-import { Cargando, Glifo, Rotulo, Tira, Vacio } from '@/componentes/ui'
+import { Cargando, Glifo, Rotulo, Simbolo, Tira, Vacio } from '@/componentes/ui'
 
 const Curva = lazy(() => import('@/componentes/curva').then((m) => ({ default: m.Curva })))
 
@@ -167,7 +167,7 @@ export function Progreso() {
 
       <section className="entrar-en-orden mt-10" style={orden(1)}>
         <Rotulo className="mb-3">TUS CADENAS</Rotulo>
-        <Carta filas={[...avances.values()].map((a) => ({ patron: a.patron, avance: a }))} rotulos />
+        <Carta filas={[...avances.values()].map((a) => ({ patron: a.patron, avance: a }))} rotulo="nodo" />
       </section>
 
       <section className="entrar-en-orden mt-10" style={orden(2)}>
@@ -190,7 +190,9 @@ export function Progreso() {
           <div className="registro mt-3">
             {vit && (
               <div>
-                <span className="canal">↑</span>
+                <span className="canal">
+                  <Simbolo nombre="flecha-arriba" />
+                </span>
                 <span className="min-w-0">
                   <span className="nombre block">Energía</span>
                   <span className="rotulo mt-0.5 block">últimas {vit.sesiones} sesiones</span>
@@ -203,7 +205,9 @@ export function Progreso() {
             )}
             {cal && (
               <div>
-                <span className="canal">≈</span>
+                <span className="canal">
+                  <Simbolo nombre="aprox" />
+                </span>
                 <span className="min-w-0">
                   <span className="nombre block">Qué tan bien te conocés</span>
                   <span className="rotulo mt-0.5 block">últimas {cal.series} series</span>

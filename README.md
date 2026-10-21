@@ -172,6 +172,7 @@ node molestia.mjs  # avisar una molestia baja la cadena, se dice, y el motor no 
 node textos.mjs    # lo que se lee en pantalla: sin hora de acostarse inventada, sin género, sin "rinde más"
 node barra.mjs     # la barra de 28 días: que no le avise faltas a quien no faltó
 node dormir.mjs    # la hora de acostarse: se pregunta con el café tarde, nunca se inventa, y con ella sale el corte
+node toques.mjs    # que lo que se toca mida un dedo: la barra, las regletas, las filas y el descanso
 node logo.mjs     # regenera el favicon y los íconos desde el componente de Lyra
 ```
 

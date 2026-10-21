@@ -11,7 +11,7 @@ import {
   type Tramo,
 } from '@/dominio/reloj'
 import { cerrarSesion } from '@/datos/repositorio'
-import { Accion, AccionQuieta, Rotulo } from '@/componentes/ui'
+import { Accion, AccionQuieta, Rotulo, Simbolo } from '@/componentes/ui'
 import { Cuenta, anotar, opcionDeVuelta } from './Cuenta'
 
 /** TERMINASTE: el puntaje, la última vuelta si quedó sin contar, y la salida. */
@@ -106,7 +106,9 @@ export function Final({
             <div className="registro mt-4">
               {puntajes.map((p) => (
                 <div key={p.ejercicioId}>
-                  <span className="canal">◆</span>
+                  <span className="canal">
+                    <Simbolo nombre="rombo" />
+                  </span>
                   <span className="nombre min-w-0">{nombreDe(p.ejercicioId)}</span>
                   <span className="cifra-fila">{p.peor ?? '—'}</span>
                 </div>
@@ -171,10 +173,12 @@ export function Final({
       </main>
 
       <div className="mt-auto">
+        <div className="mx-auto w-full max-w-lg px-4 pb-4">
+          <AccionQuieta onClick={salir}>Salir sin mirar</AccionQuieta>
+        </div>
         <Accion esfuerzo onClick={salir}>
           Listo
         </Accion>
-        <AccionQuieta onClick={salir}>Salir sin mirar</AccionQuieta>
       </div>
     </div>
   )

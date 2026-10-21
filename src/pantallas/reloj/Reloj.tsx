@@ -49,7 +49,7 @@ import { despertarAudio, configurarHaptica, configurarSonido, sonar, tocar } fro
 import { callar, configurarVoz, decir, prepararVoz } from '@/voz'
 import { Arco } from '@/componentes/arco'
 import { FiguraEjercicio } from '@/componentes/figura'
-import { Accion, Cargando, Rotulo } from '@/componentes/ui'
+import { Accion, Cargando, MarcaRadio, Rotulo, Simbolo } from '@/componentes/ui'
 import { Cuenta, anotar, opcionDeVuelta } from './Cuenta'
 import { Final } from './Final'
 
@@ -208,8 +208,15 @@ export function Reloj() {
           <Rotulo>FORMATO</Rotulo>
           <div className="registro mt-3">
             {FORMATOS.map((f) => (
-              <button key={f.id} onClick={() => setFormatoId(f.id)} className="fila-pulsable">
-                <span className="canal">{f.id === formatoId ? '◆' : '◇'}</span>
+              <button
+                key={f.id}
+                onClick={() => setFormatoId(f.id)}
+                aria-pressed={f.id === formatoId}
+                className="fila-pulsable"
+              >
+                <span className="canal">
+                  <MarcaRadio elegida={f.id === formatoId} />
+                </span>
                 <span className="min-w-0">
                   <span className="nombre block">{f.nombre}</span>
                   <span className="mt-0.5 block text-xs leading-relaxed text-[var(--color-glosa)]">
@@ -235,7 +242,9 @@ export function Reloj() {
                 <button key={o.id} onClick={() => alternar(o.id)} className="fila-pulsable">
                   {/* El número en el canal y no un tilde: en una rotación el
                       ORDEN es información, y un tilde no la lleva. */}
-                  <span className="canal">{puesto >= 0 ? String(puesto + 1) : '◇'}</span>
+                  <span className="canal">
+                    {puesto >= 0 ? String(puesto + 1) : <Simbolo nombre="rombo-vacio" />}
+                  </span>
                   <span className="min-w-0">
                     <span className="nombre block">{o.nombre}</span>
                   </span>

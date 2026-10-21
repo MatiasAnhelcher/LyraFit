@@ -90,7 +90,7 @@ export function BloqueDeFuelle({
         )}
       </section>
 
-      <div className="mt-auto">
+      <div className="mx-auto w-full max-w-lg px-4 mt-auto pb-[calc(1rem+env(safe-area-inset-bottom))]">
         <AccionQuieta onClick={onSaltear}>Cortar el fuelle</AccionQuieta>
       </div>
     </div>

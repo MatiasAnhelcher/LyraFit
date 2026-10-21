@@ -171,8 +171,10 @@ export function Serie({
   hayAnotadas: boolean
   onDeshacer: () => void
 }) {
+  // 16 abajo y no 32: la secundaria de abajo es una caja de 56 con su propio
+  // aire, y con los 32 de antes la serie no entraba entera en un 640.
   return (
-    <section className="flex flex-1 flex-col justify-center pb-8">
+    <section className="flex flex-1 flex-col justify-center pb-4">
       {/* La pregunta dice en qué momento estás.
           Antes decía "¿Cuántas te salen ahora?" y abajo el botón decía
           "Anotar serie": la misma pantalla preguntaba por lo que iba a

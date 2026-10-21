@@ -63,7 +63,7 @@ export function Molestia() {
         </section>
       </main>
 
-      <div className="mt-8">
+      <div className="mt-8 flex flex-col gap-3">
         <Accion deshabilitado={!valor || guardando} onClick={() => void guardar()}>
           {guardando ? 'Guardando…' : 'Listo'}
         </Accion>

@@ -196,7 +196,7 @@ export function Cierre({
         )}
       </main>
 
-      <div className="revelar revelar--4 mt-10">
+      <div className="revelar revelar--4 mx-auto w-full max-w-lg px-4 mt-10 pb-[calc(1rem+env(safe-area-inset-bottom))]">
         <AccionQuieta onClick={alSalir}>Listo</AccionQuieta>
       </div>
     </div>

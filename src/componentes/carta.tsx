@@ -57,7 +57,39 @@ const SILUETA: Record<Patron, number[]> = {
 const ANCHO = 340
 const MARGEN_X = 30
 const VENTANA = 7
-const PASO_Y = 8
+
+/**
+ * Las tres alturas de fila, según lo que lleva arriba.
+ *
+ * Sin rótulo (el cierre) la fila mide 64 y el paso vertical baja a 7: con 8,
+ * el desvío de ±2 pasos más las espigas de la estrella no entraban sin pisar
+ * la fila de al lado. Con el nombre de la cadena (Hoy), 84; con el nombre y
+ * el nodo (Progreso), 92. `base` es la línea donde se apoya un desvío de 0, y
+ * `rotulo` la línea base del texto del rótulo, las dos desde el borde de
+ * arriba de la fila.
+ */
+const FILA = {
+  ninguno: { alto: 64, base: 32, pasoY: 7, rotulo: 0 },
+  nombre: { alto: 84, base: 52, pasoY: 8, rotulo: 18 },
+  nodo: { alto: 92, base: 52, pasoY: 8, rotulo: 22 },
+} as const
+
+/** El glifo de 8 px de la cadena, apoyado en la línea base del rótulo. */
+function GlifoDeFila({ patron, x, y }: { patron: Patron; x: number; y: number }) {
+  const arriba = y - 8
+  switch (patron) {
+    case 'empuje':
+      return <polygon className="carta-glifo" points={`${x + 4},${arriba} ${x + 8},${y} ${x},${y}`} />
+    case 'traccion':
+      return <polygon className="carta-glifo" points={`${x},${arriba} ${x + 8},${arriba} ${x + 4},${y}`} />
+    case 'piernas':
+      return <rect className="carta-glifo" x={x} y={arriba} width="8" height="8" />
+    case 'core':
+      return <circle className="carta-glifo" cx={x + 4} cy={arriba + 4} r="4" />
+    case 'bisagra':
+      return <rect className="carta-glifo" x={x} y={arriba + 2.4} width="8" height="3.2" />
+  }
+}
 
 interface Punto {
   x: number
@@ -118,20 +150,26 @@ export interface FilaDeCarta {
 /**
  * Una banda de cielo con una cadena por fila.
  *
+ * `rotulo` dice qué va arriba de cada fila: el glifo y el nombre de la cadena
+ * (`'nombre'`, en Hoy), lo mismo con el nodo (`'nodo'`, en Progreso) o nada
+ * (el cierre). El nombre está porque las filas tienen que distinguirse sin
+ * el color: en alguna visión dos cadenas siempre se parecen.
+ *
  * `animar` solo se usa en la pantalla de cierre y solo cuando hubo salto de
  * nodo. En Hoy nunca: esa pantalla se abre veinte veces por semana, y una
  * animación repetida deja de ser énfasis y pasa a ser ruido.
  */
 export function Carta({
   filas,
-  rotulos = false,
+  rotulo,
   animar = false,
 }: {
   filas: FilaDeCarta[]
-  rotulos?: boolean
+  rotulo?: 'nombre' | 'nodo'
   animar?: boolean
 }) {
-  const altoFila = rotulos ? 92 : 74
+  const fila = FILA[rotulo ?? 'ninguno']
+  const altoFila = fila.alto
   const alto = filas.length * altoFila
 
   return (
@@ -142,26 +180,28 @@ export function Carta({
         role="img"
         aria-label="Dónde estás en cada cadena de progresión"
       >
-        {filas.map((fila, f) => {
-          const cadena = cadenaDe(fila.patron)
+        {filas.map((cadenaDeLaFila, f) => {
+          const { patron, avance } = cadenaDeLaFila
+          const cadena = cadenaDe(patron)
           const total = cadena.ejercicios.length
-          const actual = Math.max(0, cadena.ejercicios.indexOf(fila.avance.ejercicioId))
+          const actual = Math.max(0, cadena.ejercicios.indexOf(avance.ejercicioId))
           const indices = ventanaDe(total, actual)
-          const silueta = SILUETA[fila.patron]
-          const luz = LUZ[fila.patron]
-          const base = f * altoFila + (rotulos ? 52 : 40)
+          const silueta = SILUETA[patron]
+          const luz = LUZ[patron]
+          const arriba = f * altoFila
+          const base = arriba + fila.base
           const paso = (ANCHO - MARGEN_X * 2) / (VENTANA - 1)
 
           const puntos: Punto[] = indices.map((i, k) => ({
             i,
             x: MARGEN_X + k * paso,
-            y: base + (silueta[i % silueta.length] ?? 0) * PASO_Y,
+            y: base + (silueta[i % silueta.length] ?? 0) * fila.pasoY,
           }))
 
           const hechos = puntos.filter((p) => p.i <= actual)
           const futuros = puntos.filter((p) => p.i >= actual)
           const aca = puntos.find((p) => p.i === actual) ?? puntos[0]!
-          const huella = fila.huella ? cadena.ejercicios.indexOf(fila.huella) : -1
+          const huella = cadenaDeLaFila.huella ? cadena.ejercicios.indexOf(cadenaDeLaFila.huella) : -1
 
           // En los bordes la polilínea SALE del cuadro en vez de terminar: la
           // cadena continúa más allá de lo que se ve, que es la idea.
@@ -172,11 +212,15 @@ export function Carta({
             ultimo.i < total - 1 ? [...futuros, { x: ANCHO + 6, y: ultimo.y }] : futuros
 
           return (
-            <g key={fila.patron} style={{ ['--luz' as string]: luz }}>
-              {rotulos && (
-                <text className="rotulo" x={MARGEN_X} y={f * altoFila + 22} fill="var(--carta-rotulo)">
-                  {NOMBRE_PATRON[fila.patron].toUpperCase()} · NODO {actual + 1} DE {total}
-                </text>
+            <g key={patron} style={{ ['--luz' as string]: luz }}>
+              {rotulo && (
+                <>
+                  <GlifoDeFila patron={patron} x={MARGEN_X} y={arriba + fila.rotulo} />
+                  <text className="rotulo" x={MARGEN_X + 14} y={arriba + fila.rotulo}>
+                    {NOMBRE_PATRON[patron].toUpperCase()}
+                    {rotulo === 'nodo' && ` · NODO ${actual + 1} DE ${total}`}
+                  </text>
+                </>
               )}
 
               {sale.length > 1 && <path className="trazo-futuro" d={trazo(sale)} />}
@@ -222,7 +266,7 @@ export function Carta({
                 y={aca.y}
                 luz={luz}
                 animada={animar}
-                id={`halo-${fila.patron}-${animar ? 'cierre' : 'hoy'}`}
+                id={`halo-${patron}-${animar ? 'cierre' : 'hoy'}`}
               />
             </g>
           )

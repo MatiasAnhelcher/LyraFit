@@ -39,10 +39,12 @@ export function SerieDeCierre({
         </p>
       </main>
       <div className="mt-auto">
+        <div className="mx-auto w-full max-w-lg px-4 pb-4">
+          <AccionQuieta onClick={onSaltear}>Saltear el cierre</AccionQuieta>
+        </div>
         <Accion esfuerzo onClick={onHecho}>
           Listo
         </Accion>
-        <AccionQuieta onClick={onSaltear}>Saltear el cierre</AccionQuieta>
       </div>
     </div>
   )

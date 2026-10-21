@@ -1,8 +1,6 @@
 import { useLiveQuery } from 'dexie-react-hooks'
 import {
   DIAS,
-  DIA_CORTO,
-  GLIFO_CLASE,
   NOMBRE_CLASE,
   NOMBRE_DIA,
   RUTINAS,
@@ -20,7 +18,17 @@ import { cambiarBarraDeDominadas, guardarPreferencias, leerPreferencias } from '
 import { HAY_HAPTICA } from '@/respuesta'
 import { HAY_VOZ, vozElegida } from '@/voz'
 import { orden } from '@/componentes/movimiento'
-import { Cargando, Regleta, Rotulo, Segmento } from '@/componentes/ui'
+import {
+  Cargando,
+  Interruptor,
+  MarcaRadio,
+  Regleta,
+  Rotulo,
+  SIMBOLO_CLASE,
+  Segmento,
+  SemanaDeRutina,
+  Simbolo,
+} from '@/componentes/ui'
 import { BorrarTodo } from './BorrarTodo'
 import { TusDatos, useAlmacenamiento } from './TusDatos'
 
@@ -70,24 +78,18 @@ export function Ajustes() {
             <button
               key={rutina.id}
               onClick={() => elegirPreset(rutina.id)}
+              aria-pressed={rutina.id === preferencias.rutinaActivaId}
               className="fila-pulsable"
             >
               <span className="canal">
-                {rutina.id === preferencias.rutinaActivaId ? '◆' : '◇'}
+                <MarcaRadio elegida={rutina.id === preferencias.rutinaActivaId} />
               </span>
               <span className="min-w-0">
                 <span className="nombre block">{rutina.nombre}</span>
-                <span className="rotulo mt-0.5 block">
-                  {/* Lo que el preset trae es su semana, y se dibuja con las
-                      mismas letras que la grilla de abajo para que se vea que es
-                      lo mismo: elegirlo escribe eso ahí. */}
-                  {DIAS.map((d) => {
-                    const clase = semanaDe(rutina)[d] ?? 'descanso'
-                    return clase === 'descanso'
-                      ? DIA_CORTO[d]!.toLowerCase()
-                      : `${DIA_CORTO[d]}${clase === 'fuelle' ? '·f' : clase === 'ambos' ? '·+' : ''}`
-                  }).join(' ')}
-                </span>
+                {/* Lo que el preset trae es su semana, y se dibuja con los
+                    mismos símbolos que la grilla de abajo para que se vea que
+                    es lo mismo: elegirlo escribe eso ahí. */}
+                <SemanaDeRutina semana={semanaDe(rutina)} />
               </span>
               <span className="cifra-fila">{rutina.dias.length}</span>
             </button>
@@ -120,10 +122,11 @@ export function Ajustes() {
             <button
               key={rutina.id}
               onClick={() => elegirPreset(rutina.id)}
+              aria-pressed={rutina.id === preferencias.rutinaActivaId}
               className="fila-pulsable"
             >
               <span className="canal">
-                {rutina.id === preferencias.rutinaActivaId ? '◆' : '◇'}
+                <MarcaRadio elegida={rutina.id === preferencias.rutinaActivaId} />
               </span>
               <span className="min-w-0">
                 <span className="nombre block">{rutina.nombre}</span>
@@ -163,7 +166,9 @@ export function Ajustes() {
             const clase: ClaseDeDia = semana[dia] ?? 'descanso'
             return (
               <button key={dia} onClick={() => ciclarDia(dia)} className="fila-pulsable">
-                <span className="canal">{GLIFO_CLASE[clase]}</span>
+                <span className="canal">
+                  <Simbolo nombre={SIMBOLO_CLASE[clase]} />
+                </span>
                 <span className="min-w-0">
                   <span className="nombre block">{NOMBRE_DIA[dia]}</span>
                 </span>
@@ -235,18 +240,20 @@ export function Ajustes() {
               ['suave', 'Suave', 'Tramos cortos, nada explosivo y un bloque de ocho minutos. Para empezar o para semanas cargadas.'],
               ['fuerte', 'Fuerte', 'Ráfagas más largas y un bloque de hasta doce minutos al final, antes de la serie de cierre.'],
             ] as const
-          ).map(([valor, titulo, detalle]) => (
+          ).map(([valor, titulo, detalle]) => {
+            const elegida =
+              (preferencias.densidad === undefined || preferencias.densidad === 'apagada'
+                ? 'suave'
+                : preferencias.densidad) === valor
+            return (
             <button
               key={valor}
               onClick={() => cambiar({ densidad: valor })}
+              aria-pressed={elegida}
               className="fila-pulsable"
             >
               <span className="canal">
-                {(preferencias.densidad === undefined || preferencias.densidad === 'apagada'
-                  ? 'suave'
-                  : preferencias.densidad) === valor
-                  ? '◆'
-                  : '◇'}
+                <MarcaRadio elegida={elegida} />
               </span>
               <span className="min-w-0">
                 <span className="nombre block">{titulo}</span>
@@ -256,7 +263,8 @@ export function Ajustes() {
               </span>
               <span />
             </button>
-          ))}
+            )
+          })}
         </div>
 
         {/* El equipo solo aparece si algún día lleva fuelle: sin ninguno no
@@ -468,7 +476,9 @@ function Numero({
   }
   return (
     <div>
-      <span className="canal">{valor === undefined ? '◇' : '◆'}</span>
+      <span className="canal">
+        <Simbolo nombre={valor === undefined ? 'rombo-vacio' : 'rombo'} />
+      </span>
       <span className="min-w-0">
         <span className="nombre block">{titulo}</span>
         {detalle && (
@@ -497,32 +507,5 @@ function Numero({
         </button>
       </span>
     </div>
-  )
-}
-
-function Interruptor({
-  titulo,
-  detalle,
-  activo,
-  onCambiar,
-}: {
-  titulo: string
-  detalle?: string
-  activo: boolean
-  onCambiar: (v: boolean) => void
-}) {
-  return (
-    <button onClick={() => onCambiar(!activo)} className="fila-pulsable">
-      <span className="canal">{activo ? '◆' : '◇'}</span>
-      <span className="min-w-0">
-        <span className="nombre block">{titulo}</span>
-        {detalle && (
-          <span className="mt-0.5 block text-xs leading-relaxed text-[var(--color-glosa)]">
-            {detalle}
-          </span>
-        )}
-      </span>
-      <span className="rotulo">{activo ? 'SÍ' : 'NO'}</span>
-    </button>
   )
 }

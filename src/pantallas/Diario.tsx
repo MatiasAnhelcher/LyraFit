@@ -254,7 +254,7 @@ export function Diario() {
         <Pregunta porque={`La cafeína sigue afectando el sueño ${HORAS_DE_CAFEINA} horas después aunque no se sienta.`}>
           ¿A qué hora fue el último café o mate?
         </Pregunta>
-        <Regleta className="mt-3 flex-wrap" etiqueta="Hora de la última cafeína">
+        <Regleta className="mt-3" etiqueta="Hora de la última cafeína">
           {HORAS_DE_CAFE.map((h) => (
             <Segmento
               key={h}

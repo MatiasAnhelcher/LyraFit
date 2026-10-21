@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Accion, Rotulo } from '@/componentes/ui'
+import { Accion, Regleta, Rotulo, Segmento } from '@/componentes/ui'
 
 /** Las preguntas del final. Tres toques, todos opcionales. */
 export function Preguntas({
@@ -99,6 +99,10 @@ export function Preguntas({
   )
 }
 
+/**
+ * Una pregunta y su regleta de 56, la del esfuerzo. Lo elegido va en tinta,
+ * no en el acento, que acá es de "Cerrar la sesión".
+ */
 function Pregunta({
   titulo,
   opciones,
@@ -113,25 +117,13 @@ function Pregunta({
   return (
     <section className="mt-8">
       <p className="nombre">{titulo}</p>
-      <div className="regleta mt-3" role="group" aria-label={titulo}>
+      <Regleta className="mt-3" etiqueta={titulo} esfuerzo>
         {opciones.map(([n, etiqueta]) => (
-          <button
-            key={n}
-            onClick={() => onElegir(n)}
-            className="flex-1 px-1 py-3 text-[0.6875rem] leading-tight"
-            // Lo mismo que un segmento: el borde en regla-fuerte, que es lo que
-            // dice que esto se toca, y lo elegido en tinta, no en el acento,
-            // que acá es de "Cerrar la sesión".
-            style={{
-              border: `1px solid ${valor === n ? 'var(--color-tinta)' : 'var(--color-regla-fuerte)'}`,
-              backgroundColor: valor === n ? 'var(--color-tinta)' : 'transparent',
-              color: valor === n ? 'var(--color-fondo)' : 'var(--color-glosa)',
-            }}
-          >
+          <Segmento key={n} elegido={valor === n} onClick={() => onElegir(n)}>
             {etiqueta}
-          </button>
+          </Segmento>
         ))}
-      </div>
+      </Regleta>
     </section>
   )
 }

@@ -84,7 +84,7 @@ import { SesionSinCerrar } from '@/componentes/sinCerrar'
 import { Carta } from '@/componentes/carta'
 import { Lyra } from '@/componentes/lyra'
 import { fraseDe, recordar, type Momento } from '@/dominio/frases'
-import { Cargando, Glosa, Rotulo } from '@/componentes/ui'
+import { Cargando, Glosa, Rotulo, Simbolo } from '@/componentes/ui'
 import { Encabezado, FORMATO_FECHA } from './Encabezado'
 import { Plan } from './Plan'
 import { ElDia } from './ElDia'
@@ -580,7 +580,9 @@ export function Hoy() {
           <Rotulo>ALGO QUE TODAVÍA NO PROBASTE</Rotulo>
           <div className="registro mt-3">
             <div>
-              <span className="canal">◇</span>
+              <span className="canal">
+                <Simbolo nombre="rombo-vacio" />
+              </span>
               <span className="min-w-0">
                 <span className="nombre block">El fuelle</span>
                 <span className="mt-0.5 block text-xs leading-relaxed text-[var(--color-glosa)]">
@@ -621,7 +623,7 @@ export function Hoy() {
 
       <section className="mt-8">
         <Rotulo className="mb-3">DÓNDE ESTÁS</Rotulo>
-        <Carta filas={filasDeCarta} />
+        <Carta filas={filasDeCarta} rotulo="nombre" />
       </section>
 
       {/* La barra mide solo los días del plan que ya pasaron desde la primera

@@ -126,7 +126,7 @@ export function Descanso({
              cada descanso, y el descanso vuelve doce veces por sesión. Con el
              ancho fijo cae siempre en el mismo punto y lo único que cambia es
              lo que dice. */
-          <div className="mt-8 flex w-full max-w-[36ch] items-start gap-3">
+          <div className="mt-6 flex w-full max-w-[36ch] items-start gap-3">
             <Lyra tamano={44} expresion={cara} className="shrink-0" />
             <div className="min-w-0">
               <p className="mt-1 text-sm leading-relaxed text-[var(--color-glosa)]">{texto}</p>
@@ -142,7 +142,9 @@ export function Descanso({
         )
       )}
 
-      <div className="mt-8 flex gap-3">
+      {/* Los botones del esfuerzo miden 56 y no 47: para que no bajaran del
+          borde, los dos aires de arriba pasaron de 32 a 24. */}
+      <div className="mt-6 flex gap-3">
         <button onClick={onSumar} className="boton-contorno">
           +30 s
         </button>
