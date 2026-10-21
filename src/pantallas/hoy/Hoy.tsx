@@ -632,7 +632,7 @@ export function Hoy() {
           pantalla de cada cadena. */}
       <section className="mt-8">
         <Rotulo className="mb-3">DÓNDE ESTÁS</Rotulo>
-        <div className="placa">
+        <div className="placa placa-cadenas">
           {[...avances.values()].map((avance) => (
             <FilaDeCadenaChica key={avance.patron} avance={avance} />
           ))}

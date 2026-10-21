@@ -19,6 +19,7 @@
  */
 
 import type { Sesion } from './tipos'
+import { POR_ID } from './biblioteca'
 
 /** Series mínimas para que la calibración signifique algo. */
 export const SERIES_MINIMAS = 30
@@ -57,16 +58,23 @@ interface Punto {
   logrado: number
 }
 
+/**
+ * Solo las predicciones en repeticiones. Entrenar también pide predecir en
+ * los ejercicios de segundos, pero seis segundos de error en una plancha no son
+ * seis repeticiones, y promediarlos juntos daría un número sin unidad.
+ */
 function puntos(sesiones: Sesion[]): Punto[] {
   return [...sesiones]
     .sort((a, b) => a.finalizadaEn - b.finalizadaEn)
     .flatMap((s) =>
       s.registros.flatMap((r) =>
-        r.series.flatMap((serie) =>
-          serie.predicho === undefined
-            ? []
-            : [{ predicho: serie.predicho, logrado: serie.logrado }],
-        ),
+        POR_ID.get(r.ejercicioId)?.medida !== 'repeticiones'
+          ? []
+          : r.series.flatMap((serie) =>
+              serie.predicho === undefined
+                ? []
+                : [{ predicho: serie.predicho, logrado: serie.logrado }],
+            ),
       ),
     )
 }

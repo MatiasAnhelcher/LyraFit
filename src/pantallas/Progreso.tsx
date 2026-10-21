@@ -10,14 +10,22 @@
  * registro crudo de repeticiones se desploma cada vez que se cambia de eslabón
  * —pasás de hacer quince a hacer seis— y muestra un retroceso justo en el
  * momento de mayor logro. El índice de carga lo resuelve porque hace
- * comparables dos ejercicios distintos, así que FUERZA POR SEMANA no se cae
- * cuando subís de eslabón. Es una estimación y la pantalla lo dice.
+ * comparables dos ejercicios distintos, así que FUERZA POR SEMANA casi no se
+ * mueve cuando subís a un eslabón que se mide igual. Es una estimación y la
+ * pantalla lo dice, igual que dice cuándo no traduce bien.
  */
 
 import { useState, type CSSProperties } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
-import { CADENAS, NOMBRE_PATRON, POR_ID, buscarEjercicio } from '@/dominio/biblioteca'
-import { fuerzaPorSemana, porSemana, totales, ultimasSemanas, type SemanaDeFuerza } from '@/dominio/estadisticas'
+import { CADENAS, NOMBRE_PATRON, POR_ID, buscarEjercicio, cadenaDe } from '@/dominio/biblioteca'
+import {
+  curvaDeFuerza,
+  fuerzaPorSemana,
+  porSemana,
+  totales,
+  ultimasSemanas,
+  type SemanaDeFuerza,
+} from '@/dominio/estadisticas'
 import {
   MUSCULOS_CUBIERTOS,
   NOMBRE_MUSCULO,
@@ -30,7 +38,8 @@ import {
   type Musculo,
 } from '@/dominio/musculos'
 import { TINTA } from '@/dominio/anatomia'
-import { CONSOLIDACION } from '@/dominio/progresion'
+import { CONSOLIDACION, indiceDeCarga } from '@/dominio/progresion'
+import { eslabonesCerrados } from '@/dominio/apertura'
 import { RUTINA_POR_ID, rutinaActiva } from '@/dominio/rutinas'
 import { fechaISO, guardarPreferencias, leerPreferencias } from '@/datos/repositorio'
 import { calibracion, vitalidad, type Calibracion, type Vitalidad } from '@/dominio/vitalidad'
@@ -82,14 +91,34 @@ function enLista(cosas: string[], union = 'y'): string {
 const mayuscula = (t: string) => t.charAt(0).toUpperCase() + t.slice(1)
 
 const medidaDe = (id: string) => POR_ID.get(id)?.medida
+const enPalabras = (id: string) => (medidaDe(id) === 'segundos' ? 'segundos' : 'repeticiones')
+
+/**
+ * El rótulo de cada columna, el mismo en FUERZA y en SERIES. La de esta semana
+ * dice "esta"; la primera y cada cuatro llevan la fecha, siempre que queden a
+ * dos columnas de "esta" para no pisarse. Con una sola semana, su fecha.
+ */
+function rotuloDeSemana(j: number, semanas: string[]): string {
+  const ultima = semanas.length - 1
+  if (j === ultima) return ultima > 0 ? 'esta' : fechaCorta(semanas[j]!)
+  if (j % 4 === 0 && ultima - j >= 2) return fechaCorta(semanas[j]!)
+  return ''
+}
 
 // ─── TUS CADENAS ─────────────────────────────────────────────────────────
 
-function FilaDeCadena({ avance, k }: { avance: Avance; k: number }) {
+/**
+ * `consolida` dice si el motor está contando sesiones en el techo. No lo hace
+ * cuando el eslabón que sigue está cerrado —sin barra, o con un requisito sin
+ * cumplir—: ahí suma repeticiones arriba del techo, y "2 de 2" anunciaría un
+ * cambio que no va a pasar. En el último eslabón sí consolida.
+ */
+function FilaDeCadena({ avance, k, consolida }: { avance: Avance; k: number; consolida: boolean }) {
   const e = enCadena(avance)
   const sostenidas = Math.min(avance.sesionesEnObjetivo, CONSOLIDACION)
   const nombre = NOMBRE_PATRON[avance.patron]
-  const etiqueta = `${textoDeLaBarra(e)}${e.enTecho ? `, sostenido ${sostenidas} de ${CONSOLIDACION}` : ''}`
+  const pips = e.enTecho && consolida
+  const etiqueta = `${textoDeLaBarra(e)}${pips ? `, sostenido ${sostenidas} de ${CONSOLIDACION}` : ''}`
 
   return (
     <LinkConPasaje
@@ -110,7 +139,7 @@ function FilaDeCadena({ avance, k }: { avance: Avance; k: number }) {
         <span className="rotulo">
           {nombre} · {objetivoCorto(e)} · {e.enTecho ? 'en el techo' : `techo ${techoCorto(e)}`}
         </span>
-        {e.enTecho && (
+        {pips && (
           <span className="pips" style={{ '--luz': LUZ[avance.patron] } as CSSProperties}>
             <span aria-hidden>
               {Array.from({ length: CONSOLIDACION }, (_, i) => (
@@ -129,23 +158,38 @@ function FilaDeCadena({ avance, k }: { avance: Avance; k: number }) {
 
 // ─── FUERZA POR SEMANA ───────────────────────────────────────────────────
 
+/** Si la columna lleva la raya de cambio de eslabón, y de qué tipo. */
+function cambioDe(s: SemanaDeFuerza): 'medida' | 'eslabon' | undefined {
+  if (!s.cambio) return undefined
+  return medidaDe(s.cambio.de) !== medidaDe(s.cambio.a) ? 'medida' : 'eslabon'
+}
+
+/**
+ * Sin columnas: "todavía" solo si la cadena no se entrenó nunca. Si se entrenó
+ * antes de estas doce semanas, decir "todavía" sería borrarle esa historia.
+ */
+const sinSemanas = (entrenada: boolean) => (entrenada ? 'Sin semanas en estas doce' : 'Todavía sin semanas')
+
 /** Lo que dice cada fila, con palabras, para el lector de pantalla. */
-function lecturaDeFuerza(patron: Patron, semanas: (SemanaDeFuerza | null)[], desdeElInicio: boolean): string {
+function lecturaDeFuerza(
+  patron: Patron,
+  semanas: (SemanaDeFuerza | null)[],
+  desdeElInicio: boolean,
+  entrenada: boolean,
+): string {
   const nombre = NOMBRE_PATRON[patron]
   const hay = semanas.flatMap((s) => (s ? [s] : []))
-  if (hay.length === 0) return `${nombre}: todavía sin semanas.`
+  if (hay.length === 0) return `${nombre}: ${sinSemanas(entrenada).toLowerCase()}.`
   const primera = hay[0]!
   const ultima = hay[hay.length - 1]!
   if (hay.length === 1) {
     return `${nombre}, fuerza por semana: ${coma(primera.carga)} la semana del ${fechaCorta(primera.semana)}${desdeElInicio ? ', tu primera' : ''}.`
   }
   const cambio = Math.round((ultima.carga / primera.carga - 1) * 100)
-  const eslabones: string[] = []
-  hay.forEach((s, i) => {
-    const previa = hay[i - 1]
-    if (!previa || previa.ejercicioId === s.ejercicioId) return
-    const distinta = medidaDe(previa.ejercicioId) !== medidaDe(s.ejercicioId)
-    eslabones.push(`eslabón nuevo la semana del ${fechaCorta(s.semana)}${distinta ? ', que se mide distinto' : ''}`)
+  const eslabones = hay.flatMap((s) => {
+    const tipo = cambioDe(s)
+    if (!tipo) return []
+    return [`cambio de eslabón la semana del ${fechaCorta(s.semana)}${tipo === 'medida' ? ', a uno que se mide distinto' : ''}`]
   })
   return `${nombre}, fuerza por semana: de ${coma(primera.carga)} la semana del ${fechaCorta(primera.semana)} a ${coma(ultima.carga)} la del ${fechaCorta(ultima.semana)}, ${cambio >= 0 ? `${cambio} % más` : `${-cambio} % menos`}${eslabones.length ? `; ${eslabones.join('; ')}` : ''}.`
 }
@@ -160,33 +204,27 @@ function FilaDeFuerza({
   semanas,
   k,
   desdeElInicio,
+  entrenada,
 }: {
   patron: Patron
   semanas: (SemanaDeFuerza | null)[]
   k: number
   desdeElInicio: boolean
+  entrenada: boolean
 }) {
   const hay = semanas.flatMap((s) => (s ? [s] : []))
   const primera = hay[0]
   const ultima = hay[hay.length - 1]
   const techo = Math.max(...hay.map((s) => s.carga), 0)
 
-  let previa: SemanaDeFuerza | null = null
   const columnas = Array.from({ length: Math.max(SEMANAS, semanas.length) }, (_, j) => {
     const s = semanas[j]
     if (!s || !primera) return <span key={j} className="fuerza-col" style={{ '--k': j } as CSSProperties} />
     const alto = (s.carga / techo) * ALTO_FUERZA
     const base = (Math.min(s.carga, primera.carga) / techo) * ALTO_FUERZA
     const sobre = alto - base - 1.5
-    const cambio =
-      previa && previa.ejercicioId !== s.ejercicioId
-        ? medidaDe(previa.ejercicioId) !== medidaDe(s.ejercicioId)
-          ? 'medida'
-          : 'eslabon'
-        : undefined
-    previa = s
     return (
-      <span key={j} className="fuerza-col" data-cambio={cambio} style={{ '--k': j } as CSSProperties}>
+      <span key={j} className="fuerza-col" data-cambio={cambioDe(s)} style={{ '--k': j } as CSSProperties}>
         {sobre > 0.5 && <span className="fuerza-sobre" style={{ height: `${sobre.toFixed(1)}px` }} />}
         <span className="fuerza-base" style={{ height: `${base.toFixed(1)}px` }} />
       </span>
@@ -200,7 +238,7 @@ function FilaDeFuerza({
       className="fila-fuerza"
       style={{ '--luz': LUZ[patron], '--orden': k } as CSSProperties}
       role="img"
-      aria-label={lecturaDeFuerza(patron, semanas, desdeElInicio)}
+      aria-label={lecturaDeFuerza(patron, semanas, desdeElInicio, entrenada)}
     >
       <div>
         <p className="rotulo">
@@ -208,7 +246,7 @@ function FilaDeFuerza({
           {NOMBRE_PATRON[patron]}
         </p>
         {!primera || !ultima ? (
-          <p className="texto-chico fuerza-desde mt-2.5">Todavía sin semanas</p>
+          <p className="texto-chico fuerza-desde mt-2.5">{sinSemanas(entrenada)}</p>
         ) : hay.length === 1 ? (
           <>
             <p className="fuerza-valor">{coma(ultima.carga)}</p>
@@ -236,7 +274,8 @@ function FilaDeFuerza({
 
 /**
  * Las notas debajo de FUERZA POR SEMANA. Cada una tiene que ser verdad en el
- * código, y por eso cada una dice de dónde sale.
+ * código, y por eso cada una dice de dónde sale y se muestra solo cuando su
+ * condición se cumple en los datos.
  */
 function notasDeFuerza(
   filas: { patron: Patron; semanas: (SemanaDeFuerza | null)[] }[],
@@ -244,26 +283,41 @@ function notasDeFuerza(
 ): string[] {
   const notas: string[] = []
 
-  // Al cambiar a un eslabón que se mide distinto, `recalibrar` no traduce: te
-  // hace entrar por el piso de la ventana nueva. Solo se explica si la columna
-  // bajó, que es cuando hace falta.
   for (const { patron, semanas } of filas) {
+    const cadena = NOMBRE_PATRON[patron].toLowerCase()
     const hay = semanas.flatMap((s) => (s ? [s] : []))
     hay.forEach((s, i) => {
+      // Un eslabón que se mide distinto. `fraccionDelMaximo` satura en doce
+      // segundos o menos, así que de repeticiones a segundos esta escala no
+      // traduce bien: hay saltos en los que ni el techo del eslabón nuevo
+      // llega a la última marca del viejo. Solo en esos se dice.
+      const nuevo = s.cambio && POR_ID.get(s.cambio.a)
+      if (s.cambio && nuevo && cambioDe(s) === 'medida' && indiceDeCarga(nuevo, nuevo.ventana.max) < s.cambio.cargaAntes) {
+        notas.push(
+          `En ${cadena}, la semana del ${fechaCorta(s.semana)} pasaste a un eslabón que se mide en ${enPalabras(s.cambio.a)}. Esta escala no traduce bien ${enPalabras(s.cambio.de)} a ${enPalabras(s.cambio.a)}: ni el techo de ese eslabón llega a tu marca anterior, así que mientras estés ahí la columna queda más abajo.`,
+        )
+      }
+
+      // Los discos. En el último eslabón el motor los suma y te devuelve a
+      // pocas repeticiones, y en esta escala muchas sin peso pueden contar más
+      // que pocas con discos. Se dice la semana en que entraron, si la columna
+      // bajó con el mismo ejercicio.
       const previa = hay[i - 1]
-      if (!previa || previa.ejercicioId === s.ejercicioId) return
-      const medida = medidaDe(s.ejercicioId)
-      if (medidaDe(previa.ejercicioId) === medida || s.carga >= previa.carga) return
-      notas.push(
-        `En ${NOMBRE_PATRON[patron].toLowerCase()}, la semana del ${fechaCorta(s.semana)} empezaste un eslabón que se mide en ${medida === 'segundos' ? 'segundos' : 'repeticiones'} y el motor te hizo arrancar por el piso de su ventana: por eso esa columna baja.`,
-      )
+      if (previa && s.conDiscos && !previa.conDiscos && s.ejercicioId === previa.ejercicioId && s.carga < previa.carga) {
+        notas.push(
+          `En ${cadena}, la semana del ${fechaCorta(s.semana)} sumaste discos y bajaste de repeticiones: en esta escala, tu serie sin peso de antes cuenta más que la de ahora con discos, y por eso la columna baja.`,
+        )
+      }
     })
   }
 
   // `fraccionDelMaximo` satura Brzycki en doce repeticiones: arriba de eso el
-  // índice no sube, aunque sumes. Se dice para quien hoy entrena ahí.
+  // índice no sube, aunque sumes. Se dice para quien hoy entrena ahí, y solo
+  // de las cadenas que tienen alguna columna: de una que no entrenaste no hay
+  // nada que explicar.
+  const conColumnas = new Set(filas.filter((f) => f.semanas.some(Boolean)).map((f) => f.patron))
   const planas = avances
-    .filter((a) => medidaDe(a.ejercicioId) === 'repeticiones' && a.objetivoActual.cantidad > 12)
+    .filter((a) => conColumnas.has(a.patron) && medidaDe(a.ejercicioId) === 'repeticiones' && a.objetivoActual.cantidad > 12)
     .map((a) => NOMBRE_PATRON[a.patron].toLowerCase())
   if (planas.length > 0) {
     const varias = planas.length > 1
@@ -286,7 +340,7 @@ function Baldosas({ vit, cal }: { vit: Vitalidad | null; cal: Calibracion | null
             {vit.delta > 0 ? '+' : vit.delta < 0 ? '−' : ''}
             {coma(Math.abs(vit.delta), 1)}
           </p>
-          <p className="texto-chico">de antes a después, últimas {vit.sesiones} sesiones</p>
+          <p className="texto-chico">de antes a después, últimas {vit.sesiones} sesiones con chequeo</p>
           <div className="puntos-energia" aria-hidden>
             {vit.serie.map((d, i) => (
               <i key={i} className={d > 0 ? 'subio' : ''} />
@@ -312,7 +366,7 @@ function Baldosas({ vit, cal }: { vit: Vitalidad | null; cal: Calibracion | null
                 ? `Tendés a subestimarte (+${coma(cal.sesgo, 1)}).`
                 : `Tendés a sobrestimarte (−${coma(Math.abs(cal.sesgo), 1)}).`}
             {cal.tendencia !== null &&
-              ` Venís errando ${coma(Math.abs(cal.tendencia), 1)} ${cal.tendencia < 0 ? 'menos' : 'más'} que el mes pasado.`}
+              ` Venís errando ${coma(Math.abs(cal.tendencia), 1)} ${cal.tendencia < 0 ? 'menos' : 'más'} que en las ${cal.series} anteriores.`}
           </p>
         </div>
       )}
@@ -345,20 +399,26 @@ export function Progreso() {
   const primera = sesiones.reduce<string | undefined>((min, s) => (!min || s.fecha < min ? s.fecha : min), undefined)
   const semanas = ultimasSemanas(hoy, SEMANAS, primera)
   const desdeElInicio = !primera || lunesDe(primera) >= semanas[0]!
-  const fuerza = CADENAS.map((c) => ({ patron: c.patron, semanas: fuerzaPorSemana(sesiones, c.patron, semanas) }))
+  // Con el peso corporal cargado, los discos cuentan en la escala.
+  const peso = preferencias.pesoCorporalKg
+  const fuerza = CADENAS.map((c) => ({
+    patron: c.patron,
+    semanas: fuerzaPorSemana(sesiones, c.patron, semanas, peso),
+    entrenada: curvaDeFuerza(sesiones, c.patron, peso).length > 0,
+  }))
   const listaDeAvances = [...avances.values()]
   const notas = notasDeFuerza(fuerza, listaDeAvances)
+  const tieneBarra = preferencias.tieneBarra !== false
+  const consolida = (a: Avance) => {
+    const cadena = cadenaDe(a.patron)
+    const siguiente = cadena.ejercicios[cadena.ejercicios.indexOf(a.ejercicioId) + 1]
+    return !siguiente || !eslabonesCerrados(cadena, avances, tieneBarra).has(siguiente)
+  }
 
   const resumenes = new Map(porSemana(sesiones).map((s) => [s.semana, s]))
   const series = semanas.map((semana) => resumenes.get(semana) ?? { semana, sesiones: 0, series: 0, minutos: 0 })
   const estaSemana = series[series.length - 1]!
   const techoSeries = Math.max(1, ...series.map((s) => s.series))
-  const fechaDeColumna = (j: number) => {
-    const ultima = series.length - 1
-    if (j === ultima && ultima > 0) return 'esta'
-    if (j === 0 || (j % 4 === 0 && ultima - j >= 2)) return fechaCorta(series[j]!.semana)
-    return ''
-  }
 
   // El mapa muscular. Se ordena de más a menos y la barra se normaliza al
   // máximo de la propia lista: lo que se compara es un músculo contra los
@@ -459,7 +519,7 @@ export function Progreso() {
         </p>
         <div className="placa">
           {listaDeAvances.map((a, k) => (
-            <FilaDeCadena key={a.patron} avance={a} k={k} />
+            <FilaDeCadena key={a.patron} avance={a} k={k} consolida={consolida(a)} />
           ))}
         </div>
       </section>
@@ -469,18 +529,30 @@ export function Progreso() {
           Fuerza por semana
         </p>
         <p className="texto-glosa -mt-1 mb-3 max-w-[42ch]">
-          Tu mejor serie de cada semana, en una escala que compara ejercicios distintos: por eso no
-          se cae cuando subís de eslabón. Es una estimación, no una medición.
+          Tu mejor serie de cada semana, en una escala que compara ejercicios distintos: por eso casi
+          no se mueve cuando subís a un eslabón que se mide igual. Es una estimación, no una medición.
         </p>
         <div className="placa">
           {fuerza.map((f, k) => (
-            <FilaDeFuerza key={f.patron} patron={f.patron} semanas={f.semanas} k={k} desdeElInicio={desdeElInicio} />
+            <FilaDeFuerza
+              key={f.patron}
+              patron={f.patron}
+              semanas={f.semanas}
+              k={k}
+              desdeElInicio={desdeElInicio}
+              entrenada={f.entrenada}
+            />
           ))}
+          {/* El eje, columna por columna y con los mismos rótulos que SERIES:
+              la fecha de cada semana queda debajo de su columna. */}
           <div className="fuerza-eje" aria-hidden>
             <span />
             <div>
-              <span className="rotulo">{fechaCorta(semanas[0]!)}</span>
-              {semanas.length > 1 && <span className="rotulo">{fechaCorta(semanas[semanas.length - 1]!)}</span>}
+              {Array.from({ length: Math.max(SEMANAS, semanas.length) }, (_, j) => (
+                <span key={j}>
+                  <span className="series-fecha">{j < semanas.length ? rotuloDeSemana(j, semanas) : ''}</span>
+                </span>
+              ))}
             </div>
           </div>
           {semanas.length > 1 && (
@@ -495,18 +567,19 @@ export function Progreso() {
               </span>
               <span>
                 <span className="leyenda-marca" />
-                Eslabón nuevo
+                Cambio de eslabón
               </span>
               <span>
                 <span className="leyenda-marca" data-medida />
-                Eslabón nuevo que se mide distinto
+                Cambio a un eslabón que se mide distinto
               </span>
             </div>
           )}
         </div>
         {semanas.length === 1 ? (
           <p className="texto-glosa mt-3 max-w-[42ch]">
-            Con una semana hay una columna por cadena. Desde la segunda se ve si crece.
+            Con una semana, cada cadena que entrenaste tiene una columna. Desde la segunda se ve si
+            crece.
           </p>
         ) : (
           notas.map((n) => (
@@ -532,7 +605,7 @@ export function Progreso() {
           <div className="series-semana-cabeza">
             <p className="series-semana-cifra">{estaSemana.series}</p>
             <p className="texto-chico pb-0.5">
-              series esta semana, hasta hoy
+              {estaSemana.series === 1 ? 'serie' : 'series'} esta semana, hasta hoy
               <br />
               {estaSemana.sesiones} {estaSemana.sesiones === 1 ? 'sesión' : 'sesiones'}
             </p>
@@ -565,7 +638,7 @@ export function Progreso() {
                     <i key={i} />
                   ))}
                 </span>
-                <span className="series-fecha">{fechaDeColumna(j)}</span>
+                <span className="series-fecha">{rotuloDeSemana(j, semanas)}</span>
               </div>
             ))}
             {Array.from({ length: Math.max(0, SEMANAS - series.length) }, (_, j) => (

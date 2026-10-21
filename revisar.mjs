@@ -367,15 +367,35 @@ async function main() {
      * como el total que dice "eslabón N de T", N dentro del rango, y los N−1
      * anteriores llenos. Una barra que dijera una cosa y mostrara otra pasaría
      * cualquier captura.
+     *
+     * Y que la estrella y el relleno caigan donde dicen: la estrella se ubica
+     * con un `calc` sobre el ancho de la barra, que con otro hueco u otro
+     * borde se corre de eslabón sin que cambie ningún número. Se mide con
+     * `offsetWidth` y no con el rectángulo para que no pese el `scaleX` del
+     * encendido.
      */
     const barras = await pagina.locator('section[aria-labelledby="tus-cadenas"] .bc').evaluateAll((els) =>
-      els.map((el) => ({
-        texto: el.getAttribute('aria-label') ?? '',
-        rol: el.getAttribute('role'),
-        segmentos: el.querySelectorAll('.bc-seg').length,
-        hechos: el.querySelectorAll('.bc-seg--hecho').length,
-        actuales: el.querySelectorAll('.bc-seg--actual').length,
-      })),
+      els.map((el) => {
+        const actual = el.querySelector('.bc-seg--actual')
+        const relleno = actual?.querySelector('.bc-relleno')
+        const marca = el.querySelector('.bc-marca')
+        const caja = actual?.getBoundingClientRect()
+        const f = Number(marca?.style.getPropertyValue('--f') ?? NaN)
+        return {
+          texto: el.getAttribute('aria-label') ?? '',
+          rol: el.getAttribute('role'),
+          segmentos: el.querySelectorAll('.bc-seg').length,
+          hechos: el.querySelectorAll('.bc-seg--hecho').length,
+          actuales: el.querySelectorAll('.bc-seg--actual').length,
+          // Cuánto se corre la estrella de donde cae el objetivo en el eslabón actual.
+          corrimiento: caja && marca ? Math.abs(marca.getBoundingClientRect().left - (caja.left + f * caja.width)) : NaN,
+          // Cuánto le falta o le sobra al relleno contra la fracción que dice su ancho.
+          desvioDelRelleno:
+            actual && relleno
+              ? Math.abs(relleno.offsetWidth - (parseFloat(relleno.style.width) / 100) * actual.clientWidth)
+              : NaN,
+        }
+      }),
     )
     if (barras.length !== 5) {
       problemas.push(`Progreso dibujó ${barras.length} barras de cadena y son cinco cadenas (${tema})`)
@@ -391,6 +411,12 @@ async function main() {
         problemas.push(
           `La barra dice "${b.texto}" y dibuja ${b.segmentos} segmentos, ${b.hechos} llenos y ${b.actuales} actual (${tema})`,
         )
+      }
+      if (!(b.corrimiento <= 1.5)) {
+        problemas.push(`En "${b.texto}" la estrella cae a ${b.corrimiento.toFixed(1)} px de su objetivo (${tema})`)
+      }
+      if (!(b.desvioDelRelleno <= 1)) {
+        problemas.push(`En "${b.texto}" el relleno se desvía ${b.desvioDelRelleno.toFixed(1)} px de su fracción (${tema})`)
       }
     }
 

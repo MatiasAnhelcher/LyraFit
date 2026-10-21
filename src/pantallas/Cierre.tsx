@@ -15,10 +15,11 @@
  *    sos, no qué hiciste. "Sesión 047" pesa más que "+2 repeticiones" porque
  *    habla de identidad, que es de los predictores más fuertes de que alguien
  *    siga entrenando dentro de un año.
- * 3. **El relleno entra al eslabón nuevo y recién ahí se posa la estrella.**
- *    Cuando hubo cambio de eslabón, el movimiento se ve: queda la huella de
- *    dónde estabas y la luz aparece donde estás. La cadena que saltó se abre;
- *    las demás quedan en su fila chica.
+ * 3. **El relleno entra y recién ahí se posa la estrella.** Cuando hubo
+ *    cambio de eslabón, el movimiento se ve: se llena el eslabón nuevo, o el
+ *    que acabás de dominar si el nuevo arranca en su piso, y queda la huella
+ *    de dónde estabas cuando no cae debajo de la estrella. La cadena que
+ *    saltó se abre; las demás quedan en su fila chica.
  * 4. **El motor explica lo que decidió, en cursiva y con su regla firmada.**
  *
  * Nada de confeti, monedas ni insignias. Las recompensas tangibles y esperadas
@@ -27,13 +28,13 @@
  */
 
 import { useEffect, useRef, useState } from 'react'
-import { NOMBRE_PATRON, buscarEjercicio } from '@/dominio/biblioteca'
+import { NOMBRE_PATRON } from '@/dominio/biblioteca'
 import { seriesDeSesion } from '@/dominio/estadisticas'
 import { esHito } from '@/dominio/adherencia'
 import type { ResumenSesion } from '@/datos/repositorio'
 import { comoReloj } from '@/hooks/useTemporizador'
 import { FilaDeCadenaChica, FilaDeSalto } from '@/componentes/filaDeCadena'
-import { enCadenaCon } from '@/componentes/enCadena'
+import { enCadena } from '@/componentes/enCadena'
 import { sonar, tocar } from '@/respuesta'
 import { AccionQuieta, Glosa, Rotulo } from '@/componentes/ui'
 import { Lyra } from '@/componentes/lyra'
@@ -124,21 +125,6 @@ export function Cierre({
     if (!terminada && performance.now() - montada > 500) setTerminada(true)
   }
 
-  /**
-   * Dónde estaba cada patrón antes de esta sesión, para la huella: el
-   * ejercicio y el objetivo del registro que el motor evaluó. Ni la bajada ni
-   * el reloj, que no mueven el plan.
-   */
-  const antes = new Map(
-    sesion.registros
-      .filter((r) => !r.bajada && !r.reloj)
-      .reverse()
-      .flatMap((r) => {
-        const e = buscarEjercicio(r.ejercicioId)
-        return e ? [[e.patron, enCadenaCon(e.patron, r.ejercicioId, r.objetivo)] as const] : []
-      }),
-  )
-
   return (
     <div
       className="flex min-h-dvh flex-col"
@@ -160,10 +146,12 @@ export function Cierre({
         </div>
 
         {decisiones.length > 0 && (
-          <div className="placa mt-8">
-            {decisiones.map(({ patron, decision }) =>
+          <div className="placa placa-cadenas mt-8">
+            {decisiones.map(({ patron, decision, antes }) =>
               decision.cambioDeNivel ? (
-                <FilaDeSalto key={patron} avance={decision.avance} antes={antes.get(patron) ?? null} />
+                // La huella sale del avance que el motor evaluó, no del
+                // objetivo del registro: en un día ámbar ese viene recortado.
+                <FilaDeSalto key={patron} avance={decision.avance} antes={enCadena(antes)} />
               ) : (
                 <FilaDeCadenaChica key={patron} avance={decision.avance} />
               ),

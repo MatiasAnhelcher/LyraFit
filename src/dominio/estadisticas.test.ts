@@ -169,6 +169,12 @@ describe('las semanas de Progreso', () => {
     expect(ultimasSemanas('2026-10-21', 12, '2026-10-20')).toEqual(['2026-10-19'])
   })
 
+  it('traen la semana de hoy aunque la primera sesión tenga una fecha más nueva', () => {
+    // El reloj adelantado, o la primera sesión el lunes en Sídney y Progreso
+    // abierto el domingo en Buenos Aires: sin esta semana no habría eje.
+    expect(ultimasSemanas('2026-10-18', 12, '2026-10-19')).toEqual(['2026-10-12'])
+  })
+
   it('no se corren con el cambio de hora', () => {
     // En Sídney la hora cambia el domingo 4 de octubre de 2026; el CI corre
     // también con TZ=Australia/Sydney.
@@ -184,6 +190,9 @@ describe('fuerza por semana', () => {
       [
         sesion('2026-09-08', 'flexion-completa', [6, 6, 6]),
         sesion('2026-09-10', 'flexion-completa', [9, 8, 8]),
+        // Después de la mejor y más baja: si ganara la última, la semana
+        // daría 5 y no 9.
+        sesion('2026-09-11', 'flexion-completa', [5, 5, 5]),
         sesion('2026-09-29', 'flexion-completa', [10, 9, 9]),
       ],
       'empuje',
@@ -227,6 +236,70 @@ describe('fuerza por semana', () => {
     const [antes, despues] = [fuerza[0]!, fuerza[1]!]
     expect(POR_ID.get(antes.ejercicioId)!.medida).toBe('repeticiones')
     expect(POR_ID.get(despues.ejercicioId)!.medida).toBe('segundos')
+  })
+
+  it('el cambio de eslabón cae en la semana en que pasó, aunque el viejo tenga la mejor marca', () => {
+    // El lunes, remo con pies elevados en su techo; el jueves, el primer día
+    // de dominadas negativas, que en esta escala arrancan más abajo.
+    const fuerza = fuerzaPorSemana(
+      [
+        sesion('2026-09-07', 'remo-australiano-pies-elevados', [12, 12, 12]),
+        sesion('2026-09-10', 'dominada-negativa', [8, 8, 8]),
+        sesion('2026-09-14', 'dominada-negativa', [9, 9, 9]),
+      ],
+      'traccion',
+      semanas,
+    )
+    const remo = curvaDeFuerza([sesion('2026-09-07', 'remo-australiano-pies-elevados', [12])], 'traccion')[0]!
+    expect(fuerza[0]!.ejercicioId).toBe('remo-australiano-pies-elevados')
+    expect(fuerza[0]!.cambio).toEqual({
+      de: 'remo-australiano-pies-elevados',
+      cargaAntes: remo.carga,
+      a: 'dominada-negativa',
+    })
+    expect(fuerza[1]!.cambio).toBeUndefined()
+  })
+
+  it('mira el día anterior aunque caiga antes de las semanas del eje', () => {
+    const fuerza = fuerzaPorSemana(
+      [sesion('2026-09-01', 'flexion-rodillas', [15, 15, 15]), sesion('2026-09-08', 'flexion-completa', [6, 6, 6])],
+      'empuje',
+      semanas,
+    )
+    expect(fuerza[0]!.cambio?.de).toBe('flexion-rodillas')
+  })
+
+  it('ir y volver en la misma semana no es un cambio', () => {
+    const fuerza = fuerzaPorSemana(
+      [
+        sesion('2026-09-08', 'flexion-completa', [12, 12, 12]),
+        sesion('2026-09-09', 'flexion-diamante', [5, 5, 5]),
+        sesion('2026-09-11', 'flexion-completa', [10, 10, 10]),
+      ],
+      'empuje',
+      semanas,
+    )
+    expect(fuerza[0]!.cambio).toBeUndefined()
+  })
+
+  it('con el peso corporal, los discos cuentan y gana la mejor serie, no la de más repeticiones', () => {
+    const conDiscos: Sesion = {
+      ...sesion('2026-09-08', 'flexion-completa', [12]),
+      registros: [
+        {
+          ejercicioId: 'flexion-completa',
+          objetivo: { series: 2, cantidad: 8, kg: 10 },
+          series: [{ logrado: 9 }, { logrado: 8, kg: 10 }],
+        },
+      ],
+    }
+    const sinPeso = fuerzaPorSemana([conDiscos], 'empuje', semanas)[0]!
+    const conPeso = fuerzaPorSemana([conDiscos], 'empuje', semanas, 75)[0]!
+    // Sin peso corporal no hay cómo pasar kilos a la escala: gana la de 9.
+    expect(sinPeso.conDiscos).toBe(false)
+    // Con 75 kg, 8 con 10 kg le gana a 9 sin peso.
+    expect(conPeso.conDiscos).toBe(true)
+    expect(conPeso.carga).toBeGreaterThan(sinPeso.carga)
   })
 
   it('una cadena que no se entrenó da todas vacías', () => {

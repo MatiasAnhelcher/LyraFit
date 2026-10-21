@@ -104,6 +104,26 @@ const medirLaPantalla = (p) =>
         problemas.push({ armazon: delArmazon(s), texto: `el segmento ${nombre(s)} se sale de su celda: ${s.scrollWidth} px en ${s.clientWidth}` })
       }
     }
+    // Las filas de cadena de Hoy y del Cierre: rótulo, barra y cuenta adentro
+    // de la fila, y cada eslabón con ancho para verse. A 320 con la letra
+    // grande la barra quedaba de un dedo y el rótulo se salía de su columna.
+    for (const fila of document.querySelectorAll('.fila-cadena-chica')) {
+      if (!fila.checkVisibility()) continue
+      const caja = fila.getBoundingClientRect()
+      for (const hijo of fila.children) {
+        const r = hijo.getBoundingClientRect()
+        if (r.left < caja.left - 0.5 || r.right > caja.right + 0.5) {
+          problemas.push({ armazon: false, texto: `en la fila de ${fila.textContent.trim().slice(0, 20)}, ${nombre(hijo)} se sale de la fila` })
+        }
+      }
+      const angosto = [...fila.querySelectorAll('.bc-seg')].find((seg) => seg.getBoundingClientRect().width < 4)
+      if (angosto) {
+        problemas.push({
+          armazon: false,
+          texto: `en la fila de ${fila.textContent.trim().slice(0, 20)}, un eslabón mide ${angosto.getBoundingClientRect().width.toFixed(1)} px de ancho`,
+        })
+      }
+    }
     // Las etiquetas de la barra, enteras y en un renglón: son del armazón.
     for (const etiqueta of document.querySelectorAll('nav.barra .etiqueta-barra')) {
       const pestana = etiqueta.closest('a').getBoundingClientRect()

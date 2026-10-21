@@ -34,8 +34,9 @@ export function FilaDeCadenaChica({ avance }: { avance: Avance }) {
 
 /**
  * La cadena que saltó, abierta. La coreografía es la del Cierre: el relleno
- * entra al eslabón nuevo de 0,7 a 1,6 s, la estrella se posa a 1,46 s, y el
- * nombre del ejercicio nuevo aparece con `.revelar--1`.
+ * entra de 0,7 a 1,6 s —al eslabón nuevo, o al que acabás de dominar si el
+ * nuevo arranca en su piso—, la estrella se posa a 1,46 s, y el nombre del
+ * ejercicio nuevo aparece con `.revelar--1`.
  */
 export function FilaDeSalto({ avance, antes }: { avance: Avance; antes: EnCadena | null }) {
   const e = enCadena(avance)
@@ -49,10 +50,15 @@ export function FilaDeSalto({ avance, antes }: { avance: Avance; antes: EnCadena
         </span>
       </div>
       <BarraDeCadena posicion={e} tamano="l" animar {...(antes ? { huella: antes } : {})} />
+      {/* La barra ya dice el ejercicio nuevo y el objetivo: al lector le queda
+          solo de dónde venías, que es lo único que la barra no dice. */}
       <div className="salto-nuevo revelar revelar--1">
-        <p className="salto-nuevo-nombre">{e.ejercicio?.nombre ?? '—'}</p>
+        <p className="salto-nuevo-nombre" aria-hidden>
+          {e.ejercicio?.nombre ?? '—'}
+        </p>
         <p className="texto-chico">
-          {antes?.ejercicio ? `Antes: ${antes.ejercicio.nombre}. ` : ''}Arrancás en {objetivoCorto(e)}.
+          {antes?.ejercicio ? `Antes: ${antes.ejercicio.nombre}. ` : ''}
+          <span aria-hidden>Arrancás en {objetivoCorto(e)}.</span>
         </p>
       </div>
     </div>

@@ -80,15 +80,17 @@ const PARES = [
   ['core', 'fondo', 3, 'el glifo de core'],
   ['bisagra', 'fondo', 3, 'el glifo de bisagra'],
   // La barra de cadena vive sobre la placa: los eslabones hechos y el
-  // relleno van en la luz de la cadena, lo que falta en regla-fuerte (ya
-  // medido arriba contra papel), y la estrella lleva un aro del fondo que la
-  // separa del relleno, así que su núcleo se mide contra el fondo.
+  // relleno van en la luz de la cadena, lo que falta en regla-fuerte, y la
+  // huella del Cierre en glosa (las dos ya medidas arriba contra papel). La
+  // estrella lleva un aro del fondo que la separa del relleno, así que su
+  // núcleo se mide contra el fondo.
   ['luz-empuje', 'papel', 3, 'los eslabones hechos de empuje'],
   ['luz-traccion', 'papel', 3, 'los eslabones hechos de tracción'],
   ['luz-piernas', 'papel', 3, 'los eslabones hechos de piernas'],
   ['luz-core', 'papel', 3, 'los eslabones hechos de core'],
   ['luz-bisagra', 'papel', 3, 'los eslabones hechos de bisagra'],
-  ['estrella', 'fondo', 3, 'el núcleo de la estrella, dentro de su aro'],
+  // El mismo 4,5 que tenía la estrella sobre la carta: ningún umbral baja.
+  ['estrella', 'fondo', 4.5, 'el núcleo de la estrella, dentro de su aro'],
 ]
 
 /**

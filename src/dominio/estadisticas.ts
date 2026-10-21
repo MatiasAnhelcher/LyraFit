@@ -247,6 +247,8 @@ export interface PuntoDeFuerza {
   /** El índice de carga de la mejor serie del día en esta cadena. */
   carga: number
   ejercicioId: string
+  /** Si esa mejor serie llevaba discos. */
+  conDiscos: boolean
 }
 
 /**
@@ -259,8 +261,13 @@ export interface PuntoDeFuerza {
  * línea sube parejo a través de toda la cadena.
  *
  * Es una estimación, y en la pantalla se dice.
+ *
+ * Los discos cuentan: con `pesoCorporalKg`, cada serie se mide con su propia
+ * carga, y gana la mejor serie y no la de más repeticiones, porque los kilos
+ * cambian de una serie a otra. Sin peso corporal no hay cómo pasar kilos a
+ * esta escala y la serie con discos vale lo mismo que sin ellos.
  */
-export function curvaDeFuerza(sesiones: Sesion[], patron: Patron): PuntoDeFuerza[] {
+export function curvaDeFuerza(sesiones: Sesion[], patron: Patron, pesoCorporalKg?: number): PuntoDeFuerza[] {
   const porDia = new Map<string, PuntoDeFuerza>()
 
   for (const sesion of sesiones) {
@@ -276,13 +283,21 @@ export function curvaDeFuerza(sesiones: Sesion[], patron: Patron): PuntoDeFuerza
       // Meterlo en la curva haría subir la línea en un día que midió otra cosa.
       if (registro.reloj) continue
 
-      const mejor = Math.max(0, ...sinCierre(registro.series).map((s) => s.logrado))
-      if (mejor <= 0) continue
-
-      const carga = indiceDeCarga(ejercicio, mejor)
-      const previo = porDia.get(sesion.fecha)
-      if (!previo || carga > previo.carga) {
-        porDia.set(sesion.fecha, { fecha: sesion.fecha, carga, ejercicioId: ejercicio.id })
+      for (const serie of sinCierre(registro.series)) {
+        if (serie.logrado <= 0) continue
+        const carga = indiceDeCarga(ejercicio, serie.logrado, {
+          ...(serie.kg !== undefined ? { kg: serie.kg } : {}),
+          ...(pesoCorporalKg !== undefined ? { pesoCorporalKg } : {}),
+        })
+        const previo = porDia.get(sesion.fecha)
+        if (!previo || carga > previo.carga) {
+          porDia.set(sesion.fecha, {
+            fecha: sesion.fecha,
+            carga,
+            ejercicioId: ejercicio.id,
+            conDiscos: (serie.kg ?? 0) > 0,
+          })
+        }
       }
     }
   }
@@ -298,14 +313,29 @@ export function curvaDeFuerza(sesiones: Sesion[], patron: Patron): PuntoDeFuerza
  * entrena hace tres semanas ve tres columnas y no nueve semanas vacías antes
  * de haber empezado. Las semanas del medio sin sesiones SÍ están, vacías: un
  * mes de vacaciones es un hueco en el eje, no algo que se pliega y desaparece.
+ *
+ * Siempre trae por lo menos la semana de hoy, aunque la primera sesión tenga
+ * una fecha más nueva: pasa con el reloj del teléfono adelantado o con un
+ * viaje hacia el oeste, y sin esta semana la pantalla no tendría eje.
  */
 export function ultimasSemanas(hoy: string, cuantas: number, primera?: string): string[] {
   const actual = lunesDe(hoy)
   const desdeHoy = sumarDias(actual, -7 * (cuantas - 1))
-  const inicio = primera && lunesDe(primera) > desdeHoy ? lunesDe(primera) : desdeHoy
+  const desde = primera ? lunesDe(primera) : desdeHoy
+  const inicio = desde > actual ? actual : desde > desdeHoy ? desde : desdeHoy
   const semanas: string[] = []
   for (let lunes = inicio; lunes <= actual; lunes = sumarDias(lunes, 7)) semanas.push(lunes)
   return semanas
+}
+
+/** El cambio de eslabón que empezó en una semana. */
+export interface CambioDeEslabon {
+  /** El ejercicio que venías haciendo. */
+  de: string
+  /** Tu última marca en ese ejercicio, antes de cambiar. */
+  cargaAntes: number
+  /** El ejercicio con el que terminó la semana. */
+  a: string
 }
 
 export interface SemanaDeFuerza {
@@ -315,6 +345,10 @@ export interface SemanaDeFuerza {
   carga: number
   /** El ejercicio de esa mejor serie. */
   ejercicioId: string
+  /** Si esa mejor serie llevaba discos. */
+  conDiscos: boolean
+  /** Si en esta semana cambiaste de eslabón. */
+  cambio?: CambioDeEslabon
 }
 
 /**
@@ -325,21 +359,47 @@ export interface SemanaDeFuerza {
  * entrada por cada lunes de `semanas`, en el mismo orden, y `null` en las
  * semanas en que esta cadena no se entrenó: la columna queda vacía, no en cero,
  * porque no entrenar no es haber perdido fuerza.
+ *
+ * El cambio de eslabón se busca día por día y no en la mejor marca: el día del
+ * salto hacés el eslabón viejo en su techo, y el nuevo arranca casi siempre un
+ * poco más abajo en esta escala. Si los dos caen en la misma semana, la mejor
+ * marca es la del viejo, y mirarla correría el cambio a la semana siguiente.
+ * Se compara contra el día anterior aunque caiga antes de `semanas`, así que
+ * el cambio de la primera columna también se ve.
  */
 export function fuerzaPorSemana(
   sesiones: Sesion[],
   patron: Patron,
   semanas: string[],
+  pesoCorporalKg?: number,
 ): (SemanaDeFuerza | null)[] {
   const mejores = new Map<string, SemanaDeFuerza>()
-  for (const punto of curvaDeFuerza(sesiones, patron)) {
+  const cambios = new Map<string, CambioDeEslabon>()
+  let anterior: PuntoDeFuerza | undefined
+  for (const punto of curvaDeFuerza(sesiones, patron, pesoCorporalKg)) {
     const semana = lunesDe(punto.fecha)
+    if (anterior && anterior.ejercicioId !== punto.ejercicioId) {
+      // El primer cambio de la semana dice de dónde venías; el último, adónde
+      // llegaste. Ir y volver en la misma semana no es un cambio.
+      const ya = cambios.get(semana)
+      cambios.set(
+        semana,
+        ya ? { ...ya, a: punto.ejercicioId } : { de: anterior.ejercicioId, cargaAntes: anterior.carga, a: punto.ejercicioId },
+      )
+    }
+    anterior = punto
+
     const previa = mejores.get(semana)
     if (!previa || punto.carga > previa.carga) {
-      mejores.set(semana, { semana, carga: punto.carga, ejercicioId: punto.ejercicioId })
+      mejores.set(semana, { semana, carga: punto.carga, ejercicioId: punto.ejercicioId, conDiscos: punto.conDiscos })
     }
   }
-  return semanas.map((s) => mejores.get(s) ?? null)
+  return semanas.map((s) => {
+    const mejor = mejores.get(s)
+    if (!mejor) return null
+    const cambio = cambios.get(s)
+    return cambio && cambio.de !== cambio.a ? { ...mejor, cambio } : mejor
+  })
 }
 
 export interface Totales {

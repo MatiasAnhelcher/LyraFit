@@ -316,7 +316,12 @@ export async function contarSesiones(): Promise<number> {
 /** Lo que devuelve cerrar una sesión: qué cambió en cada patrón entrenado. */
 export interface ResumenSesion {
   sesion: Sesion
-  decisiones: { patron: Patron; decision: Decision }[]
+  /**
+   * `antes` es el avance que el motor evaluó: dónde estaba la cadena antes de
+   * esta sesión. No sale del objetivo del registro, que en un día ámbar viene
+   * recortado y no es dónde te tenía el motor.
+   */
+  decisiones: { patron: Patron; decision: Decision; antes: Avance }[]
   /** El número de sesión en la vida de esta persona. */
   numeroDeSesion: number
 }
@@ -493,7 +498,7 @@ export async function cerrarSesion(entrada: CierreDeSesion): Promise<ResumenSesi
       },
     )
 
-    decisiones.push({ patron: ejercicio.patron, decision })
+    decisiones.push({ patron: ejercicio.patron, decision, antes: avance })
   }
 
   // Lo que el motor acaba de decidir se guarda con la sesión, no solo se

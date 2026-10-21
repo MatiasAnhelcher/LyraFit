@@ -61,7 +61,8 @@ export type TamanoDeBarra = 's' | 'm' | 'l'
  * en la cadena que saltó en el Cierre.
  *
  * `animar` es la coreografía del Cierre cuando hubo salto: el relleno entra al
- * eslabón nuevo y la estrella se posa. `huella` es dónde estabas antes.
+ * eslabón nuevo —o al que acabás de dominar, si el nuevo arranca en su piso— y
+ * la estrella se posa. `huella` es dónde estabas antes.
  *
  * `orden` escalona el encendido de Progreso, que lo prende la pantalla con
  * `.enciende` una sola vez por carga.
@@ -90,10 +91,26 @@ export function BarraDeCadena({
     '--orden': orden,
   } as CSSProperties
 
+  // En una subida, si el eslabón nuevo arranca en el piso de su ventana no hay
+  // relleno que entrar, así que entra el del eslabón que acabás de dominar: el
+  // movimiento se ve sin mentir sobre dónde estás.
+  const llenaElAnterior = animar && !!huella && huella.indice < e.indice && e.relleno === 0
+  // La huella solo si no cae debajo de la estrella. A menos de cuatro décimos
+  // de eslabón quedan encimadas y no se lee ningún movimiento.
+  const huellaVisible =
+    huella && Math.abs(e.indice + e.relleno - (huella.indice + huella.relleno)) >= 0.4 ? huella : null
+
   return (
     <div className={`bc bc--${tamano}`} style={estilo} role="img" aria-label={textoDeLaBarra(e)}>
       {Array.from({ length: e.total }, (_, k) => {
         if (k < e.indice) {
+          if (llenaElAnterior && k === e.indice - 1) {
+            return (
+              <span key={k} className="bc-seg bc-seg--hecho bc-seg--recien">
+                <span className="bc-relleno anim-llenar" style={{ width: '100%' }} />
+              </span>
+            )
+          }
           return <span key={k} className="bc-seg bc-seg--hecho" style={{ '--k': k } as CSSProperties} />
         }
         if (k === e.indice) {
@@ -108,10 +125,10 @@ export function BarraDeCadena({
         }
         return <span key={k} className="bc-seg" />
       })}
-      {huella && (
+      {huellaVisible && (
         <span
           className="bc-huella"
-          style={{ '--i': huella.indice, '--f': huella.relleno.toFixed(4) } as CSSProperties}
+          style={{ '--i': huellaVisible.indice, '--f': huellaVisible.relleno.toFixed(4) } as CSSProperties}
         />
       )}
       <span className="bc-marca" style={{ '--i': e.indice, '--f': e.relleno.toFixed(4) } as CSSProperties}>

@@ -624,8 +624,11 @@ async function main() {
               salida.push('.anim-llenar quedó en scaleX(0): el relleno del eslabón nuevo no entró nunca')
             }
             // Y que tenga ancho de verdad: la regla de arriba no ve un relleno
-            // que se dibujó con ancho cero, que se ve igual de vacío.
-            if (sel === '.anim-llenar' && el.getBoundingClientRect().width < 0.5 && el.style.width !== '0.00%') {
+            // que se dibujó con ancho cero, que se ve igual de vacío. Se
+            // compara el número y no el texto: Chrome normaliza "0.00%" a
+            // "0%", y un relleno en el piso de la ventana mide cero con
+            // derecho.
+            if (sel === '.anim-llenar' && parseFloat(el.style.width) > 0 && el.getBoundingClientRect().width < 0.5) {
               salida.push(`.anim-llenar mide ${el.getBoundingClientRect().width} px de ancho y tenía que medir ${el.style.width}`)
             }
           }

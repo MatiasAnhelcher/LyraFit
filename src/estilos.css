@@ -795,6 +795,11 @@
   .bc-seg--actual {
     border-color: var(--luz);
   }
+  /* El eslabón que acabás de dominar, en el Cierre, cuando el nuevo arranca
+     en su piso: se llena con su propio relleno en vez de aparecer lleno. */
+  .bc-seg--recien {
+    background-color: transparent;
+  }
   .bc-relleno {
     position: absolute;
     inset-block: 0;
@@ -827,18 +832,19 @@
   }
 
   /* La huella: dónde estabas antes del salto. Una forma vacía, lo único de
-     la app que registra el pasado así, y en el Cierre es lo que hace visible
-     el movimiento. */
+     la app que registra el pasado así. Va debajo de la barra y en glosa
+     (7,45:1 sobre papel): adentro de la franja quedaba luz sobre luz encima
+     de un eslabón hecho, o tapada por el núcleo de la estrella. A 4 px del
+     borde no toca la espiga de la estrella ni el texto de abajo. */
   .bc-huella::before {
     content: '';
     position: absolute;
-    width: 11px;
-    height: 11px;
-    left: -5.5px;
-    top: -5.5px;
+    width: 7px;
+    height: 7px;
+    left: -3.5px;
+    top: calc(var(--alto) / 2 + 4px);
     border-radius: 50%;
-    border: 1.25px solid var(--luz);
-    opacity: 0.55;
+    border: 1.25px solid var(--color-glosa);
   }
 
   /* La fila de TUS CADENAS en Progreso: nombre y cuenta, la barra, el pie. */
@@ -908,10 +914,11 @@
   }
 
   /* La fila chica: Hoy y las cadenas que no saltaron en el Cierre. 44 de
-     alto, el nombre de la cadena en rótulo, la barra s y la cuenta. */
+     alto, el nombre de la cadena en rótulo, la barra s y la cuenta. La
+     cuenta mide 4rem porque "10 de 11" mide 3,79. */
   .fila-cadena-chica {
     display: grid;
-    grid-template-columns: 5.75rem 1fr 3.5rem;
+    grid-template-columns: 5.75rem 1fr 4rem;
     align-items: center;
     column-gap: 0.75rem;
     min-height: 44px;
@@ -928,6 +935,24 @@
   }
   .fila-cadena-chica .cuenta-cadena b {
     font-size: 0.9375rem;
+  }
+
+  /* Donde la barra no entra al lado del nombre —a 320, o con letra grande—,
+     baja a su propio renglón y ocupa todo el ancho. Se mide la placa y no la
+     pantalla, y en rem, así que la letra grande también la hace bajar. */
+  .placa-cadenas {
+    container-type: inline-size;
+  }
+  @container (max-width: 20rem) {
+    .fila-cadena-chica {
+      grid-template-columns: 1fr auto;
+      row-gap: 0.375rem;
+      padding-block: 0.5rem 0.625rem;
+    }
+    .fila-cadena-chica > .bc {
+      grid-column: 1 / -1;
+      grid-row: 2;
+    }
   }
 
   /* Las filas de una placa de cadenas, separadas por un filete de regla. */
@@ -1135,10 +1160,18 @@
     column-gap: 0.75rem;
     padding: 0 var(--margen) 0.875rem;
   }
+  /* El eje tiene las mismas columnas y el mismo hueco que las barras de
+     arriba, y cada rótulo va centrado debajo de la suya. */
   .fuerza-eje > div {
     display: flex;
-    justify-content: space-between;
+    gap: 4px;
     padding-top: 0.375rem;
+  }
+  .fuerza-eje > div > span {
+    flex: 1 1 0;
+    min-width: 0;
+    display: flex;
+    justify-content: center;
   }
   .leyenda {
     display: grid;
@@ -1286,10 +1319,15 @@
   .series-columnas > [data-ahora] .series-c {
     background-color: var(--color-tinta);
   }
+  /* Los puntos no pasan del ancho de su semana: con cuatro sesiones o más
+     bajan a otro renglón en vez de juntarse con los de la semana de al lado. */
   .puntos-sesion {
     display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
     gap: 2px;
-    height: 4px;
+    max-width: 100%;
+    min-height: 4px;
   }
   .puntos-sesion i {
     width: 4px;
@@ -1298,6 +1336,9 @@
     background-color: var(--color-glosa);
   }
   .series-fecha {
+    /* Abajo de todo, para que las fechas queden alineadas aunque una semana
+       tenga más renglones de puntos que otra. */
+    margin-top: auto;
     height: 10px;
     font-family: var(--font-sans);
     font-weight: 600;

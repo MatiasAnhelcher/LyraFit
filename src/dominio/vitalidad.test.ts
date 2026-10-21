@@ -34,6 +34,25 @@ function conPrediccion(cantidad: number, predicho: number, error: number, desde 
 }
 
 describe('calibración', () => {
+  it('solo mide las predicciones en repeticiones', () => {
+    // Treinta series de flexiones con un error de 1, y planchas con un error
+    // de 6 segundos que no tienen que entrar al promedio de repeticiones.
+    const planchas = Array.from({ length: 8 }, (_, i) =>
+      sesion(100 + i, [{ predicho: 30, logrado: 24 }], {
+        registros: [
+          {
+            ejercicioId: 'plancha',
+            objetivo: { series: 1, cantidad: 30 },
+            series: [{ predicho: 30, logrado: 24 }],
+          },
+        ],
+      }),
+    )
+    const c = calibracion([...conPrediccion(10, 10, 1), ...planchas])!
+    expect(c.series).toBe(30)
+    expect(c.error).toBe(1)
+  })
+
   it('no dice nada hasta tener suficientes series', () => {
     expect(calibracion(conPrediccion(3, 10, 0))).toBeNull()
   })
