@@ -22,15 +22,12 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useLiveQuery } from 'dexie-react-hooks'
-import { NOMBRE_PATRON, POR_ID, cadenaDe } from '@/dominio/biblioteca'
+import { POR_ID, cadenaDe } from '@/dominio/biblioteca'
 import {
   DIAS,
-  NOMBRE_DIA,
   claseDeDia,
-  diaDeLaSemana,
   diasDe,
   patronDelBloque,
-  destinoDelDia,
   proximoDia,
   rutinaActiva,
   semanaActiva,
@@ -67,7 +64,6 @@ import {
 import { bloqueConMolestia, molestiasDeHoy } from '@/dominio/molestia'
 import { seAbreHoy } from '@/dominio/anticipacion'
 import { avisosDeLaRevision, eslabonesCerrados } from '@/dominio/apertura'
-import { PISO_DE_PROTEINA, senalesDelDia } from '@/dominio/nutricion'
 import { mueveElPlan } from '@/dominio/progresion'
 import {
   descartarSesionEnCurso,
@@ -84,14 +80,15 @@ import {
   leerSesiones,
 } from '@/datos/repositorio'
 import { respaldarEnSilencio } from '@/datos/respaldo'
-import { despertarAudio } from '@/respuesta'
 import { SesionSinCerrar } from '@/componentes/sinCerrar'
 import { Carta } from '@/componentes/carta'
 import { Lyra } from '@/componentes/lyra'
-import { IconoComida, IconoFuerza, IconoSueno } from '@/componentes/iconos'
-import { orden } from '@/componentes/movimiento'
 import { fraseDe, recordar, type Momento } from '@/dominio/frases'
-import { Accion, Cargando, Glifo, Glosa, Objetivo, Rotulo, Tira } from '@/componentes/ui'
+import { Cargando, Glosa, Rotulo } from '@/componentes/ui'
+import { Encabezado, FORMATO_FECHA } from './Encabezado'
+import { Plan } from './Plan'
+import { ElDia } from './ElDia'
+import { Marcha } from './Marcha'
 
 /**
  * Lo que Lyra ya dijo en esta pestaña.
@@ -113,12 +110,6 @@ let dichas: string[] = []
  * vueltas.
  */
 let ultimoSorteo: { azar: number; momento: Momento; dijo: ReturnType<typeof fraseDe> } | null = null
-
-const FORMATO_FECHA = new Intl.DateTimeFormat('es-AR', {
-  weekday: 'long',
-  day: 'numeric',
-  month: 'long',
-})
 
 export function Hoy() {
   /**
@@ -410,22 +401,6 @@ export function Hoy() {
   const dijo = ultimoSorteo.dijo
 
   /**
-   * La víspera: el eslabón que se abre hoy si esta sesión se cumple.
-   *
-   * Es lo único que la app anticipa, y lo dice porque es literalmente cierto —
-   * el motor es determinista y `proyectar` lo corre en seco—. La señal
-   * dopaminérgica no responde a la recompensa sino al error de predicción de
-   * recompensa: un premio perfectamente predecible deja de producir señal, y
-   * estar a una sesión de algo que todavía no pasó es exactamente la forma que
-   * tiene la anticipación. Acá no hay que fabricarla: ya estaba en el motor y
-   * no se mostraba en ningún lado.
-   *
-   * Sale una sola vez, la del primero que esté a punto. Cuatro cadenas a punto
-   * el mismo día es una lista, y una lista no anticipa nada.
-   */
-  const vispera = bloques.find((b) => b.abre)
-
-  /**
    * Si la revisión única bajó algo de la palanca frontal, por qué. Se dice
    * hasta la próxima sesión, o hasta que algo lo mueva de donde lo bajamos, y
    * se calla solo: lo decide el dominio con lo que ya está guardado.
@@ -437,103 +412,6 @@ export function Hoy() {
     tieneBarra,
   )
 
-  /**
-   * CUÁNTAS FILAS ENTRAN EN HOY, Y POR QUÉ HAY UN TOPE.
-   *
-   * No es estético: es la regla del pliegue, y es el único lugar de la app
-   * donde una preferencia de la persona puede romperla.
-   *
-   * Medido en un Android de 360×640 un día de entrenar, `Empezar` queda con
-   * EXACTAMENTE doce píxeles de aire sobre la barra de navegación, que es el
-   * mínimo. Esa medición está hecha con la rutina por defecto, que tiene
-   * cuatro bloques. Las cuatro rutinas por grupo tienen CINCO, y cada fila
-   * mide 56 px: con la quinta, `Empezar` queda cuarenta y cuatro píxeles por
-   * debajo de la barra, o sea invisible hasta que alguien scrollee.
-   *
-   * Sería la cuarta vez que se rompe el pliegue, y esta vez ni siquiera haría
-   * falta tocar Hoy: alcanzaría con elegir otra rutina en Ajustes.
-   *
-   * El tope lo hace imposible. Las que no entran se cuentan en un renglón de
-   * dieciocho píxeles en vez de ocuparlas, y no se pierde información: la
-   * sesión completa está a un toque de distancia, que es lo que `Empezar`
-   * hace. `pliegue.mjs` mide esto con la rutina más alta, no con la que le
-   * toque correr.
-   */
-  const TOPE_DE_FILAS = 4
-  /*
-   * Y cuando sobran, se muestra UNA MENOS, no el tope.
-   *
-   * La primera versión de esto cortaba en cuatro y ponía el renglón del resto
-   * como una quinta fila del registro. Una fila del registro mide 56 px de
-   * mínimo, así que cuatro filas más el renglón ocupan lo mismo que CINCO:
-   * exactamente lo que el tope venía a evitar. Medido por `pliegue.mjs` en un
-   * Android de 360×640: `Empezar` quedó a **−44 px** de la barra, o sea
-   * tapado. Habría sido la cuarta vez que se rompe el pliegue, y la primera
-   * causada por el arreglo del pliegue.
-   *
-   * Ahora el renglón del resto no es una fila: es una línea de rótulo de unos
-   * 20 px, fuera del registro. Con tres filas más esa línea la pantalla queda
-   * 36 px MÁS CORTA que con las cuatro de la rutina por defecto, así que la
-   * rutina más alta tiene más aire que la común en vez de menos.
-   *
-   * Y con cuatro bloques o menos no se corta nada: la rutina por defecto
-   * sigue mostrando sus cuatro filas y sus 12 px de aire, sin cambios.
-   */
-  const corta = bloques.length > TOPE_DE_FILAS
-  const filasVisibles = bloques.slice(0, corta ? TOPE_DE_FILAS - 1 : TOPE_DE_FILAS)
-  const filasOcultas = bloques.length - filasVisibles.length
-
-  /**
-   * Las tres señales del día.
-   *
-   * `valor === null` quiere decir "todavía no hay respuesta" y se dibuja como
-   * un guion apagado. Un 0 NO es null: contestar "cero comidas con proteína"
-   * es una respuesta, y tratarla como silencio dejaría la fila esperando para
-   * siempre algo que ya está dicho.
-   */
-  // `?? null` mientras la consulta vuela: sin hora todavía, y no la de la fila,
-  // que puede ser una de las 23:00 inventadas de antes.
-  const senales = senalesDelDia(diaDelDiario, horaDeDormir ?? null)
-  const porciones = diaDelDiario?.porcionesDeProteina
-  const senalesDelDia_filas = [
-    {
-      clave: 'entrenaste',
-      a: esDiaDeEntrenar ? destinoDelDia(clase) : '/progreso',
-      Icono: IconoFuerza,
-      luz: 'var(--dominio-fuerza-luz)',
-      titulo: 'Entrenaste',
-      detalle: entrenoHoy
-        ? 'hoy'
-        : esDiaDeEntrenar
-          ? `hoy toca · ${minutos} min`
-          : 'hoy toca descansar',
-      valor: entrenoHoy ? '✓' : esDiaDeEntrenar ? null : '·',
-    },
-    {
-      clave: 'comiste',
-      a: '/diario',
-      Icono: IconoComida,
-      luz: 'var(--dominio-comida-luz)',
-      titulo: 'Comiste',
-      detalle:
-        porciones === undefined
-          ? `comidas con proteína · el piso son ${PISO_DE_PROTEINA}`
-          : porciones >= PISO_DE_PROTEINA
-            ? 'comidas con proteína · estás en el piso'
-            : `comidas con proteína · el piso son ${PISO_DE_PROTEINA}`,
-      valor: porciones === undefined ? null : String(porciones),
-    },
-    {
-      clave: 'dormiste',
-      a: '/diario',
-      Icono: IconoSueno,
-      luz: 'var(--dominio-sueno-luz)',
-      titulo: 'Dormiste',
-      detalle: diaDelDiario?.sueno ? 'horas, anoche' : 'anoche',
-      valor: diaDelDiario?.sueno ?? null,
-    },
-  ]
-
   const filasDeCarta = [...avances.values()].map((avance) => ({
     patron: avance.patron,
     avance,
@@ -541,40 +419,7 @@ export function Hoy() {
 
   return (
     <>
-      <header>
-        <Rotulo>{FORMATO_FECHA.format(hoy).toUpperCase()}</Rotulo>
-        {/* Lyra va acá, al lado de la cifra de identidad, y no arriba: la
-            columna de la derecha de esta línea estaba vacía, así que la marca
-            no cuesta un solo píxel de alto. Importa porque `Empezar` tiene doce
-            píxeles de aire sobre la barra en un teléfono de 360×640, y ya se
-            rompió una vez por un renglón de más.
-
-            Quieta y no interactiva: acá es el logo. La que respira y contesta
-            es la de más abajo. */}
-        <div className="flex items-center justify-between gap-4">
-          <p className="cifra-identidad mt-3">{String(total).padStart(3, '0')}</p>
-          <Lyra tamano={56} interactiva={false} expresion="calma" className="shrink-0" />
-        </div>
-        <p className="mt-1 text-sm text-[var(--color-glosa)]">
-          {total === 0
-            ? 'sesiones. Todavía ninguna.'
-            : total === 1
-              ? 'sesión en tu vida.'
-              : 'sesiones en tu vida.'}
-        </p>
-        {total > 0 && (
-          <div className="mt-4">
-            <Tira cantidad={total} />
-          </div>
-        )}
-        {hito && hito.faltan <= 5 && total > 0 && (
-          <p className="mt-4 text-sm text-[var(--color-glosa)]">
-            Te {hito.faltan === 1 ? 'falta' : 'faltan'}{' '}
-            <span className="cifra text-[var(--color-tinta)]">{hito.faltan}</span> para llegar a{' '}
-            <span className="cifra text-[var(--color-tinta)]">{hito.hito}</span>.
-          </p>
-        )}
-      </header>
+      <Encabezado hoy={hoy} total={total} hito={hito} />
 
       {ajuste.mensaje && (
         <div className="mt-8">
@@ -631,189 +476,19 @@ export function Hoy() {
         </button>
       )}
 
-      <section className="mt-8">
-        {/* La duración va en ESTA línea y no en una propia.
-            Medido en tres teléfonos: como línea aparte empujaba `Empezar` once
-            píxeles por debajo de la barra de navegación en un Android de
-            360×640. Es la misma regla que ya había movido la acción arriba del
-            pliegue, rota por un renglón de veinticuatro píxeles. */}
-        <Rotulo>
-          {entrenoHoy
-            ? 'YA ENTRENASTE HOY'
-            : esDiaDeFuelle
-              ? 'HOY · FUELLE'
-              : esDiaDeEntrenar
-                ? vuelve
-                  ? 'SESIÓN DE VUELTA'
-                  : `HOY · ${rutina.nombre.toUpperCase()}`
-                : 'HOY TOCA DESCANSAR'}
-          {esDiaDeEntrenar && !entrenoHoy && ` · ${minutos} MIN`}
-        </Rotulo>
-
-        {/* Los cuatro eslabones se muestran SOLO los días que se entrena.
-            Hasta acá se pintaban siempre, y eso hacía dos cosas mal a la vez.
-            La primera ya estaba escrita arriba, en el comentario de la clase
-            del día: anunciar los cuatro eslabones un día de fuelle —donde no se
-            hace una sola serie de cadena— es mentir dos veces.
-            La segunda la encontró `pliegue.mjs` el primer jueves que corrió:
-            son trescientos sesenta píxeles, y con ellos `Empezar` quedaba
-            SETENTA Y TRES por debajo de la barra en un Android de 360×640 los
-            días de descanso. O sea que en la rutina por defecto —lunes,
-            miércoles y viernes— cuatro días de cada siete había que scrollear
-            para llegar a lo único que la pantalla existe para hacer. Es la
-            tercera vez que se rompe el pliegue y la primera que lo agarra una
-            medición en vez de una persona.
-            El botón se queda: entrenar un día de más está permitido. Lo que se
-            va es la lista de lo que hoy no toca. */}
-        {esDiaDeEntrenar && !esDiaDeFuelle && (
-        <div className="registro mt-3" data-prueba="plan-de-hoy">
-          {filasVisibles.map(({ patron, ejercicio, antes, objetivo, accesorio, porMolestia }, i) => {
-            const cadena = cadenaDe(patron)
-            const posicion = cadena.ejercicios.indexOf(ejercicio.id) + 1
-            return (
-              <div key={`${patron}-${ejercicio.id}`} className="entrar-en-orden" style={orden(i)}>
-                <span className="canal">
-                  <Glifo patron={patron} />
-                </span>
-                <span className="min-w-0">
-                  <span className="nombre block truncate">{ejercicio.nombre}</span>
-                  {/* La vara que puso la persona la última vez, en el renglón
-                      chico y no al lado del objetivo: ahí le comía el ancho al
-                      nombre del ejercicio, que es lo único que no se puede
-                      truncar. Acá sobra lugar y el número es lo único de la
-                      línea que va en tinta, o sea lo único que se ve.
-
-                      No es una recompensa ni una insignia: es información sobre
-                      la propia competencia, que es la clase de feedback que
-                      construye motivación en vez de erosionarla. Y sin ella la
-                      segunda sesión se siente idéntica a la primera. */}
-                  <span className="rotulo mt-0.5 block truncate">
-                    {/* Un accesorio no tiene posición en la cadena —no está en
-                        ninguna, o es el eslabón de abajo— así que decir "3/9"
-                        sería inventar un lugar que no ocupa. */}
-                    {NOMBRE_PATRON[patron]}
-                    {accesorio
-                      ? ' · accesorio'
-                      : porMolestia
-                        ? ' · por molestia'
-                        : ` · ${posicion}/${cadena.ejercicios.length}`}
-                    {antes && (
-                      <>
-                        {' · antes '}
-                        <span className="cifra text-[var(--color-tinta)]">
-                          {antes.mejor}
-                          {ejercicio.medida === 'segundos' && <span className="lowercase">s</span>}
-                        </span>
-                      </>
-                    )}
-                  </span>
-                </span>
-                <Objetivo
-                  series={objetivo.series}
-                  cantidad={Math.max(1, Math.round(objetivo.cantidad * factorDelDia))}
-                  medida={ejercicio.medida}
-                />
-              </div>
-            )
-          })}
-        </div>
-        )}
-
-        {/* El resto, en una línea y NO en una fila del registro: una fila mide
-            56 px de mínimo y acá no hay 56 px para gastar. Ver el comentario
-            de `TOPE_DE_FILAS`. */}
-        {esDiaDeEntrenar && !esDiaDeFuelle && filasOcultas > 0 && (
-          <p className="rotulo mt-2" data-prueba="resto-del-plan">
-            + {filasOcultas} {filasOcultas === 1 ? 'ejercicio más' : 'ejercicios más'} en la sesión
-          </p>
-        )}
-
-        {vispera?.abre && (
-          <p className="mt-4 max-w-[40ch] text-sm leading-relaxed text-[var(--color-glosa)]">
-            {/* Dos redacciones, y las dos son ciertas. Con la sesión de hoy por
-                delante habla de hoy; ya entrenada, o en un día de descanso,
-                habla de la próxima — que es cuando esto más sirve, porque es
-                justo el momento en que la persona cierra la app.
-
-                "Pasás a X" y no "se abre X": los nombres de los ejercicios
-                cambian de número —"dominadas completas" contra "plancha
-                lateral"— y cualquier verbo que concuerde con ellos queda mal la
-                mitad de las veces. Es además el verbo que usa el motor cuando
-                explica la decisión al cerrar la sesión. */}
-            {esDiaDeEntrenar && !entrenoHoy
-              ? 'Si cerrás esta sesión cumpliendo, '
-              : 'Si cumplís la próxima sesión, '}
-            <span className="text-[var(--color-tinta)]">
-              pasás a {vispera.abre.nombre.toLowerCase()}
-            </span>
-            .
-          </p>
-        )}
-
-        {!esDiaDeEntrenar && siguiente && (
-          <p className="mt-4 text-sm leading-relaxed text-[var(--color-glosa)]">
-            El próximo es el {NOMBRE_DIA[diaDeLaSemana(siguiente)]?.toLowerCase()}. Descansar no
-            es una pausa del plan: es la parte del plan en la que el músculo se construye.
-          </p>
-        )}
-      </section>
-
-      {/* La acción va acá y no al final, que es donde estaba.
-          Medido en tres teléfonos: al final quedaba entre 160 y 367 píxeles por
-          debajo del pliegue, o sea que en la pantalla que se abre veinte veces
-          por semana había que scrollear para llegar a lo único que la pantalla
-          existe para hacer. Y lo que la tapaba —la carta y la barra de 28
-          días— es contexto: se mira cuando uno quiere mirarlo, no antes de
-          poder empezar. El orden ahora es quién sos, qué toca hoy, empezar, y
-          después dónde estás parado. */}
-      <div className="mt-10 -mx-4">
-        <Accion
-          onClick={() => {
-            // El audio se despierta acá y no cuando el descanso termina: en
-            // iOS un contexto creado fuera de un gesto nace suspendido y se
-            // queda así, y un temporizador no es un gesto. Sin esta línea el
-            // aviso del descanso no suena nunca en iPhone.
-            despertarAudio()
-            navegar(destinoDelDia(clase))
-          }}
-        >
-          {entrenoHoy
-            ? 'Entrenar otra vez'
-            : esDiaDeFuelle
-              ? 'Empezar el fuelle'
-              : vuelve
-                ? // "Volver a empezar" se lee como arrancar de cero, que es justo
-                  // el miedo de quien faltó, y Lyra al lado dice que esto no se
-                  // reinicia. No se reinicia: se retoma.
-                  'Retomar'
-                : 'Empezar'}
-        </Accion>
-        <button
-          onClick={() => {
-            despertarAudio()
-            navegar('/entrenar?corta=1')
-          }}
-          className="accion-quieta"
-        >
-          Solo tengo 7 minutos
-        </button>
-        {/* Avisar una molestia, a un toque y siempre a mano.
-            Hasta acá el único camino era el chequeo diario, que viene apagado
-            de fábrica: para casi todo el mundo no había forma de decir "me
-            molesta la muñeca". Va DEBAJO de `Empezar`, que es lo único que no
-            puede moverse de lugar (la regla del pliegue), y con el mismo peso
-            que la sesión corta: es una alternativa a empezar igual, no un
-            cartel. Con una molestia avisada dice cuál, para poder retirarla. */}
-        <button
-          onClick={() => navegar('/molestia')}
-          className="accion-quieta"
-          data-prueba="avisar-molestia"
-        >
-          {molestiaDeHoy
-            ? `Molestia en ${NOMBRE_PATRON[molestiaDeHoy].toLowerCase()} · cambiar`
-            : 'Me molesta algo'}
-        </button>
-      </div>
+      <Plan
+        clase={clase}
+        esDiaDeEntrenar={esDiaDeEntrenar}
+        esDiaDeFuelle={esDiaDeFuelle}
+        entrenoHoy={entrenoHoy}
+        vuelve={vuelve}
+        nombreDeLaRutina={rutina.nombre}
+        minutos={minutos}
+        bloques={bloques}
+        factorDelDia={factorDelDia}
+        siguiente={siguiente}
+        molestiaDeHoy={molestiaDeHoy}
+      />
 
       {/* Por qué bajó el core, si la revisión de la palanca frontal lo bajó.
           DEBAJO de la acción por la regla del pliegue, como todo lo que no es
@@ -847,70 +522,14 @@ export function Hoy() {
         </p>
       )}
 
-      {/*
-        EL DÍA: entrenaste · comiste · dormiste.
-
-        Las tres con el mismo peso visual exacto —misma fila, mismo canal,
-        misma tipografía— porque esa igualdad ES la afirmación. Una app de
-        entrenamiento que pone la comida y el sueño en una pantalla secundaria
-        está diciendo que son secundarios, y no lo son: con dieta, dormir poco
-        hizo que una parte mayor de lo que se bajó fuera músculo (Nedeltcheva
-        2010, un ensayo chico). No es un accesorio del entrenamiento.
-
-        Van DEBAJO de `Empezar` y no arriba. No es una decisión de jerarquía:
-        es la regla del pliegue, medida en tres teléfonos. En un Android de
-        360×640 `Empezar` tiene exactamente doce píxeles de aire sobre la barra
-        de navegación, y cada renglón que se agregue arriba lo empuja por
-        debajo. El orden sigue siendo quién sos, qué toca hoy, empezar, y
-        después dónde estás parado.
-
-        Y es un ESTADO, no un reclamo. Lo que falta se dibuja como un guion en
-        glosa, nunca como una cruz ni en rojo: lo que falta no está prohibido,
-        está sin iluminar. El silencio es la respuesta correcta la mayoría de
-        los días.
-      */}
-      <section className="mt-10">
-        <Rotulo>EL DÍA</Rotulo>
-        <div className="registro mt-3">
-          {senalesDelDia_filas.map((fila, i) => (
-            <button
-              key={fila.clave}
-              onClick={() => navegar(fila.a)}
-              className="fila-pulsable entrar-en-orden"
-              style={orden(i)}
-              data-prueba={`dia-${fila.clave}`}
-            >
-              <span className="canal" style={{ color: fila.luz }}>
-                <fila.Icono className="h-[18px] w-[18px]" />
-              </span>
-              <span className="min-w-0">
-                <span className="nombre block">{fila.titulo}</span>
-                <span className="rotulo mt-0.5 block truncate">{fila.detalle}</span>
-              </span>
-              {/* Sin `opacity`: la glosa YA ES el apagado de este sistema, y
-                  poner 0,55 encima la bajaba a 2,89:1 — por debajo del piso
-                  de 4,5 que la propia paleta declara. Medido. Lo que falta se
-                  dice en glosa y nada más; doblar el apagado lo vuelve
-                  ilegible en vez de discreto. */}
-              <span
-                className="cifra-fila"
-                style={fila.valor === null ? { color: 'var(--color-glosa)' } : undefined}
-              >
-                {fila.valor ?? '—'}
-              </span>
-            </button>
-          ))}
-        </div>
-        {/* El único aviso que este módulo levanta solo, y por eso está acá y no
-            escondido en el diario: es el dato que la percepción de la persona
-            NO puede detectar sola. Los otros seis hábitos no avisan nada —
-            nadie necesita que una app le diga que comió poca proteína. */}
-        {senales.avisoDeCafeina && (
-          <p className="mt-4 max-w-[40ch] text-sm leading-relaxed text-[var(--color-glosa)]">
-            {senales.avisoDeCafeina}
-          </p>
-        )}
-      </section>
+      <ElDia
+        clase={clase}
+        esDiaDeEntrenar={esDiaDeEntrenar}
+        entrenoHoy={entrenoHoy}
+        minutos={minutos}
+        diaDelDiario={diaDelDiario}
+        horaDeDormir={horaDeDormir}
+      />
 
       {/* Lyra, y lo único que dice.
        *
@@ -1010,40 +629,7 @@ export function Hoy() {
           medir: aparece con ella, y no como una fila de casillas vacías el día uno.
           El aviso de créditos sale solo si de verdad pasó un día del plan sin
           sesión; no entrenar todavía hoy no lo dispara. */}
-      {marcha.meta > 0 && (
-        <section className="mt-8">
-          <div className="flex items-baseline justify-between gap-4">
-            <Rotulo>ÚLTIMOS 28 DÍAS</Rotulo>
-            <p className="cifra text-sm">
-              {preferencias.encuadre === 'restante'
-                ? `faltan ${Math.max(0, marcha.meta - marcha.hechas - marcha.cubiertos)}`
-                : `${marcha.hechas} de ${marcha.meta}`}
-            </p>
-          </div>
-          <div className="mt-2 flex h-1.5 gap-px" aria-hidden>
-            {Array.from({ length: marcha.meta }, (_, i) => (
-              <span
-                key={i}
-                className="flex-1"
-                style={{
-                  backgroundColor:
-                    i < marcha.hechas
-                      ? 'var(--color-vega)'
-                      : i < marcha.hechas + marcha.cubiertos
-                        ? 'var(--color-regla-fuerte)'
-                        : 'var(--color-regla)',
-                }}
-              />
-            ))}
-          </div>
-          {marcha.cubiertos > 0 && (
-            <p className="mt-2 text-xs text-[var(--color-glosa)]">
-              {marcha.cubiertos === 1 ? 'Un día cubierto' : `${marcha.cubiertos} días cubiertos`} con
-              tus créditos. Faltar estaba previsto.
-            </p>
-          )}
-        </section>
-      )}
+      {marcha.meta > 0 && <Marcha marcha={marcha} encuadre={preferencias.encuadre} />}
 
     </>
   )
