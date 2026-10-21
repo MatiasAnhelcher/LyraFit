@@ -17,3 +17,6 @@ Thumbs.db
 
 npm-debug.log*
 yarn-error.log*
+
+# Lo que deja `tsc -b` al verificar los tipos.
+*.tsbuildinfo
