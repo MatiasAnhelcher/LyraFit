@@ -50,7 +50,7 @@ export function BorrarTodo() {
         Esto borra tu historial, tu diario, tu peso y las copias automáticas de este
         teléfono. No se puede deshacer.
       </p>
-      <p className="mt-2 max-w-[40ch] text-xs leading-relaxed text-[var(--color-glosa)]">
+      <p className="mt-2 max-w-[40ch] texto-glosa">
         Las copias que descargaste o compartiste no las puede borrar la app: están donde las
         guardaste.
       </p>

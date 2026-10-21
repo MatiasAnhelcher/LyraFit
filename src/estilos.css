@@ -392,9 +392,8 @@
      un 3 con una x de subíndice; se sube a su eje sin mover la línea.
      Y cede 0,6 px de cada costado, que el dibujo del signo no necesita: sin
      eso, "Dominadas con banda liviana" se corta por dos décimas de píxel en
-     Hoy y en el alta a 360 —la cifra ya no tiene tracking negativo que se lo
-     regale—, y esa fila no puede pasar a dos renglones sin bajar Empezar
-     debajo de los 12 px de aire que pide el pliegue. */
+     Hoy y en el alta a 360, y esa fila no puede pasar a dos renglones sin
+     bajar Empezar debajo de los 12 px de aire que pide el pliegue. */
   .cifra-fila .por {
     position: relative;
     top: -0.18em;
@@ -506,8 +505,8 @@
 
   /* El motor tiene la forma de la carta, porque es el que te mueve en ella:
      un nodo a la altura del primer renglón y el hilo que baja por el margen.
-     Se fue el filete coral: el coral es de Lyra, y el motor no es Lyra.
-     Nada más en la app lleva este nodo. */
+     Nada de coral: el coral es de Lyra, y el motor no es Lyra. Nada más en la
+     app lleva este nodo. */
   .glosa-motor {
     position: relative;
     padding-left: 1.125rem;
@@ -606,9 +605,9 @@
     color: var(--color-tinta);
   }
 
-  /* La letra de las ayudas y la de los pies: las dos en glosa. Reemplazan
-     los `text-sm` y `text-xs` sueltos, que cada pantalla escribía con su
-     propio interlineado. */
+  /* La letra de las ayudas y la de los pies: las dos en glosa, y cada una
+     con un solo interlineado para toda la app. Dos ayudas vecinas con cuerpos
+     distintos se leen como dos voces. */
   .texto-glosa {
     font-size: 0.875rem;
     line-height: 1.45;
@@ -699,6 +698,22 @@
   .placa.registro > * {
     border-bottom: 0;
   }
+  /* La primera y la última fila llevan las esquinas de la placa, un píxel más
+     cerradas por el canto: el foco va hacia adentro y sigue el radio del
+     elemento, y una fila recta dejaba que la placa le cortara las puntas. */
+  .placa.registro > :first-child,
+  .placa > .registro:first-child > :first-child,
+  .placa > .fila-pulsable:first-child {
+    border-start-start-radius: calc(var(--radio-placa) - 1px);
+    border-start-end-radius: calc(var(--radio-placa) - 1px);
+  }
+  .placa.registro > :last-child,
+  .placa > .registro:last-child > :last-child,
+  .placa > .fila-pulsable:last-child {
+    border-end-start-radius: calc(var(--radio-placa) - 1px);
+    border-end-end-radius: calc(var(--radio-placa) - 1px);
+  }
+
   /* Un fondo y no un borde: la fila presionada cambia de papel y el filete
      tiene que seguir ahí, y un borde con sangría no existe. */
   .placa .registro > * + *,
@@ -1110,8 +1125,7 @@
      Aparición y retiro. Solo opacidad y un desplazamiento mínimo: 6 px, no
      40. Un elemento que entra volando desde lejos le roba el ojo al que ya
      estaba, y acá siempre hay algo que ya estaba.
-     Las usan la lista que entra en orden y el pasaje entre pantallas; las
-     clases sueltas `.entrar` y `.salir` no las usaba nadie y se fueron. */
+     Las usan la lista que entra en orden y el pasaje entre pantallas. */
   @keyframes entrar {
     from { opacity: 0; transform: translateY(6px); }
     to   { opacity: 1; transform: none; }
@@ -1174,8 +1188,7 @@
   .fila-pulsable:active {
     background-color: var(--color-papel-alto);
   }
-  .fila-pulsable:active .canal,
-  .fila-pulsable:active .semana-rutina > span > span {
+  .fila-pulsable:active :is(.canal, .por, .vara, .semana-rutina > span > span) {
     color: var(--color-glosa);
   }
 
@@ -1456,14 +1469,16 @@
   }
 
   /* El segmento. El ✓ va arriba del rótulo y tiene su lugar siempre: la
-     primera fila de la grilla mide por lo menos lo que él, y cuando sobra
-     alto, sobra parejo arriba y abajo y el rótulo queda centrado. Elegir no
-     mueve el rótulo un píxel.
+     primera fila de la grilla mide por lo menos lo que él más su aire (3 al
+     borde, 12 de ✓ y 3 hasta el rótulo), y la última reserva lo mismo, así
+     que el rótulo queda centrado con ✓ y sin él. Elegir no mueve el rótulo
+     un píxel. Con un renglón la celda de 56 no crece; la de 48 llega a 53 y
+     la de dos renglones a 68: un ✓ que toca el canto no se lee como un ✓.
      Los rótulos largos se parten en renglones, nunca a mitad de palabra: que
      la palabra más ancha entre entera lo garantiza el reparto. */
   .segmento {
     display: grid;
-    grid-template-rows: minmax(0.875rem, 1fr) auto minmax(0, 1fr);
+    grid-template-rows: minmax(18px, 1fr) auto minmax(18px, 1fr);
     justify-items: center;
     min-width: 0;
     min-height: 48px;
@@ -1489,7 +1504,7 @@
   .segmento-tilde {
     grid-row: 1;
     align-self: end;
-    margin-bottom: 2px;
+    margin-bottom: 3px;
     opacity: 0;
     transform: scale(0.6);
     transition:
@@ -1609,10 +1624,6 @@
     background-color: var(--color-papel-alto);
     color: var(--color-tinta);
   }
-  .boton-contorno:disabled {
-    color: var(--color-tenue);
-    background-color: transparent;
-  }
   :root[data-pantalla='entrenar'] .boton-contorno,
   :root:has(.pantalla-esfuerzo) .boton-contorno {
     min-height: 56px;
@@ -1623,11 +1634,26 @@
     color: var(--color-tinta);
   }
   /* "Reemplazar sin copia": lo que borra, en contorno. El borde de 1,5 px lo
-     separa de un contorno cualquiera sin encender nada. */
+     separa de un contorno cualquiera sin encender nada. Mide 56 como las
+     acciones que lo acompañan en la hoja: más bajo que "Mejor no" se lee
+     como la opción de menos peso, y es la que más pesa. */
   .boton-contorno[data-tono='destructivo'] {
+    min-height: 56px;
     border-width: 1.5px;
     border-color: var(--color-destructivo);
     color: var(--color-destructivo);
+  }
+  /* Apagado, cualquier contorno —también el fuerte y el destructivo— va como
+     la acción apagada: punteado de 1 px en regla-fuerte, la letra en tenue y
+     sin relleno. Solo la letra más tenue no alcanza: el color solo no dice
+     "esto no responde". Sin transición, porque no acusa recibo de nada. */
+  .boton-contorno:disabled {
+    border-width: 1px;
+    border-style: dotted;
+    border-color: var(--color-regla-fuerte);
+    color: var(--color-tenue);
+    background-color: transparent;
+    transition: none;
   }
 
   /* ── EL INTERRUPTOR ───────────────────────────────────────────────────
@@ -1694,15 +1720,17 @@
 
   /* ── SALIR ───────────────────────────────────────────────────────────
      La caja de toque es más ancha que lo dibujado: se corre hacia el canto
-     lo que mide su padding, y la cruz queda alineada con el margen. */
+     lo que mide su padding, y la cruz queda alineada con el margen. Se corre
+     10 y no más: con el margen de 16, la caja arranca en 6 y el foco, que va
+     3 px afuera con un trazo de 2, termina en 1, adentro de la pantalla. */
   .boton-salir {
     display: inline-flex;
     align-items: center;
     gap: 6px;
     min-height: 56px;
     min-width: 76px;
-    margin-inline-start: -12px;
-    padding: 0 12px;
+    margin-inline-start: -10px;
+    padding: 0 12px 0 10px;
     border-radius: var(--radio-control);
     font-family: var(--font-sans);
     font-size: 0.8125rem;
@@ -1746,7 +1774,10 @@
      La modal sube desde abajo sobre una cortina del mismo negro al 72 %; la
      de "Cómo se hace" ocupa la pantalla entera, sin cortina y en papel. Las
      dos con el radio grande solo arriba: es una hoja que se apoya en el
-     canto, no una tarjeta que flota. */
+     canto, no una tarjeta que flota.
+     Entra en 280 ms y se va en 140, con la cortina fundiéndose al mismo
+     tiempo: lo que se va no merece el tiempo de lo que llega. Mientras se va
+     no recibe toques, y `Hoja` avisa que se cerró recién cuando terminó. */
   .hoja-marco {
     position: fixed;
     inset: 0;
@@ -1755,14 +1786,22 @@
     flex-direction: column;
     justify-content: flex-end;
   }
+  .hoja-marco[data-saliendo] {
+    pointer-events: none;
+  }
   .hoja-cortina {
     position: absolute;
     inset: 0;
     background-color: var(--color-fondo);
     opacity: 0.72;
+    animation: fundir-cortina 280ms var(--sal-entrada) both;
+  }
+  .hoja-marco[data-saliendo] .hoja-cortina {
+    animation: apagar-cortina 140ms var(--sal-salida) both;
   }
   .hoja-marco[data-completa] .hoja-cortina {
     opacity: 1;
+    animation: none;
   }
   .hoja {
     position: relative;
@@ -1777,10 +1816,24 @@
     animation: subir-hoja 280ms var(--sal-entrada) both;
   }
   /* Adentro de la hoja modal, lo terciario va en glosa: tenue sobre
-     papel-alto da 4,93:1, sin margen. */
-  .hoja .canal,
-  .hoja .vara {
+     papel-alto da 4,93:1, sin margen. También la letra de lo apagado, que
+     sigue distinguiéndose por el punteado. "Cómo se hace" va en papel, donde
+     el tenue da 5,32, y se queda con él. */
+  .hoja:not([data-completa])
+    :is(
+      .canal,
+      .vara,
+      .por,
+      .semana-rutina > span > span,
+      .accion:disabled,
+      .accion-quieta:disabled,
+      .segmento:disabled,
+      .boton-contorno:disabled
+    ) {
     color: var(--color-glosa);
+  }
+  .hoja-marco[data-saliendo] .hoja {
+    animation: bajar-hoja 140ms var(--sal-salida) both;
   }
   .hoja[data-completa] {
     flex: 1;
@@ -1792,6 +1845,16 @@
   @keyframes subir-hoja {
     from { opacity: 0; transform: translateY(24px); }
     to   { opacity: 1; transform: none; }
+  }
+  @keyframes bajar-hoja {
+    to { opacity: 0; transform: translateY(24px); }
+  }
+  /* Sin `to`: llega a la opacidad que la cortina tiene declarada. */
+  @keyframes fundir-cortina {
+    from { opacity: 0; }
+  }
+  @keyframes apagar-cortina {
+    to { opacity: 0; }
   }
 
 }
@@ -1826,11 +1889,12 @@
     transform: none;
   }
 
-  /* El ✓ del segmento elegido y la hoja que sube aparecen en seco. */
+  /* El ✓ del segmento elegido y la hoja aparecen y se van en seco. */
   .segmento-tilde {
     transform: none;
   }
-  .hoja {
+  .hoja,
+  .hoja-cortina {
     animation: none;
   }
 

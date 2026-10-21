@@ -13,9 +13,11 @@
  *      alto y de ancho, y su rótulo va entero en un renglón: ni partido, ni
  *      cortado, ni afuera de la pestaña.
  *   2. **Las regletas.** Cada `.regleta` de la app —el diario con la hora de
- *      acostarse, el chequeo, la molestia, Ajustes, la prueba del alta y las
- *      preguntas del final— cumple la regla de §5.6:
- *      - va en una fila, o en dos filas parejas: ⌈N/2⌉ arriba y ⌊N/2⌋ abajo;
+ *      acostarse, el chequeo, la molestia, Ajustes, las cuatro pruebas del
+ *      alta (con barra y sin ella) y las preguntas del final— cumple la regla
+ *      de §5.6:
+ *      - va en una fila, o en dos filas parejas: ⌈N/2⌉ arriba y ⌊N/2⌋ abajo,
+ *        y cada fila, con sus huecos, cubre la regleta de un borde al otro;
  *      - cada celda mide 48 o más de ancho y de alto (52 de alto las de cifra,
  *        y 56 las del esfuerzo);
  *      - ninguna palabra se parte en dos renglones ni se sale de su celda;
@@ -73,6 +75,8 @@ const MARGEN_DEL_TEXTO = 14
 
 /** Lo que un redondeo de subpíxel no debería convertir en una falla. */
 const TOLERANCIA = 0.05
+/** Lo que una fila puede quedar corta de la regleta: la grilla reparte en subpíxeles. */
+const CUBRIR = 1
 
 const fallos = []
 const deudas = []
@@ -214,7 +218,14 @@ async function leerRegletas(p) {
       const filas = []
       for (const arriba of arribas) {
         if (filas.length > 0 && arriba - filas[filas.length - 1].arriba <= 1) continue
-        filas.push({ arriba, celdas: cajas.filter((c) => Math.abs(Math.round(c.top) - arriba) <= 1).length })
+        const suyas = cajas.filter((c) => Math.abs(Math.round(c.top) - arriba) <= 1)
+        filas.push({
+          arriba,
+          celdas: suyas.length,
+          izquierda: Math.min(...suyas.map((c) => c.left)),
+          derecha: Math.max(...suyas.map((c) => c.right)),
+          anchos: suyas.reduce((suma, c) => suma + c.width, 0),
+        })
       }
 
       const cortadas = []
@@ -241,14 +252,23 @@ async function leerRegletas(p) {
       }
 
       const estilo = (el) => (el ? getComputedStyle(el).animationName : 'none')
+      const caja = regleta.getBoundingClientRect()
       return {
         etiqueta: regleta.getAttribute('aria-label') ?? '(sin nombre)',
         grupo: regleta.getAttribute('role') === 'group',
-        ancho: regleta.getBoundingClientRect().width,
+        ancho: caja.width,
         vertical: regleta.hasAttribute('data-vertical'),
         esfuerzo: regleta.hasAttribute('data-esfuerzo'),
         n: celdas.length,
         filas: filas.map((f) => f.celdas),
+        // Cada fila contra los bordes de la regleta: dónde empieza su primera
+        // celda, dónde termina la última y cuánto suman entre las dos.
+        bordes: filas.map((f) => ({
+          celdas: f.celdas,
+          izquierda: f.izquierda - caja.left,
+          derecha: caja.right - f.derecha,
+          anchos: f.anchos,
+        })),
         celdas: celdas.map((c, i) => ({
           nombre: c.textContent?.trim() ?? '',
           ancho: cajas[i].width,
@@ -291,6 +311,21 @@ async function revisarRegletas(p, telefono, pantalla, { esperadas = 1 } = {}) {
     medidas.push(`${donde} · ${r.n} en ${forma}, palabra más ancha ${r.palabraMasAncha.toFixed(1)} px.`)
     ;(formas[pantalla] ??= {})[r.etiqueta] ??= {}
     formas[pantalla][r.etiqueta][telefono.nombre] = forma
+
+    // Contar las celdas de cada fila no alcanza: un 4 + 3 con la última fila
+    // repartida en tercios de cuarto deja una celda de hueco a la derecha y
+    // cuenta igual. Cada fila, con sus huecos, cubre el ancho de adentro de la
+    // regleta, de relleno a relleno.
+    const interior = r.ancho - 2 * RELLENO
+    for (const [i, f] of r.bordes.entries()) {
+      const cubre = f.anchos + (f.celdas - 1) * HUECO
+      const corrida = Math.max(Math.abs(f.izquierda - RELLENO), Math.abs(f.derecha - RELLENO), Math.abs(cubre - interior))
+      if (corrida > CUBRIR) {
+        fallos.push(
+          `${donde} · la fila ${i + 1} (${f.celdas} celdas) no cubre la regleta: empieza a ${f.izquierda.toFixed(1)} px del borde, termina a ${f.derecha.toFixed(1)} y ocupa ${cubre.toFixed(1)} de ${interior.toFixed(1)} px (con relleno de ${RELLENO}).`,
+        )
+      }
+    }
 
     if (!r.vertical) {
       const parejas = r.filas.length === 2 && r.filas[0] === Math.ceil(r.n / 2) && r.filas[1] === Math.floor(r.n / 2)
@@ -357,24 +392,42 @@ for (const telefono of TELEFONOS) {
     viewport: { width: telefono.width, height: telefono.height },
   })
 
-  // La prueba del alta: la primera pantalla de prueba tiene la regleta de
-  // siete u ocho valores, y elegir uno es el "no se corre" del alta.
-  let rotuloAntes = null
-  await alta(p, {
-    enCadaPaso: async (paso) => {
-      if (paso === 'prueba') {
-        await revisarRegletas(p, telefono, 'Alta · prueba')
-        rotuloAntes = await p.getByRole('button', { name: '12', exact: true }).locator('.segmento-texto').boundingBox()
-      }
-      if (paso === 'prueba-elegida') {
-        const ahora = await p.getByRole('button', { name: '12', exact: true }).locator('.segmento-texto').boundingBox()
-        if (rotuloAntes && ahora && Math.abs(ahora.y - rotuloAntes.y) > 0.5) {
-          fallos.push(`[${telefono.nombre}] Alta · prueba · elegir «12» corrió el rótulo ${Math.abs(ahora.y - rotuloAntes.y).toFixed(1)} px.`)
+  // Las cuatro pruebas del alta, con barra y sin ella. Cada una tiene su
+  // regleta (ocho, siete, siete y ocho valores; seis en la tracción sin
+  // barra), y es la MISMA regleta la que pasa de una prueba a la otra sin
+  // desmontarse: mirando solo la primera no se ve si la segunda hereda el
+  // reparto de ocho. Elegir «12» en la primera es el "no se corre" del alta.
+  for (const conBarra of [true, false]) {
+    const cual = conBarra ? 'con barra' : 'sin barra'
+    const abierto = conBarra ? null : await abrir({ viewport: { width: telefono.width, height: telefono.height } })
+    const q = abierto ? abierto.pagina : p
+    let rotuloAntes = null
+    let pruebas = 0
+    await alta(q, {
+      conBarra,
+      enCadaPaso: async (paso) => {
+        if (paso === 'prueba' || /^prueba-\d$/.test(paso)) {
+          pruebas++
+          await revisarRegletas(q, telefono, `Alta ${cual} · prueba ${paso === 'prueba' ? 1 : paso.slice(-1)}`)
         }
-      }
-      if (paso !== 'prueba-elegida') await anotarDeuda(p, telefono, `Alta · ${paso}`)
-    },
-  })
+        if (paso === 'prueba') {
+          rotuloAntes = await q.getByRole('button', { name: '12', exact: true }).locator('.segmento-texto').boundingBox()
+        }
+        if (paso === 'prueba-elegida') {
+          const ahora = await q.getByRole('button', { name: '12', exact: true }).locator('.segmento-texto').boundingBox()
+          if (rotuloAntes && ahora && Math.abs(ahora.y - rotuloAntes.y) > 0.5) {
+            fallos.push(`[${telefono.nombre}] Alta ${cual} · prueba 1 · elegir «12» corrió el rótulo ${Math.abs(ahora.y - rotuloAntes.y).toFixed(1)} px.`)
+          }
+        }
+        if (conBarra && paso !== 'prueba-elegida') await anotarDeuda(q, telefono, `Alta · ${paso}`)
+      },
+    })
+    if (pruebas !== 4) fallos.push(`[${telefono.nombre}] Alta ${cual} · se midieron ${pruebas} de 4 pruebas.`)
+    if (abierto) {
+      fallos.push(...abierto.fallos.map((e) => `[${telefono.nombre}] Alta ${cual} · ${e}`))
+      await abierto.navegador.close()
+    }
+  }
 
   for (const [ruta, nombre] of SECCIONES) {
     await ir(p, ruta)

@@ -112,7 +112,7 @@ export function Ajustes() {
           algo en vez de un poco de todo— y si la cosa se sostiene seis meses
           porque dan ganas de entrar, eso también cuenta.
         */}
-        <p className="mt-2 max-w-[42ch] text-xs leading-relaxed text-[var(--color-glosa)]">
+        <p className="mt-2 max-w-[42ch] texto-glosa">
           Cada una entrena un grupo por sesión, con cuatro o cinco ejercicios en
           vez de uno. Si hacés las cuatro en la semana, a cada una le toca un
           día.
@@ -156,7 +156,7 @@ export function Ajustes() {
        */}
       <section className="entrar-en-orden mt-8" style={orden(1)}>
         <Rotulo>LA SEMANA</Rotulo>
-        <p className="mt-2 max-w-[42ch] text-xs leading-relaxed text-[var(--color-glosa)]">
+        <p className="mt-2 max-w-[42ch] texto-glosa">
           Tocá un día para cambiarlo. Fuerza es la sesión de siempre; fuelle es
           acondicionamiento, sin una sola serie de la que el motor opine; las dos mete
           las ráfagas adentro de los descansos y un bloque metabólico al final.
@@ -196,7 +196,7 @@ export function Ajustes() {
             {avisos.map((aviso) => (
               <p
                 key={aviso.clave}
-                className="max-w-[42ch] text-xs leading-relaxed"
+                className="max-w-[42ch] texto-glosa"
                 style={{
                   color:
                     aviso.gravedad === 'impide'
@@ -216,7 +216,7 @@ export function Ajustes() {
           que la app te va a pedir que hagas, no cómo se ve. */}
       <section className="entrar-en-orden mt-8" style={orden(2)}>
         <Rotulo>EL FUELLE</Rotulo>
-        <p className="mt-2 max-w-[42ch] text-xs leading-relaxed text-[var(--color-glosa)]">
+        <p className="mt-2 max-w-[42ch] texto-glosa">
           Trabajo metabólico en los huecos que la sesión ya tenía. Nunca sale del descanso
           que hace falta para la serie que viene, y nunca carga el patrón que estás
           entrenando: eso es lo que evita que transpirar te cueste fuerza. Acá elegís cuán
@@ -257,7 +257,7 @@ export function Ajustes() {
               </span>
               <span className="min-w-0">
                 <span className="nombre block">{titulo}</span>
-                <span className="mt-0.5 block text-xs leading-relaxed text-[var(--color-glosa)]">
+                <span className="mt-0.5 block texto-glosa">
                   {detalle}
                 </span>
               </span>
@@ -300,7 +300,7 @@ export function Ajustes() {
             y el motor BAJABA el objetivo cuando la carga había subido.
 
             Mientras no esté, nada cambia y los kilos no se ofrecen. */}
-        <p className="mt-2 max-w-[42ch] text-xs leading-relaxed text-[var(--color-glosa)]">
+        <p className="mt-2 max-w-[42ch] texto-glosa">
           Tu peso es lo único que deja convertir los kilos de la barra a la escala en la que el
           motor mide la carga. No se publica, no se compara con nada y no sale del teléfono. Sin
           él, la app sigue funcionando igual que siempre y no te va a ofrecer poner discos.
@@ -482,7 +482,7 @@ function Numero({
       <span className="min-w-0">
         <span className="nombre block">{titulo}</span>
         {detalle && (
-          <span className="mt-0.5 block text-xs leading-relaxed text-[var(--color-glosa)]">
+          <span className="mt-0.5 block texto-glosa">
             {detalle}
           </span>
         )}

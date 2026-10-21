@@ -34,7 +34,6 @@ import {
   entra,
   repartir,
   unaFila,
-  type Reparto,
 } from './regleta'
 
 /** El patrón como tinta sobre papel. Para la noche está la rampa de luz. */
@@ -93,16 +92,24 @@ const TRAZOS = {
   ),
   // Una raya arriba de un trazo corto: el techo alcanzado. No es una estrella,
   // porque la estrella quiere decir "estás acá" y nada más, y al lado de un
-  // récord se leería como medalla.
-  tope: <path d="M2.75 3.25h10.5M8 3.25v9.5" />,
+  // récord se leería como medalla. El trazo mide menos de la mitad de la raya:
+  // con los dos parejos es una T de palo seco, y al lado de "Tu mejor serie"
+  // se lee como la inicial.
+  tope: <path d="M2.25 5.5h11.5M8 5.5v5" />,
 } satisfies Record<string, ReactNode>
 
 export type NombreDeSimbolo = keyof typeof TRAZOS
 
 /**
- * La clase de día como símbolo: de menos a más peso, como en la grilla de la
- * semana. El texto del dominio (`GLIFO_CLASE`) no cambia; se traduce al
- * dibujar.
+ * La clase de día como símbolo, en el canal de LA SEMANA y en la semana de
+ * una rutina.
+ *
+ * Son cuatro distintos y no dos, porque el canal existe para escanear la
+ * columna sin leer: con el mismo rombo lleno en fuerza, en fuelle y en las dos,
+ * la única diferencia quedaría en el rótulo de la derecha y habría que leerlo
+ * día por día. Van de menos a más peso —punto, hueco, lleno, lleno con núcleo—
+ * así que la semana se lee de un vistazo como lo que es, una tira de
+ * intensidad.
  */
 export const SIMBOLO_CLASE: Record<ClaseDeDia, NombreDeSimbolo> = {
   descanso: 'punto',
@@ -137,9 +144,9 @@ export function Simbolo({
 /**
  * Lo elegido en una lista de filas: un anillo, y adentro un disco cuando está.
  *
- * Reemplaza a los ◆/◇ que marcaban la rutina, la intensidad del fuelle y el
- * formato del reloj. El rombo ya quiere decir "clase de día" en la semana, y
- * el mismo signo diciendo dos cosas en la misma pantalla no dice ninguna.
+ * Marca la rutina, la intensidad del fuelle y el formato del reloj. No es un
+ * rombo porque el rombo ya quiere decir "clase de día" en la semana, y el
+ * mismo signo diciendo dos cosas en la misma pantalla no dice ninguna.
  */
 export function MarcaRadio({ elegida }: { elegida: boolean }) {
   return <span className="marca-radio" data-elegida={elegida} aria-hidden="true" />
@@ -260,8 +267,8 @@ export function AccionQuieta({
 /**
  * "Salir" del esfuerzo, con la cruz adelante.
  *
- * Era un rótulo de 43×16: el botón que más se busca con la mano temblando era
- * el más chico de la pantalla. Mide 56 de alto, como todo lo que se toca ahí.
+ * Es el botón que más se busca con la mano temblando, así que no puede ser el
+ * más chico de la pantalla: mide 56 de alto, como todo lo que se toca ahí.
  */
 export function BotonSalir({ onClick, children = 'Salir' }: { onClick: () => void; children?: ReactNode }) {
   return (
@@ -277,9 +284,18 @@ export function BotonSalir({ onClick, children = 'Salir' }: { onClick: () => voi
 /** Cuántas columnas de la grilla ocupa cada celda, para el segmento. */
 const CeldaDeRegleta = createContext<number | null>(null)
 
-interface Forma {
-  reparto: Reparto
-  vertical: boolean
+/**
+ * Lo que la regleta mide de sí misma. Se guarda lo medido y no la forma: la
+ * forma depende también de cuántas opciones hay, y la misma regleta puede
+ * pasar de ocho a siete sin desmontarse (el alta, de una prueba a la otra).
+ */
+interface MedidaDeRegleta {
+  /** La palabra más ancha, en px. */
+  palabra: number
+  /** El ancho de la regleta en este teléfono. */
+  ancho: number
+  /** El que tendría en un 320, contra el que se decide. */
+  anchoA320: number
 }
 
 let lienzo: CanvasRenderingContext2D | null | undefined
@@ -319,8 +335,8 @@ function anchoA320(regleta: HTMLElement, ancho: number): number {
   return ancho - Math.max(0, exterior - ANCHO_DE_REFERENCIA)
 }
 
-const mismaForma = (a: Forma, b: Forma) =>
-  a.vertical === b.vertical && a.reparto.filas === b.reparto.filas && a.reparto.columnas === b.reparto.columnas
+const mismaMedida = (a: MedidaDeRegleta, b: MedidaDeRegleta) =>
+  a.palabra === b.palabra && a.ancho === b.ancho && a.anchoA320 === b.anchoA320
 
 /**
  * La regleta de opciones: segmentos donde uno está elegido.
@@ -351,10 +367,7 @@ export function Regleta({
   const ref = useRef<HTMLDivElement>(null)
   const celdas = Children.toArray(children).filter(isValidElement)
   const cantidad = celdas.length
-  const [forma, setForma] = useState<Forma>(() => ({
-    reparto: cantidad <= 5 ? unaFila(cantidad) : dosFilas(cantidad),
-    vertical: false,
-  }))
+  const [medida, setMedida] = useState<MedidaDeRegleta | null>(null)
 
   const medir = () => {
     const regleta = ref.current
@@ -362,14 +375,8 @@ export function Regleta({
     const palabra = palabraMasAncha(regleta)
     if (palabra === null) return
     const ancho = regleta.getBoundingClientRect().width
-    const reparto = repartir({
-      opciones: cantidad,
-      ancho: anchoA320(regleta, ancho),
-      palabraMasAncha: palabra,
-      celdaMinima: esfuerzo ? CELDA_MINIMA_ESFUERZO : CELDA_MINIMA,
-    })
-    const nueva = { reparto, vertical: !entra(reparto, ancho, palabra) }
-    setForma((antes) => (mismaForma(antes, nueva) ? antes : nueva))
+    const nueva = { palabra, ancho, anchoA320: anchoA320(regleta, ancho) }
+    setMedida((antes) => (antes && mismaMedida(antes, nueva) ? antes : nueva))
   }
   const medirAhora = useRef(medir)
   medirAhora.current = medir
@@ -391,14 +398,24 @@ export function Regleta({
     }
   }, [])
 
-  const { reparto, vertical } = forma
+  // Hasta la primera medida, que llega antes de pintar, la forma probable.
+  const reparto = medida
+    ? repartir({
+        opciones: cantidad,
+        ancho: medida.anchoA320,
+        palabraMasAncha: medida.palabra,
+        celdaMinima: esfuerzo ? CELDA_MINIMA_ESFUERZO : CELDA_MINIMA,
+      })
+    : cantidad <= 5
+      ? unaFila(cantidad)
+      : dosFilas(cantidad)
+  const vertical = medida ? !entra(reparto, medida.ancho, medida.palabra) : false
   return (
     <div
       ref={ref}
       className={`regleta ${className}`}
       role="group"
       aria-label={etiqueta}
-      data-filas={vertical ? undefined : reparto.filas}
       data-vertical={vertical || undefined}
       data-esfuerzo={esfuerzo || undefined}
       style={{ ['--columnas' as string]: vertical ? 1 : reparto.columnas }}
@@ -481,7 +498,7 @@ export function Interruptor({
       <span className="canal" />
       <span className="min-w-0">
         <span className="nombre block">{titulo}</span>
-        {detalle && <span className="texto-chico mt-1 block">{detalle}</span>}
+        {detalle && <span className="texto-glosa mt-0.5 block">{detalle}</span>}
       </span>
       <span className="flex items-center gap-3">
         <span className="interruptor" data-activo={activo} aria-hidden="true" />
@@ -532,6 +549,12 @@ const ENFOCABLES =
  * que la abrió. La hoja misma recibe el foco al abrirse, no su primer botón:
  * en una confirmación ese botón es el que reemplaza o borra, y un Enter de
  * más no puede bastar para eso.
+ *
+ * La salida la hace ella: Escape, la cortina o el `cerrar` que les pasa a sus
+ * hijos (`children` como función) corren los 140 ms de bajada, y `onCerrar`
+ * llega recién al terminar, para que el padre la desmonte cuando ya no se ve.
+ * Sin animación —movimiento reducido, el esfuerzo, "Cómo se hace"— avisa en
+ * el acto.
  */
 export function Hoja({
   children,
@@ -540,7 +563,7 @@ export function Hoja({
   completa = false,
   className = '',
 }: {
-  children: ReactNode
+  children: ReactNode | ((cerrar: () => void) => ReactNode)
   onCerrar: () => void
   /** El nombre del diálogo. */
   etiqueta: string
@@ -548,8 +571,16 @@ export function Hoja({
   className?: string
 }) {
   const ref = useRef<HTMLDivElement>(null)
-  const cerrar = useRef(onCerrar)
-  cerrar.current = onCerrar
+  const avisar = useRef(onCerrar)
+  avisar.current = onCerrar
+  const [saliendo, setSaliendo] = useState(false)
+  const pedida = useRef(false)
+  const cerrar = useRef(() => {
+    if (pedida.current) return
+    pedida.current = true
+    if (completa) avisar.current()
+    else setSaliendo(true)
+  })
 
   useEffect(() => {
     const hoja = ref.current
@@ -587,8 +618,34 @@ export function Hoja({
     }
   }, [])
 
+  // La bajada: se espera a que termine la animación que de verdad corre. Si
+  // no corre ninguna, se avisa ya; y si queda trabada —una pestaña oculta—,
+  // el respaldo avisa igual: una hoja que no se va deja la pantalla muerta.
+  useEffect(() => {
+    if (!saliendo) return
+    let avisado = false
+    const terminar = () => {
+      if (avisado) return
+      avisado = true
+      avisar.current()
+    }
+    const bajadas = (ref.current?.getAnimations() ?? []).filter(
+      (a) => 'animationName' in a && a.animationName === 'bajar-hoja',
+    )
+    if (bajadas.length === 0) {
+      terminar()
+      return
+    }
+    void Promise.allSettled(bajadas.map((a) => a.finished)).then(terminar)
+    const respaldo = window.setTimeout(terminar, 400)
+    return () => {
+      avisado = true
+      window.clearTimeout(respaldo)
+    }
+  }, [saliendo])
+
   return createPortal(
-    <div className="hoja-marco" data-completa={completa || undefined}>
+    <div className="hoja-marco" data-completa={completa || undefined} data-saliendo={saliendo || undefined} inert={saliendo}>
       <div className="hoja-cortina" onClick={completa ? undefined : () => cerrar.current()} aria-hidden="true" />
       <div
         ref={ref}
@@ -599,7 +656,7 @@ export function Hoja({
         tabIndex={-1}
         data-completa={completa || undefined}
       >
-        {children}
+        {typeof children === 'function' ? children(cerrar.current) : children}
       </div>
     </div>,
     document.body,

@@ -197,8 +197,11 @@ export function Alta() {
     }
   }
 
+  // Las acciones van en cajas con borde y radio, no a sangre: abajo llevan el
+  // mismo aire que el pie del cierre, 16 por encima del canto y del área
+  // segura, para que la caja se vea entera y no cortada por el borde.
   return (
-    <div className="mx-auto flex min-h-dvh w-full max-w-lg flex-col px-4 pt-10">
+    <div className="mx-auto flex min-h-dvh w-full max-w-lg flex-col px-4 pt-10 pb-[calc(1rem+env(safe-area-inset-bottom))]">
       {paso === 'propuesta' && (
         <Propuesta
           aviso={aviso}
@@ -553,7 +556,7 @@ function Dias({
                 </span>
                 <span className="min-w-0">
                   <span className="nombre block">{rutina.nombre}</span>
-                  <span className="mt-0.5 block text-xs leading-relaxed text-[var(--color-glosa)]">
+                  <span className="mt-0.5 block texto-glosa">
                     {rutina.descripcion}
                   </span>
                 </span>

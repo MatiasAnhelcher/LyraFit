@@ -171,8 +171,8 @@ export function Serie({
   hayAnotadas: boolean
   onDeshacer: () => void
 }) {
-  // 16 abajo y no 32: la secundaria de abajo es una caja de 56 con su propio
-  // aire, y con los 32 de antes la serie no entraba entera en un 640.
+  // 16 abajo: la secundaria de abajo es una caja de 56 con su propio aire, y
+  // con más la serie no entra entera en un 640.
   return (
     <section className="flex flex-1 flex-col justify-center pb-4">
       {/* La pregunta dice en qué momento estás.

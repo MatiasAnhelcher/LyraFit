@@ -219,7 +219,7 @@ export function Reloj() {
                 </span>
                 <span className="min-w-0">
                   <span className="nombre block">{f.nombre}</span>
-                  <span className="mt-0.5 block text-xs leading-relaxed text-[var(--color-glosa)]">
+                  <span className="mt-0.5 block texto-glosa">
                     {f.nota}
                   </span>
                 </span>
@@ -231,7 +231,7 @@ export function Reloj() {
 
         <section className="mt-8">
           <Rotulo>EJERCICIOS</Rotulo>
-          <p className="mt-2 max-w-[42ch] text-xs leading-relaxed text-[var(--color-glosa)]">
+          <p className="mt-2 max-w-[42ch] texto-glosa">
             De uno a {TOPE_DE_EJERCICIOS}. Si elegís varios, rotan vuelta por vuelta: el músculo
             que descansa es otro y por eso se sostiene mejor.
           </p>

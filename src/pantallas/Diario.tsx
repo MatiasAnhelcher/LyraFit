@@ -173,7 +173,6 @@ function HoraDeAcostarse({
               elegido={hora?.minutos === h * 60}
               onClick={() => poner({ horaDeDormir: h * 60, horaDeDormirContestada: true })}
               cifra
-              className="flex-1"
               prueba={`dormir-${h}`}
             >
               {h}
@@ -242,7 +241,6 @@ export function Diario() {
               elegido={actual.sueno === t}
               onClick={() => poner({ sueno: t })}
               cifra
-              className="flex-1"
               prueba={`sueno-${t}`}
             >
               {t}
@@ -261,7 +259,6 @@ export function Diario() {
               elegido={actual.ultimaCafeina === h * 60}
               onClick={() => poner({ ultimaCafeina: h * 60 })}
               cifra
-              className="flex-1"
             >
               {h}
             </Segmento>
@@ -272,7 +269,6 @@ export function Diario() {
           <Segmento
             elegido={actual.ultimaCafeina === SIN_CAFEINA}
             onClick={() => poner({ ultimaCafeina: SIN_CAFEINA })}
-            className="flex-1"
             prueba="cafeina-nada"
           >
             Nada
@@ -302,7 +298,6 @@ export function Diario() {
               elegido={porciones === n}
               onClick={() => poner({ porcionesDeProteina: n })}
               cifra
-              className="flex-1"
               prueba={`proteina-${n}`}
             >
               {n}
@@ -328,7 +323,6 @@ export function Diario() {
               key={String(valor)}
               elegido={actual.verduraEnDos === valor}
               onClick={() => poner({ verduraEnDos: valor as boolean })}
-              className="flex-1"
             >
               {texto as string}
             </Segmento>
@@ -344,7 +338,6 @@ export function Diario() {
               key={a}
               elegido={actual.alcohol === a}
               onClick={() => poner({ alcohol: a })}
-              className="flex-1"
             >
               {NOMBRE_ALCOHOL[a]}
             </Segmento>
@@ -363,7 +356,6 @@ export function Diario() {
               key={String(valor)}
               elegido={actual.creatina === valor}
               onClick={() => poner({ creatina: valor as boolean })}
-              className="flex-1"
             >
               {texto as string}
             </Segmento>

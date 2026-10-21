@@ -197,7 +197,7 @@ export function TusDatos({
           </div>
 
           {!almacenamiento.persistente && !almacenamiento.instalada && (
-            <p className="mt-3 max-w-[42ch] text-xs leading-relaxed text-[var(--color-ambar)]">
+            <p className="mt-3 max-w-[42ch] texto-glosa text-[var(--color-ambar)]">
               No hay servidor: esta base no es una copia de tus datos, es la única. Sin instalar
               la app, el navegador puede borrarla para liberar espacio, y Safari lo hace tras unos
               días sin abrirla. Instalarla lo resuelve: compartir{' '}
@@ -250,7 +250,7 @@ export function TusDatos({
                 </span>
                 <span className="min-w-0">
                   <span className="nombre block">{titulo}</span>
-                  <span className="mt-0.5 block text-xs leading-relaxed text-[var(--color-glosa)]">
+                  <span className="mt-0.5 block texto-glosa">
                     {[cuantasSesiones(resumen.sesiones), detalleDelResumen(resumen), extra]
                       .filter(Boolean)
                       .join(' · ')}
@@ -267,14 +267,14 @@ export function TusDatos({
               : 'Antes de reemplazar guardo una copia automática de lo que tenés ahora.'}
           </p>
           {restauracion.borrador && (
-            <p className="mt-3 max-w-[42ch] text-xs leading-relaxed text-[var(--color-ambar)]">
+            <p className="mt-3 max-w-[42ch] texto-glosa text-[var(--color-ambar)]">
               {textoDelBorradorAlRestaurar(restauracion.borrador, diaLocal(Date.now()))}
             </p>
           )}
           {restauracion.sinCopia && (
             <p
               role="alert"
-              className="mt-3 max-w-[42ch] text-xs leading-relaxed text-[var(--color-ambar)]"
+              className="mt-3 max-w-[42ch] texto-glosa text-[var(--color-ambar)]"
             >
               No pude guardar una copia automática en este navegador, así que todavía no cambié
               nada. Si querés conservar lo que tenés, descargá una copia antes de seguir.

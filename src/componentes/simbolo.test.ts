@@ -7,8 +7,9 @@
  * `<Simbolo>`. Esto recorre `src/` y falla si alguno vuelve a escribirse
  * como carácter.
  *
- * Quedan afuera `src/dominio/`, que es el texto fuente que `<Simbolo>`
- * traduce al dibujar (`GLIFO_CLASE`, por ejemplo), y los comentarios, que no
+ * Quedan afuera `src/dominio/`, que no dibuja nada —sus flechas viven en
+ * mensajes de prueba y en tablas de comentarios, y lo que el dominio dice con
+ * un signo la pantalla lo dibuja con `<Simbolo>`—, y los comentarios, que no
  * se dibujan. Para saber qué es comentario no alcanza con buscar `//`: está
  * en cada dirección web y en más de una expresión regular. Se recorre el
  * texto como lo recorre el compilador —cadenas, plantillas y comentarios—, y

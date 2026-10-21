@@ -16,71 +16,78 @@ export function Preguntas({
   const [animo, setAnimo] = useState<number | undefined>()
   const [energia, setEnergia] = useState<number | undefined>()
 
+  // Una grilla de dos filas al alto de la pantalla: las preguntas scrollean
+  // adentro de `main` y "Cerrar la sesión" es la fila de abajo, siempre a la
+  // vista. Con tres regletas de 3 + 2 la página entera no entra en un 640, y
+  // si scrolleara ella, la acción quedaría debajo del borde.
   return (
-    <div className="flex min-h-dvh flex-col">
-      <main className="mx-auto w-full max-w-lg flex-1 px-4 pt-10">
-        <Rotulo>ANTES DE CERRAR</Rotulo>
+    <div className="grid h-svh grid-rows-[minmax(0,1fr)_auto]">
+      <main className="overflow-y-auto overscroll-contain">
+        <div className="mx-auto w-full max-w-lg px-4 pt-10 pb-6">
+          <Rotulo>ANTES DE CERRAR</Rotulo>
 
-        <Pregunta
-          titulo="¿Qué tan dura te resultó?"
-          opciones={[
-            [2, 'Suave'],
-            [4, 'Moderada'],
-            [6, 'Exigente'],
-            [8, 'Dura'],
-            [10, 'Al límite'],
-          ]}
-          valor={esfuerzo}
-          onElegir={setEsfuerzo}
-        />
+          <Pregunta
+            titulo="¿Qué tan dura te resultó?"
+            opciones={[
+              [2, 'Suave'],
+              [4, 'Moderada'],
+              [6, 'Exigente'],
+              [8, 'Dura'],
+              [10, 'Al límite'],
+            ]}
+            valor={esfuerzo}
+            onElegir={setEsfuerzo}
+          />
 
-        <Pregunta
-          titulo="¿Cómo te sentiste haciéndola?"
-          opciones={[
-            [-2, 'Mal'],
-            [-1, 'Cuesta arriba'],
-            [0, 'Neutra'],
-            [1, 'Bien'],
-            [2, 'Muy bien'],
-          ]}
-          valor={animo}
-          onElegir={setAnimo}
-        />
+          <Pregunta
+            titulo="¿Cómo te sentiste haciéndola?"
+            opciones={[
+              [-2, 'Mal'],
+              [-1, 'Cuesta arriba'],
+              [0, 'Neutra'],
+              [1, 'Bien'],
+              [2, 'Muy bien'],
+            ]}
+            valor={animo}
+            onElegir={setAnimo}
+          />
 
-        <Pregunta
-          titulo="¿Cuánta energía tenés ahora?"
-          // La misma escala de cinco puntos y las mismas etiquetas que el
-          // chequeo diario. Si las dos puntas del delta no se miden con la
-          // misma vara, el delta no significa nada.
-          opciones={[
-            [1, 'En el piso'],
-            [2, 'Con poca energía'],
-            [3, 'Normal'],
-            [4, 'Con energía'],
-            [5, 'A pleno'],
-          ]}
-          valor={energia}
-          onElegir={setEnergia}
-        />
+          <Pregunta
+            titulo="¿Cuánta energía tenés ahora?"
+            // La misma escala de cinco puntos y las mismas etiquetas que el
+            // chequeo diario. Si las dos puntas del delta no se miden con la
+            // misma vara, el delta no significa nada.
+            opciones={[
+              [1, 'En el piso'],
+              [2, 'Con poca energía'],
+              [3, 'Normal'],
+              [4, 'Con energía'],
+              [5, 'A pleno'],
+            ]}
+            valor={energia}
+            onElegir={setEnergia}
+          />
 
-        <p className="mt-8 max-w-[38ch] text-xs leading-relaxed text-[var(--color-glosa)]">
-          Nada de esto es obligatorio. Lo usa el motor para no bajarte el objetivo por un mal día,
-          y para mostrarte con tus propios datos qué te deja entrenar.
-        </p>
+          <p className="mt-8 max-w-[38ch] text-xs leading-relaxed text-[var(--color-glosa)]">
+            Nada de esto es obligatorio. Lo usa el motor para no bajarte el objetivo por un mal día,
+            y para mostrarte con tus propios datos qué te deja entrenar.
+          </p>
+        </div>
+      </main>
 
+      <div>
         {/* En ámbar, que es el techo de alarma de esta pantalla: el rojo de
-            borrar no existe en el entrenamiento. */}
+            borrar no existe en el entrenamiento. Va en la fila de abajo, arriba
+            del botón que lo provocó: en el scroll de `main` quedaría escondido
+            debajo de las preguntas. */}
         {error && (
           <p
             role="alert"
-            className="mt-6 max-w-[38ch] text-sm leading-relaxed text-[var(--color-ambar)]"
+            className="mx-auto w-full max-w-lg px-4 pt-3 pb-4 text-sm leading-relaxed text-[var(--color-ambar)]"
           >
             {error}
           </p>
         )}
-      </main>
-
-      <div className="mt-auto">
         <Accion
           esfuerzo
           deshabilitado={guardando}

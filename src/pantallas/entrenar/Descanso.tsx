@@ -142,8 +142,8 @@ export function Descanso({
         )
       )}
 
-      {/* Los botones del esfuerzo miden 56 y no 47: para que no bajaran del
-          borde, los dos aires de arriba pasaron de 32 a 24. */}
+      {/* 24 de aire arriba, acá y arriba de Lyra: con los botones de 56 del
+          esfuerzo, más aire los baja del borde en un 640. */}
       <div className="mt-6 flex gap-3">
         <button onClick={onSumar} className="boton-contorno">
           +30 s
