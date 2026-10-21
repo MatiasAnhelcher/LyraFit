@@ -15,6 +15,8 @@
  *   1. `Empezar` con aire suficiente sobre la barra, en tres teléfonos, con
  *      hoy puesto como día de entrenar: es el estado alto, y el que ya se
  *      rompió. Un día de descanso sobran 188 px y uno de entrenar quedan 12.
+ *      El piso es el primer `nav`, que tiene que ser la barra de 56, y
+ *      Empezar se mide en su lugar, con el dock sin pegar.
  *   2. Los botones del descanso —`+30 s` y `Saltear`— adentro de la pantalla,
  *      con la página arriba de todo, en un día de las dos y en uno de fuerza.
  *      Esta es la que decide si el aviso de "qué viene después" se queda en el
@@ -284,6 +286,25 @@ async function medirHoy(p, telefono, rutina) {
   // El piso es la barra de navegación; si no hay, el borde de la pantalla.
   const nav = await p.locator('nav').first().boundingBox()
   const piso = nav ? nav.y : telefono.height
+  // Y tiene que ser la barra, de 56: si algo nuevo fuera un `nav` antes que
+  // ella, esto mediría el aire contra eso. Empezar, además, en su lugar: el
+  // dock pegado siempre deja 16 de aire, y con él pegado este portón no
+  // mediría nada.
+  const armazon = await p.evaluate(() => {
+    const primero = document.querySelector('nav')
+    return {
+      esLaBarra: primero?.getAttribute('aria-label') === 'Secciones',
+      alto: primero?.getBoundingClientRect().height ?? 0,
+      pegado: document.querySelector('.dock')?.hasAttribute('data-pegado') ?? false,
+    }
+  })
+  if (!armazon.esLaBarra) culpar(telefono, `[${telefono.nombre}] En Hoy (${rutina}) el primer nav no es la barra de secciones.`)
+  else if (Math.abs(armazon.alto - 56) > 0.5) {
+    culpar(telefono, `[${telefono.nombre}] En Hoy (${rutina}) la barra mide ${armazon.alto.toFixed(1)} de alto y no 56.`)
+  }
+  if (armazon.pegado) {
+    culpar(telefono, `[${telefono.nombre}] En Hoy (${rutina}) el dock está pegado aunque Empezar entra en su lugar: el aire medido es el del dock.`)
+  }
   const aire = piso - (empezar.y + empezar.height)
   medidas.push(
     `[${telefono.nombre}] Hoy (${rutina}) · Empezar termina en ${Math.round(empezar.y + empezar.height)}, la barra arranca en ${Math.round(piso)}: ${Math.round(aire)} px de aire.`,

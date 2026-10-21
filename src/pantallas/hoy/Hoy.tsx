@@ -145,6 +145,9 @@ export function Hoy() {
   if (!avances || !preferencias || !sesiones || !estados) {
     return (
       <>
+        <h1 className="sr-only" tabIndex={-1}>
+          Hoy
+        </h1>
         <Rotulo>{FORMATO_FECHA.format(hoy).toUpperCase()}</Rotulo>
         <div className="mt-6">
           <Cargando filas={4} />
@@ -419,6 +422,12 @@ export function Hoy() {
 
   return (
     <>
+      {/* El título de la pantalla es para el lector: lo que se ve arriba es
+          la fecha y la cifra, y un "Hoy" grande no diría nada que la barra no
+          diga. Es adonde va el foco al llegar. */}
+      <h1 className="sr-only" tabIndex={-1}>
+        Hoy
+      </h1>
       <Encabezado hoy={hoy} total={total} hito={hito} />
 
       {ajuste.mensaje && (
@@ -488,6 +497,7 @@ export function Hoy() {
         factorDelDia={factorDelDia}
         siguiente={siguiente}
         molestiaDeHoy={molestiaDeHoy}
+        haySinCerrar={!!sinCerrar}
       />
 
       {/* Por qué bajó el core, si la revisión de la palanca frontal lo bajó.

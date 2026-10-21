@@ -33,7 +33,7 @@ export function Biblioteca() {
       saturación. El dominio nunca aparece a ese tamaño. Es la regla que impide
       que nueve colores peleen por la misma pantalla.
     */
-    <div data-dominio="fuerza" className="campo -mt-8 pt-8">
+    <div data-dominio="fuerza" className="campo campo-hasta-arriba">
       <header className="flex items-start justify-between gap-4">
         <div>
           <Rotulo className="rotulo-dominio">BIBLIOTECA</Rotulo>

@@ -3,6 +3,7 @@ import { Navigate, Route, Routes, useLocation } from 'react-router-dom'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { Layout } from './componentes/Layout'
 import { useAplicarMovimiento, useAvisarLugar, useCargando } from './componentes/movimiento'
+import { useTituloYFoco } from './hooks/useTituloYFoco'
 import { Rotulo } from './componentes/ui'
 import { Hoy } from './pantallas/hoy/Hoy'
 import { Entrenar } from './pantallas/entrenar/Entrenar'
@@ -98,6 +99,7 @@ function Portero({ children }: { children: React.ReactNode }) {
 
 export function App() {
   useAvisarLugar()
+  useTituloYFoco()
   usePrecargarProgreso(useLocation().pathname === '/')
   return (
     <Portero>

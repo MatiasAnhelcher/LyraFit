@@ -46,17 +46,20 @@ interface Restauracion {
  * Cuánto ocupa la base, si está protegida y cuántas copias automáticas hay.
  *
  * Lo pide la pantalla al montarse y no la sección, que recién se dibuja con
- * las preferencias cargadas: así llega a la vez que el resto. `releer` es para
- * después de restaurar.
+ * las preferencias cargadas, y la pantalla lo espera junto con ellas: así
+ * llega a la vez que el resto. Antes llegaba unos 60 ms después, ya con el
+ * pasaje en marcha, y TUS DATOS crecía con la pantalla moviéndose.
+ *
+ * `undefined` mientras se pregunta y `null` si no hubo respuesta: una base
+ * que no contesta no puede dejar Ajustes en "cargando" para siempre.
+ * `releer` es para después de restaurar.
  */
 export function useAlmacenamiento() {
-  const [almacenamiento, setAlmacenamiento] = useState<EstadoDeAlmacenamiento | null>(null)
+  const [almacenamiento, setAlmacenamiento] = useState<EstadoDeAlmacenamiento | null | undefined>(undefined)
 
-  useEffect(() => {
-    void estadoDeAlmacenamiento().then(setAlmacenamiento)
-  }, [])
+  const releer = () => void estadoDeAlmacenamiento().then(setAlmacenamiento, () => setAlmacenamiento(null))
+  useEffect(() => releer(), [])
 
-  const releer = () => void estadoDeAlmacenamiento().then(setAlmacenamiento)
   return [almacenamiento, releer] as const
 }
 

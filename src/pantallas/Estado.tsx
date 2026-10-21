@@ -24,9 +24,9 @@ import { useState } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { ENTRADAS_MINIMAS, leerEstado } from '@/dominio/estado'
 import type { Patron } from '@/dominio/tipos'
-import { fechaISO, guardarEstado, leerEstadoDeHoy, leerEstados } from '@/datos/repositorio'
+import { fechaISO, guardarEstado, leerEstados } from '@/datos/repositorio'
 import { useVolver } from '@/componentes/movimiento'
-import { Accion, AccionQuieta, Regleta, Rotulo, Segmento } from '@/componentes/ui'
+import { Accion, AccionQuieta, Cargando, Regleta, Rotulo, Segmento } from '@/componentes/ui'
 import { ElegirMolestia, LO_QUE_PASA_CON_LA_MOLESTIA } from '@/componentes/molestia'
 
 const ITEMS = [
@@ -52,7 +52,9 @@ const ITEMS = [
 export function Estado() {
   const volver = useVolver()
   const historial = useLiveQuery(leerEstados, [])
-  const deHoy = useLiveQuery(leerEstadoDeHoy, [])
+  // El de hoy sale del historial, que ya lo trae: una lectura sola llega
+  // antes que dos, y el pasaje la espera.
+  const deHoy = historial?.find((e) => e.fecha === fechaISO())
 
   const [valores, setValores] = useState<Record<string, number>>({})
   const [molestia, setMolestia] = useState<Patron | 'ninguna' | null>(null)
@@ -68,7 +70,12 @@ export function Estado() {
   // pidiera.
   const molestiaElegida = molestia ?? deHoy?.molestia ?? null
 
-  const lectura = historial ? leerEstado(historial, fechaISO()) : null
+  // La placa hasta tener el historial, como el resto de las pantallas: si
+  // llegaba con el pasaje andando, lo elegido hoy y el aviso de la línea de
+  // base aparecían en pleno movimiento, y ese render era un cuadro largo.
+  if (!historial) return <Cargando filas={5} />
+
+  const lectura = leerEstado(historial, fechaISO())
 
   async function guardar() {
     setGuardando(true)
@@ -124,7 +131,7 @@ export function Estado() {
           <ElegirMolestia valor={molestiaElegida} onElegir={setMolestia} ninguna="No" />
         </section>
 
-        {lectura && !lectura.confiable && lectura.faltan > 0 && (
+        {!lectura.confiable && lectura.faltan > 0 && (
           <p className="mt-8 max-w-[38ch] text-xs leading-relaxed text-[var(--color-glosa)]">
             Te {lectura.faltan === 1 ? 'falta' : 'faltan'} {lectura.faltan} de {ENTRADAS_MINIMAS}{' '}
             registros para tener tu línea de base. Hasta entonces la app no va a interpretar nada:

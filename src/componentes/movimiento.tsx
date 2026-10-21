@@ -183,6 +183,12 @@ export type Direccion =
 export interface Compartido {
   origen: HTMLElement | null | undefined
   nombre: string
+  /**
+   * Lo que el CSS del pasaje necesita saber de este viaje, como atributos
+   * `data-*` de `<html>` mientras dura: los pseudoelementos del pasaje
+   * heredan de la raíz y de nadie más. Se sacan en `finished`.
+   */
+  datos?: Readonly<Record<string, string>>
 }
 
 /**
@@ -312,6 +318,14 @@ function destinoListo(tope: number): Promise<void> {
     const reloj = window.setTimeout(listo, tope)
     alTenerContenido.push(listo)
   })
+}
+
+/**
+ * `destinoListo`, para quien llega a una pantalla y tiene que hacer algo con
+ * su contenido —mover el foco al título— sin hacerlo sobre el "CARGANDO…".
+ */
+export function cuandoTengaContenido(tope: number): Promise<void> {
+  return destinoListo(tope)
 }
 
 let alCambiarDeLugar: (() => void)[] = []
@@ -492,8 +506,13 @@ function correrPasaje(direccion: Direccion, compartidos: readonly Compartido[], 
   const raiz = document.documentElement
   const nombrados = raiz.hasAttribute('data-liviano')
     ? []
-    : compartidos.filter((c): c is { origen: HTMLElement; nombre: string } => c.origen != null && estaEnPantalla(c.origen))
+    : compartidos.filter((c): c is Compartido & { origen: HTMLElement } => c.origen != null && estaEnPantalla(c.origen))
   for (const c of nombrados) c.origen.style.viewTransitionName = c.nombre
+  // Los datos del pasaje anterior se van con él, aunque lo haya cortado
+  // este: su `finished` ya no limpia nada que sea de otro.
+  for (const clave of datosPuestos) delete raiz.dataset[clave]
+  datosPuestos = nombrados.flatMap((c) => Object.keys(c.datos ?? {}))
+  for (const c of nombrados) Object.assign(raiz.dataset, c.datos)
   raiz.dataset.vt = direccion
   guardarElFoco()
 
@@ -518,9 +537,39 @@ function correrPasaje(direccion: Direccion, compartidos: readonly Compartido[], 
     if (enCurso !== null && enCurso !== pasaje) return
     enCurso = null
     delete raiz.dataset.vt
+    for (const clave of datosPuestos) delete raiz.dataset[clave]
+    datosPuestos = []
     soltarInerte()
     devolverElFoco()
   })
+}
+
+/** Las claves de `dataset` que puso el último pasaje, para sacarlas. */
+let datosPuestos: string[] = []
+
+/**
+ * Lo que viaja sin que quien navega lo pida: la marca de la barra, que pasa a
+ * la pestaña nueva en cada cambio de sección, venga el toque de la barra o de
+ * una fila de Hoy. Lo anota la barra, que es la única que sabe dónde está su
+ * marca y de qué sección es cada ruta.
+ */
+export type Acompanante = (desde: string, destino: string) => Compartido | null
+
+let acompanante: Acompanante | null = null
+
+export function useAcompanante(alNavegar: Acompanante): void {
+  useLayoutEffect(() => {
+    acompanante = alNavegar
+    return () => {
+      if (acompanante === alNavegar) acompanante = null
+    }
+  }, [alNavegar])
+}
+
+/** Con el tope de dos: si el pasaje ya trae dos nombres, la marca salta. */
+function conAcompanante(compartidos: readonly Compartido[], desde: string, destino: string): readonly Compartido[] {
+  const marca = acompanante?.(desde, rutaDe(destino))
+  return marca && compartidos.length < 2 ? [...compartidos, marca] : compartidos
 }
 
 /** No se nombra lo que está fuera de la pantalla: su foto viajaría desde la nada. */
@@ -549,7 +598,7 @@ function irA(navegar: NavigateFunction, desde: string, destino: string, opciones
     return
   }
 
-  correrPasaje(direccion, compartidos, async () => {
+  correrPasaje(direccion, conAcompanante(compartidos, desde, destino), async () => {
     flushSync(navegarYa)
     await destinoListo(TOPE_DEL_DESTINO)
     return scroll

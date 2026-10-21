@@ -6,6 +6,8 @@ import type { Ejercicio, Patron } from '@/dominio/tipos'
 import { despertarAudio } from '@/respuesta'
 import { orden, useIrA } from '@/componentes/movimiento'
 import { Accion, Glifo, Objetivo, Rotulo } from '@/componentes/ui'
+import { useDock } from '@/hooks/useDock'
+import { debePegarse } from './dock'
 
 /** Un bloque de hoy, ya resuelto como lo va a pedir la sesión. */
 export interface BloqueDeHoy {
@@ -38,6 +40,7 @@ export function Plan({
   factorDelDia,
   siguiente,
   molestiaDeHoy,
+  haySinCerrar,
 }: {
   clase: ClaseDeDia
   esDiaDeEntrenar: boolean
@@ -54,9 +57,12 @@ export function Plan({
   /** El próximo día de entrenar, para decirlo los días de descanso. */
   siguiente: Date | null
   molestiaDeHoy: Patron | undefined
+  /** Si quedó una sesión a medias: `Empezar` vuelve a preguntar por ella. */
+  haySinCerrar: boolean
 }) {
   const navegar = useNavigate()
   const irA = useIrA()
+  const dock = useDock(debePegarse({ esDiaDeEntrenar, entrenoHoy, haySinCerrar }))
 
   /**
    * La víspera: el eslabón que se abre hoy si esta sesión se cumple.
@@ -256,8 +262,14 @@ export function Plan({
           existe para hacer. Y lo que la tapaba —la carta y la barra de 28
           días— es contexto: se mira cuando uno quiere mirarlo, no antes de
           poder empezar. El orden ahora es quién sos, qué toca hoy, empezar, y
-          después dónde estás parado. */}
-      <div className="mt-10 flex flex-col gap-3">
+          después dónde estás parado.
+
+          Y va en el dock, que la pega sobre la barra cuando su lugar queda
+          abajo del pliegue —una sesión sin cerrar arriba, la letra grande—.
+          El dock es hijo directo de `main` (Hoy y el plan son fragmentos) a
+          propósito: un sticky no sale de su contenedor, y con uno más chico
+          no podría subir. */}
+      <div ref={dock.caja} className="dock" data-pegable={dock.pegable || undefined}>
         <Accion
           onClick={() => {
             // El audio se despierta acá y no cuando el descanso termina: en
@@ -279,6 +291,10 @@ export function Plan({
                   'Retomar'
                 : 'Empezar'}
         </Accion>
+      </div>
+      <div ref={dock.sentinela} className="dock-sentinela" aria-hidden="true" />
+
+      <div className="flex flex-col gap-3">
         <button
           onClick={() => {
             despertarAudio()

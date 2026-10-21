@@ -333,6 +333,14 @@
   .placa .fila-pulsable:focus-visible {
     outline-offset: -2px;
   }
+  /* Y la pestaña de la barra: afuera tiene el borde de la pantalla abajo y
+     a los costados de las puntas. Va a 4 px y no a 2 para no pisar el filete
+     ni la marca, que viven en los 2 px de arriba, y con las esquinas
+     redondeadas de un control: la pestaña no tiene caja que seguir. */
+  .pestana:focus-visible {
+    border-radius: var(--radio-chico);
+    outline-offset: -4px;
+  }
   /* La acción del esfuerzo va contra el canto: también hacia adentro, y como
      es menta, en sobre-acento (13,40:1). Va a 4 px y no a 2: pegado al
      canto, el contorno oscuro se funde con el fondo de al lado (1,05:1) y se
@@ -352,6 +360,12 @@
   /* La hoja recibe el foco al abrirse para que el lector la anuncie entera;
      un contorno alrededor de toda la hoja no le dice nada a nadie. */
   .hoja:focus-visible {
+    outline: none;
+  }
+  /* Lo mismo el título de la pantalla que llega, o su `main` si no tiene:
+     reciben el foco para que el lector diga dónde estás, y no son controles. */
+  h1[tabindex='-1']:focus,
+  main[tabindex='-1']:focus {
     outline: none;
   }
 }
@@ -1260,9 +1274,33 @@
     animation: vt-fundir-dentro 200ms var(--sal-entrada) 60ms both;
   }
   /* La marca de la pestaña activa se corre con el resorte suave: se asienta
-     en la pestaña nueva, no frena en seco. */
+     en la pestaña nueva, no frena en seco.
+     Lo que se nombra es su carril, que no cambia de lugar, así que el grupo
+     queda quieto y lo que se corre es la foto nueva: arranca tantas
+     pestañas atrás como diga `data-marca-desde` —un quinto de su ancho cada
+     una— y llega a la suya. La vieja no se ve: las dos marcas estarían en el
+     mismo lugar todo el camino. */
   ::view-transition-group(lf-nav-marca) {
-    animation-timing-function: var(--sal-resorte-suave);
+    animation: none;
+  }
+  ::view-transition-old(lf-nav-marca) {
+    animation: none;
+    opacity: 0;
+  }
+  ::view-transition-new(lf-nav-marca) {
+    animation: vt-marca-viaja var(--dur-media) var(--sal-resorte-suave) both;
+    mix-blend-mode: normal;
+  }
+  :root[data-marca-desde='-4']::view-transition-new(lf-nav-marca) { --marca-desde: -4; }
+  :root[data-marca-desde='-3']::view-transition-new(lf-nav-marca) { --marca-desde: -3; }
+  :root[data-marca-desde='-2']::view-transition-new(lf-nav-marca) { --marca-desde: -2; }
+  :root[data-marca-desde='-1']::view-transition-new(lf-nav-marca) { --marca-desde: -1; }
+  :root[data-marca-desde='1']::view-transition-new(lf-nav-marca) { --marca-desde: 1; }
+  :root[data-marca-desde='2']::view-transition-new(lf-nav-marca) { --marca-desde: 2; }
+  :root[data-marca-desde='3']::view-transition-new(lf-nav-marca) { --marca-desde: 3; }
+  :root[data-marca-desde='4']::view-transition-new(lf-nav-marca) { --marca-desde: 4; }
+  @keyframes vt-marca-viaja {
+    from { transform: translateX(calc(var(--marca-desde, 0) * 20%)); }
   }
   /* La puerta dura 260: lo que viaja en ella, también. Del botón viaja el
      color y no la palabra: el fondo es un elemento sin texto, estirado a la
@@ -1982,6 +2020,239 @@
     to { opacity: 0; }
   }
 
+  /* ------------------------------------------------------------------ *
+   * 11. EL ARMAZÓN — lo que se queda quieto mientras las pantallas pasan.
+   *
+   * La barra abajo, la franja que aparece arriba al bajar, `main` entre las
+   * dos y el dock que se apoya en la barra. Nada de esto es vidrio: lo que
+   * flota es sólido, del mismo negro que el piso, con un filete. Un
+   * desenfoque sobre una franja que se recalcula en cada cuadro de scroll es
+   * lo primero que se nota en un teléfono de gama baja, y es justo la
+   * estética que esta app no quiere.
+   * ------------------------------------------------------------------ */
+
+  :root {
+    /* Lo que `main` deja arriba: el aire de siempre más el área segura, que
+       con `viewport-fit=cover` es lo que tapa la isla o la muesca. Lo que va
+       a sangre hasta el borde —el campo de Cadenas— lo descuenta de acá. */
+    --arriba-de-main: calc(16px + env(safe-area-inset-top));
+  }
+
+  /* Ningún control enfocado queda debajo de algo fijo o pegado (WCAG
+     2.4.11): arriba, la franja; abajo, la barra y el dock cuando está pegado,
+     que escribe su alto en `--alto-dock` y lo saca al soltarse. Solo donde
+     hay barra: en el esfuerzo, el cierre y el alta lo fijo es una fila de la
+     grilla y no una capa encima. */
+  :root:has(.marco-fijo) {
+    scroll-padding-top: calc(44px + env(safe-area-inset-top));
+    scroll-padding-bottom: calc(var(--alto-barra) + var(--alto-dock, 0px) + env(safe-area-inset-bottom));
+  }
+  /* Salvo cuando el foco está adentro del dock: pegado ya está a la vista,
+     y contar su propio alto lo daría por tapado y el Tab arrastraría la
+     página hasta su lugar natural, cientos de píxeles más abajo. */
+  :root:has(.marco-fijo):has(.dock:focus-within) {
+    scroll-padding-bottom: calc(var(--alto-barra) + env(safe-area-inset-bottom));
+  }
+
+  .principal {
+    width: 100%;
+    max-width: 42rem;
+    margin-inline: auto;
+    padding: var(--arriba-de-main) var(--margen) calc(var(--alto-barra) + 16px + env(safe-area-inset-bottom));
+  }
+
+  /* El campo a sangre también hacia arriba, hasta el borde de la pantalla. */
+  .campo-hasta-arriba {
+    margin-top: calc(-1 * var(--arriba-de-main));
+    padding-top: var(--arriba-de-main);
+  }
+
+  /* -- LA BARRA --
+     56 px más el área segura y cinco pestañas parejas: 72×56 a 360, 64 a
+     320, donde "Progreso" todavía entra entero. El filete se pinta encima del
+     borde de las pestañas y no como borde de la barra, así la barra mide 56
+     y cada pestaña también. */
+  .barra {
+    position: fixed;
+    inset-inline: 0;
+    bottom: 0;
+    z-index: 30;
+    padding-bottom: env(safe-area-inset-bottom);
+    background-color: var(--color-fondo);
+  }
+  .barra::before {
+    content: '';
+    position: absolute;
+    inset: 0 0 auto;
+    height: 1px;
+    background-color: var(--color-regla);
+  }
+  .barra-pestanas {
+    position: relative;
+    max-width: 42rem;
+    margin-inline: auto;
+  }
+  .barra-pestanas > ul {
+    display: flex;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+  .barra-pestanas > ul > li {
+    flex: 1 1 0;
+    min-width: 0;
+  }
+  /* El color cambia en seco: en un pasaje la barra es el marco y se dibuja
+     de una vez con la pestaña nueva; lo único que se mueve es la marca. */
+  .pestana {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+    min-height: var(--alto-barra);
+    color: var(--color-glosa);
+  }
+  .pestana[data-activa] {
+    color: var(--color-tinta);
+  }
+  /* Cadenas y el Diario toman la luz de su dominio: es el único lugar donde
+     esa luz aparece chica. Hoy contiene a los cuatro y va en tinta. */
+  .pestana[data-activa][data-luz='fuerza'] {
+    color: var(--dominio-fuerza-luz);
+  }
+  .pestana[data-activa][data-luz='comida'] {
+    color: var(--dominio-comida-luz);
+  }
+  /* 22 px con un trazo de 1,75 de verdad, no escalado con el dibujo. Al
+     tocarlo se hunde un píxel: el acuse de recibo, como el de la acción. */
+  .pestana-icono {
+    flex: none;
+    width: 22px;
+    height: 22px;
+    stroke-width: 1.75px;
+    transition: transform var(--dur-instante) var(--sal-resorte);
+  }
+  .pestana-icono * {
+    vector-effect: non-scaling-stroke;
+  }
+  .pestana:active .pestana-icono {
+    transform: translateY(1px);
+  }
+  /* La marca de la pestaña activa: 22×2 en tinta, sobre el filete. Es una
+     sola para las cinco, corrida a la que toca, y en cada cambio de sección
+     viaja con el pasaje (`lf-nav-marca`, con el resorte suave). No es menta:
+     la menta es lo que hay que hacer, y la barra no le pide nada a nadie.
+     Va adentro de un carril del ancho de la barra, que es lo que se nombra
+     en el pasaje (ver `Layout.tsx`). */
+  .barra-carril {
+    position: absolute;
+    inset: 0 0 auto;
+    height: 2px;
+    pointer-events: none;
+  }
+  .barra-marca {
+    position: absolute;
+    top: 0;
+    left: calc((var(--pestana, 0) + 0.5) * 100% / 5);
+    width: 22px;
+    height: 2px;
+    margin-left: -11px;
+    border-radius: 1px;
+    background-color: var(--color-tinta);
+    pointer-events: none;
+  }
+
+  /* -- LA FRANJA DE ARRIBA --
+     Aparece cuando el título de la pantalla queda atrás, con su nombre en un
+     rótulo, y se va cuando vuelve. Es un `div` con `aria-hidden` y no un
+     `nav`: el primer `nav` del documento es la barra, y el lector ya tiene
+     el título. Llega en 180 ms con la curva de llegada y se va con la de
+     salida. */
+  .encabezado-compacto {
+    position: fixed;
+    inset-inline: 0;
+    top: 0;
+    z-index: 30;
+    display: flex;
+    align-items: center;
+    min-height: calc(44px + env(safe-area-inset-top));
+    padding-top: env(safe-area-inset-top);
+    background-color: var(--color-fondo);
+    border-bottom: 1px solid var(--color-regla);
+    opacity: 0;
+    transform: translateY(-100%);
+    pointer-events: none;
+    transition:
+      opacity var(--dur-breve) var(--sal-salida),
+      transform var(--dur-breve) var(--sal-salida);
+  }
+  .encabezado-compacto[data-visible] {
+    opacity: 1;
+    transform: none;
+    pointer-events: auto;
+    transition-timing-function: var(--sal-entrada);
+  }
+  .encabezado-compacto[data-instante] {
+    transition: none;
+  }
+  .encabezado-compacto > p {
+    flex: 1;
+    min-width: 0;
+    max-width: 42rem;
+    margin-inline: auto;
+    padding-inline: var(--margen);
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+  }
+  .encabezado-compacto[data-luz='fuerza'] > p {
+    color: var(--dominio-fuerza-luz);
+  }
+  .encabezado-compacto[data-luz='comida'] > p {
+    color: var(--dominio-comida-luz);
+  }
+
+  /* -- EL DOCK --
+     La caja de la acción principal, siempre a sangre: 8 de margen y 8 de
+     aire arriba del botón, y 16 abajo. Pegable, se queda sobre la barra
+     mientras su lugar natural está abajo del pliegue, y se suelta cuando la
+     pantalla llega hasta él.
+     Pegada se pinta ENTERA —los 8 de arriba, el botón y los 16 de abajo,
+     hasta la barra— con un filete arriba, y entre el botón y la barra no se
+     asoma nada de lo que pasa por detrás. El fondo es una capa aparte que se
+     funde: lo que cambia es una opacidad, no el repintado de la caja. */
+  .dock {
+    position: relative;
+    margin: 8px calc(-1 * var(--margen)) 0;
+    padding: 8px var(--margen) 16px;
+  }
+  .dock[data-pegable] {
+    position: sticky;
+    bottom: calc(var(--alto-barra) + env(safe-area-inset-bottom));
+    z-index: 10;
+  }
+  .dock::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background-color: var(--color-fondo);
+    border-top: 1px solid var(--color-regla);
+    opacity: 0;
+    transition: opacity var(--dur-breve) var(--sal-ambas);
+  }
+  .dock[data-pegado]::before {
+    opacity: 1;
+  }
+  .dock > * {
+    position: relative;
+  }
+  /* Un píxel justo después de la caja, que no ocupa lugar: es lo que mira
+     `useDock` para saber si la caja está en su lugar o pegada. */
+  .dock-sentinela {
+    height: 1px;
+    margin-bottom: -1px;
+  }
 }
 
 /* ==========================================================================

@@ -21,6 +21,9 @@
  *     que arranca el movimiento;
  *   - que mientras se mueve, el contenido nuevo esté inerte (§6.4.7);
  *   - como mucho dos nombres compartidos, más `root` y `marco`;
+ *   - que la marca de la barra (`lf-nav-marca`) viaje en cada cambio de
+ *     sección y en ningún otro pasaje: entrar a una ficha o al chequeo no
+ *     cambia de sección, y nombrarla ahí gasta uno de los dos lugares;
  *   - cero avisos de `view-transition-name` repetido en la consola;
  *   - que en `finished` no quede ninguna animación de `::view-transition-*`;
  *   - y que 400 ms después no se mueva nada, salvo Lyra respirando si está
@@ -180,6 +183,24 @@ function instalar() {
 
 let pagina
 const duplicados = []
+
+/**
+ * La marca de la barra viaja si el pasaje cambia de sección, y si no, no.
+ *
+ * Se lee de los nombres del pasaje en `ready`: el grupo de la marca va
+ * quieto (lo que se corre es su foto nueva, ver `estilos.css`), y su foto
+ * nueva siempre tiene animación, así que si viajó, está.
+ */
+function revisarLaMarca(nombre, p, cambiaDeSeccion) {
+  if (!p?.nombres) return
+  const viajo = p.nombres.includes('lf-nav-marca')
+  if (cambiaDeSeccion && !viajo) {
+    anotar(`[${nombre}] cambió de sección y la marca de la barra no viajó (sin \`lf-nav-marca\` en el pasaje).`)
+  } else if (!cambiaDeSeccion && viajo) {
+    anotar(`[${nombre}] no cambió de sección y la marca de la barra viajó igual: gasta uno de los dos nombres del pasaje.`)
+  }
+}
+
 let cuantosVistos = 0
 /** Lo que tarda cada pasaje en empezar a moverse, desde el toque. */
 const esperas = []
@@ -413,7 +434,8 @@ async function main() {
     ['ajustes', 'lateral-der'],
     ['hoy', 'lateral-izq'],
   ]) {
-    await medir(`La barra, a ${nombre}`, direccion, () => pestaña(nombre).click())
+    const p = await medir(`La barra, a ${nombre}`, direccion, () => pestaña(nombre).click())
+    revisarLaMarca(`La barra, a ${nombre}`, p, true)
   }
 
   // ── Un segundo toque en medio del pasaje ───────────────────────────────
@@ -470,10 +492,10 @@ async function main() {
     await enlace.scrollIntoViewIfNeeded()
     await pagina.waitForTimeout(300)
     const yAntes = await pagina.evaluate(() => window.scrollY)
-    await medir('Cadenas a una ficha', 'profundo', () => enlace.click())
+    revisarLaMarca('Cadenas a una ficha', await medir('Cadenas a una ficha', 'profundo', () => enlace.click()), false)
     const yFicha = await pagina.evaluate(() => window.scrollY)
     if (yFicha !== 0) anotar(`La ficha abrió con el scroll en ${yFicha}: una subpantalla empieza arriba.`)
-    await medir('La ficha a Cadenas', 'superficie', () => pestaña('cadenas').click())
+    revisarLaMarca('La ficha a Cadenas', await medir('La ficha a Cadenas', 'superficie', () => pestaña('cadenas').click()), false)
     const yDespues = await pagina.evaluate(() => window.scrollY)
     if (yAntes < 50) {
       fallos.push(`El scroll de Cadenas antes de abrir la ficha era ${yAntes}: la memoria del scroll quedó sin medir.`)
@@ -510,7 +532,7 @@ async function main() {
   if (!(await alEstado.isVisible().catch(() => false))) {
     fallos.push('En Hoy no apareció "¿Cómo venís hoy?" con el chequeo prendido: Hoy → Estado quedó sin medir.')
   } else {
-    await medir('Hoy al chequeo', 'profundo', () => alEstado.click())
+    revisarLaMarca('Hoy al chequeo', await medir('Hoy al chequeo', 'profundo', () => alEstado.click()), false)
     if ((await ruta()) !== '/estado') fallos.push(`"¿Cómo venís hoy?" no llevó al chequeo (la ruta es ${await ruta()}).`)
     await medir('El chequeo a Hoy, con "Hoy no"', 'superficie', () =>
       pagina.getByRole('button', { name: 'Hoy no', exact: true }).click(),
@@ -571,7 +593,7 @@ async function main() {
     process.exit(1)
   }
   console.log(
-    `Pasajes verificados con la CPU frenada ×4: ${cuantosVistos} pasajes (alta, barra, ficha, chequeo y molestia), con la callback en ${TOPE_DE_LA_CALLBACK} ms o menos, a tiempo, sin cuadros largos mientras se mueven, con lo nuevo inerte, sin nombres de más y quietos 400 ms después. El atrás es un corte que devuelve el scroll, volver a una sección también, la pestaña activa sube, un segundo toque en medio del pasaje llega y el foco no se pierde.`,
+    `Pasajes verificados con la CPU frenada ×4: ${cuantosVistos} pasajes (alta, barra, ficha, chequeo y molestia), con la callback en ${TOPE_DE_LA_CALLBACK} ms o menos, a tiempo, sin cuadros largos mientras se mueven, con lo nuevo inerte, sin nombres de más, con la marca de la barra viajando solo cuando cambia la sección y quietos 400 ms después. El atrás es un corte que devuelve el scroll, volver a una sección también, la pestaña activa sube, un segundo toque en medio del pasaje llega y el foco no se pierde.`,
   )
   // Lo que se informa y no se afirma (ver arriba): la espera desde el toque
   // y la deuda con la holgura de 150 ms de la §9.
