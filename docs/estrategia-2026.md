@@ -93,9 +93,11 @@ daño que no dar ninguna. El alta ya lo había resuelto proyectando solo al
 eslabón siguiente; la ficha de ejercicio volvió a romperlo y lo agarró la
 revisión automática, no una lectura.
 
-El sistema visual **Efeméride** no estaba en este documento: salió de una
-exploración posterior de tres direcciones independientes con un jurado que las
-integró. Está descrito en el encabezado de `src/estilos.css`.
+El sistema visual tampoco estaba en este documento. El primero, **Efeméride**,
+salió de una exploración posterior de tres direcciones independientes con un
+jurado que las integró. En octubre de 2026 lo reemplazó **Pulso**, que está
+descrito en el encabezado de `src/estilos.css` y en "El sistema visual" del
+README.
 
 ---
 

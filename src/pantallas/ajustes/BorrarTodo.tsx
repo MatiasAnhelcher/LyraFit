@@ -60,7 +60,7 @@ export function BorrarTodo() {
         </p>
       )}
       <div className="mt-4 -mx-4">
-        <Accion deshabilitado={borrando} onClick={() => void borrarDeVerdad()}>
+        <Accion tono="destructivo" deshabilitado={borrando} onClick={() => void borrarDeVerdad()}>
           {borrando ? 'Borrando…' : 'Sí, borrar todo'}
         </Accion>
         <AccionQuieta

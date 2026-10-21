@@ -231,6 +231,10 @@
   --margen: 1rem;    /* 16px de inset del texto */
   --canal: 2.75rem;  /* 44px: la columna del glifo de patrón */
   --fila: 3.5rem;    /* 56px: alto mínimo de fila tocable */
+  /* El alto de la barra de abajo, sin el área segura. Lo que se apoya en
+     ella —el dock, el scroll-padding, el pie de `main`— lo descuenta de acá
+     y no de un 56 escrito en cada lugar. */
+  --alto-barra: 56px;
 
   /* Base 4px. Escala usada: 4 8 12 16 24 40 64. Nada intermedio: una
      persona sola no se desvía de siete valores; de catorce, sí. */
@@ -253,10 +257,11 @@
    * 19,94:1, el par de mayor contraste del sistema, justo donde la persona
    * tiene el pulso a 140, el sol de frente y las manos transpiradas.
    *
-   * Se dispara también por `:has()`: `.pantalla-esfuerzo` y `.pantalla-cierre`
-   * están en el DOM desde el primer cuadro, y `data-pantalla` puede llegar
-   * después. Sin esto, la primera foto de un pasaje saldría con la tinta de
-   * día y saltaría al llegar el atributo.
+   * Se dispara también por `:has()`: la pantalla de esfuerzo o de cierre
+   * lleva `.pantalla-esfuerzo` o `.pantalla-cierre` en su raíz desde el
+   * primer cuadro, y `data-pantalla` puede llegar después. Sin esto, la
+   * primera foto de un pasaje saldría con la tinta de día y saltaría al
+   * llegar el atributo.
    *
    * El cierre comparte la noche —es el mismo momento, con el pulso todavía
    * alto— pero NO comparte el apagado de decoración de más abajo. Ahí la
@@ -324,20 +329,30 @@
   }
 
   /* Hacia adentro donde afuera no hay lugar: la fila dentro de una placa,
-     que la placa recortaría, y la acción del esfuerzo, que va contra el
-     canto. Sobre la menta, y solo ahí, el contorno va en sobre-acento
-     (13,40:1): el acento sobre el acento no se vería. */
+     que la placa recortaría, y la acción quieta, que va a sangre y casi
+     siempre pegada debajo de la menta: afuera, sus costados caen fuera de la
+     pantalla y el borde de arriba, sobre el relleno de al lado, es acento
+     sobre acento (1:1). */
   .placa .fila-pulsable:focus-visible,
-  .accion-esfuerzo:focus-visible {
+  .accion-quieta:focus-visible {
     outline-offset: -2px;
   }
-  /* En la acción del esfuerzo, 2 px más adentro. Pegado al canto, el contorno
-     oscuro se funde con el fondo de al lado (1,05:1) y se lee como un botón
-     que se achicó, no como un foco; con una franja de menta afuera se ve
+  /* La acción del esfuerzo va contra el canto: también hacia adentro, y como
+     es menta, en sobre-acento (13,40:1). Va a 4 px y no a 2: pegado al
+     canto, el contorno oscuro se funde con el fondo de al lado (1,05:1) y se
+     lee como un botón que se achicó; con una franja de menta afuera se ve
      como lo que es. */
   .accion-esfuerzo:focus-visible {
     outline-color: var(--color-sobre-acento);
     outline-offset: -4px;
+  }
+  /* Los segmentos van pegados, con un hueco de 1 px. A 3 px, el contorno
+     caía adentro del vecino, del otro lado de su borde. El offset sale del
+     hueco: con el trazo de 2 px, -1 pisa el borde propio y llena el hueco
+     sin tocar al de al lado. */
+  .segmento:focus-visible,
+  .regleta > button:focus-visible {
+    outline-offset: -1px;
   }
 }
 
@@ -371,13 +386,19 @@
     letter-spacing: -0.015em;
   }
 
-  /* El "×" del objetivo no compite con los dos números que importan, y es lo
-     que cede cuando falta ancho. Sora dibuja los números anchos, y con el ×
-     a 0,7em y aire a los costados "3×8" le come al nombre de al lado los
-     3 px que le faltan para no cortarse ("Dominadas con banda liviana", a
-     360). Los números no se achican; el signo, que va en tenue, sí. */
+  /* El "×" del objetivo no compite con los dos números que importan: va a
+     0,7em y en tenue. A ese cuerpo se apoya en la línea base y su centro
+     queda 0,12em más abajo que el de las cifras, así que "3×8" se leía como
+     un 3 con una x de subíndice; se sube a su eje sin mover la línea.
+     Y cede 0,4 px de cada costado, que el dibujo del signo no necesita: sin
+     eso, "Dominadas con banda liviana" se cortaba por una décima de píxel en
+     Hoy y en el alta a 360, y esa fila no puede pasar a dos renglones sin
+     bajar Empezar debajo de los 12 px de aire que pide el pliegue. */
   .cifra-fila .por {
-    font-size: 0.6em;
+    position: relative;
+    top: -0.18em;
+    margin-inline: -0.03em;
+    font-size: 0.7em;
     color: var(--color-tenue);
   }
 
@@ -685,7 +706,7 @@
    * Tres refuerzos redundantes en el mismo punto, porque esto se mira con
    * sol y de reojo:
    *   1. es lo único con halo;
-   *   2. es lo único con núcleo blanco puro (19.7:1);
+   *   2. es lo único con núcleo blanco puro (20,17:1 sobre la carta);
    *   3. es exactamente donde la línea cambia de 2.25px sólidos a 1px
    *      punteados. La frontera de materia coincide con la luz.
    * ------------------------------------------------------------------ */
@@ -818,6 +839,15 @@
   }
   .accion:active {
     background-color: var(--color-acento-hundido);
+  }
+  /* Lo que no se puede deshacer —"Sí, borrar todo", "Reemplazar sin copia"—
+     no va en la luz de "seguí, es por acá". Va en destructivo, con la misma
+     tinta oscura (7,78:1), y no cambia al apretarlo: hundirse hacia la menta
+     sería decir otra cosa justo en el toque que borra. Va antes de
+     :disabled para que "Borrando…" se apague igual que cualquier acción. */
+  .accion[data-tono='destructivo'] {
+    background-color: var(--color-destructivo);
+    color: var(--color-sobre-acento);
   }
   .accion:disabled {
     background-color: var(--color-papel);
@@ -1200,8 +1230,8 @@
    * Cuatro: fuerza, fuelle, comida y sueño. Se marcan con `data-dominio` en
    * un contenedor y lo único que cambian es la ATMÓSFERA: el campo de fondo
    * y la luz de los rótulos. Nunca el texto, que sigue siendo tinta y glosa
-   * en los cuatro —medido: 15,8:1 y 6,6:1 contra cualquiera de los cuatro
-   * campos—, y nunca un glifo de 8 px, que es territorio de las cadenas.
+   * en los cuatro —medido: 17,4:1 y 7,7:1 contra cualquiera de los cuatro
+   * campos—, y nunca un glifo de 10 px, que es territorio de las cadenas.
    *
    * El campo está a 1,04 de contraste contra el fondo de la app. Eso es
    * deliberado y es el corazón de la idea: no es "un fondo más claro", es el
@@ -1227,15 +1257,15 @@
   }
 
   /* El rótulo del dominio lleva su luz. De 11 px para arriba y nunca en un
-     cuadrado de 8: ese tamaño ya está hablado. */
+     glifo de 10: ese tamaño ya está hablado. */
   [data-dominio] > .rotulo,
   .rotulo-dominio {
     color: var(--luz-dominio);
   }
 
   /* La barra del dominio: 2 px de su luz colgados del borde de arriba. Es
-     todo lo que hace falta para decir en qué mundo estás, y no gasta ni una
-     aparición de Vega. */
+     todo lo que hace falta para decir en qué mundo estás, sin una placa ni
+     un relleno que compita con lo que hay adentro. */
   .filete-dominio {
     border-top: 2px solid var(--luz-dominio);
   }
@@ -1288,7 +1318,7 @@
     color: var(--color-fondo);
   }
 
-  /* La molestia puntual se elige en ámbar y no en Vega: no es una preferencia,
+  /* La molestia puntual se elige en ámbar y no en tinta: no es una preferencia,
      es la señal de que algo duele, y el ámbar es el techo de alarma del
      sistema. Rojo no existe para nada del entrenamiento. */
   .segmento[data-tono='ambar'][aria-pressed='true'] {

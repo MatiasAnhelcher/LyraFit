@@ -101,8 +101,11 @@ export function Biblioteca() {
                       {aca ? '◆' : String(i + 1).padStart(2, '0')}
                     </span>
                     <span className="min-w-0">
+                      {/* El nombre parte en dos renglones antes que cortarse:
+                          es lo que se viene a buscar a esta lista, y con
+                          "3×15" a la derecha los largos no entran en uno. */}
                       <span
-                        className="nombre block truncate"
+                        className="nombre block"
                         style={hecho ? { color: 'var(--color-glosa)' } : undefined}
                       >
                         {ejercicio.nombre}
@@ -159,7 +162,7 @@ export function Biblioteca() {
                   <Glifo patron={ejercicio.patron} />
                 </span>
                 <span className="min-w-0">
-                  <span className="nombre block truncate">{ejercicio.nombre}</span>
+                  <span className="nombre block">{ejercicio.nombre}</span>
                   <span className="rotulo mt-0.5 block truncate">
                     {NOMBRE_PATRON[ejercicio.patron]} · con discos
                   </span>

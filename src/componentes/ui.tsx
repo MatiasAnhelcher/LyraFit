@@ -81,6 +81,7 @@ export function Accion({
   tipo = 'button',
   deshabilitado = false,
   esfuerzo = false,
+  tono,
   className = '',
 }: {
   children: ReactNode
@@ -89,6 +90,11 @@ export function Accion({
   deshabilitado?: boolean
   /** True en la pantalla de entrenar, donde el objetivo táctil sube a 88px. */
   esfuerzo?: boolean
+  /**
+   * 'destructivo' para lo que no se puede deshacer. La menta dice "seguí, es
+   * por acá", y borrar todo no puede decir eso.
+   */
+  tono?: 'destructivo'
   className?: string
 }) {
   return (
@@ -97,6 +103,7 @@ export function Accion({
       onClick={onClick}
       disabled={deshabilitado}
       className={`accion${esfuerzo ? ' accion-esfuerzo' : ''} ${className}`}
+      {...(tono ? { 'data-tono': tono } : {})}
     >
       {children}
     </button>

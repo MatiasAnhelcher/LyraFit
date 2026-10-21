@@ -274,6 +274,7 @@ export function TusDatos({
           )}
           <div className="mt-4 -mx-4">
             <Accion
+              tono={restauracion.sinCopia ? 'destructivo' : undefined}
               deshabilitado={restaurando}
               onClick={() => void confirmarRestauracion(restauracion)}
             >

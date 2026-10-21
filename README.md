@@ -200,12 +200,15 @@ en el 5173 o en lo que diga `BASE_DEV`. Las capturas y lo que dijo cada portón
 quedan como artefactos del job, también cuando algo falla.
 
 `paleta.mjs` mide el contraste de cada par del sistema y de **todo el texto de
-diecinueve pantallas** —el alta paso por paso, las secciones, una ficha, el
-chequeo, la molestia, el reloj, la serie, el descanso y el cierre—, contra el
-fondo efectivo —el primer ancestro opaco— y no contra el declarado. Mide
-también lo que no es texto (el contorno de foco, recorrido con Tab, el borde
-de un segmento y el glifo de cada cadena) y que las cinco cadenas se
-distingan con protanopía, deuteranopía y tritanopía, por color y por forma.
+veintiuna pantallas** —el alta paso por paso, las secciones, una ficha, el
+chequeo, la molestia, el reloj, la serie, el descanso, la serie de cierre, las
+preguntas y el cierre—, contra el fondo efectivo —el primer ancestro opaco— y
+no contra el declarado. Mide también lo que no es texto (el borde de un
+segmento y el glifo de cada cadena) y el contorno de foco de cada pantalla,
+recorrido con Tab: sobre el trazo de verdad, lado por lado, con lo que queda
+fuera de la pantalla, lo que tapa algo fijo y lo que cae sobre otro relleno.
+Y que las cinco cadenas se distingan con protanopía, deuteranopía y
+tritanopía, por color y por forma.
 El proyecto afirmaba tener un validador de paleta desde hacía meses y nunca
 existió; mientras tanto cinco regletas ponían texto blanco sobre el acento,
 que da 2,6:1, mientras el propio CSS documentaba dos secciones más abajo que

@@ -11,7 +11,8 @@
  * componente cambia de forma y el `regex` deja de encontrar lo que busca, esto
  * falla ruidosamente en vez de generar un logo viejo en silencio.
  *
- * Uso: node logo.mjs   →   public/favicon.svg, icon-192.png, icon-512.png
+ * Uso: node logo.mjs   →   public/favicon.svg, icon-192.png, icon-512.png,
+ *                         icon-512-maskable.png
  */
 
 import { readFileSync, writeFileSync } from 'node:fs'
@@ -51,7 +52,13 @@ function suavizar(p) {
 }
 const CUERPO = suavizar(puntas(50, 54, 41, 30))
 
-const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" role="img" aria-label="LyraFit">
+/**
+ * El SVG del logo. `sangre` es la variante para la máscara de Android: el
+ * cuadrado entero, sin radio, porque la forma la recorta el sistema, y Lyra
+ * achicada `escala` veces alrededor del centro para que entre en el círculo
+ * que el sistema garantiza no recortar.
+ */
+const svgDe = ({ sangre = false, escala = 1 } = {}) => `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" role="img" aria-label="LyraFit">
   <!-- LYRA, en el naranja de Vega — que es la estrella alfa de la constelación
        de Lyra, así que el color y el nombre eran la misma cosa desde siempre.
        Generado por zz-logo desde src/componentes/lyra.tsx: el cuerpo, el
@@ -69,8 +76,8 @@ const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" role=
       <stop offset="100%" stop-color="rgba(255,122,69,0)"/>
     </radialGradient>
   </defs>
-  <rect width="100" height="100" rx="22" fill="#07090C"/>
-  <g transform="translate(4.3 6.3) scale(0.92)">
+  <rect width="100" height="100"${sangre ? '' : ' rx="22"'} fill="#07090C"/>
+  <g id="lyra" transform="${escala === 1 ? '' : `translate(50 50) scale(${escala}) translate(-50 -50) `}translate(4.3 6.3) scale(0.92)">
     <circle cx="50" cy="52" r="46" fill="url(#h)"/>
     ${cresta}
     <path d="${CUERPO}" fill="url(#c)" stroke="rgba(255,236,220,0.45)" stroke-width="1.1" stroke-linejoin="round"/>
@@ -86,16 +93,49 @@ const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" role=
   </g>
 </svg>
 `
+const svg = svgDe()
 writeFileSync('public/favicon.svg', svg)
 
-const nav = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium' })
-for (const px of [192, 512]) {
-  const ctx = await nav.newContext({ viewport: { width: px, height: px }, deviceScaleFactor: 1 })
-  const p = await ctx.newPage()
-  await p.setContent(`<body style="margin:0">${svg.replace('<svg ', `<svg width="${px}" height="${px}" `)}</body>`)
+const nav = await chromium.launch({ executablePath: process.env.CHROMIUM_PATH ?? '/opt/pw-browsers/chromium' })
+const ctx = await nav.newContext({ viewport: { width: 512, height: 512 }, deviceScaleFactor: 1 })
+const p = await ctx.newPage()
+
+/*
+ * Cuánto achicar a Lyra en la variante a sangre. El círculo seguro de un
+ * ícono enmascarable tiene radio 40 de 100: lo de afuera el sistema puede
+ * recortarlo. Se mide sobre los trazos de verdad —la cresta y el cuerpo, sin
+ * el halo, que se desvanece solo— y no sobre su caja, que en las esquinas
+ * queda más lejos que la forma y achicaría de más.
+ */
+await p.setContent(svgDe({ sangre: true }))
+const lejos = await p.evaluate(() => {
+  let max = 0
+  const raiz = document.querySelector('svg').getScreenCTM().inverse()
+  for (const el of document.querySelectorAll('#lyra > path')) {
+    // De las coordenadas del trazo a las del viewBox de 100.
+    const m = raiz.multiply(el.getScreenCTM())
+    const largo = el.getTotalLength()
+    for (let i = 0; i <= 400; i++) {
+      const q = el.getPointAtLength((largo * i) / 400).matrixTransform(m)
+      max = Math.max(max, Math.hypot(q.x - 50, q.y - 50))
+    }
+  }
+  return max
+})
+const escala = Number((38 / lejos).toFixed(3))
+
+// Las esquinas del cuadrado redondeado salen transparentes: sobre un body
+// blanco y sin `omitBackground`, la captura las pintaba blancas, y así se
+// veían en el escritorio y en los atajos.
+const capturar = async (contenido, px, archivo) => {
+  await p.setViewportSize({ width: px, height: px })
+  await p.setContent(
+    `<body style="margin:0;background:transparent">${contenido.replace('<svg ', `<svg width="${px}" height="${px}" `)}</body>`,
+  )
   await p.waitForTimeout(200)
-  await p.screenshot({ path: `public/icon-${px}.png` })
-  await ctx.close()
+  await p.screenshot({ path: `public/${archivo}`, omitBackground: true })
 }
+for (const px of [192, 512]) await capturar(svg, px, `icon-${px}.png`)
+await capturar(svgDe({ sangre: true, escala }), 512, 'icon-512-maskable.png')
 await nav.close()
-console.log('logo listo')
+console.log(`logo listo (Lyra a ${escala} en el enmascarable: lo más lejano quedaba a ${lejos.toFixed(1)} del centro)`)

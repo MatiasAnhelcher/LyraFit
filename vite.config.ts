@@ -39,8 +39,12 @@ export default defineConfig({
         icons: [
           { src: 'icon-192.png', sizes: '192x192', type: 'image/png' },
           { src: 'icon-512.png', sizes: '512x512', type: 'image/png' },
+          // El enmascarable va aparte: a sangre y con Lyra adentro del círculo
+          // que Android no recorta. El de arriba tiene las esquinas
+          // transparentes, y una máscara que recorta menos que su radio las
+          // dejaría a la vista.
           {
-            src: 'icon-512.png',
+            src: 'icon-512-maskable.png',
             sizes: '512x512',
             type: 'image/png',
             purpose: 'maskable',

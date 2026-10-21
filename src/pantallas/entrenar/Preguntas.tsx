@@ -113,7 +113,7 @@ function Pregunta({
   return (
     <section className="mt-8">
       <p className="nombre">{titulo}</p>
-      <div className="mt-3 flex gap-px">
+      <div className="regleta mt-3" role="group" aria-label={titulo}>
         {opciones.map(([n, etiqueta]) => (
           <button
             key={n}

@@ -16,8 +16,10 @@
  *   1. Los pares declarados del sistema, calculados contra los tokens.
  *   2. CADA elemento con texto de CADA pantalla, con su fondo efectivo —el
  *      primer ancestro que tenga uno opaco—, que es como lo ve el ojo.
- *   3. Lo que no es texto y dice algo: el contorno de foco, el borde del
- *      segmento sin elegir y el glifo de cada cadena, a 3:1 o más.
+ *   3. Lo que no es texto y dice algo: el borde del segmento sin elegir y el
+ *      glifo de cada cadena, a 3:1 o más, y el contorno de foco de cada
+ *      control al que se llega con Tab, medido sobre el trazo y no contra el
+ *      fondo del contenedor.
  *   4. Que las cinco cadenas se distingan con daltonismo, por color y por
  *      forma.
  *
@@ -30,42 +32,12 @@
  */
 
 import { BASE, abrir, alta, completarUnaSesion, revisarQueSirvaLoCompilado } from './lib/portones.mjs'
+import { MACHADO, aRGB, contraste, distanciaCon } from './lib/color.mjs'
+import { medidasEnLaPagina } from './lib/medidas.mjs'
 
 const problemas = []
-
-/* ── El cálculo, que es el único lugar donde esto puede estar mal ──────── */
-
-const canal = (c) => {
-  const v = c / 255
-  return v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4
-}
-
-const luminancia = ([r, g, b]) => 0.2126 * canal(r) + 0.7152 * canal(g) + 0.0722 * canal(b)
-
-const contraste = (a, b) => {
-  const x = luminancia(a)
-  const y = luminancia(b)
-  return (Math.max(x, y) + 0.05) / (Math.min(x, y) + 0.05)
-}
-
-/** "rgb(16, 15, 13)" o "#100f0d" → [16, 15, 13]. Alfa: se compone sobre el fondo. */
-function aRGB(valor, debajo) {
-  if (!valor) return null
-  if (valor.startsWith('#')) {
-    const h = valor.length === 4
-      ? valor.slice(1).split('').map((c) => c + c).join('')
-      : valor.slice(1)
-    const n = parseInt(h, 16)
-    return [(n >> 16) & 255, (n >> 8) & 255, n & 255]
-  }
-  const nums = valor.match(/[\d.]+/g)
-  if (!nums || nums.length < 3) return null
-  const rgb = nums.slice(0, 3).map(Number)
-  const alfa = nums.length > 3 ? Number(nums[3]) : 1
-  if (alfa >= 0.999) return rgb
-  if (alfa <= 0.001 || !debajo) return null
-  return rgb.map((c, i) => Math.round(c * alfa + debajo[i] * (1 - alfa)))
-}
+/** Cuántos controles distintos recibieron el foco con Tab y se midieron. */
+let controlesConFoco = 0
 
 /* ── (1) Los pares declarados del sistema ──────────────────────────────── */
 
@@ -138,11 +110,6 @@ const CERCANIA_MAXIMA = 1.25
  */
 const CADENAS = ['empuje', 'traccion', 'piernas', 'core', 'bisagra']
 const DISTANCIA_MINIMA = 10
-const MACHADO = {
-  protanopía: [[0.152286, 1.052583, -0.204868], [0.114503, 0.786281, 0.099216], [-0.003882, -0.048116, 1.051998]],
-  deuteranopía: [[0.367322, 0.860646, -0.227968], [0.280085, 0.672501, 0.047413], [-0.01182, 0.04294, 0.968881]],
-  tritanopía: [[1.255528, -0.076749, -0.178779], [-0.078411, 0.930809, 0.147602], [0.004733, 0.691367, 0.3039]],
-}
 
 /**
  * Los pares que quedan cerca A PROPÓSITO, con su porqué. No se arreglan con un
@@ -160,49 +127,11 @@ const EXCLUIDOS = [
   ['acento', 'vega', 'deuteranopía (15,0, pasa), pero entre sí dan 1,83:1: Lyra no va nunca sobre la menta ni al lado de la acción'],
 ]
 
-const lineal = (c) => {
-  const v = c / 255
-  return v <= 0.04045 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4
-}
-
-/** RGB lineal → OKLab (Björn Ottosson, 2020). */
-function oklab([r, g, b]) {
-  const l = Math.cbrt(0.4122214708 * r + 0.5363325363 * g + 0.0514459929 * b)
-  const m = Math.cbrt(0.2119034982 * r + 0.6806995451 * g + 0.1073969566 * b)
-  const s = Math.cbrt(0.0883024619 * r + 0.2817188376 * g + 0.6299787005 * b)
-  return [
-    0.2104542553 * l + 0.793617785 * m - 0.0040720468 * s,
-    1.9779984951 * l - 2.428592205 * m + 0.4505937099 * s,
-    0.0259040371 * l + 0.7827717662 * m - 0.808675766 * s,
-  ]
-}
-
-/** Lo que ve una persona con esa visión, en RGB lineal y dentro del gamut. */
-function simular(rgb, matriz) {
-  const x = rgb.map(lineal)
-  return matriz.map((f) => Math.min(1, Math.max(0, f[0] * x[0] + f[1] * x[1] + f[2] * x[2])))
-}
-
-function distanciaCon(a, b, matriz) {
-  const p = oklab(simular(a, matriz))
-  const q = oklab(simular(b, matriz))
-  return 100 * Math.hypot(p[0] - q[0], p[1] - q[1], p[2] - q[2])
-}
-
 /* ── (2) Cada texto de cada pantalla, con su fondo real ────────────────── */
 
 async function medirPantalla(pagina, nombre) {
   const malos = await pagina.evaluate(() => {
-    const fondoDe = (el) => {
-      let n = el
-      while (n && n !== document.documentElement) {
-        const c = getComputedStyle(n).backgroundColor
-        const m = c.match(/[\d.]+/g)
-        if (m && (m.length < 4 || Number(m[3]) > 0.9)) return c
-        n = n.parentElement
-      }
-      return getComputedStyle(document.body).backgroundColor
-    }
+    const { fondoDe, opacidadDe } = window.__paleta
     const salida = []
     for (const el of document.querySelectorAll('body *')) {
       // Solo elementos con texto propio y visible.
@@ -230,10 +159,7 @@ async function medirPantalla(pagina, nombre) {
        * Se multiplica por la cadena entera de ancestros porque la opacidad se
        * compone: un 0,8 adentro de un 0,7 se ve al 0,56.
        */
-      let opacidad = 1
-      for (let n = el; n && n !== document.documentElement; n = n.parentElement) {
-        opacidad *= Number(getComputedStyle(n).opacity)
-      }
+      const opacidad = opacidadDe(el)
       if (opacidad < 0.005) continue
 
       salida.push({
@@ -336,12 +262,19 @@ async function medirLoQueNoEsTexto(pagina, nombre) {
  * EL CONTORNO DE FOCO, recorriendo la pantalla con Tab como la recorre quien
  * no usa las manos en la pantalla.
  *
- * El contorno va afuera, a 3 px, así que lo que tiene detrás es el fondo del
- * contenedor; si va hacia adentro (offset negativo, la acción del esfuerzo),
- * es el del propio elemento. Contra eso tiene que dar 3:1. Un elemento
- * enfocado sin contorno también es una falla: es un foco que no se ve.
+ * Se mide el trazo de verdad y no el color contra el fondo del contenedor.
+ * Así medido, "Saltear este ejercicio" daba 14:1 y pasaba, y en la pantalla
+ * el foco no cambiaba un píxel: los costados caían fuera de la pantalla y el
+ * borde de arriba, sobre la acción menta de encima, era acento sobre acento.
+ *
+ * Por cada lado se toman puntos cada 4 px sobre el centro del trazo. Un punto
+ * cuenta si cae en la pantalla, si nada fijo o pegado lo tapa y si el trazo da
+ * 3:1 contra lo que tiene justo adentro o justo afuera. Lo que cuenta tiene
+ * que sumar por lo menos el lado más largo del elemento: un contorno del que
+ * se ve menos que eso no alcanza para saber dónde está el foco. Un elemento
+ * enfocado sin contorno también es una falla.
  */
-async function medirElFoco(pagina, nombre, toques = 30) {
+async function medirElFoco(pagina, nombre, toques) {
   await pagina.evaluate(() => {
     document.activeElement?.blur?.()
     window.scrollTo(0, 0)
@@ -357,32 +290,48 @@ async function medirElFoco(pagina, nombre, toques = 30) {
       await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)))
       const el = document.activeElement
       if (!el || el === document.body) return null
-      const { fondoDe } = window.__paleta
-      const e = getComputedStyle(el)
-      const adentro = parseFloat(e.outlineOffset) < 0
       return {
-        etiqueta: el.tagName.toLowerCase() + (typeof el.className === 'string' && el.className ? '.' + el.className.split(' ')[0] : ''),
+        etiqueta: window.__paleta.etiqueta(el),
         texto: (el.getAttribute('aria-label') || el.textContent || '').trim().slice(0, 30),
-        estilo: e.outlineStyle,
-        ancho: parseFloat(e.outlineWidth),
-        color: e.outlineColor,
-        fondo: adentro ? fondoDe(el) : fondoDe(el.parentElement),
+        ...window.__paleta.trazoDelFoco(el),
       }
     })
     if (!m) continue
     const clave = `${m.etiqueta}|${m.texto}`
     if (dichos.has(clave)) continue
     dichos.add(clave)
+    controlesConFoco++
     if (m.estilo === 'none' || !(m.ancho > 0)) {
       problemas.push(`[${nombre}] "${m.texto}" (${m.etiqueta}) recibe el foco y no dibuja contorno.`)
       continue
     }
-    const fondo = aRGB(m.fondo, [7, 9, 12])
-    const color = aRGB(m.color, fondo)
-    if (!fondo || !color) continue
-    const r = contraste(color, fondo)
-    if (r < 3) {
-      problemas.push(`[${nombre}] el contorno de foco de "${m.texto}" (${m.etiqueta}) da ${r.toFixed(2)}:1 y necesita 3:1 — ${m.color} sobre ${m.fondo}.`)
+    const color = aRGB(m.color, [7, 9, 12])
+    let seVe = 0
+    const porLado = []
+    for (const [lado, puntos] of Object.entries(m.lados)) {
+      let cuentan = 0
+      let fuera = 0
+      let tapado = null
+      let peor = null
+      for (const q of puntos) {
+        if (!q.visible) { fuera++; continue }
+        if (q.tapado) { tapado = q.tapado; continue }
+        const contra = [q.adentro, q.afuera]
+          .filter(Boolean)
+          .map((f) => ({ ...f, r: contraste(color, aRGB(f.color, [7, 9, 12])) }))
+        if (contra.some((f) => f.r >= 3)) cuentan++
+        else peor ??= contra.sort((x, y) => x.r - y.r)[0]
+      }
+      seVe += cuentan * 4
+      if (cuentan === puntos.length) continue
+      if (fuera === puntos.length) porLado.push(`${lado}, fuera de la pantalla`)
+      else if (peor) porLado.push(`${lado}, ${peor.r.toFixed(2)}:1 sobre ${peor.color} (${peor.de})`)
+      else if (tapado) porLado.push(`${lado}, tapado por ${tapado}`)
+    }
+    if (seVe < m.largo) {
+      problemas.push(
+        `[${nombre}] el contorno de foco de "${m.texto}" (${m.etiqueta}) se ve a 3:1 en ${seVe} px y hace falta el lado más largo, ${Math.round(m.largo)} px — ${porLado.join('; ')}.`,
+      )
     }
   }
 }
@@ -468,43 +417,21 @@ async function main() {
         ? { matches: true, media: q, addEventListener() {}, removeEventListener() {}, addListener() {}, removeListener() {}, onchange: null, dispatchEvent: () => false }
         : real(q)
   })
-  // Lo que las mediciones de adentro de la página comparten: el fondo
-  // efectivo, la opacidad acumulada y si algo se ve.
-  await contexto.addInitScript(() => {
-    const fondoDe = (el) => {
-      let n = el
-      while (n && n !== document.documentElement) {
-        const c = getComputedStyle(n).backgroundColor
-        const m = c.match(/[\d.]+/g)
-        if (m && (m.length < 4 || Number(m[3]) > 0.9)) return c
-        n = n.parentElement
-      }
-      return getComputedStyle(document.body).backgroundColor
-    }
-    const opacidadDe = (el) => {
-      let o = 1
-      for (let n = el; n && n !== document.documentElement; n = n.parentElement) o *= Number(getComputedStyle(n).opacity)
-      return o
-    }
-    const visible = (el) => {
-      const c = el.getBoundingClientRect()
-      const e = getComputedStyle(el)
-      return c.width >= 2 && c.height >= 2 && e.visibility !== 'hidden' && opacidadDe(el) > 0.005
-    }
-    window.__paleta = { fondoDe, opacidadDe, visible }
-  })
+  await contexto.addInitScript(medidasEnLaPagina)
   await pagina.emulateMedia({ reducedMotion: 'reduce' })
 
-  // El alta se mide pantalla por pantalla mientras se pasa: es la primera que
-  // ve todo el mundo, y la que tiene más regletas.
+  // Cada pantalla se mide entera: el texto, lo que no es texto y el foco con
+  // `toques` pasadas de Tab. El alta se mide pantalla por pantalla mientras
+  // se pasa: es la primera que ve todo el mundo, y la que tiene más regletas.
   let pantallas = 0
-  const medirTodo = async (nombre) => {
+  const medirTodo = async (nombre, toques = 30) => {
     await asentarse(pagina, nombre)
     await medirPantalla(pagina, nombre)
     await medirLoQueNoEsTexto(pagina, nombre)
+    await medirElFoco(pagina, nombre, toques)
     pantallas++
   }
-  await alta(pagina, { enCadaPaso: (paso) => medirTodo(`Alta · ${paso}`) })
+  await alta(pagina, { enCadaPaso: (paso) => medirTodo(`Alta · ${paso}`, 25) })
 
   // (1) Los tokens, leídos de la app viva y no del archivo: así lo que se mide
   //     es lo que el navegador resolvió, con las cascadas y todo.
@@ -617,8 +544,7 @@ async function main() {
     ['/reloj', 'El reloj'],
   ]) {
     await pagina.goto(`${BASE}/#${ruta}`, { waitUntil: 'networkidle' })
-    await medirTodo(nombre)
-    if (['/', '/diario', '/ajustes'].includes(ruta)) await medirElFoco(pagina, nombre, ruta === '/ajustes' ? 60 : 30)
+    await medirTodo(nombre, ruta === '/ajustes' ? 60 : 30)
   }
 
   // Entrenar, con la paleta de la noche: la serie y el descanso. La primera
@@ -626,19 +552,21 @@ async function main() {
   await pagina.goto(`${BASE}/#/entrenar`, { waitUntil: 'networkidle' })
   const boton = (nombre) => pagina.getByRole('button', { name: nombre, exact: true })
   await boton('Voy').waitFor({ state: 'visible' })
-  await medirTodo('Entrenar · la predicción')
-  await medirElFoco(pagina, 'Entrenar · la predicción', 12)
+  await medirTodo('Entrenar · la predicción', 12)
   await boton('Voy').click()
   await boton('Anotar serie').waitFor({ state: 'visible' })
-  await medirTodo('Entrenar · la serie')
+  await medirTodo('Entrenar · la serie', 12)
   await boton('Anotar serie').click()
   await boton('Saltear').waitFor({ state: 'visible' })
-  await medirTodo('Entrenar · el descanso')
+  await medirTodo('Entrenar · el descanso', 15)
 
-  // Y el cierre, que no tiene ruta: se llega entrenando la sesión entera.
-  const sinCierre = await completarUnaSesion(pagina)
+  // Y el final, que no tiene ruta: se llega entrenando la sesión entera. La
+  // serie de cierre y las preguntas se miden al pasar.
+  const sinCierre = await completarUnaSesion(pagina, {
+    alVerElFinal: (paso) => medirTodo(`Entrenar · ${paso}`, 15),
+  })
   if (sinCierre) problemas.push(`No se pudo medir el cierre: ${sinCierre}.`)
-  else await medirTodo('El cierre')
+  else await medirTodo('El cierre', 12)
 
   await navegador.close()
 
@@ -648,7 +576,7 @@ async function main() {
     process.exit(1)
   }
   console.log(
-    `Paleta verificada: ${PARES.length} pares del sistema, las ${CADENAS.length} cadenas en tres visiones y con su forma, y el texto, los bordes, los glifos y el foco de ${pantallas} pantallas.`,
+    `Paleta verificada: ${PARES.length} pares del sistema, las ${CADENAS.length} cadenas en tres visiones y con su forma, y el texto, los bordes, los glifos y el foco con Tab de ${pantallas} pantallas (${controlesConFoco} controles enfocados).`,
   )
 }
 
