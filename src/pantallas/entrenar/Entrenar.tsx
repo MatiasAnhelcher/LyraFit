@@ -122,7 +122,7 @@ import { configurarHaptica, configurarSonido, despertarAudio, sonar, tocar } fro
 import { Accion, AccionQuieta, Rotulo, nombreUnidad } from '@/componentes/ui'
 import { ComoSeHace } from '@/componentes/comoSeHace'
 import { SesionSinCerrar } from '@/componentes/sinCerrar'
-import { Cierre } from './Cierre'
+import { Cierre } from '../Cierre'
 
 type Etapa = 'series' | 'fuelle' | 'cierre-serie' | 'preguntas'
 

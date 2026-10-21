@@ -288,7 +288,7 @@ src/
     db.ts            el esquema de IndexedDB y sus migraciones
     repositorio.ts   la única puerta entre la app y la base
     respaldo.ts      la copia que ocurre sola
-  pantallas/     una pantalla por archivo
+  pantallas/     una pantalla por archivo; Hoy y Entrenar, una carpeta cada una
   componentes/   las piezas visuales compartidas
   hooks/         temporizadores, tema, pantalla despierta
 ```
