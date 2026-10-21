@@ -9,9 +9,11 @@
  *
  * ## Qué afirma
  *
- *   1. **La barra.** En las cinco secciones, cada pestaña mide 48 o más de
- *      alto y de ancho, y su rótulo va entero en un renglón: ni partido, ni
- *      cortado, ni afuera de la pestaña.
+ *   1. **La barra.** En las cinco secciones, cada pestaña mide 56 de alto y
+ *      48 o más de ancho (72×56 a 360, 64×56 a 320), y su rótulo va entero en
+ *      un renglón: ni partido, ni cortado, ni afuera de la pestaña. La activa
+ *      es una sola, lleva `aria-current="page"`, y la marca —22×2, en tinta—
+ *      va centrada sobre ella, en el borde de arriba de la barra.
  *   2. **Las regletas.** Cada `.regleta` de la app —el diario con la hora de
  *      acostarse, el chequeo, la molestia, Ajustes, las cuatro pruebas del
  *      alta (con barra y sin ella) y las preguntas del final— cumple la regla
@@ -60,6 +62,8 @@ const TELEFONOS = [
 const MINIMO = 48
 const MINIMO_ESFUERZO = 56
 const ALTO_DE_FILA = 56
+/** La barra de abajo: cada pestaña, 56 de alto (§8). */
+const ALTO_DE_BARRA = 56
 /** Una celda de cifra lleva el número en Sora a 16 px: pide 52 de alto. */
 const ALTO_DE_CIFRA = 52
 
@@ -156,8 +160,29 @@ const SECCIONES = [
 ]
 
 async function revisarLaBarra(p, telefono, pantalla) {
-  const pestanas = await p.evaluate(() =>
-    [...document.querySelectorAll('nav[aria-label="Secciones"] a')].map((a) => {
+  const { pestanas, marca } = await p.evaluate(() => ({
+    marca: (() => {
+      const el = document.querySelector('nav[aria-label="Secciones"] .barra-marca')
+      if (!el) return null
+      const caja = el.getBoundingClientRect()
+      // La tinta resuelta en un elemento de prueba, para comparar colores ya
+      // calculados y no un token contra un `rgb()`.
+      const prueba = document.createElement('i')
+      prueba.style.color = 'var(--color-tinta)'
+      document.body.append(prueba)
+      const tinta = getComputedStyle(prueba).color
+      prueba.remove()
+      return {
+        izquierda: caja.left,
+        ancho: caja.width,
+        alto: caja.height,
+        arriba: caja.top,
+        color: getComputedStyle(el).backgroundColor,
+        tinta,
+        borde: document.querySelector('nav[aria-label="Secciones"]').getBoundingClientRect().top,
+      }
+    })(),
+    pestanas: [...document.querySelectorAll('nav[aria-label="Secciones"] a')].map((a) => {
       const caja = a.getBoundingClientRect()
       const etiqueta = a.querySelector('.etiqueta-barra')
       if (!etiqueta) return { nombre: a.textContent?.trim() ?? '', sinEtiqueta: true }
@@ -171,6 +196,9 @@ async function revisarLaBarra(p, telefono, pantalla) {
         nombre: etiqueta.textContent?.trim() ?? '',
         ancho: caja.width,
         alto: caja.height,
+        izquierda: caja.left,
+        activa: a.hasAttribute('data-activa'),
+        actual: a.getAttribute('aria-current'),
         renglones,
         cortada:
           etiqueta.scrollWidth > etiqueta.clientWidth + 0.5 ||
@@ -180,7 +208,7 @@ async function revisarLaBarra(p, telefono, pantalla) {
         afuera: caja.left < -0.5 || caja.right > window.innerWidth + 0.5,
       }
     }),
-  )
+  }))
   if (pestanas.length !== 5) {
     fallos.push(`[${telefono.nombre}] ${pantalla} · la barra tiene ${pestanas.length} pestañas y no 5.`)
     return
@@ -191,12 +219,37 @@ async function revisarLaBarra(p, telefono, pantalla) {
       fallos.push(`${donde} no tiene su .etiqueta-barra.`)
       continue
     }
-    if (t.alto + TOLERANCIA < MINIMO || t.ancho + TOLERANCIA < MINIMO) {
-      fallos.push(`${donde} mide ${t.ancho.toFixed(1)}×${t.alto.toFixed(1)}: le faltan para ${MINIMO}×${MINIMO}.`)
+    if (t.alto + TOLERANCIA < ALTO_DE_BARRA || t.ancho + TOLERANCIA < MINIMO) {
+      fallos.push(`${donde} mide ${t.ancho.toFixed(1)}×${t.alto.toFixed(1)}: le faltan para ${MINIMO} de ancho y ${ALTO_DE_BARRA} de alto.`)
+    }
+    if (t.activa !== (t.actual === 'page')) {
+      fallos.push(`${donde} ${t.activa ? 'es la activa y no lleva' : 'lleva'} aria-current="page"${t.activa ? '' : ' sin ser la activa'}.`)
     }
     if (t.renglones !== 1) fallos.push(`${donde} parte su rótulo en ${t.renglones} renglones.`)
     if (t.cortada) fallos.push(`${donde} tiene el rótulo cortado o afuera de la pestaña.`)
     if (t.afuera) fallos.push(`${donde} se sale de la pantalla.`)
+  }
+  const activas = pestanas.filter((t) => t.activa)
+  if (activas.length !== 1) {
+    fallos.push(`[${telefono.nombre}] ${pantalla} · la barra tiene ${activas.length} pestañas activas y no una.`)
+  } else if (!marca) {
+    fallos.push(`[${telefono.nombre}] ${pantalla} · la barra no tiene la marca de la pestaña activa.`)
+  } else {
+    const activa = activas[0]
+    const corrida = marca.izquierda + marca.ancho / 2 - (activa.izquierda + activa.ancho / 2)
+    if (Math.abs(marca.ancho - 22) > TOLERANCIA || Math.abs(marca.alto - 2) > TOLERANCIA) {
+      fallos.push(`[${telefono.nombre}] ${pantalla} · la marca mide ${marca.ancho.toFixed(1)}×${marca.alto.toFixed(1)} y no 22×2.`)
+    }
+    if (Math.abs(corrida) > 0.5) {
+      fallos.push(`[${telefono.nombre}] ${pantalla} · la marca queda ${corrida.toFixed(1)} px corrida del centro de «${activa.nombre}».`)
+    }
+    if (Math.abs(marca.arriba - marca.borde) > 0.5) {
+      fallos.push(`[${telefono.nombre}] ${pantalla} · la marca no está en el borde de arriba de la barra (${marca.arriba.toFixed(1)} contra ${marca.borde.toFixed(1)}).`)
+    }
+    // Neutra: ni la menta de la acción ni el coral de Lyra (§8).
+    if (marca.color !== marca.tinta) {
+      fallos.push(`[${telefono.nombre}] ${pantalla} · la marca va en ${marca.color} y no en la tinta (${marca.tinta}).`)
+    }
   }
   // La maquinaria, sobre lo mismo: si alguien suma algo tocable a la barra,
   // también tiene que medir 48.

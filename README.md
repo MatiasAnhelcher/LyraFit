@@ -174,6 +174,8 @@ node barra.mjs     # la barra de 28 días: que no le avise faltas a quien no fal
 node dormir.mjs    # la hora de acostarse: se pregunta con el café tarde, nunca se inventa, y con ella sale el corte
 node toques.mjs    # que lo que se toca mida un dedo: la barra, las regletas, las filas y el descanso
 node transiciones.mjs # los pasajes con la CPU ×4: la callback a tiempo, sin cuadros largos ni nombres de más, y ningún toque perdido
+node foco.mjs      # el foco al título de cada pantalla, y con Tab nada lo tapa y el contorno se ve
+node letra-grande.mjs # la letra al 125 %: nada cortado, nada a lo ancho, y Empezar y "Listo" alcanzables
 node logo.mjs     # regenera el favicon y los íconos desde el componente de Lyra
 ```
 
@@ -234,6 +236,15 @@ teclado lleguen adonde tienen que llegar. La holgura de 150 ms que la
 especificación pide desde el toque no se alcanza en este Chromium ni con un
 pasaje vacío; el portón la informa como deuda en cada corrida, y la medida de
 verdad es la del teléfono real.
+
+`foco.mjs` mira la app como la recorre quien no usa la pantalla con el dedo:
+que al navegar el foco caiga en el título de la pantalla nueva —también en el
+de Hoy, que es solo para el lector— y no en `<body>`; que con Tab ningún
+elemento enfocado quede detrás de la barra, de la franja de arriba o del dock
+pegado; y que su contorno mida 2 px, vaya en el color que corresponde y se
+vea. `letra-grande.mjs` pone la letra del teléfono al 125 % y recorre todas
+las rutas a 360 y a 320. Los dos informan como deuda, sin fallar, lo de
+Entrenar que rehace P2.
 
 `pliegue.mjs` existe porque la regla de que `Empezar` tenga aire sobre la barra
 de navegación ya se rompió **dos veces**, las dos por un renglón que parecía

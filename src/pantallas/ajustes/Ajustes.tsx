@@ -38,7 +38,7 @@ export function Ajustes() {
   const [almacenamiento, releerAlmacenamiento] = useAlmacenamiento()
   const reducido = useMovimientoReducido()
 
-  if (!preferencias) return <Cargando filas={6} />
+  if (!preferencias || almacenamiento === undefined) return <Cargando filas={6} />
 
   const cambiar = (cambios: Partial<Preferencias>) => void guardarPreferencias(cambios)
 

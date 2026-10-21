@@ -17,12 +17,13 @@ import { useLiveQuery } from 'dexie-react-hooks'
 import type { Patron } from '@/dominio/tipos'
 import { guardarMolestiaDeHoy, leerEstadoDeHoy } from '@/datos/repositorio'
 import { useVolver } from '@/componentes/movimiento'
-import { Accion, AccionQuieta, Rotulo } from '@/componentes/ui'
+import { Accion, AccionQuieta, Cargando, Rotulo } from '@/componentes/ui'
 import { ElegirMolestia, LO_QUE_PASA_CON_LA_MOLESTIA } from '@/componentes/molestia'
 
 export function Molestia() {
   const volverAHoy = useVolver()
-  const deHoy = useLiveQuery(leerEstadoDeHoy, [])
+  // `null` es que hoy no hay nada avisado; `undefined`, que no se leyó.
+  const deHoy = useLiveQuery(async () => (await leerEstadoDeHoy()) ?? null, [])
   const [elegida, setElegida] = useState<Patron | 'ninguna' | null>(null)
   const [guardando, setGuardando] = useState(false)
 
@@ -45,6 +46,10 @@ export function Molestia() {
     // vieja del pasaje no lo agarre volviendo a decir "Listo".
     volver()
   }
+
+  // La placa hasta saber qué había avisado hoy: si llegaba con el pasaje
+  // andando, lo elegido y el "Ya no" aparecían en pleno movimiento.
+  if (deHoy === undefined) return <Cargando filas={4} />
 
   // Sin `min-h-dvh`, a diferencia del chequeo: acá hay una sola pregunta, y
   // empujar las acciones al fondo las dejaba debajo de la barra de navegación
