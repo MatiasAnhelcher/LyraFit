@@ -21,11 +21,11 @@
  */
 
 import { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { ENTRADAS_MINIMAS, leerEstado } from '@/dominio/estado'
 import type { Patron } from '@/dominio/tipos'
 import { fechaISO, guardarEstado, leerEstadoDeHoy, leerEstados } from '@/datos/repositorio'
+import { useVolver } from '@/componentes/movimiento'
 import { Accion, AccionQuieta, Regleta, Rotulo, Segmento } from '@/componentes/ui'
 import { ElegirMolestia, LO_QUE_PASA_CON_LA_MOLESTIA } from '@/componentes/molestia'
 
@@ -50,7 +50,7 @@ const ITEMS = [
 ]
 
 export function Estado() {
-  const navegar = useNavigate()
+  const volver = useVolver()
   const historial = useLiveQuery(leerEstados, [])
   const deHoy = useLiveQuery(leerEstadoDeHoy, [])
 
@@ -80,10 +80,13 @@ export function Estado() {
         musculos: actual.musculos ?? 3,
         ...(molestiaElegida && molestiaElegida !== 'ninguna' ? { molestia: molestiaElegida } : {}),
       })
-      navegar('/', { replace: true })
-    } finally {
+    } catch (error) {
       setGuardando(false)
+      throw error
     }
+    // "Guardando…" se queda hasta irse: la foto vieja del pasaje se saca un
+    // cuadro después, y un "Listo" que reaparece en ese cuadro parpadea.
+    volver('/')
   }
 
   return (
@@ -134,7 +137,7 @@ export function Estado() {
         <Accion deshabilitado={!completo || guardando} onClick={() => void guardar()}>
           {guardando ? 'Guardando…' : 'Listo'}
         </Accion>
-        <AccionQuieta onClick={() => navegar('/', { replace: true })}>Hoy no</AccionQuieta>
+        <AccionQuieta onClick={() => volver('/')}>Hoy no</AccionQuieta>
       </div>
     </div>
   )

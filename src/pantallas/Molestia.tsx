@@ -13,15 +13,15 @@
  */
 
 import { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
 import { useLiveQuery } from 'dexie-react-hooks'
 import type { Patron } from '@/dominio/tipos'
 import { guardarMolestiaDeHoy, leerEstadoDeHoy } from '@/datos/repositorio'
+import { useVolver } from '@/componentes/movimiento'
 import { Accion, AccionQuieta, Rotulo } from '@/componentes/ui'
 import { ElegirMolestia, LO_QUE_PASA_CON_LA_MOLESTIA } from '@/componentes/molestia'
 
 export function Molestia() {
-  const navegar = useNavigate()
+  const volverAHoy = useVolver()
   const deHoy = useLiveQuery(leerEstadoDeHoy, [])
   const [elegida, setElegida] = useState<Patron | 'ninguna' | null>(null)
   const [guardando, setGuardando] = useState(false)
@@ -30,17 +30,20 @@ export function Molestia() {
   // Lo que se ve elegido: lo que tocó recién o, si no tocó nada, lo que ya
   // había avisado hoy.
   const valor = elegida ?? avisada
-  const volver = () => navegar('/', { replace: true })
+  const volver = () => volverAHoy('/')
 
   async function guardar() {
     if (!elegida) return volver()
     setGuardando(true)
     try {
       await guardarMolestiaDeHoy(elegida === 'ninguna' ? null : elegida)
-      volver()
-    } finally {
+    } catch (error) {
       setGuardando(false)
+      throw error
     }
+    // Como en el chequeo: "Guardando…" se queda hasta irse, para que la foto
+    // vieja del pasaje no lo agarre volviendo a decir "Listo".
+    volver()
   }
 
   // Sin `min-h-dvh`, a diferencia del chequeo: acá hay una sola pregunta, y

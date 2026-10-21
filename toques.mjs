@@ -410,13 +410,25 @@ for (const telefono of TELEFONOS) {
           pruebas++
           await revisarRegletas(q, telefono, `Alta ${cual} · prueba ${paso === 'prueba' ? 1 : paso.slice(-1)}`)
         }
+        // Contra la caja del segmento, como en `revisarQueElegirNoCorra`: cada
+        // paso del alta arranca arriba, y tocar «12» scrollea la página para
+        // alcanzarlo. Eso mueve todo junto y no es el rótulo corriéndose.
+        const rotuloDel12 = () =>
+          q.getByRole('button', { name: '12', exact: true }).evaluate((s) => {
+            const de = s.getBoundingClientRect()
+            const texto = s.querySelector('.segmento-texto')?.getBoundingClientRect()
+            return texto ? { x: texto.left - de.left, y: texto.top - de.top } : null
+          })
         if (paso === 'prueba') {
-          rotuloAntes = await q.getByRole('button', { name: '12', exact: true }).locator('.segmento-texto').boundingBox()
+          rotuloAntes = await rotuloDel12()
         }
         if (paso === 'prueba-elegida') {
-          const ahora = await q.getByRole('button', { name: '12', exact: true }).locator('.segmento-texto').boundingBox()
-          if (rotuloAntes && ahora && Math.abs(ahora.y - rotuloAntes.y) > 0.5) {
-            fallos.push(`[${telefono.nombre}] Alta ${cual} · prueba 1 · elegir «12» corrió el rótulo ${Math.abs(ahora.y - rotuloAntes.y).toFixed(1)} px.`)
+          const ahora = await rotuloDel12()
+          const corrido = rotuloAntes && ahora ? Math.max(Math.abs(ahora.x - rotuloAntes.x), Math.abs(ahora.y - rotuloAntes.y)) : 0
+          if (!rotuloAntes || !ahora) {
+            fallos.push(`[${telefono.nombre}] Alta ${cual} · prueba 1 · no se pudo medir el rótulo de «12» para ver si se corre.`)
+          } else if (corrido > 0.5) {
+            fallos.push(`[${telefono.nombre}] Alta ${cual} · prueba 1 · elegir «12» corrió el rótulo ${corrido.toFixed(1)} px.`)
           }
         }
         if (conBarra && paso !== 'prueba-elegida') await anotarDeuda(q, telefono, `Alta · ${paso}`)

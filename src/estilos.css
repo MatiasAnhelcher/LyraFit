@@ -1065,8 +1065,14 @@
    *   · El arco del descanso es lineal. Representa tiempo real; si acelera,
    *     miente.
    *   · Ni confeti, ni medallas, ni monedas, ni barras que se llenan.
-   *   · Con `prefers-reduced-motion` todo queda quieto SIN PERDER
-   *     INFORMACIÓN: el estado final es el estado visible.
+   *   · Con movimiento reducido todo queda quieto SIN PERDER INFORMACIÓN:
+   *     el estado final es el estado visible.
+   *
+   * Cada primitiva declara su estado FINAL como estilo propio y anima solo
+   * desde el inicial (`from`, con `backwards`). Así, apagar la animación
+   * —el esfuerzo, el movimiento reducido— deja el dato a la vista sin una
+   * regla más, y al terminar la animación deja de existir: no queda
+   * colgada en `getAnimations()` ni pisa un `transform` del elemento.
    *
    * Y no entra ni un byte de librería. El resorte se escribe con `linear()`
    * de CSS, que es nativo desde 2023. Importa más de lo que parece: el
@@ -1075,23 +1081,28 @@
    * sean lazy o no.
    * ------------------------------------------------------------------ */
 
-  /* --- Los tokens del tiempo. Cuatro duraciones y nada entre medio. --- */
+  /* --- Los tokens del tiempo. Seis duraciones y nada entre medio. --- */
   :root {
     --dur-instante: 90ms;   /* el toque: por debajo de 100 ms se siente físico */
-    --dur-breve: 190ms;     /* entrar y salir */
-    --dur-media: 320ms;     /* navegar */
-    --dur-larga: 700ms;     /* trazar, imprimir */
+    --dur-breve: 180ms;     /* entrar, el ✓, la perilla, el color del arco */
+    --dur-media: 280ms;     /* los pasajes y lo que viaja entre pantallas */
+    --dur-asentar: 420ms;   /* la estrella se posa, la marca se enciende */
+    --dur-larga: 700ms;     /* la regla del cierre */
+    --dur-lenta: 900ms;     /* el trazo de la carta */
 
     /* Salidas: acelera al irse, frena al llegar. Asimétricas a propósito —
-       lo que se va no merece el tiempo de lo que llega. */
+       lo que se va no merece el tiempo de lo que llega. Un dato que llega no
+       rebota: la entrada frena sin pasarse. */
     --sal-salida: cubic-bezier(0.4, 0, 1, 1);
     --sal-entrada: cubic-bezier(0, 0, 0.18, 1);
-    --sal-ambas: var(--curva);
+    --sal-ambas: cubic-bezier(0.22, 0.61, 0.36, 1);
+    /* Lo que se posa: llega rápido y se acomoda largo, sin sobrepasar. */
+    --sal-asentar: cubic-bezier(0.2, 0.8, 0.3, 1);
 
     /* El resorte: sobrepasa 1 y vuelve, que es lo que hace que un toque se
        sienta material en vez de calculado. Se usa SOLO en `responder`.
        El suave (ζ = 0,8, pasa a 1,015) es para lo que se corre de lugar sin
-       que se lo apriete: la perilla del interruptor.
+       que se lo apriete: la perilla del interruptor y la marca de la barra.
 
        Acá van en `cubic-bezier`, y abajo, donde el navegador entiende
        `linear()`, en el muestreo de un oscilador amortiguado real. El
@@ -1121,53 +1132,150 @@
     }
   }
 
-  /* ── (1) ENTRAR / SALIR ─────────────────────────────────────────────
-     Aparición y retiro. Solo opacidad y un desplazamiento mínimo: 6 px, no
-     40. Un elemento que entra volando desde lejos le roba el ojo al que ya
-     estaba, y acá siempre hay algo que ya estaba.
-     Las usan la lista que entra en orden y el pasaje entre pantallas. */
+  /* ── (1) ENTRAR ─────────────────────────────────────────────────────
+     Aparición. Solo opacidad y un desplazamiento mínimo: 4 px, no 40. Un
+     elemento que entra volando desde lejos le roba el ojo al que ya estaba,
+     y acá siempre hay algo que ya estaba. */
   @keyframes entrar {
-    from { opacity: 0; transform: translateY(6px); }
-    to   { opacity: 1; transform: none; }
-  }
-  @keyframes salir {
-    to { opacity: 0; transform: translateY(-4px); }
+    from { opacity: 0; transform: translateY(4px); }
   }
 
-  /* El escalonado: cuando entra una lista, las filas entran de a una con 35
-     ms de diferencia. Más que eso y la última llega tarde; menos y no se
-     percibe el orden. El índice lo pone el componente en `--orden`. */
+  /* El escalonado: cuando entra una lista, las filas entran de a una con 24
+     ms de diferencia, el mismo escalón en toda la app. El índice lo pone el
+     componente en `--orden`, y `orden()` lo topea en 7: la última empieza a
+     los 168 ms y termina a los 348. Más filas no escalonan, porque lo que
+     era orden pasaría a ser espera. Nada espera a que esto termine para
+     poder tocarse: solo mueve opacidad y 4 px. */
   .entrar-en-orden {
-    animation: entrar var(--dur-breve) var(--sal-entrada) both;
-    animation-delay: calc(var(--orden, 0) * 35ms);
+    animation: entrar var(--dur-breve) var(--sal-entrada) backwards;
+    animation-delay: calc(var(--orden, 0) * 24ms);
   }
 
   /* ── (2) NAVEGAR ────────────────────────────────────────────────────
      El pasaje entre pantallas, con la View Transitions API del navegador:
      cero bytes de librería y el trabajo lo hace el compositor, no el hilo
      principal. Donde no existe la API no pasa nada y la navegación es el
-     corte duro de siempre — que es exactamente el comportamiento viejo.
+     corte duro de siempre.
 
-     PROHIBIDA en Entrenar, en el Reloj y en el Cierre: a 140 pulsaciones,
-     320 ms de deslizamiento se perciben como una app trabada. El hook que
-     dispara la transición lo verifica antes de llamarla. */
-  @media (prefers-reduced-motion: no-preference) {
-    ::view-transition-old(root) {
-      animation: salir var(--dur-instante) var(--sal-salida) both;
-    }
-    ::view-transition-new(root) {
-      animation: entrar var(--dur-media) var(--sal-entrada) both;
-    }
+     Lo dispara `useIrA` (`componentes/movimiento.tsx`), que es también el
+     que decide cuándo NO: con movimiento reducido no hay una sola llamada a
+     la API, y al entrar o salir del esfuerzo es un corte, porque a 140
+     pulsaciones cualquier deslizamiento se siente como una app trabada.
+
+     La dirección llega en `data-vt` y solo cambia hacia dónde se corre lo
+     que se va y lo que llega. Lo viejo se va en 140 ms; lo nuevo llega en
+     240 con 40 de espera y termina a los 280. Ningún pasaje dura más de
+     300 ms. Las distancias son chicas a propósito: 24 px entre secciones,
+     16 entre pasos, y en profundidad lo de atrás apenas retrocede 8. */
+  ::view-transition-group(*) {
+    animation-duration: var(--dur-media);
+    animation-timing-function: var(--sal-entrada);
+  }
+  @keyframes vt-salir {
+    to { opacity: 0; transform: translateX(var(--vt-x, 0px)); }
+  }
+  @keyframes vt-entrar {
+    from { opacity: 0; transform: translateX(var(--vt-x, 0px)); }
+  }
+  @keyframes vt-fundir-fuera {
+    to { opacity: 0; }
+  }
+  @keyframes vt-fundir-dentro {
+    from { opacity: 0; }
+  }
+  :root:not([data-movimiento='reducido']):not([data-liviano])::view-transition-old(root) {
+    animation: vt-salir var(--vt-sale, 140ms) var(--sal-salida) both;
+  }
+  :root:not([data-movimiento='reducido']):not([data-liviano])::view-transition-new(root) {
+    animation: vt-entrar var(--vt-llega, 240ms) var(--sal-entrada) var(--vt-espera, 40ms) both;
+  }
+  /* Por la barra, según el orden de las pestañas. */
+  :root[data-vt='lateral-der']::view-transition-old(root) { --vt-x: -24px; }
+  :root[data-vt='lateral-der']::view-transition-new(root) { --vt-x: 24px; }
+  :root[data-vt='lateral-izq']::view-transition-old(root) { --vt-x: 24px; }
+  :root[data-vt='lateral-izq']::view-transition-new(root) { --vt-x: -24px; }
+  /* A una subpantalla se entra en profundidad y se vuelve a la superficie. */
+  :root[data-vt='profundo']::view-transition-old(root) { --vt-x: -8px; }
+  :root[data-vt='profundo']::view-transition-new(root) { --vt-x: 16px; }
+  :root[data-vt='superficie']::view-transition-old(root) { --vt-x: 16px; }
+  :root[data-vt='superficie']::view-transition-new(root) { --vt-x: -8px; }
+  /* Entre los pasos del alta. */
+  :root[data-vt='paso-adelante']::view-transition-old(root) { --vt-x: -16px; }
+  :root[data-vt='paso-adelante']::view-transition-new(root) { --vt-x: 16px; }
+  :root[data-vt='paso-atras']::view-transition-old(root) { --vt-x: 16px; }
+  :root[data-vt='paso-atras']::view-transition-new(root) { --vt-x: -16px; }
+  /* La puerta al esfuerzo y el regreso del cierre son fundidos, sin
+     desplazamiento: lo que llega es la pantalla donde no se mueve nada. La
+     puerta termina a los 260 y el regreso a los 280. */
+  :root[data-vt='puerta']::view-transition-old(root) { --vt-sale: 120ms; }
+  :root[data-vt='puerta']::view-transition-new(root) { --vt-llega: 200ms; --vt-espera: 60ms; }
+  :root[data-vt='regreso']::view-transition-new(root) { --vt-llega: 200ms; --vt-espera: 80ms; }
+
+  /* El modo liviano: en un teléfono con 2 GB o menos no viaja nada, y queda
+     solo el fundido de la raíz, más corto. Cada foto es del tamaño de la
+     pantalla y la memoria de texturas es lo primero que falta ahí. */
+  :root[data-liviano]::view-transition-group(*) {
+    animation-duration: var(--dur-breve);
   }
 
   /* La barra de navegación NO participa del pasaje: es el marco, y un marco
-     que se desvanece en cada toque convierte la app en una presentación. */
+     que se desvanece en cada toque convierte la app en una presentación.
+     Solo se va en la puerta, porque el esfuerzo no tiene barra, y vuelve en
+     el regreso, después de que llegó lo demás. */
   .marco-fijo {
     view-transition-name: marco;
   }
   ::view-transition-group(marco) { animation: none; }
   ::view-transition-old(marco),
   ::view-transition-new(marco) { animation: none; mix-blend-mode: normal; }
+  :root[data-vt='puerta']::view-transition-old(marco) {
+    animation: vt-fundir-fuera 120ms var(--sal-salida) both;
+  }
+  :root[data-vt='regreso']::view-transition-new(marco) {
+    animation: vt-fundir-dentro 200ms var(--sal-entrada) 120ms both;
+  }
+
+  /* LO QUE VIAJA. Como mucho dos nombres por pasaje, más la raíz y el marco.
+     El grupo se corre y cambia de tamaño en 280 ms con la curva de entrada.
+
+     Un texto que viaja (`view-transition-class: texto`) cambia de cuerpo de
+     letra en el camino, y el fundido cruzado del navegador deja ver los dos
+     contornos a la vez. Así que la foto vieja se apaga en 120 ms y la nueva
+     aparece desde los 60. El origen y el destino llevan `width:
+     fit-content`, para que la foto no se estire. Sin `view-transition-class`
+     (Chrome antes de 125, Safari antes de 18.2) la regla de la clase no se
+     entiende y se cae entera, así que va repetida por nombre. */
+  ::view-transition-old(*.texto) {
+    animation: vt-fundir-fuera 120ms var(--sal-salida) both;
+  }
+  ::view-transition-new(*.texto) {
+    animation: vt-fundir-dentro 200ms var(--sal-entrada) 60ms both;
+  }
+  ::view-transition-old(lf-ficha-titulo),
+  ::view-transition-old(lf-ejercicio) {
+    animation: vt-fundir-fuera 120ms var(--sal-salida) both;
+  }
+  ::view-transition-new(lf-ficha-titulo),
+  ::view-transition-new(lf-ejercicio) {
+    animation: vt-fundir-dentro 200ms var(--sal-entrada) 60ms both;
+  }
+  /* La marca de la pestaña activa se corre con el resorte suave: se asienta
+     en la pestaña nueva, no frena en seco. */
+  ::view-transition-group(lf-nav-marca) {
+    animation-timing-function: var(--sal-resorte-suave);
+  }
+  /* La puerta dura 260: lo que viaja en ella, también. Del botón viaja el
+     color y no la palabra: el fondo es un elemento sin texto, estirado a la
+     caja nueva. */
+  ::view-transition-group(lf-ejercicio),
+  ::view-transition-group(lf-accion-fondo) {
+    animation-duration: 260ms;
+  }
+  ::view-transition-old(lf-accion-fondo),
+  ::view-transition-new(lf-accion-fondo) {
+    width: 100%;
+    height: 100%;
+  }
 
   /* ── (3) RESPONDER ──────────────────────────────────────────────────
      El acuse de recibo del toque. Reemplaza el `opacity: .6` que había en
@@ -1200,18 +1308,17 @@
   }
 
   /* ── (4) REVELAR ────────────────────────────────────────────────────
-     Un dato que llega. Solo opacidad: el texto no entra volando, aparece
-     impreso. Es la que ya usaba el cierre, ahora con nombre de primitiva. */
+     Un dato que llega: aparece y sube 6 px, sin rebote. Las esperas son las
+     del cierre, y "Listo" termina a los 3,74 s. */
   .revelar {
-    opacity: 0;
-    animation: revelar 240ms linear forwards;
+    animation: revelar var(--dur-media) var(--sal-entrada) backwards;
   }
   .revelar--1 { animation-delay: 1700ms; }
   .revelar--2 { animation-delay: 2300ms; }
   .revelar--3 { animation-delay: 2900ms; }
-  .revelar--4 { animation-delay: 3500ms; }
+  .revelar--4 { animation-delay: 3460ms; }
   @keyframes revelar {
-    to { opacity: 1; }
+    from { opacity: 0; transform: translateY(6px); }
   }
 
   /* ── (5) TRAZAR ─────────────────────────────────────────────────────
@@ -1225,35 +1332,45 @@
      deja de ser énfasis y pasa a ser ruido. */
   .anim-trazo {
     stroke-dasharray: 1;
-    stroke-dashoffset: 1;
-    animation: trazar 900ms var(--sal-ambas) 700ms forwards;
+    stroke-dashoffset: 0;
+    animation: trazar var(--dur-lenta) var(--sal-ambas) 700ms backwards;
   }
   @keyframes trazar {
-    to { stroke-dashoffset: 0; }
+    from { stroke-dashoffset: 1; }
   }
 
   /* La misma primitiva en su versión recta: la regla que se imprime y abre
      el cierre. Después, 700 ms de nada. Ese silencio es el diseño: es lo que
      hace que lo que viene se sienta dicho, y no gritado. */
   .anim-regla {
-    transform: scaleX(0);
     transform-origin: left;
-    animation: imprimir var(--dur-larga) var(--sal-ambas) forwards;
+    animation: imprimir var(--dur-larga) var(--sal-ambas) backwards;
   }
   @keyframes imprimir {
-    to { transform: scaleX(1); }
+    from { transform: scaleX(0); }
   }
 
   /* Y la llegada de la luz al final del trazo. Sin rebote: la estrella se
      posa, no salta. Un overshoot elástico convertiría un dato en un juguete
      — por eso `responder` tiene resorte y esto no. */
   .anim-estrella {
-    opacity: 0;
-    animation: asentar 420ms cubic-bezier(0.2, 0.8, 0.3, 1) 1460ms forwards;
+    animation: asentar var(--dur-asentar) var(--sal-asentar) 1460ms backwards;
   }
   @keyframes asentar {
     from { opacity: 0; transform: scale(0.55); }
-    to   { opacity: 1; transform: scale(1); }
+  }
+
+  /* Tu marca de la tira, la de la sesión que acabás de cerrar: se enciende
+     desde chica, con la misma curva con que se posa la estrella. Es la luz
+     del cierre cuando no hubo salto; con salto la luz es la estrella, y
+     nunca son las dos. */
+  .anim-encender {
+    transform-box: fill-box;
+    transform-origin: center;
+    animation: encender var(--dur-asentar) var(--sal-asentar) backwards;
+  }
+  @keyframes encender {
+    from { opacity: 0; transform: scale(0.4); }
   }
 
   /* El arco del descanso. No es decoración: es el reloj.
@@ -1282,7 +1399,11 @@
      pide por favor.
 
      Existe porque un ser que no respira está muerto, y un ser muerto no
-     acompaña a nadie. */
+     acompaña a nadie.
+
+     Se mueve el envoltorio y no el dibujo: el `drop-shadow` del dibujo se
+     rasteriza una vez y el compositor traslada la capa entera, en vez de
+     repintar la sombra en cada cuadro. */
   .lyra {
     display: inline-block;
     position: relative;
@@ -1293,7 +1414,12 @@
     overflow: visible;
     filter: drop-shadow(0 3px 8px rgba(255, 122, 69, 0.28));
   }
-  .lyra--viva svg {
+  .lyra-latido {
+    display: block;
+    width: 100%;
+    height: 100%;
+  }
+  .lyra--viva > .lyra-latido {
     animation: latir 3400ms ease-in-out infinite;
   }
   @keyframes latir {
@@ -1302,11 +1428,10 @@
   }
 
   /* El rebote del toque: `responder` aplicado a Lyra, con una vuelta sola y
-     un overshoot mínimo. Es un acuse de recibo, no una celebración. */
+     un overshoot mínimo. Es un acuse de recibo, no una celebración. Va en el
+     dibujo, adentro del envoltorio que late: los dos se suman sin pisarse. */
   .lyra-rebote {
-    animation:
-      latir 3400ms ease-in-out infinite,
-      rebotar 600ms cubic-bezier(0.34, 1.56, 0.64, 1);
+    animation: rebotar 600ms cubic-bezier(0.34, 1.56, 0.64, 1);
   }
   @keyframes rebotar {
     0%   { scale: 1;    rotate: 0deg; }
@@ -1794,7 +1919,7 @@
     inset: 0;
     background-color: var(--color-fondo);
     opacity: 0.72;
-    animation: fundir-cortina 280ms var(--sal-entrada) both;
+    animation: fundir-cortina var(--dur-media) var(--sal-entrada) both;
   }
   .hoja-marco[data-saliendo] .hoja-cortina {
     animation: apagar-cortina 140ms var(--sal-salida) both;
@@ -1813,7 +1938,7 @@
     border: 1px solid var(--color-canto-placa);
     border-bottom: 0;
     border-radius: var(--radio-hoja) var(--radio-hoja) 0 0;
-    animation: subir-hoja 280ms var(--sal-entrada) both;
+    animation: subir-hoja var(--dur-media) var(--sal-entrada) both;
   }
   /* Adentro de la hoja modal, lo terciario va en glosa: tenue sobre
      papel-alto da 4,93:1, sin margen. También la letra de lo apagado, que
@@ -1869,85 +1994,53 @@
 
    La regla operativa, que el portón `movimiento.mjs` verifica elemento por
    elemento: **el estado con movimiento reducido es el estado FINAL**, nunca el
-   inicial. Por eso cada primitiva se apaga declarando su `to`, y no con un
-   `animation: none` suelto que dejaría el `from` congelado.
+   inicial. Por eso cada primitiva declara como estilo propio cómo termina y
+   anima solo desde cómo empieza: acá alcanza con apagarlas, y lo que queda es
+   la regla impresa, el trazo dibujado, la estrella posada, la marca encendida
+   y el texto a la vista.
+
+   Se lee del atributo `data-movimiento` y no del media query. El atributo lo
+   pone un script de `index.html` con la preferencia del teléfono antes de
+   pintar, y lo corrige el portero con lo que la persona eligió en Ajustes:
+   la preferencia del sistema está escondida en los ajustes de accesibilidad
+   del teléfono, y tiene que poder cambiarse sin salir de la app. El JS lee
+   el mismo atributo (`movimientoReducido()`), así que el interruptor apaga
+   en el acto a Lyra, a la figura y a los pasajes, sin recargar.
    ========================================================================== */
 
-@media (prefers-reduced-motion: reduce) {
-  /* entrar */
-  .entrar-en-orden {
-    animation: none;
-    opacity: 1;
-    transform: none;
-  }
+:root[data-movimiento='reducido'] *,
+:root[data-movimiento='reducido'] *::before,
+:root[data-movimiento='reducido'] *::after {
+  animation: none !important;
+  transition-duration: 0s !important;
+}
 
-  /* responder: el toque sigue acusando recibo, pero con la superficie y no
-     con el desplazamiento. El acuse no es decoración — sin él no se sabe si
-     el toque entró. */
-  .accion:active,
-  .paso:active {
-    transform: none;
-  }
+/* El arco del descanso es información y no adorno: sigue corriendo parejo,
+   segundo a segundo. Lo que va en seco es su cambio de color de los últimos
+   tres segundos. */
+:root[data-movimiento='reducido'] .arco-descanso {
+  transition: stroke-dashoffset 1s linear !important;
+}
 
-  /* El ✓ del segmento elegido y la hoja aparecen y se van en seco. */
-  .segmento-tilde {
-    transform: none;
-  }
-  .hoja,
-  .hoja-cortina {
-    animation: none;
-  }
+/* responder: el toque sigue acusando recibo, pero con la superficie y no con
+   el desplazamiento. El acuse no es decoración — sin él no se sabe si el
+   toque entró. */
+:root[data-movimiento='reducido'] :is(.accion, .paso):active,
+:root[data-movimiento='reducido'] .segmento-tilde {
+  transform: none;
+}
 
-  /* revelar */
-  .revelar {
-    animation: none;
-    opacity: 1;
-  }
+/* Las chispas solo existen en movimiento. */
+:root[data-movimiento='reducido'] .lyra-chispas {
+  display: none;
+}
 
-  /* trazar, y sus dos formas */
-  .anim-trazo {
-    animation: none;
-    stroke-dashoffset: 0;
-  }
-  .anim-regla {
-    animation: none;
-    transform: scaleX(1);
-  }
-  .anim-estrella {
-    animation: none;
-    opacity: 1;
-    transform: none;
-  }
-
-  /* El arco del descanso es información, no decoración: se sigue
-     actualizando, pero salta de segundo a segundo en vez de deslizarse. */
-  .arco-descanso {
-    transition: none;
-  }
-
-  /* latir: Lyra queda quieta y entera. No pierde nada, deja de respirar. */
-  .lyra--viva svg,
-  .lyra-rebote {
-    animation: none;
-  }
-  .lyra-chispas {
-    display: none;
-  }
-
-  /* navegar: el pasaje no ocurre. La regla de arriba ya lo deja fuera con
-     `no-preference`, y esto lo cierra también para el navegador que aplique
-     las dos. */
-  ::view-transition-old(root),
-  ::view-transition-new(root) {
-    animation: none;
-  }
-
-  *,
-  *::before,
-  *::after {
-    animation-duration: 0.01ms !important;
-    transition-duration: 0.01ms !important;
-  }
+/* navegar: con movimiento reducido no se llama nunca a la API. Esto cierra
+   el caso de un pasaje que ya estaba corriendo cuando cambió el atributo. */
+:root[data-movimiento='reducido']::view-transition-group(*),
+:root[data-movimiento='reducido']::view-transition-old(*),
+:root[data-movimiento='reducido']::view-transition-new(*) {
+  animation: none !important;
 }
 
 /* ── El cuerpo del mapa muscular ──────────────────────────────────────── */

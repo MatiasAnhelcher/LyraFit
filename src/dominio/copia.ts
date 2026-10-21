@@ -24,6 +24,7 @@
 
 import { esDiaValido } from './borrador'
 import { contestoElChequeo } from './estado'
+import { movimientoGuardado } from './movimiento'
 import type { DiaDelDiario } from './nutricion'
 import type { Avance, Estado, Patron, Preferencias, Sesion, TipoSesion } from './tipos'
 
@@ -268,7 +269,14 @@ export function revisarCopia(dato: unknown): RevisionDeCopia {
       ),
       avances: (avances as Fila[]).map(avanceDeHoy),
       estados: estados as Estado[],
-      preferencias: preferencias as unknown as Preferencias,
+      // El movimiento viaja como el resto de las preferencias. Una copia de
+      // antes del interruptor no lo trae y se lee como "seguir al teléfono",
+      // que es lo que esa persona tenía; y un valor que no se entiende no
+      // rompe la copia, porque no es un dato: se vuelve a seguir al teléfono.
+      preferencias: {
+        ...preferencias,
+        movimiento: movimientoGuardado(preferencias),
+      } as unknown as Preferencias,
       diario: diario as DiaDelDiario[],
     },
   }

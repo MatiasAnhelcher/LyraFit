@@ -17,7 +17,8 @@ import type { Preferencias } from '@/dominio/tipos'
 import { cambiarBarraDeDominadas, guardarPreferencias, leerPreferencias } from '@/datos/repositorio'
 import { HAY_HAPTICA } from '@/respuesta'
 import { HAY_VOZ, vozElegida } from '@/voz'
-import { orden } from '@/componentes/movimiento'
+import { orden, useMovimientoReducido } from '@/componentes/movimiento'
+import { movimientoAlTocar, movimientoGuardado } from '@/dominio/movimiento'
 import {
   Cargando,
   Interruptor,
@@ -35,6 +36,7 @@ import { TusDatos, useAlmacenamiento } from './TusDatos'
 export function Ajustes() {
   const preferencias = useLiveQuery(leerPreferencias, [])
   const [almacenamiento, releerAlmacenamiento] = useAlmacenamiento()
+  const reducido = useMovimientoReducido()
 
   if (!preferencias) return <Cargando filas={6} />
 
@@ -404,6 +406,24 @@ export function Ajustes() {
               onCambiar={(v) => cambiar({ voz: v })}
             />
           )}
+          {/* Muestra lo que rige y no lo guardado: con el valor en
+              "sistema" y el teléfono pidiendo calma, dice SÍ aunque nadie lo
+              haya tocado, porque eso es lo que se ve. Tocarlo escribe siempre
+              lo contrario de lo que se ve, así que nunca hay un toque que no
+              cambia nada. */}
+          <Interruptor
+            titulo="Movimiento reducido"
+            detalle={
+              <>
+                {movimientoGuardado(preferencias) === 'sistema' && (
+                  <span className="block">Como en tu teléfono</span>
+                )}
+                Nada se anima y las pantallas cambian en seco. El arco del descanso sigue contando.
+              </>
+            }
+            activo={reducido}
+            onCambiar={() => cambiar({ movimiento: movimientoAlTocar(reducido) })}
+          />
           <div>
             <span className="canal">%</span>
             <span className="min-w-0">

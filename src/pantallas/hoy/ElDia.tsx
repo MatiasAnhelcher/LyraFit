@@ -1,4 +1,3 @@
-import { useNavigate } from 'react-router-dom'
 import { destinoDelDia, type ClaseDeDia } from '@/dominio/rutinas'
 import {
   PISO_DE_PROTEINA,
@@ -7,7 +6,7 @@ import {
   type HoraDeDormir,
 } from '@/dominio/nutricion'
 import { IconoComida, IconoFuerza, IconoSueno } from '@/componentes/iconos'
-import { orden } from '@/componentes/movimiento'
+import { orden, useIrA } from '@/componentes/movimiento'
 import { Rotulo, Simbolo } from '@/componentes/ui'
 
 /**
@@ -50,7 +49,7 @@ export function ElDia({
   /** La misma hora de acostarse que usa el diario, para que los dos avisos digan lo mismo. */
   horaDeDormir: HoraDeDormir | null | undefined
 }) {
-  const navegar = useNavigate()
+  const irA = useIrA()
 
   /**
    * Las tres señales del día.
@@ -110,7 +109,10 @@ export function ElDia({
         {senalesDelDia_filas.map((fila, i) => (
           <button
             key={fila.clave}
-            onClick={() => navegar(fila.a)}
+            // En profundidad, aunque el Diario y Progreso sean pestañas:
+            // se llega desde una fila de Hoy, no desde la barra. Si la fila
+            // lleva a la sesión, el pasaje se vuelve corte solo.
+            onClick={() => irA(fila.a, { direccion: 'profundo' })}
             className="fila-pulsable entrar-en-orden"
             style={orden(i)}
             data-prueba={`dia-${fila.clave}`}

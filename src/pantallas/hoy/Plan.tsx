@@ -4,7 +4,7 @@ import { NOMBRE_DIA, diaDeLaSemana, destinoDelDia, type ClaseDeDia } from '@/dom
 import type { VezPasada } from '@/dominio/estadisticas'
 import type { Ejercicio, Patron } from '@/dominio/tipos'
 import { despertarAudio } from '@/respuesta'
-import { orden } from '@/componentes/movimiento'
+import { orden, useIrA } from '@/componentes/movimiento'
 import { Accion, Glifo, Objetivo, Rotulo } from '@/componentes/ui'
 
 /** Un bloque de hoy, ya resuelto como lo va a pedir la sesión. */
@@ -56,6 +56,7 @@ export function Plan({
   molestiaDeHoy: Patron | undefined
 }) {
   const navegar = useNavigate()
+  const irA = useIrA()
 
   /**
    * La víspera: el eslabón que se abre hoy si esta sesión se cumple.
@@ -295,7 +296,7 @@ export function Plan({
             que la sesión corta: es una alternativa a empezar igual, no un
             cartel. Con una molestia avisada dice cuál, para poder retirarla. */}
         <button
-          onClick={() => navegar('/molestia')}
+          onClick={() => irA('/molestia', { direccion: 'profundo' })}
           className="accion-quieta"
           data-prueba="avisar-molestia"
         >

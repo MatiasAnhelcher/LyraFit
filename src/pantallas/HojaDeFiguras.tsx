@@ -33,8 +33,8 @@ export function HojaDeFiguras() {
                   </p>
                   {f && (
                     <div className="flex">
-                      <FiguraEjercicio figura={f} animar={false} />
-                      <FiguraEjercicio figura={{ ...f, inicio: f.fin }} animar={false} />
+                      <FiguraEjercicio figura={f} postura="inicio" />
+                      <FiguraEjercicio figura={{ ...f, inicio: f.fin }} postura="inicio" />
                     </div>
                   )}
                 </div>

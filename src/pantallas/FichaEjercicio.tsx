@@ -1,4 +1,4 @@
-import { Link, useParams } from 'react-router-dom'
+import { useParams } from 'react-router-dom'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { NOMBRE_PATRON, POR_ID, buscarEjercicio, cadenaDe } from '@/dominio/biblioteca'
 import { historicoDeEjercicio, recordDe } from '@/dominio/estadisticas'
@@ -6,6 +6,7 @@ import { proyectar, requisitoDicho } from '@/dominio/progresion'
 import { eslabonesCerrados } from '@/dominio/apertura'
 import { POSTURAS } from '@/dominio/posturas'
 import { FiguraEjercicio } from '@/componentes/figura'
+import { LinkConPasaje } from '@/componentes/movimiento'
 import { CuerpoDoble } from '@/componentes/cuerpo'
 import { APORTE, NOMBRE_MUSCULO, PISO_DE_DOSIS, type Aporte, type Musculo } from '@/dominio/musculos'
 import { fijarNivel, leerAvances, leerPreferencias, leerSesiones } from '@/datos/repositorio'
@@ -37,9 +38,9 @@ export function FichaEjercicio() {
         <Rotulo>NO ENCONTRADO</Rotulo>
         <p className="mt-3 text-sm text-[var(--color-glosa)]">
           Ese ejercicio no está en la biblioteca.{' '}
-          <Link to="/biblioteca" className="underline underline-offset-4">
+          <LinkConPasaje a="/biblioteca" direccion="superficie" className="underline underline-offset-4">
             Volver
-          </Link>
+          </LinkConPasaje>
           .
         </p>
       </>
@@ -342,9 +343,12 @@ export function FichaEjercicio() {
       {esEslabon && (
       <section className="mt-8">
         <Rotulo>EN LA CADENA</Rotulo>
+        {/* Ir al eslabón de al lado es un paso por la misma cadena, no bajar
+            un nivel: va con el pasaje de paso y reemplaza la entrada, así
+            "Volver" y el atrás llevan a las cadenas y no a la ficha de antes. */}
         <div className="registro mt-3">
           {anterior && (
-            <Link to={`/biblioteca/${anterior.id}`} className="fila-pulsable">
+            <LinkConPasaje a={`/biblioteca/${anterior.id}`} direccion="paso-atras" replace className="fila-pulsable">
               <span className="canal">
                 <Simbolo nombre="flecha-izq" />
               </span>
@@ -353,10 +357,10 @@ export function FichaEjercicio() {
                 <span className="nombre mt-0.5 block truncate">{anterior.nombre}</span>
               </span>
               <span />
-            </Link>
+            </LinkConPasaje>
           )}
           {siguiente && (
-            <Link to={`/biblioteca/${siguiente.id}`} className="fila-pulsable">
+            <LinkConPasaje a={`/biblioteca/${siguiente.id}`} direccion="paso-adelante" replace className="fila-pulsable">
               <span className="canal">
                 <Simbolo nombre="flecha-der" />
               </span>
@@ -365,7 +369,7 @@ export function FichaEjercicio() {
                 <span className="nombre mt-0.5 block truncate">{siguiente.nombre}</span>
               </span>
               <span />
-            </Link>
+            </LinkConPasaje>
           )}
         </div>
       </section>

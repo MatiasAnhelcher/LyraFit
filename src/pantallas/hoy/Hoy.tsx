@@ -20,7 +20,6 @@
  */
 
 import { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { POR_ID, cadenaDe } from '@/dominio/biblioteca'
 import {
@@ -83,6 +82,7 @@ import { respaldarEnSilencio } from '@/datos/respaldo'
 import { SesionSinCerrar } from '@/componentes/sinCerrar'
 import { Carta } from '@/componentes/carta'
 import { Lyra } from '@/componentes/lyra'
+import { useIrA } from '@/componentes/movimiento'
 import { fraseDe, recordar, type Momento } from '@/dominio/frases'
 import { Cargando, Glosa, Rotulo, Simbolo } from '@/componentes/ui'
 import { Encabezado, FORMATO_FECHA } from './Encabezado'
@@ -120,7 +120,7 @@ export function Hoy() {
    * distintas frases y no habría forma de atar nada con un test.
    */
   const [azar, setAzar] = useState(() => Math.random())
-  const navegar = useNavigate()
+  const irA = useIrA()
   const hoy = new Date()
   const fecha = fechaISO(hoy)
 
@@ -464,7 +464,7 @@ export function Hoy() {
           chequeo contestado: la pregunta sigue en pie. */}
       {preferencias.estadoActivo && !(estadoDeHoy && contestoElChequeo(estadoDeHoy)) && (
         <button
-          onClick={() => navegar('/estado')}
+          onClick={() => irA('/estado', { direccion: 'profundo' })}
           className="registro mt-8 w-full text-left"
           style={{ borderTop: '1px solid var(--color-regla)' }}
         >

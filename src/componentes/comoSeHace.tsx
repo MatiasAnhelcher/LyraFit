@@ -56,7 +56,10 @@ export function ComoSeHace({ ejercicio, alCerrar }: { ejercicio: Ejercicio; alCe
 
         {figura && (
           <>
-            <FiguraEjercicio figura={figura} className="mt-4" />
+            {/* Quieta y con las dos posturas: esto se abre en medio del
+                esfuerzo, donde nada se mueve. La figura lo sabría sola, pero
+                acá no hay otro caso y se escribe para que se lea. */}
+            <FiguraEjercicio figura={figura} postura="ambas-quietas" className="mt-4" />
             <p className="mt-2 max-w-[38ch] text-sm leading-relaxed text-[var(--color-glosa)]">
               {figura.gesto}
             </p>

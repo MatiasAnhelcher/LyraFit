@@ -35,6 +35,7 @@ import {
   repartir,
   unaFila,
 } from './regleta'
+import { useCargando } from './movimiento'
 
 /** El patrón como tinta sobre papel. Para la noche está la rampa de luz. */
 export const COLOR_PATRON: Record<Patron, string> = {
@@ -710,8 +711,12 @@ export function Tira({ cantidad, tope = 120 }: { cantidad: number; tope?: number
   )
 }
 
-/** El estado vacío: las reglas ya dibujadas, quietas. Sin esqueleto latiendo. */
+/**
+ * El estado vacío: las reglas ya dibujadas, quietas. Sin esqueleto latiendo.
+ * Mientras está, el pasaje que trae esta pantalla espera su contenido.
+ */
 export function Cargando({ filas = 3 }: { filas?: number }) {
+  useCargando()
   return (
     <div className="registro" aria-busy="true" aria-live="polite">
       {Array.from({ length: filas }, (_, i) => (

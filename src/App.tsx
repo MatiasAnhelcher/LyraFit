@@ -1,7 +1,8 @@
-import { Suspense, lazy } from 'react'
+import { Suspense, lazy, useEffect } from 'react'
 import { Navigate, Route, Routes, useLocation } from 'react-router-dom'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { Layout } from './componentes/Layout'
+import { useAplicarMovimiento, useAvisarLugar, useCargando } from './componentes/movimiento'
 import { Rotulo } from './componentes/ui'
 import { Hoy } from './pantallas/hoy/Hoy'
 import { Entrenar } from './pantallas/entrenar/Entrenar'
@@ -15,16 +16,56 @@ import { FichaEjercicio } from './pantallas/FichaEjercicio'
 import { Ajustes } from './pantallas/ajustes/Ajustes'
 import { HojaDeFiguras } from './pantallas/HojaDeFiguras'
 import { leerPreferencias } from './datos/repositorio'
+import { movimientoGuardado } from './dominio/movimiento'
 
 // Progreso es la única pantalla que usa la librería de gráficos, y esa
 // librería pesa más que todo el resto de la app junta. Cargándola aparte, el
 // arranque queda liviano: quien abre la app para entrenar no baja el código de
 // los gráficos hasta que entra a mirarlos.
-const Progreso = lazy(() =>
-  import('./pantallas/Progreso').then((m) => ({ default: m.Progreso })),
-)
+let moduloDeProgreso: typeof import('./pantallas/Progreso') | null = null
+const pedirProgreso = () =>
+  import('./pantallas/Progreso').then((m) => {
+    moduloDeProgreso = m
+    return m
+  })
+const ProgresoPerezoso = lazy(() => pedirProgreso().then((m) => ({ default: m.Progreso })))
+
+/**
+ * Progreso, sin suspender si su trozo ya llegó.
+ *
+ * `lazy` suspende la primera vez que se dibuja aunque el módulo ya esté en
+ * memoria —no lo sabe hasta pedirlo—, y React tarda en volver a mostrar lo
+ * que suspendió. Adentro de un pasaje eso era una foto nueva con
+ * "CARGANDO…" y la pantalla apareciendo después, ya sin pasaje.
+ */
+function PantallaDeProgreso() {
+  if (moduloDeProgreso) return <moduloDeProgreso.Progreso />
+  return (
+    <Suspense fallback={<Cargando />}>
+      <ProgresoPerezoso />
+    </Suspense>
+  )
+}
+
+/**
+ * Y el trozo de Progreso se pide igual, apenas Hoy está dibujado y el
+ * teléfono no tiene otra cosa que hacer. Ya está en el precache, así que no
+ * es red sino leerlo y compilarlo: hecho en un rato libre, el pasaje a
+ * Progreso no lo tiene que esperar.
+ */
+let progresoPedido = false
+function usePrecargarProgreso(enHoy: boolean) {
+  useEffect(() => {
+    if (!enHoy || progresoPedido) return
+    progresoPedido = true
+    const pedir = () => void pedirProgreso()
+    if (typeof window.requestIdleCallback === 'function') window.requestIdleCallback(pedir)
+    else window.setTimeout(pedir, 1)
+  }, [enHoy])
+}
 
 function Cargando() {
+  useCargando()
   return (
     <p className="py-16 text-center">
       <Rotulo>CARGANDO…</Rotulo>
@@ -45,8 +86,10 @@ function Cargando() {
 function Portero({ children }: { children: React.ReactNode }) {
   const preferencias = useLiveQuery(leerPreferencias, [])
   const lugar = useLocation()
+  // El movimiento se aplica antes de la primera pantalla, con lo guardado.
+  const movimientoAplicado = useAplicarMovimiento(preferencias && movimientoGuardado(preferencias))
 
-  if (!preferencias) return <Cargando />
+  if (!preferencias || !movimientoAplicado) return <Cargando />
   if (!preferencias.altaCompletadaEn && lugar.pathname !== '/alta') {
     return <Navigate to="/alta" replace />
   }
@@ -54,6 +97,8 @@ function Portero({ children }: { children: React.ReactNode }) {
 }
 
 export function App() {
+  useAvisarLugar()
+  usePrecargarProgreso(useLocation().pathname === '/')
   return (
     <Portero>
       <Routes>
@@ -71,14 +116,7 @@ export function App() {
             <Route path="/figuras" element={<HojaDeFiguras />} />
           )}
           <Route path="/biblioteca/:id" element={<FichaEjercicio />} />
-          <Route
-            path="/progreso"
-            element={
-              <Suspense fallback={<Cargando />}>
-                <Progreso />
-              </Suspense>
-            }
-          />
+          <Route path="/progreso" element={<PantallaDeProgreso />} />
           <Route path="/ajustes" element={<Ajustes />} />
         </Route>
 

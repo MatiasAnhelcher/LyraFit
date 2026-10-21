@@ -443,8 +443,8 @@ function Corriendo({
           <Arco restante={reloj.restante} total={tramo.segundos} />
         </div>
 
-        {/* El ejercicio: el nombre y el dibujo. El dibujo va quieto —`animar`
-            en false— porque esta pantalla apaga el movimiento y porque acá no
+        {/* El ejercicio: el nombre y el dibujo. El dibujo va quieto —en la
+            postura de inicio— porque esta pantalla apaga el movimiento y porque acá no
             hace falta aprender el gesto, hace falta reconocerlo de un vistazo. */}
         {tramo.clase !== 'pausa' && ejercicioId && (
           <>
@@ -457,7 +457,7 @@ function Corriendo({
             {aContar === null &&
               (dibujo ? (
                 <div className="mt-2 w-32 opacity-70">
-                  <FiguraEjercicio figura={dibujo} animar={false} />
+                  <FiguraEjercicio figura={dibujo} postura="inicio" />
                 </div>
               ) : (
                 // Las ráfagas no tienen dibujo pero tienen gesto, que es la

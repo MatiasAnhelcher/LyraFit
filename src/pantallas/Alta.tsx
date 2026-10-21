@@ -49,6 +49,7 @@ import { RUTINAS } from '@/dominio/rutinas'
 import type { Avance, Patron } from '@/dominio/tipos'
 import { guardarPreferencias, saltearElAlta, ubicarDesdePrueba } from '@/datos/repositorio'
 import { Accion, AccionQuieta, Glifo, MarcaRadio, Regleta, Rotulo, Segmento, unidad } from '@/componentes/ui'
+import { usePasoConPasaje } from '@/componentes/movimiento'
 
 interface Prueba {
   patron: Patron
@@ -155,6 +156,13 @@ export function Alta() {
   })
   const [guardando, setGuardando] = useState(false)
 
+  // Cada paso entra de costado, hacia adelante o hacia atrás, como pasar una
+  // hoja. Los pasos no navegan —es una sola ruta—, así que el pasaje envuelve
+  // el cambio de estado y no una navegación.
+  const pasar = usePasoConPasaje()
+  const adelante = (cambiar: () => void) => pasar('paso-adelante', cambiar)
+  const atras = (cambiar: () => void) => pasar('paso-atras', cambiar)
+
   function pruebaDe(p: Prueba): string {
     return !tieneBarra && p.sinBarra ? p.sinBarra : p.ejercicioId
   }
@@ -205,17 +213,19 @@ export function Alta() {
       {paso === 'propuesta' && (
         <Propuesta
           aviso={aviso}
-          onSeguir={() => setPaso('equipo')}
+          onSeguir={() => adelante(() => setPaso('equipo'))}
           onSaltear={() => void saltear()}
         />
       )}
 
       {paso === 'equipo' && (
         <Equipo
-          onElegir={(barra) => {
-            setTieneBarra(barra)
-            setPaso('pruebas')
-          }}
+          onElegir={(barra) =>
+            adelante(() => {
+              setTieneBarra(barra)
+              setPaso('pruebas')
+            })
+          }
         />
       )}
 
@@ -229,11 +239,13 @@ export function Alta() {
           onCambiar={(n) =>
             setRespuestas((r) => ({ ...r, [PRUEBAS[indice]!.patron]: Math.max(0, n) }))
           }
-          onSeguir={() => {
-            if (indice + 1 < PRUEBAS.length) setIndice(indice + 1)
-            else setPaso('plan')
-          }}
-          onVolver={() => (indice === 0 ? setPaso('equipo') : setIndice(indice - 1))}
+          onSeguir={() =>
+            adelante(() => {
+              if (indice + 1 < PRUEBAS.length) setIndice(indice + 1)
+              else setPaso('plan')
+            })
+          }
+          onVolver={() => atras(() => (indice === 0 ? setPaso('equipo') : setIndice(indice - 1)))}
         />
       )}
 
@@ -241,7 +253,7 @@ export function Alta() {
         <Plan
           ubicaciones={ubicaciones}
           tieneBarra={tieneBarra}
-          onSeguir={() => setPaso('dias')}
+          onSeguir={() => adelante(() => setPaso('dias'))}
         />
       )}
 

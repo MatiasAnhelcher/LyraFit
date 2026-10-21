@@ -1,6 +1,6 @@
 import { NavLink, Outlet, useLocation } from 'react-router-dom'
 import { IconoAjustes, IconoCadenas, IconoDiario, IconoHoy, IconoProgreso } from './iconos'
-import { useIrA } from './movimiento'
+import { subirAlPrincipio, useIrA } from './movimiento'
 
 /**
  * El armazón: contenido arriba, nomenclatura abajo.
@@ -49,6 +49,15 @@ const SECCIONES = [
   { a: '/ajustes', etiqueta: 'Ajustes', Icono: IconoAjustes, dominio: null },
 ] as const
 
+/**
+ * De qué sección es una pantalla. El chequeo y la molestia se abren desde Hoy
+ * y vuelven a Hoy, así que son de Hoy; la ficha es de Cadenas.
+ */
+function seccionDe(ruta: string): number {
+  const i = SECCIONES.findIndex(({ a }) => a !== '/' && (ruta === a || ruta.startsWith(`${a}/`)))
+  return i === -1 ? 0 : i
+}
+
 export function Layout() {
   const irA = useIrA()
   const lugar = useLocation()
@@ -84,7 +93,13 @@ export function Layout() {
                     // nada, y una transición que no ocurre es peor que ninguna
                     // porque nadie se entera de que no está.
                     e.preventDefault()
-                    if (!activa) irA(a)
+                    const desde = seccionDe(lugar.pathname)
+                    const hacia = seccionDe(a)
+                    // La pestaña de la pantalla en la que estás sube al
+                    // principio; desde una subpantalla, vuelve a la sección.
+                    if (lugar.pathname === a) subirAlPrincipio()
+                    else if (hacia === desde) irA(a, { direccion: 'superficie' })
+                    else irA(a, { direccion: hacia > desde ? 'lateral-der' : 'lateral-izq' })
                   }}
                   {...(activa ? { 'aria-current': 'page' as const } : {})}
                   data-prueba={`nav-${etiqueta.toLowerCase()}`}

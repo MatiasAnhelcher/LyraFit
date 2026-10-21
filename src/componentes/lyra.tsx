@@ -27,16 +27,18 @@
  * está escrito también en `estilos.css`, que es donde vive el sistema. Lo que sí
  * se respeta, porque es lo que hacía honesta a la regla:
  *
- * - **Con `prefers-reduced-motion` queda quieta del todo.** Sin flotar, sin
+ * - **Con movimiento reducido queda quieta del todo.** Sin flotar, sin
  *   parpadear, sin chispas. Sigue siendo Lyra, en pose.
- * - **Nunca aparece durante la serie; sí en el descanso.** La distinción es la
- *   que importa y antes acá decía "nunca durante el esfuerzo", que era impreciso.
+ * - **Nunca aparece durante la serie; en el descanso sí, pero quieta.**
  *   Mientras hacés la serie estás leyendo un número con el pulso a ciento
  *   cuarenta: ahí una cara que te mira es exactamente el ruido que
  *   `[data-pantalla='entrenar']` apaga. El descanso son sesenta a ciento
  *   cincuenta segundos mirando un arco vaciarse, y ahí es donde habla un
  *   entrenador — el aliento verbal aumenta las repeticiones, pero funciona
- *   como voz, no como algo que compita por la mirada.
+ *   como voz, no como algo que compita por la mirada. Por eso ahí no respira,
+ *   no parpadea y no sigue al dedo: lo único que se mueve en el descanso es
+ *   el arco. Lo sabe sola, leyendo la raíz y la pantalla de esfuerzo; ninguna
+ *   pantalla tiene que acordarse de pedírselo.
  * - **No hay confeti.** Las chispas del toque son seis puntos que se van en
  *   setecientos milisegundos, no una celebración.
  *
@@ -46,6 +48,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { Expresion } from '@/dominio/frases'
+import { useQuieto } from './movimiento'
 
 /** La tinta de los ojos: un marrón casi negro, cálido, que lee sobre naranja. */
 const OJO = '#2A1206'
@@ -124,14 +127,6 @@ const Chispa = ({ x, y, s = 4, c = '#fff', o = 1 }: { x: number; y: number; s?: 
   />
 )
 
-function prefiereQuieto() {
-  return (
-    typeof window !== 'undefined' &&
-    typeof window.matchMedia === 'function' &&
-    window.matchMedia('(prefers-reduced-motion: reduce)').matches
-  )
-}
-
 export function Lyra({
   tamano = 48,
   expresion = 'calma',
@@ -141,7 +136,10 @@ export function Lyra({
 }: {
   tamano?: number
   expresion?: Expresion
-  /** En false no mira, no parpadea y no reacciona: es un logo. */
+  /**
+   * En false no mira, no parpadea, no respira y no reacciona: es un logo.
+   * Con movimiento reducido o en el esfuerzo es false siempre.
+   */
   interactiva?: boolean
   className?: string
   onTocar?: () => void
@@ -152,8 +150,10 @@ export function Lyra({
   const [chispas, setChispas] = useState(0)
   const [festeja, setFesteja] = useState(false)
 
-  const quieto = prefiereQuieto()
-  const viva = interactiva && !quieto
+  // El hook va siempre, antes de mirar `interactiva`: un hook detrás de un
+  // `&&` se salta en los renders en que es false y React pierde la cuenta.
+  const quieta = useQuieto(ref)
+  const viva = interactiva && !quieta
   const expr: Expresion = festeja ? 'festejo' : expresion
   const ojos = ojosDe(expr)
 
@@ -226,7 +226,11 @@ export function Lyra({
       onClick={onTocar || viva ? alTocar : undefined}
       role="img"
       aria-label="Lyra"
+      data-viva={viva}
     >
+      {/* Respira el envoltorio y no el dibujo: la sombra del dibujo se
+          rasteriza una vez y el compositor mueve la capa entera. */}
+      <span className="lyra-latido">
       <svg viewBox="0 0 100 105" width="100%" height="100%" className={chispas > 0 ? 'lyra-rebote' : ''} key={chispas}>
         <defs>
           <radialGradient id="lyHalo" cx="50%" cy="48%" r="55%">
@@ -350,6 +354,7 @@ export function Lyra({
           </text>
         )}
       </svg>
+      </span>
 
       {/* Seis chispas que se van en setecientos milisegundos. No es confeti:
           no cae, no se acumula y no celebra un logro — confirma un toque. */}
