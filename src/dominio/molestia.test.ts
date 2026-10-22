@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { ejercicioDelBloque } from './bajada'
-import { CADENAS, NOMBRE_PATRON, POR_ID, cadenaDe } from './biblioteca'
+import { CADENAS, EJERCICIOS, NOMBRE_PATRON, POR_ID, cadenaDe } from './biblioteca'
+import { registrosDeLaSesion } from './borrador'
 import { cadenasCongeladas, contestoElChequeo, leerEstado } from './estado'
 import { curvaDeFuerza } from './estadisticas'
 import { RAFAGAS, bloqueDeFuelle, rafagaDelDescanso } from './metabolico'
@@ -12,10 +13,19 @@ import {
   lineaDeMolestia,
   molestiasDeHoy,
   molestiasDeLaSesion,
+  pasosConMolestia,
 } from './molestia'
 import { siguienteAvance } from './progresion'
 import { RUTINAS } from './rutinas'
-import type { Avance, BloqueRutina, Estado, Patron, Sesion } from './tipos'
+import type {
+  Avance,
+  BloqueRutina,
+  Ejercicio,
+  Estado,
+  PasoDelBorrador,
+  Patron,
+  Sesion,
+} from './tipos'
 
 /**
  * Que avisar una molestia cambie el plan, y nada más que el plan.
@@ -425,5 +435,324 @@ describe('la serie de cierre', () => {
   it('si no queda otra cosa, usa lo que hay: el cierre se puede saltear', () => {
     const entradas = [{ ejercicio: POR_ID.get(cadenaDe('core').ejercicios[0]!)! }]
     expect(fueraDeLaMolestia(entradas, new Set(['core']))).toEqual(entradas)
+  })
+})
+
+/**
+ * La molestia en lo que se arma con pasos: rutinas propias, mixes, un
+ * ejercicio solo y lo que falta de una sesión en curso.
+ *
+ * La regla es la del plan, y lo que se prueba es que no tenga agujeros por
+ * donde la cadena con molestia se cargue igual: un paso fijo con tu eslabón,
+ * una variante que no está en ninguna cadena, un accesorio que nadie marcó
+ * como bajada. Y que "Dejarlo como lo armé" devuelva lo que la persona eligió,
+ * sin tocar lo que pone el motor.
+ */
+describe('la molestia en una sesión armada con pasos', () => {
+  /** Un paso fijo de un ejercicio, con su ventana: como lo arma una rutina. */
+  function fijo(ejercicioId: string, id = `p-${ejercicioId}`): PasoDelBorrador {
+    const ejercicio = POR_ID.get(ejercicioId) ?? catalogo.get(ejercicioId)!
+    return {
+      id,
+      ejercicioId,
+      objetivo: { series: 3, cantidad: ejercicio.ventana.max },
+      clase: 'fijo',
+      fijo: true,
+      seccion: 'principal',
+    }
+  }
+
+  /** El paso de cadena: el eslabón del avance con el objetivo del motor. */
+  function deCadena(ejercicioId: string): PasoDelBorrador {
+    const ejercicio = POR_ID.get(ejercicioId)!
+    return {
+      id: `c-${ejercicio.patron}`,
+      ejercicioId,
+      objetivo: { series: ejercicio.series, cantidad: ejercicio.ventana.min },
+      clase: 'cadena',
+      seccion: 'principal',
+    }
+  }
+
+  /**
+   * Una variante de tracción que equivale al remo con pies elevados (el 4),
+   * para el ejemplo de la línea: "este paso bajó a remo australiano bajo".
+   * El catálogo de hoy no tiene variantes: llegan con la ola 1.
+   */
+  const pies = POR_ID.get('remo-australiano-pies-elevados')!
+  const variante: Ejercicio = {
+    ...pies,
+    id: 'variante-de-traccion',
+    nombre: 'Variante de tracción',
+    equivale: { patron: 'traccion', nivel: 4 },
+  }
+  /** Una variante que equivale al primer eslabón: no tiene dónde bajar. */
+  const varianteDelPrimero: Ejercicio = {
+    ...POR_ID.get('remo-australiano-alto')!,
+    id: 'variante-del-primero',
+    nombre: 'Variante del primero',
+    nivel: 1,
+    equivale: { patron: 'traccion', nivel: 1 },
+  }
+  /** Un accesorio de tracción, marcado como lo marca la ola 1. */
+  const accesorio: Ejercicio = {
+    ...POR_ID.get('remo-australiano-alto')!,
+    id: 'accesorio-de-traccion',
+    nombre: 'Accesorio de tracción',
+    nivel: 1,
+    accesorio: true,
+  }
+  const catalogo = new Map(POR_ID)
+  for (const e of [variante, varianteDelPrimero, accesorio]) catalogo.set(e.id, e)
+
+  it('sin molestia no cambia nada', () => {
+    const pasos = [deCadena('dominada-negativa'), fijo('flexion-completa')]
+    expect(pasosConMolestia(pasos, null)).toEqual({ pasos, cambios: [] })
+    expect(pasosConMolestia(pasos, new Set())).toEqual({ pasos, cambios: [] })
+  })
+
+  it('un paso de cadena pasa por la misma regla que el bloque del plan', () => {
+    for (const patron of PATRONES) {
+      const cadena = cadenaDe(patron)
+      cadena.ejercicios.forEach((id, posicion) => {
+        const paso = deCadena(id)
+        const { pasos, cambios } = pasosConMolestia([paso], patron)
+        const delPlan = bloqueConMolestia(
+          { ejercicio: POR_ID.get(id)!, objetivo: paso.objetivo, accesorio: false },
+          new Set([patron]),
+          POR_ID,
+          cadena,
+        )
+        if (posicion === 0) {
+          expect(delPlan.cambio).toBe('saltea')
+          expect(pasos, id).toEqual([])
+          expect(cambios).toEqual([{ paso: paso.id, patron, cambio: 'saltea', de: id, fijo: false }])
+          return
+        }
+        if (delPlan.cambio !== 'baja') throw new Error(`${id} tenía que bajar`)
+        // Lo bajado se guarda como volumen: un eslabón más fácil que no lee.
+        expect(pasos, id).toEqual([
+          { ...paso, ejercicioId: delPlan.ejercicio.id, objetivo: delPlan.objetivo, bajada: true, clase: 'volumen' },
+        ])
+        expect(cambios).toEqual([
+          { paso: paso.id, patron, cambio: 'baja', de: id, a: delPlan.ejercicio.id, fijo: false },
+        ])
+      })
+    }
+  })
+
+  it('un paso de volumen de esa cadena se saltea, como en el plan', () => {
+    const volumen: PasoDelBorrador = {
+      id: 'v',
+      ejercicioId: 'remo-australiano-bajo',
+      objetivo: { series: 2, cantidad: 15 },
+      bajada: true,
+      clase: 'volumen',
+    }
+    const { pasos, cambios } = pasosConMolestia([volumen], 'traccion')
+    expect(pasos).toEqual([])
+    expect(cambios).toEqual([
+      { paso: 'v', patron: 'traccion', cambio: 'saltea', de: 'remo-australiano-bajo', fijo: false },
+    ])
+    // Y "Dejarlo como lo armé" no lo devuelve: el volumen lo pone el motor.
+    expect(pasosConMolestia([volumen], 'traccion', { fijos: 'como-los-armaste' }).pasos).toEqual([])
+  })
+
+  it('un paso fijo con un eslabón recibe la regla del plan: baja al anterior', () => {
+    const paso = fijo('dominada-negativa')
+    const { pasos, cambios } = pasosConMolestia([paso], 'traccion')
+    const anterior = POR_ID.get('remo-australiano-pies-elevados')!
+    expect(pasos).toEqual([
+      {
+        ...paso,
+        ejercicioId: anterior.id,
+        objetivo: { series: SERIES_CON_MOLESTIA, cantidad: anterior.ventana.min },
+        bajada: true,
+      },
+    ])
+    // Sigue siendo fijo: tampoco lee la cadena.
+    expect(pasos[0]!.fijo).toBe(true)
+    expect(pasos[0]!.clase).toBe('fijo')
+    expect(cambios).toEqual([
+      { paso: paso.id, patron: 'traccion', cambio: 'baja', de: 'dominada-negativa', a: anterior.id, fijo: true },
+    ])
+  })
+
+  it('en el primer eslabón no hay dónde bajar y se saltea', () => {
+    const paso = fijo('remo-australiano-alto')
+    const { pasos, cambios } = pasosConMolestia([paso], 'traccion')
+    expect(pasos).toEqual([])
+    expect(cambios).toEqual([
+      { paso: paso.id, patron: 'traccion', cambio: 'saltea', de: 'remo-australiano-alto', fijo: true },
+    ])
+  })
+
+  it('una variante baja al eslabón equivale.nivel − 1 de su cadena', () => {
+    const paso = fijo(variante.id)
+    const { pasos, cambios } = pasosConMolestia([paso], 'traccion', { ejercicios: catalogo })
+    const bajo = POR_ID.get('remo-australiano-bajo')!
+    expect(cadenaDe('traccion').ejercicios.indexOf(bajo.id) + 1).toBe(variante.equivale!.nivel - 1)
+    expect(pasos).toEqual([
+      {
+        ...paso,
+        ejercicioId: bajo.id,
+        objetivo: { series: SERIES_CON_MOLESTIA, cantidad: bajo.ventana.min },
+        bajada: true,
+      },
+    ])
+    expect(cambios).toEqual([
+      { paso: paso.id, patron: 'traccion', cambio: 'baja', de: variante.id, a: bajo.id, fijo: true },
+    ])
+  })
+
+  it('una variante del primer eslabón no tiene dónde bajar y se saltea', () => {
+    const { pasos, cambios } = pasosConMolestia([fijo(varianteDelPrimero.id)], 'traccion', {
+      ejercicios: catalogo,
+    })
+    expect(pasos).toEqual([])
+    expect(cambios[0]?.cambio).toBe('saltea')
+  })
+
+  it('un accesorio de esa cadena se saltea, también uno con barra que nadie marcó como bajada', () => {
+    for (const id of [accesorio.id, 'remo-barra', 'curl-barra']) {
+      const { pasos, cambios } = pasosConMolestia([fijo(id)], 'traccion', { ejercicios: catalogo })
+      expect(pasos, id).toEqual([])
+      expect(cambios, id).toEqual([{ paso: `p-${id}`, patron: 'traccion', cambio: 'saltea', de: id, fijo: true }])
+    }
+  })
+
+  it('"Dejarlo como lo armé" deja los fijos como estaban, y los de cadena bajan igual', () => {
+    const cadena = deCadena('dominada-negativa')
+    const pasos = [cadena, fijo('dominada-asistida'), fijo(variante.id), fijo('curl-barra')]
+    const resultado = pasosConMolestia(pasos, 'traccion', { fijos: 'como-los-armaste', ejercicios: catalogo })
+    expect(resultado.pasos.slice(1)).toEqual(pasos.slice(1))
+    expect(resultado.pasos[0]!.ejercicioId).toBe('remo-australiano-pies-elevados')
+    expect(resultado.cambios).toEqual([
+      {
+        paso: cadena.id,
+        patron: 'traccion',
+        cambio: 'baja',
+        de: 'dominada-negativa',
+        a: 'remo-australiano-pies-elevados',
+        fijo: false,
+      },
+    ])
+  })
+
+  it('por defecto va la regla del plan, que es la conservadora', () => {
+    const pasos = [fijo('dominada-asistida')]
+    expect(pasosConMolestia(pasos, 'traccion')).toEqual(
+      pasosConMolestia(pasos, 'traccion', { fijos: 'regla-del-plan' }),
+    )
+    expect(pasosConMolestia(pasos, 'traccion').cambios[0]?.cambio).toBe('baja')
+  })
+
+  it('lo de otra cadena, la movilidad y un id desconocido quedan como estaban', () => {
+    const movilidad: PasoDelBorrador = {
+      id: 'm',
+      ejercicioId: 'gato-vaca',
+      objetivo: { series: 1, cantidad: 10 },
+      clase: 'movilidad',
+      seccion: 'entrada',
+    }
+    const desconocido: PasoDelBorrador = { ...fijo('flexion-completa', 'x'), ejercicioId: 'ya-no-existe' }
+    const pasos = [fijo('flexion-completa'), deCadena('sentadilla-completa'), movilidad, desconocido]
+    expect(pasosConMolestia(pasos, 'traccion')).toEqual({ pasos, cambios: [] })
+  })
+
+  it('lo que ya tiene series anotadas no se cambia a mitad de camino', () => {
+    // "Me molesta algo" en plena sesión aplica a lo que falta: si cambiara lo
+    // empezado, esas series quedarían fuera de lo que se guarda.
+    const empezado = fijo('dominada-asistida', 'empezado')
+    const falta = fijo('dominada-negativa', 'falta')
+    const { pasos, cambios } = pasosConMolestia([empezado, falta], 'traccion', {
+      hechas: { empezado: [{ logrado: 5 }] },
+    })
+    expect(pasos[0]).toBe(empezado)
+    expect(pasos[1]!.ejercicioId).toBe('remo-australiano-pies-elevados')
+    expect(cambios.map((c) => c.paso)).toEqual(['falta'])
+  })
+
+  it('la entrada en calor de esa cadena también baja, y sigue siendo entrada en calor', () => {
+    const entrada: PasoDelBorrador = {
+      ...fijo('remo-australiano-pies-elevados', 'entrada'),
+      objetivo: { series: 1, cantidad: 8 },
+      calentamiento: true,
+      seccion: 'entrada',
+    }
+    const { pasos } = pasosConMolestia([entrada], 'traccion')
+    expect(pasos[0]).toMatchObject({ ejercicioId: 'remo-australiano-bajo', calentamiento: true })
+    expect(pasos[0]!.objetivo.series).toBe(1)
+  })
+
+  it('acepta una cadena sola o varias, como las junta molestiasDeLaSesion', () => {
+    const pasos = [fijo('dominada-negativa'), fijo('flexion-completa')]
+    const varias = pasosConMolestia(pasos, molestiasDeLaSesion([soloMolestia('empuje')], HOY, ['traccion']))
+    expect(varias.cambios.map((c) => c.patron).sort()).toEqual(['empuje', 'traccion'])
+    expect(pasosConMolestia(pasos, ['traccion']).cambios).toEqual(pasosConMolestia(pasos, 'traccion').cambios)
+  })
+
+  it('ningún ejercicio fijo deja cargada su cadena con molestia en su eslabón de siempre', () => {
+    // Cada ficha del catálogo, como paso fijo, con molestia en su cadena: o se
+    // saltea, o baja a otro ejercicio de esa cadena que pide menos, con dos
+    // series como mucho y sin kilos.
+    for (const ejercicio of [...EJERCICIOS, variante, varianteDelPrimero, accesorio]) {
+      const paso = { ...fijo(ejercicio.id), objetivo: { series: 4, cantidad: 10, kg: 5 } }
+      const { pasos, cambios } = pasosConMolestia([paso], ejercicio.patron, { ejercicios: catalogo })
+      expect(cambios, ejercicio.id).toHaveLength(1)
+      if (cambios[0]!.cambio === 'saltea') {
+        expect(pasos, ejercicio.id).toEqual([])
+        continue
+      }
+      const bajado = POR_ID.get(pasos[0]!.ejercicioId)!
+      expect(bajado.id, ejercicio.id).not.toBe(ejercicio.id)
+      expect(bajado.patron, ejercicio.id).toBe(ejercicio.patron)
+      expect(cadenaDe(ejercicio.patron).ejercicios, ejercicio.id).toContain(bajado.id)
+      expect(bajado.ccr, ejercicio.id).toBeLessThanOrEqual(ejercicio.ccr)
+      expect(pasos[0]!.objetivo, ejercicio.id).toEqual({
+        series: SERIES_CON_MOLESTIA,
+        cantidad: bajado.ventana.min,
+      })
+    }
+  })
+
+  it('el paso bajado no hunde la curva de fuerza, aunque sea fijo', () => {
+    // Desde la reestructura la curva toma los fijos de las rutinas. Un eslabón
+    // de abajo con dos series al piso, ese día, no es haber perdido fuerza.
+    const { pasos } = pasosConMolestia([fijo('dominada-negativa')], 'traccion')
+    const bajado = pasos[0]!
+    const hechas = { [bajado.id!]: [{ logrado: bajado.objetivo.cantidad }, { logrado: bajado.objetivo.cantidad }] }
+    const sesion: Sesion = {
+      id: 's',
+      fecha: HOY,
+      finalizadaEn: 1,
+      duracionSegundos: 900,
+      tipo: 'plan',
+      registros: registrosDeLaSesion(pasos, hechas),
+    }
+    expect(sesion.registros[0]).toMatchObject({ bajada: true, fijo: true })
+    expect(curvaDeFuerza([sesion], 'traccion')).toEqual([])
+  })
+
+  it('es pura: no toca los pasos que recibe', () => {
+    const pasos = [deCadena('dominada-negativa'), fijo('dominada-asistida')]
+    const copia = structuredClone(pasos)
+    pasosConMolestia(pasos, 'traccion')
+    expect(pasos).toEqual(copia)
+  })
+
+  it('un borrador viejo, sin clase, se lee como lo lee normalizarBorrador', () => {
+    // Antes solo había eslabones del motor y bajadas: lo que traía `bajada` es
+    // volumen y se saltea; lo demás es el eslabón, y baja.
+    const viejo: PasoDelBorrador[] = [
+      { ejercicioId: 'dominada-negativa', objetivo: { series: 3, cantidad: 10 } },
+      { ejercicioId: 'remo-australiano-bajo', objetivo: { series: 2, cantidad: 15 }, bajada: true },
+    ]
+    const { pasos, cambios } = pasosConMolestia(viejo, 'traccion')
+    expect(pasos.map((p) => p.ejercicioId)).toEqual(['remo-australiano-pies-elevados'])
+    expect(cambios.map((c) => [c.paso, c.cambio])).toEqual([
+      ['dominada-negativa', 'baja'],
+      ['remo-australiano-bajo', 'saltea'],
+    ])
   })
 })

@@ -8,6 +8,11 @@
  * Los datos viven en código y no en la base porque son la parte que no cambia
  * con el uso. Cuando quieras sumar un ejercicio, lo agregás acá y lo enganchás
  * en la cadena: la app entera se acomoda sola.
+ *
+ * `equipo` es lo que la ficha pide, todo junto: la dominada asistida pide la
+ * barra Y la banda (ver `alcanza`, en `equipo.ts`). Sale de la técnica de cada
+ * ficha, y la barra y los discos tienen que cuadrar con `NECESITAN_BARRA` y
+ * `NECESITAN_BARRA_CARGABLE`: lo exige `biblioteca.test.ts`.
  */
 
 import type { Cadena, Ejercicio, Objetivo, Patron } from './tipos'
@@ -37,6 +42,7 @@ export const EJERCICIOS: Ejercicio[] = [
     series: 3,
     ccr: 0.2,
     descansoSegundos: 60,
+    equipo: ['pared'],
   },
   {
     id: 'flexion-inclinada-alta',
@@ -61,6 +67,7 @@ export const EJERCICIOS: Ejercicio[] = [
     series: 3,
     ccr: 0.3,
     descansoSegundos: 60,
+    equipo: ['silla'],
   },
   {
     id: 'flexion-inclinada',
@@ -85,6 +92,7 @@ export const EJERCICIOS: Ejercicio[] = [
     series: 3,
     ccr: 0.4,
     descansoSegundos: 75,
+    equipo: ['silla'],
   },
   {
     id: 'flexion-inclinada-baja',
@@ -109,6 +117,7 @@ export const EJERCICIOS: Ejercicio[] = [
     series: 3,
     ccr: 0.46,
     descansoSegundos: 75,
+    equipo: ['silla'],
   },
   {
     id: 'flexion-rodillas',
@@ -133,6 +142,7 @@ export const EJERCICIOS: Ejercicio[] = [
     series: 3,
     ccr: 0.53,
     descansoSegundos: 75,
+    equipo: ['nada'],
   },
   {
     id: 'flexion-completa',
@@ -157,6 +167,7 @@ export const EJERCICIOS: Ejercicio[] = [
     series: 3,
     ccr: 0.64,
     descansoSegundos: 90,
+    equipo: ['nada'],
   },
   {
     id: 'flexion-diamante',
@@ -181,6 +192,7 @@ export const EJERCICIOS: Ejercicio[] = [
     series: 3,
     ccr: 0.7,
     descansoSegundos: 90,
+    equipo: ['nada'],
   },
   {
     id: 'flexion-declinada',
@@ -205,6 +217,7 @@ export const EJERCICIOS: Ejercicio[] = [
     series: 3,
     ccr: 0.75,
     descansoSegundos: 90,
+    equipo: ['silla'],
   },
   {
     id: 'flexion-pseudoplancha',
@@ -229,6 +242,7 @@ export const EJERCICIOS: Ejercicio[] = [
     series: 3,
     ccr: 0.82,
     descansoSegundos: 120,
+    equipo: ['nada'],
   },
   {
     id: 'flexion-arquera',
@@ -253,6 +267,7 @@ export const EJERCICIOS: Ejercicio[] = [
     series: 3,
     ccr: 0.9,
     descansoSegundos: 120,
+    equipo: ['nada'],
   },
   {
     id: 'flexion-una-mano',
@@ -277,6 +292,7 @@ export const EJERCICIOS: Ejercicio[] = [
     series: 3,
     ccr: 1.0,
     descansoSegundos: 150,
+    equipo: ['nada'],
   },
   // ─── Tracción ────────────────────────────────────────────────────────
   {
@@ -302,6 +318,7 @@ export const EJERCICIOS: Ejercicio[] = [
     series: 3,
     ccr: 0.4,
     descansoSegundos: 75,
+    equipo: ['barra-baja'],
   },
   {
     id: 'remo-australiano-medio',
@@ -326,6 +343,7 @@ export const EJERCICIOS: Ejercicio[] = [
     series: 3,
     ccr: 0.49,
     descansoSegundos: 75,
+    equipo: ['barra-baja'],
   },
   {
     id: 'remo-australiano-bajo',
@@ -350,6 +368,7 @@ export const EJERCICIOS: Ejercicio[] = [
     series: 3,
     ccr: 0.58,
     descansoSegundos: 90,
+    equipo: ['barra-baja'],
   },
   {
     id: 'remo-australiano-pies-elevados',
@@ -374,6 +393,7 @@ export const EJERCICIOS: Ejercicio[] = [
     series: 3,
     ccr: 0.66,
     descansoSegundos: 90,
+    equipo: ['barra-baja', 'silla'],
   },
   {
     id: 'dominada-negativa',
@@ -398,6 +418,7 @@ export const EJERCICIOS: Ejercicio[] = [
     series: 3,
     ccr: 0.72,
     descansoSegundos: 120,
+    equipo: ['barra'],
   },
   {
     id: 'dominada-asistida',
@@ -422,6 +443,7 @@ export const EJERCICIOS: Ejercicio[] = [
     series: 3,
     ccr: 0.78,
     descansoSegundos: 120,
+    equipo: ['barra', 'banda'],
   },
   {
     id: 'dominada-asistida-leve',
@@ -446,6 +468,7 @@ export const EJERCICIOS: Ejercicio[] = [
     series: 3,
     ccr: 0.86,
     descansoSegundos: 120,
+    equipo: ['barra', 'banda'],
   },
   {
     id: 'dominada-completa',
@@ -470,6 +493,7 @@ export const EJERCICIOS: Ejercicio[] = [
     series: 3,
     ccr: 0.95,
     descansoSegundos: 150,
+    equipo: ['barra'],
   },
   {
     id: 'dominada-arquera',
@@ -494,6 +518,7 @@ export const EJERCICIOS: Ejercicio[] = [
     series: 3,
     ccr: 1.15,
     descansoSegundos: 150,
+    equipo: ['barra'],
   },
   {
     id: 'dominada-un-brazo-asistida',
@@ -518,6 +543,7 @@ export const EJERCICIOS: Ejercicio[] = [
     series: 3,
     ccr: 1.4,
     descansoSegundos: 180,
+    equipo: ['barra'],
   },
   // ─── Piernas ─────────────────────────────────────────────────────────
   {
@@ -543,6 +569,7 @@ export const EJERCICIOS: Ejercicio[] = [
     series: 3,
     ccr: 0.35,
     descansoSegundos: 60,
+    equipo: ['silla'],
   },
   {
     id: 'sentadilla-asistida',
@@ -567,6 +594,7 @@ export const EJERCICIOS: Ejercicio[] = [
     series: 3,
     ccr: 0.42,
     descansoSegundos: 60,
+    equipo: ['marco'],
   },
   {
     id: 'sentadilla-completa',
@@ -591,6 +619,7 @@ export const EJERCICIOS: Ejercicio[] = [
     series: 3,
     ccr: 0.5,
     descansoSegundos: 75,
+    equipo: ['nada'],
   },
   {
     id: 'zancada',
@@ -615,6 +644,7 @@ export const EJERCICIOS: Ejercicio[] = [
     series: 3,
     ccr: 0.62,
     descansoSegundos: 90,
+    equipo: ['nada'],
   },
   {
     id: 'sentadilla-bulgara',
@@ -639,6 +669,7 @@ export const EJERCICIOS: Ejercicio[] = [
     series: 3,
     ccr: 0.72,
     descansoSegundos: 90,
+    equipo: ['silla'],
   },
   {
     id: 'sentadilla-a-banco-una-pierna',
@@ -663,6 +694,7 @@ export const EJERCICIOS: Ejercicio[] = [
     series: 3,
     ccr: 0.82,
     descansoSegundos: 120,
+    equipo: ['silla'],
   },
   {
     id: 'sentadilla-una-pierna-asistida',
@@ -687,6 +719,7 @@ export const EJERCICIOS: Ejercicio[] = [
     series: 3,
     ccr: 0.9,
     descansoSegundos: 120,
+    equipo: ['marco'],
   },
   {
     id: 'pistol-squat',
@@ -711,6 +744,7 @@ export const EJERCICIOS: Ejercicio[] = [
     series: 3,
     ccr: 1.0,
     descansoSegundos: 120,
+    equipo: ['nada'],
   },
   {
     id: 'pistol-con-pausa',
@@ -735,6 +769,7 @@ export const EJERCICIOS: Ejercicio[] = [
     series: 3,
     ccr: 1.1,
     descansoSegundos: 150,
+    equipo: ['nada'],
   },
   // ─── Core ────────────────────────────────────────────────────────────
   {
@@ -760,6 +795,7 @@ export const EJERCICIOS: Ejercicio[] = [
     series: 3,
     ccr: 0.35,
     descansoSegundos: 45,
+    equipo: ['nada'],
   },
   {
     id: 'plancha',
@@ -784,6 +820,7 @@ export const EJERCICIOS: Ejercicio[] = [
     series: 3,
     ccr: 0.48,
     descansoSegundos: 60,
+    equipo: ['nada'],
   },
   {
     id: 'plancha-brazo-alternado',
@@ -808,6 +845,7 @@ export const EJERCICIOS: Ejercicio[] = [
     series: 3,
     ccr: 0.56,
     descansoSegundos: 60,
+    equipo: ['nada'],
   },
   {
     id: 'elevacion-rodillas-suelo',
@@ -832,6 +870,7 @@ export const EJERCICIOS: Ejercicio[] = [
     series: 3,
     ccr: 0.62,
     descansoSegundos: 60,
+    equipo: ['nada'],
   },
   {
     id: 'elevacion-piernas-suelo',
@@ -856,6 +895,7 @@ export const EJERCICIOS: Ejercicio[] = [
     series: 3,
     ccr: 0.72,
     descansoSegundos: 75,
+    equipo: ['nada'],
   },
   {
     id: 'elevacion-rodillas-colgado',
@@ -880,6 +920,7 @@ export const EJERCICIOS: Ejercicio[] = [
     series: 3,
     ccr: 0.8,
     descansoSegundos: 90,
+    equipo: ['barra'],
   },
   {
     id: 'elevacion-piernas-colgado',
@@ -904,6 +945,7 @@ export const EJERCICIOS: Ejercicio[] = [
     series: 3,
     ccr: 0.9,
     descansoSegundos: 120,
+    equipo: ['barra'],
   },
   // La agrupada va antes que la negativa. Estuvieron al revés —la negativa en
   // el 8 y la agrupada en el 9—, contra lo que dice la propia negativa: no se
@@ -934,6 +976,7 @@ export const EJERCICIOS: Ejercicio[] = [
     series: 3,
     ccr: 1.0,
     descansoSegundos: 150,
+    equipo: ['barra'],
   },
   {
     id: 'palanca-frontal-negativa',
@@ -958,6 +1001,7 @@ export const EJERCICIOS: Ejercicio[] = [
     series: 3,
     ccr: 1.15,
     descansoSegundos: 150,
+    equipo: ['barra'],
   },
 
   {
@@ -983,6 +1027,7 @@ export const EJERCICIOS: Ejercicio[] = [
     series: 3,
     ccr: 0.3,
     descansoSegundos: 45,
+    equipo: ['nada'],
   },
   {
     id: 'puente-gluteos-pies-elevados',
@@ -1007,6 +1052,7 @@ export const EJERCICIOS: Ejercicio[] = [
     series: 3,
     ccr: 0.42,
     descansoSegundos: 60,
+    equipo: ['silla'],
   },
   {
     id: 'puente-una-pierna',
@@ -1035,6 +1081,7 @@ export const EJERCICIOS: Ejercicio[] = [
     series: 3,
     ccr: 0.55,
     descansoSegundos: 75,
+    equipo: ['nada'],
   },
   {
     id: 'bisagra-una-pierna',
@@ -1066,6 +1113,7 @@ export const EJERCICIOS: Ejercicio[] = [
     series: 3,
     ccr: 0.66,
     descansoSegundos: 90,
+    equipo: ['nada'],
   },
   {
     id: 'puente-una-pierna-elevado',
@@ -1090,6 +1138,7 @@ export const EJERCICIOS: Ejercicio[] = [
     series: 3,
     ccr: 0.8,
     descansoSegundos: 90,
+    equipo: ['silla'],
   },
   {
     id: 'curl-talones-deslizando',
@@ -1114,6 +1163,7 @@ export const EJERCICIOS: Ejercicio[] = [
     series: 3,
     ccr: 0.87,
     descansoSegundos: 90,
+    equipo: ['toalla'],
   },
   {
     id: 'curl-nordico-negativo',
@@ -1147,6 +1197,7 @@ export const EJERCICIOS: Ejercicio[] = [
     // eslabón y repitiera el ciclo cada diecisiete sesiones, para siempre.
     ccr: 1.05,
     descansoSegundos: 120,
+    equipo: ['silla'],
   },
   {
     id: 'curl-nordico',
@@ -1171,6 +1222,7 @@ export const EJERCICIOS: Ejercicio[] = [
     series: 3,
     ccr: 1.3,
     descansoSegundos: 180,
+    equipo: ['silla'],
   },
 
   /* ══════════════════════════════════════════════════════════════════════
@@ -1225,6 +1277,7 @@ export const EJERCICIOS: Ejercicio[] = [
        `ccrEfectivo` sumando los kilos. */
     ccr: 0.35,
     descansoSegundos: 90,
+    equipo: ['discos'],
   },
   {
     id: 'remo-barra',
@@ -1250,6 +1303,7 @@ export const EJERCICIOS: Ejercicio[] = [
     series: 4,
     ccr: 0.4,
     descansoSegundos: 90,
+    equipo: ['discos'],
   },
   {
     id: 'peso-muerto-rumano',
@@ -1278,6 +1332,7 @@ export const EJERCICIOS: Ejercicio[] = [
        48% del peso corporal antes de poner un solo disco. */
     ccr: 0.48,
     descansoSegundos: 120,
+    equipo: ['discos'],
   },
   {
     id: 'elevacion-talones-barra',
@@ -1312,6 +1367,11 @@ export const EJERCICIOS: Ejercicio[] = [
     series: 3,
     ccr: 0.85,
     descansoSegundos: 60,
+    /* Solo los discos, aunque la técnica nombre un escalón: el borde lo hace
+       también un disco apoyado en el piso, y pedir `escalon` escondería el
+       único ejercicio de gemelo con carga a quien tiene la barra y nunca tocó
+       ese interruptor, que hoy vive en Ajustes, en la parte del fuelle. */
+    equipo: ['discos'],
   },
 
   {
@@ -1337,6 +1397,7 @@ export const EJERCICIOS: Ejercicio[] = [
     series: 3,
     ccr: 0.2,
     descansoSegundos: 60,
+    equipo: ['discos'],
   },
   {
     id: 'extension-triceps-barra',
@@ -1363,6 +1424,7 @@ export const EJERCICIOS: Ejercicio[] = [
     series: 3,
     ccr: 0.18,
     descansoSegundos: 60,
+    equipo: ['discos'],
   },
 ]
 

@@ -27,9 +27,10 @@
  * Dónde hay medición y dónde hay criterio: `EVIDENCIA`, ejercicio por ejercicio.
  */
 
-import { POR_ID } from './biblioteca'
-import { enLaVentana } from './adherencia'
-import type { Patron, Rutina, Sesion } from './tipos'
+import { EJERCICIOS, POR_ID } from './biblioteca'
+import { cuentaComoSesion, enLaVentana } from './adherencia'
+import { alcanza } from './equipo'
+import type { Equipo, Patron, Rutina, Sesion } from './tipos'
 
 export type Musculo =
   // Empuje
@@ -791,12 +792,11 @@ export function loQueFalta(entrada: {
   tieneBarraCargable?: boolean
 }): LoQueFalta {
   const { sesiones, hoy, rutina, tieneBarra, tieneBarraCargable = false } = entrada
-  const dentro = enLaVentana(sesiones, hoy)
 
   // Con dos días, "te falta piernas" es ruido. La doctrina del documento de
   // estrategia lo dice para el peso y vale igual acá: hay que poder decir
   // "todavía no sé".
-  const dias = new Set(dentro.map((s) => s.fecha)).size
+  const dias = diasDePractica(sesiones, hoy)
   if (dias < MINIMO_PARA_OPINAR) return { clase: 'sin-datos', dias }
 
   const cuenta = seriesPorMusculo(sesiones, hoy)
@@ -838,6 +838,94 @@ export function loQueFalta(entrada: {
 
   // Solo se señala si de verdad está atrás. Si el más flojo está cerca de la
   // mediana, la semana está pareja y no hay nada que decir.
+  if (series >= mediana * PROPORCION_QUE_PREOCUPA) return { clase: 'parejo' }
+
+  return { clase: 'flojo', musculo: peor, patron: PRIMARIO_DE.get(peor) ?? 'core', series }
+}
+
+/**
+ * Los días de práctica de la ventana de 28: los días con alguna sesión que
+ * cuenta. Una movilidad no hace un día de práctica (§5.6 A): no trae series
+ * que mirar, y con ella sola el umbral se cumpliría sin datos de fuerza.
+ */
+function diasDePractica(sesiones: Sesion[], hoy: string): number {
+  return new Set(enLaVentana(sesiones.filter(cuentaComoSesion), hoy).map((s) => s.fecha)).size
+}
+
+/**
+ * La semana que mira `loQueFaltaSinPlan`. Es la misma de `VENTANA_DE_ZONA` en
+ * `sectores.ts`, la de la baldosa y `sugerirZona`; no se importa de ahí porque
+ * `sectores.ts` importa este archivo.
+ */
+export const SEMANA_SIN_PLAN = 7
+
+/**
+ * Lo que la semana dejó atrás, sin plan: el bloque final del mix de Cuerpo
+ * completo cuando la persona entrena sin plan semanal (§6.3).
+ *
+ * Con plan, eso lo dice `loQueFalta`, que puede nombrar un patrón entero que
+ * la rutina no pide. Sin plan no hay rutina contra la cual faltar, así que la
+ * pregunta es otra: entre los músculos que algún ejercicio al alcance de tu
+ * equipo tiene como principal (aporte 1), cuál recibió menos series en los
+ * últimos siete días. Mirar el principal y no la dosis es lo que deja armar el
+ * bloque: si nada de lo que tenés a mano está limitado por ese músculo, no hay
+ * accesorio que proponerle, y nombrarlo sería mandar a buscar algo que no hay.
+ * El psoas queda afuera por lo mismo que en `loQueFalta` (`NO_SE_PROPONE`).
+ *
+ * Las mismas reglas de siempre, para que el bloque no diga algo distinto que
+ * Progreso:
+ *
+ * - **Sin datos** con menos de `MINIMO_PARA_OPINAR` días de práctica en las
+ *   cuatro semanas, contados como en `loQueFalta`.
+ * - **Parejo** si el más flojo no está debajo de la mitad de la mediana
+ *   (`PROPORCION_QUE_PREOCUPA`): "si la semana está pareja, no se agrega nada".
+ * - **Flojo** con el músculo, el patrón que lo tiene como principal y sus
+ *   series de la semana. Nunca `patron-ausente`: sin rutina, no hay patrón que
+ *   la rutina no incluya.
+ *
+ * Las series se cuentan como en el mapa, sin la entrada en calor, que no es
+ * trabajo, y sin la movilidad, que no trae registros. En un empate gana el
+ * primero en el orden de pantalla (`MUSCULOS_CUBIERTOS`), así la misma semana
+ * da siempre el mismo bloque.
+ */
+export function loQueFaltaSinPlan(
+  historial: Sesion[],
+  equipo: readonly Equipo[] | ReadonlySet<Equipo>,
+  /** El día de hoy, AAAA-MM-DD local: la semana termina acá. */
+  hoy: string,
+): LoQueFalta {
+  const dias = diasDePractica(historial, hoy)
+  if (dias < MINIMO_PARA_OPINAR) return { clase: 'sin-datos', dias }
+
+  const semana = enLaVentana(historial.filter(cuentaComoSesion), hoy, SEMANA_SIN_PLAN).map((s) =>
+    s.registros.some((r) => r.calentamiento)
+      ? { ...s, registros: s.registros.filter((r) => !r.calentamiento) }
+      : s,
+  )
+  const cuenta = seriesPorMusculo(semana, hoy)
+
+  const limitables = new Set<Musculo>()
+  for (const ejercicio of EJERCICIOS) {
+    if (!alcanza(ejercicio, equipo)) continue
+    for (const [musculo, aporte] of Object.entries(APORTE[ejercicio.id] ?? {}) as [
+      Musculo,
+      Aporte,
+    ][]) {
+      if (aporte === 1) limitables.add(musculo)
+    }
+  }
+  const candidatos = MUSCULOS_CUBIERTOS.filter(
+    (m) => limitables.has(m) && !NO_SE_PROPONE.includes(m),
+  )
+  if (candidatos.length === 0) return { clase: 'parejo' }
+
+  let peor = candidatos[0]!
+  for (const m of candidatos) {
+    if ((cuenta.get(m) ?? 0) < (cuenta.get(peor) ?? 0)) peor = m
+  }
+
+  const series = cuenta.get(peor) ?? 0
+  const mediana = medianaDe(candidatos.map((m) => cuenta.get(m) ?? 0))
   if (series >= mediana * PROPORCION_QUE_PREOCUPA) return { clase: 'parejo' }
 
   return { clase: 'flojo', musculo: peor, patron: PRIMARIO_DE.get(peor) ?? 'core', series }

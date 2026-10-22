@@ -22,7 +22,7 @@
  * validados en un laboratorio. La app no las presenta como si lo fueran.
  */
 
-import type { Estado, Patron } from './tipos'
+import type { Estado, PasoDelBorrador, Patron } from './tipos'
 
 // ─── Constantes ──────────────────────────────────────────────────────────
 
@@ -276,6 +276,66 @@ export function ajusteDelDia(banda: Banda): AjusteDelDia {
       // El caso más común, y el que más importa: no pasa nada y no se dice nada.
       return { factor: 1, protegida: false, neutra: false, mensaje: null }
   }
+}
+
+/**
+ * Si un paso es de los que eligió la persona: un fijo, que no sea la entrada
+ * en calor.
+ *
+ * La clase se deduce como en `normalizarBorrador` cuando el paso no la trae.
+ * La entrada en calor queda afuera aunque vaya como fijo: es preparación y no
+ * trabajo, y lo que el chequeo baja es el trabajo (lo mismo que conservan las
+ * versiones corta y liviana de un mix).
+ */
+function esFijoDeLaPersona(paso: PasoDelBorrador): boolean {
+  const clase = paso.clase ?? (paso.bajada ? 'volumen' : paso.fijo ? 'fijo' : 'cadena')
+  return clase === 'fijo' && !paso.calentamiento
+}
+
+/**
+ * El ajuste del día, aplicado también a los pasos fijos: lo que hace **Bajar
+ * también los tuyos**.
+ *
+ * El chequeo ámbar o rojo baja los pasos de cadena como siempre, venga de
+ * donde venga la sesión: esos números los pone el motor. Los fijos no, porque
+ * esos números los escribió la persona, y cambiarle en silencio un número
+ * suyo es decidir por ella. Por eso esto no corre solo: la pantalla dice "El
+ * chequeo de hoy dio para bajar un poco: tus pasos de cadena ya bajaron." y
+ * ofrece el botón, y esto es lo que hace el botón, para esa sesión.
+ *
+ * La cuenta es la misma que reciben los pasos de cadena: la cantidad por el
+ * factor, redondeada y nunca menos de 1. Los kilos no se tocan, como no los
+ * toca el ajuste en el plan. Un factor de 1 o más no cambia nada: el botón se
+ * llama bajar, y un día verde no sube nada solo.
+ *
+ * Lo que no es fijo —la cadena, el volumen, la movilidad, la entrada en calor—
+ * vuelve tal cual, y también vuelve tal cual el fijo cuyo número no cambia
+ * con el redondeo. Pura: devuelve pasos nuevos y no toca los que recibe.
+ */
+export function ajusteParaFijos(
+  pasos: readonly PasoDelBorrador[],
+  ajuste: Pick<AjusteDelDia, 'factor'>,
+): PasoDelBorrador[] {
+  return pasos.map((paso) => {
+    if (ajuste.factor >= 1 || !esFijoDeLaPersona(paso)) return paso
+    const cantidad = Math.max(1, Math.round(paso.objetivo.cantidad * ajuste.factor))
+    if (cantidad === paso.objetivo.cantidad) return paso
+    return { ...paso, objetivo: { ...paso.objetivo, cantidad } }
+  })
+}
+
+/**
+ * Si **Bajar también los tuyos** cambiaría algún número.
+ *
+ * Para que el botón aparezca solo cuando hace algo: con fijos de una
+ * repetición, o un día sin ajuste, tocarlo no bajaría nada y la línea que lo
+ * acompaña prometería un cambio que no ocurre.
+ */
+export function hayFijosParaBajar(
+  pasos: readonly PasoDelBorrador[],
+  ajuste: Pick<AjusteDelDia, 'factor'>,
+): boolean {
+  return ajusteParaFijos(pasos, ajuste).some((paso, i) => paso !== pasos[i])
 }
 
 /**

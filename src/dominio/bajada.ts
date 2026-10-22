@@ -95,6 +95,14 @@ export function bajadaDe(
  * El tiempo de trabajo se estima en tres segundos por repetición, que es un
  * tempo tranquilo y realista, y en los isométricos es el propio sostén. La
  * última serie de cada ejercicio no lleva descanso, y por eso se resta uno.
+ *
+ * Un ejercicio `porLado` cuenta su trabajo dos veces: la cantidad es de cada
+ * lado, así que diez zancadas por pierna son veinte, y un sostén de treinta
+ * segundos por lado son sesenta. Contarlo una vez prometía
+ * una sesión más corta que la que después se hace, y los mixes de piernas y
+ * glúteos son los que más ejercicios por lado tienen. El descanso no se
+ * duplica: entre un lado y el otro se cambia de posición, no se descansa una
+ * serie entera.
  */
 export const SEGUNDOS_POR_REPETICION = 3
 
@@ -103,10 +111,11 @@ export function minutosDeSesion(
   segundosDeFuelle = 0,
 ): number {
   const trabajo = entradas.reduce((suma, { ejercicio, objetivo, descansoSegundos }) => {
-    const porSerie =
+    const unLado =
       ejercicio.medida === 'segundos'
         ? objetivo.cantidad
         : objetivo.cantidad * SEGUNDOS_POR_REPETICION
+    const porSerie = ejercicio.porLado ? unLado * 2 : unLado
     const descanso = descansoSegundos ?? ejercicio.descansoSegundos
     return suma + objetivo.series * porSerie + Math.max(0, objetivo.series - 1) * descanso
   }, 0)

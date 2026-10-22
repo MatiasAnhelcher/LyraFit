@@ -282,6 +282,71 @@ describe('la energía de antes', () => {
   it('sin chequeo no hay energía de antes', () => {
     expect(vitalidadDeAntes(undefined, '2026-01-03', [])).toBeUndefined()
   })
+
+  it('una movilidad a la mañana no es la primera sesión: la de fuerza de la tarde lleva la energía', () => {
+    const movilidad = movilidadDelDia(2, 8)
+    expect(vitalidadDeAntes(4, movilidad.fecha, [movilidad])).toBe(4)
+    // Una de fuerza ese día sí ocupa el lugar, con o sin movilidad antes.
+    const fuerza = sesion(2, [{ logrado: 10 }], { id: 'f2', finalizadaEn: movilidad.finalizadaEn + 3_600_000 })
+    expect(vitalidadDeAntes(4, movilidad.fecha, [movilidad, fuerza])).toBeUndefined()
+  })
+})
+
+/**
+ * Una movilidad de cinco minutos el día de la sesión `n`, a la hora `h`: como
+ * la guarda el arranque (`fuelle`, `origen: movilidad`, sin registros) y sin
+ * las preguntas del final, que no hace.
+ */
+function movilidadDelDia(n: number, h: number): Sesion {
+  return {
+    id: `m${n}-${h}`,
+    fecha: sesion(n, []).fecha,
+    finalizadaEn: n * 86_400_000 + h * 3_600_000,
+    duracionSegundos: 300,
+    tipo: 'fuelle',
+    origen: { clase: 'movilidad', sector: 'pecho', nombre: 'Movilidad de pecho' },
+    registros: [],
+  }
+}
+
+describe('la movilidad no es una sesión para la vitalidad ni para el ánimo', () => {
+  it('el día que arrancó con una movilidad se mide con la primera sesión que cuenta', () => {
+    // Diez días medidos con la sesión a las 19; el último arrancó con una
+    // movilidad a las 8, sin energía. Tomarla como la primera dejaba ese día
+    // afuera.
+    const dias = Array.from({ length: 10 }, (_, i) =>
+      sesion(i, [{ logrado: 10 }], {
+        finalizadaEn: i * 86_400_000 + 19 * 3_600_000,
+        vitalidadPre: 3,
+        vitalidadPost: 4,
+      }),
+    )
+    const v = vitalidad([...dias, movilidadDelDia(9, 8)])!
+    expect(v.dias).toBe(10)
+    expect(v.serie).toEqual(Array(10).fill(1))
+  })
+
+  it('un día de pura movilidad no ocupa un lugar en la ventana del ánimo', () => {
+    // Dos días malos contestados y después dos días con solo una movilidad:
+    // el freno del ánimo sigue viendo los dos días malos.
+    const sesiones = [
+      sesion(1, [{ logrado: 10 }], { animo: -2 }),
+      sesion(2, [{ logrado: 10 }], { animo: -2 }),
+      movilidadDelDia(3, 9),
+      movilidadDelDia(4, 9),
+    ]
+    expect(animoPorDia(sesiones)).toEqual([-2, -2])
+    expect(animoReciente(sesiones)).toBeCloseTo(-2)
+  })
+
+  it('una movilidad el mismo día que una sesión no le cambia el ánimo a ese día', () => {
+    const sesiones = [
+      sesion(1, [{ logrado: 10 }], { animo: 1 }),
+      sesion(2, [{ logrado: 10 }], { animo: 2 }),
+      movilidadDelDia(2, 23),
+    ]
+    expect(animoPorDia(sesiones)).toEqual([2, 1])
+  })
 })
 
 describe('carga interna', () => {

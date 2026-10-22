@@ -3,16 +3,22 @@ import {
   CREDITOS_MAXIMOS,
   adherencia,
   consistenciaHoraria,
+  cuentaComoSesion,
+  diasConSesion,
+  dichoSinPlan,
   entrenoHacePoco,
   esHito,
+  esMovilidad,
   esVuelta,
   horaHabitual,
   intervaloHabitual,
   proximoHito,
+  semanasDeUso,
   sesionesDeVida,
   sumarDias,
   vieneSinCortar,
 } from './adherencia'
+import { loProhibido } from './palabras'
 import type { Sesion } from './tipos'
 
 function sesion(fecha: string, hora = 18): Sesion {
@@ -546,5 +552,125 @@ describe('entrenó hace poco, para el descanso', () => {
 
   it('una sesión con fecha de mañana no cuenta', () => {
     expect(entrenoHacePoco([sesion('2026-03-22')], '2026-03-21')).toBe(false)
+  })
+})
+
+/** Una movilidad de cinco minutos: se guarda con `fuelle`, sin registros. */
+function movilidad(fecha: string, hora = 18): Sesion {
+  return {
+    ...sesion(fecha, hora),
+    id: `m-${fecha}-${hora}`,
+    tipo: 'fuelle',
+    duracionSegundos: 300,
+    origen: { clase: 'movilidad', sector: 'espalda', nombre: 'Movilidad de espalda' },
+    movilidad: [{ ejercicioId: 'gato-vaca', logrado: [10, 10] }],
+  }
+}
+
+describe('qué cuenta como sesión', () => {
+  it('todo menos la movilidad', () => {
+    expect(esMovilidad(movilidad('2026-03-21'))).toBe(true)
+    expect(cuentaComoSesion(movilidad('2026-03-21'))).toBe(false)
+    // Una sesión vieja no tiene origen y nunca es movilidad: no existía.
+    expect(cuentaComoSesion(sesion('2026-03-21'))).toBe(true)
+    // El día de fuelle del plan también se guarda con `fuelle`: el tipo solo
+    // no la distingue, el origen sí.
+    const fuelleDelPlan: Sesion = { ...sesion('2026-03-21'), tipo: 'fuelle', origen: { clase: 'plan', nombre: 'Cuerpo completo' } }
+    expect(cuentaComoSesion(fuelleDelPlan)).toBe(true)
+    // Un tabata cuenta, como siempre: es entrenar, aunque no lea ninguna cadena.
+    const tabata: Sesion = {
+      ...sesion('2026-03-21'),
+      tipo: 'reloj',
+      origen: { clase: 'rapida', cual: 'reloj', nombre: 'Tabata' },
+    }
+    expect(cuentaComoSesion(tabata)).toBe(true)
+  })
+})
+
+describe('la movilidad no cuenta', () => {
+  it('no suma un día a la barra ni la hace arrancar', () => {
+    // Lunes, miércoles y viernes con una movilidad el martes: la barra sigue
+    // igual. Y una movilidad antes de la primera sesión no adelanta la meta.
+    const tres = rutina('2026-01-05', [0, 2, 4], 1)
+    const conMovilidad = [...tres, movilidad('2026-01-06'), movilidad('2026-01-02')]
+    expect(adherencia(conMovilidad, '2026-01-11', LMV)).toEqual(adherencia(tres, '2026-01-11', LMV))
+    // Un día del plan con solo una movilidad es un día sin sesión.
+    const soloMovilidad = [...tres.filter((s) => s.fecha !== '2026-01-07'), movilidad('2026-01-07')]
+    expect(adherencia(soloMovilidad, '2026-01-11', LMV).hechas).toBe(2)
+  })
+
+  it('no suma al contador de vida ni a las semanas de uso', () => {
+    const diez = rutina('2026-01-05', [0, 2, 4], 4).slice(0, 10)
+    expect(sesionesDeVida([...diez, movilidad('2026-01-06'), movilidad('2026-01-08')])).toBe(10)
+    expect(semanasDeUso([movilidad('2026-01-01'), ...diez], '2026-02-05')).toBe(
+      semanasDeUso(diez, '2026-02-05'),
+    )
+    expect(semanasDeUso([movilidad('2026-01-01')], '2026-02-05')).toBe(0)
+  })
+
+  it('no corta el hueco de una vuelta', () => {
+    // Cuatro semanas de lunes, miércoles y viernes, y después nada hasta el
+    // jueves 5 de febrero: es una vuelta, haya o no movilidades en el medio.
+    const tresPorSemana = rutina('2026-01-05', [0, 2, 4], 4)
+    const conMovilidades = [...tresPorSemana, movilidad('2026-02-02'), movilidad('2026-02-04')]
+    expect(esVuelta(conMovilidades, '2026-02-05')).toBe(true)
+    expect(intervaloHabitual(conMovilidades)).toBe(intervaloHabitual(tresPorSemana))
+  })
+
+  it('no sostiene la costumbre ni el entrenamiento reciente', () => {
+    const hoy = '2026-03-21'
+    expect(entrenoHacePoco([movilidad(hoy)], hoy)).toBe(false)
+    expect(entrenoHacePoco([movilidad(hoy), sesion('2026-03-20')], hoy)).toBe(true)
+    // Siete días seguidos con solo movilidades cortan.
+    const conHueco = [sesion('2026-03-01'), sesion('2026-03-06'), movilidad('2026-03-10'), sesion('2026-03-14'), sesion(hoy)]
+    expect(vieneSinCortar(conHueco, hoy)).toBe(false)
+  })
+
+  it('no mueve la hora habitual', () => {
+    // Siete mañanas a las 8, y una movilidad a las 6 que sería la primera de
+    // cada uno de esos días: la hora sigue siendo la de la primera sesión.
+    const mananas = Array.from({ length: 7 }, (_, i) => sesion(`2026-01-${String(i + 5).padStart(2, '0')}`, 8))
+    const madrugadas = mananas.map((s) => movilidad(s.fecha, 6))
+    expect(horaHabitual([...mananas, ...madrugadas])).toBe(8)
+    expect(consistenciaHoraria([...mananas, ...madrugadas])).toBe(consistenciaHoraria(mananas))
+  })
+})
+
+describe('sin plan no hay meta', () => {
+  const hoy = '2026-03-21'
+
+  it('quedan solo los días con sesión de los últimos 28', () => {
+    const sesiones = [
+      sesion(hoy, 9),
+      sesion(hoy, 13),
+      sesion(hoy, 19),
+      sesion('2026-03-20'),
+      sesion('2026-02-22'), // hace 27 días: adentro
+      sesion('2026-02-21'), // hace 28 días: afuera
+      movilidad('2026-03-19'),
+    ]
+    const a = adherencia(sesiones, hoy, null)
+    expect(a).toEqual({ hechas: 3, meta: 0, creditos: 0, cubiertos: 0, porcentaje: 0 })
+    expect(diasConSesion(sesiones, hoy)).toBe(3)
+  })
+
+  it('con historia larga tampoco aparecen créditos ni barra', () => {
+    const muchas = rutina('2026-01-05', [0, 2, 4], 10)
+    const a = adherencia(muchas, '2026-03-13', null)
+    expect(a.meta).toBe(0)
+    expect(a.creditos).toBe(0)
+    expect(a.cubiertos).toBe(0)
+    expect(a.hechas).toBe(12)
+  })
+
+  it('lo dice en días, sin meta y sin nombrar lo que no hubo', () => {
+    expect(dichoSinPlan(12)).toBe('12 días con sesión en los últimos 28.')
+    expect(dichoSinPlan(1)).toBe('Un día con sesión en los últimos 28.')
+    expect(dichoSinPlan(0)).toBeNull()
+    for (const dias of [1, 2, 12, 28]) {
+      const dicho = dichoSinPlan(dias)!
+      expect(dicho).not.toMatch(/!|meta|de \d+/)
+      expect(loProhibido(dicho)).toBeNull()
+    }
   })
 })

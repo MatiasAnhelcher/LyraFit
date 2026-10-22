@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { CADENAS, EJERCICIOS, FUERA_DE_CADENA, POR_ID } from './biblioteca'
+import { alcanza, equipoDe } from './equipo'
 import { RUTINA_POR_ID } from './rutinas'
 import {
   APORTE,
@@ -13,10 +14,12 @@ import {
   PISO_DE_DOSIS,
   PROPORCION_QUE_PREOCUPA,
   REGIMEN,
+  SEMANA_SIN_PLAN,
   SIN_COBERTURA,
   SIN_PRIMARIO,
   dichoSinDatos,
   loQueFalta,
+  loQueFaltaSinPlan,
   musculosAlcanzables,
   principalMasCargado,
   NECESITAN_BARRA_CARGABLE,
@@ -27,7 +30,7 @@ import {
   type Aporte,
   type Musculo,
 } from './musculos'
-import type { Patron, Serie, Sesion } from './tipos'
+import type { Equipo, Patron, Serie, Sesion } from './tipos'
 
 /**
  * Que la matriz no se degrade.
@@ -54,14 +57,21 @@ const primariosDe = (id: string) => entradas(id).filter(([, a]) => a === 1).map(
  * Los ids de una CADENA, que no es lo mismo que los de un patrón.
  *
  * Antes era `filter(e => e.patron === patron)`, y daba igual porque todo
- * ejercicio estaba en una cadena. Con los cuatro de la barra cargable deja de
- * dar igual: comparten patrón con los eslabones y no comparten la regla —el
- * remo con barra es tracción y no es lat-dominante, la elevación de talones
- * es piernas y no es cuádriceps-dominante—. Filtrar por patrón los metía
- * adentro de reglas escritas para una progresión por palanca.
+ * ejercicio estaba en una cadena. Con los de la barra cargable dejó de dar
+ * igual: comparten patrón con los eslabones y no comparten la regla —el remo
+ * con barra es tracción y no es lat-dominante, la elevación de talones es
+ * piernas y no es cuádriceps-dominante—. Filtrar por patrón los metía adentro
+ * de reglas escritas para una progresión por palanca.
+ *
+ * Y después fue "el patrón menos `FUERA_DE_CADENA`", que tampoco alcanza: esa
+ * lista es la de la barra con discos, y las variantes y los accesorios de la
+ * reestructura tienen patrón, no están en ninguna cadena y no son de la barra
+ * con discos. Restarlos de una lista que no los nombra los metía de vuelta en
+ * las reglas de los eslabones. La pertenencia a una cadena la dice `CADENAS`,
+ * y solo `CADENAS`.
  */
-const deLaCadena = (patron: Patron) =>
-  EJERCICIOS.filter((e) => e.patron === patron && !FUERA_DE_CADENA.has(e.id)).map((e) => e.id)
+const EN_UNA_CADENA = new Set(CADENAS.flatMap((c) => c.ejercicios))
+const deLaCadena = (patron: Patron) => CADENAS.find((c) => c.patron === patron)?.ejercicios ?? []
 
 describe('la matriz, por dentro', () => {
   it('los cuarenta y siete tienen vector, y ningún vector sobra', () => {
@@ -237,13 +247,41 @@ describe('la matriz, contra la fisiología', () => {
       core: [],
     }
     for (const ejercicio of EJERCICIOS) {
-      const lista = FUERA_DE_CADENA.has(ejercicio.id)
-        ? PERMITIDOS_CON_BARRA[ejercicio.patron]
-        : PERMITIDOS[ejercicio.patron]
+      // Un eslabón, por `CADENAS`; uno de la barra con discos, por su lista. Lo
+      // que no es ninguna de las dos cosas —una variante o un accesorio— no se
+      // mide con la regla de otro: falla acá hasta que tenga la suya, con su
+      // razón escrita.
+      const lista = EN_UNA_CADENA.has(ejercicio.id)
+        ? PERMITIDOS[ejercicio.patron]
+        : FUERA_DE_CADENA.has(ejercicio.id)
+          ? PERMITIDOS_CON_BARRA[ejercicio.patron]
+          : undefined
+      expect(lista, `${ejercicio.id} no es eslabón ni de la barra con discos`).toBeDefined()
       for (const musculo of primariosDe(ejercicio.id)) {
         expect(lista, `${ejercicio.id} · ${musculo}`).toContain(musculo)
       }
     }
+  })
+
+  it('la pertenencia a una cadena sale de CADENAS', () => {
+    // Las reglas de los eslabones (el empuje empuja, la tracción no da
+    // empuje…) recorren exactamente los ids de cada cadena, en su orden.
+    for (const cadena of CADENAS) {
+      expect(deLaCadena(cadena.patron)).toEqual(cadena.ejercicios)
+      for (const id of cadena.ejercicios) {
+        expect(POR_ID.get(id)?.patron, `${id} está en la cadena de ${cadena.patron}`).toBe(
+          cadena.patron,
+        )
+      }
+    }
+    // Lo que comparte patrón y no está en la cadena no entra en sus reglas:
+    // la barra con discos hoy, las variantes y los accesorios mañana.
+    for (const id of FUERA_DE_CADENA) {
+      const patron = POR_ID.get(id)!.patron
+      expect(deLaCadena(patron), id).not.toContain(id)
+      expect(EN_UNA_CADENA.has(id), id).toBe(false)
+    }
+    expect(EN_UNA_CADENA.size).toBe(47)
   })
 
   it('el empuje empuja, y no acredita pierna', () => {
@@ -618,6 +656,165 @@ describe('qué te está faltando', () => {
       const falta = loQueFalta({ ...base, sesiones })
       if (falta.clase === 'flojo') expect(SIN_PRIMARIO).not.toContain(falta.musculo)
     }
+  })
+
+  it('una movilidad no es un día de práctica', () => {
+    // Dos días de fuerza y uno de movilidad son dos días con qué opinar: la
+    // movilidad no trae series, y con ella el umbral se cumpliría sin datos.
+    const dos = [sesion('2026-09-20', [reg('flexion-completa', 3)]), sesion('2026-09-18', [reg('flexion-completa', 3)])]
+    const conMovilidad = [...dos, movilidadDe('2026-09-16')]
+    expect(loQueFalta({ ...base, sesiones: conMovilidad })).toEqual({ clase: 'sin-datos', dias: 2 })
+  })
+})
+
+/** Una movilidad: se guarda aparte de los registros y no cuenta como sesión. */
+const movilidadDe = (fecha: string): Sesion =>
+  sesion(fecha, [], {
+    id: `movilidad-${fecha}`,
+    tipo: 'fuelle',
+    origen: { clase: 'movilidad', sector: 'espalda', nombre: 'Movilidad de espalda' },
+    movilidad: [{ ejercicioId: 'gato-vaca', logrado: [10, 10] }],
+  })
+
+/**
+ * Lo que la semana dejó atrás, sin plan semanal.
+ *
+ * Es el último bloque del mix de Cuerpo completo para quien entrena sin plan
+ * (§6.3). Lo que se puede romper sin que se note: que mire las cuatro semanas
+ * y no la última, que proponga un músculo que el equipo no deja trabajar como
+ * principal, o que la entrada en calor cuente como trabajo.
+ */
+describe('lo que la semana dejó atrás, sin plan', () => {
+  const HOY_SIN_PLAN = '2026-09-24'
+  /** Con lo dado por tenido y la barra de dominadas, sin discos. */
+  const EN_CASA = equipoDe({})
+  /** Lo mismo, con la barra cargable. */
+  const CON_DISCOS = equipoDe({ cargaMaximaKg: 40 })
+
+  /** Los ids del 23 al 18 de septiembre: seis días, todos dentro de la semana. */
+  const diasDeLaSemana = ['2026-09-23', '2026-09-22', '2026-09-21', '2026-09-20', '2026-09-19', '2026-09-18']
+
+  /** Una semana pareja de los eslabones, de la misma fixture que `loQueFalta` dice pareja. */
+  const PAREJA = [
+    'flexion-completa',
+    'flexion-declinada',
+    'dominada-completa',
+    'sentadilla-completa',
+    'plancha-brazo-alternado',
+    'elevacion-piernas-suelo',
+    'puente-una-pierna-elevado',
+    'remo-australiano-medio',
+  ]
+  const semanaPareja = (): Sesion[] =>
+    diasDeLaSemana.map((fecha) => sesion(fecha, PAREJA.map((id) => reg(id, 3)), { id: `pareja-${fecha}` }))
+
+  /** Los músculos que algún ejercicio al alcance tiene como principal. */
+  const limitables = (equipo: readonly Equipo[]) =>
+    new Set(
+      EJERCICIOS.filter((e) => alcanza(e, equipo)).flatMap((e) =>
+        Object.entries(APORTE[e.id] ?? {})
+          .filter(([, aporte]) => aporte === 1)
+          .map(([m]) => m as Musculo),
+      ),
+    )
+
+  it('mira la última semana, la misma de las zonas', () => {
+    expect(SEMANA_SIN_PLAN).toBe(7)
+  })
+
+  it('con menos de tres días de práctica en las cuatro semanas no afirma nada', () => {
+    const dos = [sesion('2026-09-20', [reg('flexion-completa', 3)]), sesion('2026-09-10', [reg('flexion-completa', 3)])]
+    expect(loQueFaltaSinPlan(dos, EN_CASA, HOY_SIN_PLAN)).toEqual({ clase: 'sin-datos', dias: 2 })
+    // La movilidad no suma un día.
+    expect(loQueFaltaSinPlan([...dos, movilidadDe('2026-09-22')], EN_CASA, HOY_SIN_PLAN)).toEqual({
+      clase: 'sin-datos',
+      dias: 2,
+    })
+    expect(loQueFaltaSinPlan([], EN_CASA, HOY_SIN_PLAN)).toEqual({ clase: 'sin-datos', dias: 0 })
+  })
+
+  it('una semana pareja no agrega nada', () => {
+    expect(loQueFaltaSinPlan(semanaPareja(), EN_CASA, HOY_SIN_PLAN)).toEqual({ clase: 'parejo' })
+  })
+
+  it('señala lo que la semana dejó en cero, y lo de hace dos semanas no cuenta', () => {
+    // Cuatro semanas de core, pero esta semana nada: lo de antes no tapa la
+    // semana. Con plan, `loQueFalta` mira las cuatro y no lo vería.
+    const sinCoreEstaSemana = diasDeLaSemana.map((fecha) =>
+      sesion(
+        fecha,
+        ['flexion-completa', 'dominada-completa', 'sentadilla-completa', 'puente-una-pierna-elevado'].map((id) =>
+          reg(id, 3),
+        ),
+        { id: `sin-core-${fecha}` },
+      ),
+    )
+    const coreDeAntes = ['2026-09-10', '2026-09-08', '2026-09-03'].map((fecha) =>
+      sesion(fecha, [reg('elevacion-piernas-suelo', 6), reg('plancha-brazo-alternado', 6)], {
+        id: `core-${fecha}`,
+      }),
+    )
+    const falta = loQueFaltaSinPlan([...sinCoreEstaSemana, ...coreDeAntes], EN_CASA, HOY_SIN_PLAN)
+    expect(falta.clase).toBe('flojo')
+    if (falta.clase !== 'flojo') return
+    expect(falta.series).toBe(0)
+    expect(limitables(EN_CASA).has(falta.musculo)).toBe(true)
+    expect(NO_SE_PROPONE).not.toContain(falta.musculo)
+  })
+
+  it('el equipo decide qué se puede nombrar: el gemelo, solo con discos', () => {
+    // El gemelo lo limita un solo ejercicio, la elevación de talones con barra
+    // cargable. En casa no hay accesorio que proponerle, así que nombrarlo
+    // sería mandar a buscar algo que no hay; con discos, es lo que la semana
+    // pareja dejó atrás.
+    expect(limitables(EN_CASA).has('gemelo')).toBe(false)
+    expect(limitables(CON_DISCOS).has('gemelo')).toBe(true)
+    expect(loQueFaltaSinPlan(semanaPareja(), EN_CASA, HOY_SIN_PLAN)).toEqual({ clase: 'parejo' })
+    const conDiscos = loQueFaltaSinPlan(semanaPareja(), CON_DISCOS, HOY_SIN_PLAN)
+    expect(conDiscos).toEqual({ clase: 'flojo', musculo: 'gemelo', patron: 'piernas', series: 0 })
+  })
+
+  it('nunca nombra algo que el equipo no deja trabajar como principal', () => {
+    const historias: Sesion[][] = [
+      semanaPareja(),
+      diasDeLaSemana.map((f) => sesion(f, [reg('flexion-completa', 3)], { id: `f-${f}` })),
+      diasDeLaSemana.map((f) => sesion(f, [reg('sentadilla-completa', 3), reg('plancha', 3)], { id: `s-${f}` })),
+    ]
+    const equipos: readonly Equipo[][] = [EN_CASA, CON_DISCOS, equipoDe({ tieneBarra: false })]
+    for (const historia of historias) {
+      for (const equipo of equipos) {
+        const falta = loQueFaltaSinPlan(historia, equipo, HOY_SIN_PLAN)
+        expect(falta.clase).not.toBe('patron-ausente')
+        if (falta.clase !== 'flojo') continue
+        expect(limitables(equipo).has(falta.musculo), falta.musculo).toBe(true)
+        expect(NO_SE_PROPONE).not.toContain(falta.musculo)
+      }
+    }
+  })
+
+  it('la entrada en calor no es trabajo de la semana', () => {
+    // Tres series de calentamiento de remo no ponen la espalda al día: si
+    // contaran como las de trabajo, el dorsal dejaría de ser lo que quedó
+    // atrás (con remo de trabajo, lo que queda atrás son los oblicuos).
+    const sinEspalda = diasDeLaSemana.map((fecha) =>
+      sesion(fecha, ['flexion-completa', 'sentadilla-completa', 'puente-una-pierna-elevado', 'plancha'].map((id) => reg(id, 3)), {
+        id: `sin-espalda-${fecha}`,
+      }),
+    )
+    const antes = loQueFaltaSinPlan(sinEspalda, EN_CASA, HOY_SIN_PLAN)
+    expect(antes).toMatchObject({ clase: 'flojo', musculo: 'dorsal', series: 0 })
+    const conCalentamiento = sinEspalda.map((s) => ({
+      ...s,
+      registros: [...s.registros, reg('remo-australiano-medio', 3, { calentamiento: true })],
+    }))
+    expect(loQueFaltaSinPlan(conCalentamiento, EN_CASA, HOY_SIN_PLAN)).toEqual(antes)
+  })
+
+  it('la misma semana da siempre lo mismo', () => {
+    const historia = semanaPareja()
+    const primera = loQueFaltaSinPlan(historia, CON_DISCOS, HOY_SIN_PLAN)
+    expect(loQueFaltaSinPlan([...historia].reverse(), CON_DISCOS, HOY_SIN_PLAN)).toEqual(primera)
+    expect(loQueFaltaSinPlan(historia, new Set(CON_DISCOS), HOY_SIN_PLAN)).toEqual(primera)
   })
 })
 

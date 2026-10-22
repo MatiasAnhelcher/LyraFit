@@ -16,7 +16,7 @@ import {
   ultimasSemanas,
 } from './estadisticas'
 import { POR_ID } from './biblioteca'
-import type { Sesion } from './tipos'
+import type { Ejercicio, RegistroEjercicio, Sesion } from './tipos'
 
 function sesion(fecha: string, ejercicioId: string, logros: number[]): Sesion {
   return {
@@ -563,5 +563,278 @@ describe('el reloj es trabajo, no una medida de capacidad', () => {
     const t = tabata('2026-09-03', 'flexion-completa', [9, 8, 7, 7])
     expect(seriesDeSesion(t)).toBe(4)
     expect(seriesPorPatron(t).empuje).toBe(4)
+  })
+})
+
+/**
+ * Qué entra en la curva de fuerza desde que se puede entrenar cualquier cosa.
+ *
+ * La curva dice cuánto podés mover en una cadena, así que entra lo que se
+ * puede comparar con esa cadena: sus eslabones, vengan del plan, de una rutina
+ * o de un mix, y las variantes que declaran a qué eslabón equivalen. Lo demás
+ * es trabajo real que suma volumen, pero no es una marca de esa cadena.
+ *
+ * El catálogo de hoy todavía no tiene variantes ni accesorios marcados: llegan
+ * con la ola 1. Por eso acá se arman a mano, sobre fichas reales, y se le
+ * pasan a la curva como catálogo.
+ */
+describe('la curva de fuerza con rutinas, mixes y variantes', () => {
+  const completa = POR_ID.get('flexion-completa')!
+  /** Una variante que equivale a la flexión completa, con su `ccr`, como pide §5.2. */
+  const variante: Ejercicio = {
+    ...POR_ID.get('flexion-rodillas')!,
+    id: 'variante-de-prueba',
+    nombre: 'Variante de prueba',
+    nivel: completa.nivel,
+    ccr: completa.ccr,
+    equivale: { patron: 'empuje', nivel: completa.nivel },
+  }
+  /** Un accesorio de empuje con un `ccr` que le ganaría a cualquier flexión. */
+  const accesorio: Ejercicio = {
+    ...POR_ID.get('flexion-diamante')!,
+    id: 'accesorio-de-prueba',
+    nombre: 'Accesorio de prueba',
+    nivel: 1,
+    ccr: 2,
+    accesorio: true,
+  }
+  const catalogo = new Map(POR_ID)
+  catalogo.set(variante.id, variante)
+  catalogo.set(accesorio.id, accesorio)
+
+  function registro(
+    ejercicioId: string,
+    logros: number[],
+    extra: Partial<RegistroEjercicio> = {},
+  ): RegistroEjercicio {
+    return {
+      ejercicioId,
+      objetivo: { series: logros.length, cantidad: logros[0] ?? 0 },
+      series: logros.map((logrado) => ({ logrado })),
+      ...extra,
+    }
+  }
+
+  function conRegistros(fecha: string, registros: RegistroEjercicio[]): Sesion {
+    return { ...sesion(fecha, 'flexion-completa', [1]), id: `${fecha}-${registros.length}`, registros }
+  }
+
+  it('un paso fijo con tu eslabón entra, como el del plan', () => {
+    // Una rutina tuya con flexión completa fija es fuerza en flexión completa:
+    // no lee la cadena, pero la marca es tuya igual.
+    const fijo = conRegistros('2026-09-08', [registro('flexion-completa', [8, 8, 7], { fijo: true })])
+    const delPlan = conRegistros('2026-09-08', [registro('flexion-completa', [8, 8, 7])])
+    expect(curvaDeFuerza([fijo], 'empuje')).toEqual(curvaDeFuerza([delPlan], 'empuje'))
+    expect(curvaDeFuerza([fijo], 'empuje')).toHaveLength(1)
+  })
+
+  it('una variante con `equivale` entra y se compara por su ccr', () => {
+    // Su `ccr` es el del eslabón al que equivale, así que ocho de la variante
+    // pesan en la curva lo mismo que ocho de la flexión completa.
+    const conVariante = conRegistros('2026-09-08', [registro(variante.id, [8])])
+    const conEslabon = conRegistros('2026-09-08', [registro('flexion-completa', [8])])
+    const [punto] = curvaDeFuerza([conVariante], 'empuje', undefined, catalogo)
+    expect(punto?.ejercicioId).toBe(variante.id)
+    expect(punto?.carga).toBeCloseTo(curvaDeFuerza([conEslabon], 'empuje')[0]!.carga, 10)
+  })
+
+  it('una variante de otra cadena no entra en esta', () => {
+    const otra: Ejercicio = { ...variante, id: 'variante-de-traccion', equivale: { patron: 'traccion', nivel: 3 } }
+    const conOtra = new Map(catalogo)
+    conOtra.set(otra.id, otra)
+    const s = conRegistros('2026-09-08', [registro(otra.id, [10, 10])])
+    expect(curvaDeFuerza([s], 'empuje', undefined, conOtra)).toEqual([])
+  })
+
+  it('un accesorio no entra, aunque sea del mismo patrón y su índice le gane al eslabón', () => {
+    const s = conRegistros('2026-09-08', [
+      registro('flexion-completa', [6, 6]),
+      registro(accesorio.id, [12, 12], { fijo: true }),
+    ])
+    const [punto] = curvaDeFuerza([s], 'empuje', undefined, catalogo)
+    expect(punto?.ejercicioId).toBe('flexion-completa')
+    const soloAccesorio = conRegistros('2026-09-08', [registro(accesorio.id, [12, 12], { fijo: true })])
+    expect(curvaDeFuerza([soloAccesorio], 'empuje', undefined, catalogo)).toEqual([])
+  })
+
+  it('la barra con discos no entra: progresa por peso, no por palanca', () => {
+    // Cuarenta kilos de press militar con setenta y cinco de peso corporal le
+    // ganan en esta escala a cualquier flexión, y sin el filtro se quedarían
+    // con el punto de la cadena de empuje. Como paso fijo de una rutina no
+    // lleva la marca `bajada` que hasta ahora lo dejaba afuera.
+    const s = conRegistros('2026-09-08', [
+      registro('flexion-completa', [8, 8]),
+      {
+        ejercicioId: 'press-militar-barra',
+        objetivo: { series: 2, cantidad: 6, kg: 40 },
+        series: [
+          { logrado: 6, kg: 40 },
+          { logrado: 6, kg: 40 },
+        ],
+        fijo: true,
+      },
+    ])
+    const curva = curvaDeFuerza([s], 'empuje', 75)
+    expect(curva).toHaveLength(1)
+    expect(curva[0]!.ejercicioId).toBe('flexion-completa')
+    expect(curva[0]!.conDiscos).toBe(false)
+  })
+
+  it('la entrada en calor no entra, aunque su índice le gane al trabajo del día', () => {
+    // La serie fácil es del eslabón anterior y se pide lejos del fallo: hecha
+    // larga puede dar un índice más alto que el eslabón al piso de su ventana.
+    const calentamiento = registro('flexion-rodillas', [15], { calentamiento: true })
+    const duro = registro('flexion-completa', [5, 5, 5])
+    expect(
+      curvaDeFuerza([conRegistros('2026-09-08', [registro('flexion-rodillas', [15])])], 'empuje')[0]!.carga,
+    ).toBeGreaterThan(curvaDeFuerza([conRegistros('2026-09-08', [duro])], 'empuje')[0]!.carga)
+    const [punto] = curvaDeFuerza([conRegistros('2026-09-08', [calentamiento, duro])], 'empuje')
+    expect(punto?.ejercicioId).toBe('flexion-completa')
+    expect(curvaDeFuerza([conRegistros('2026-09-08', [calentamiento])], 'empuje')).toEqual([])
+  })
+
+  it('la movilidad no entra: no es un eslabón ni equivale a ninguno', () => {
+    // Va en `Sesion.movilidad` y no en los registros; y aunque un id de
+    // movilidad apareciera en un registro, no está en el catálogo de fuerza.
+    const s: Sesion = {
+      ...conRegistros('2026-09-08', [registro('gato-vaca', [10, 10])]),
+      tipo: 'fuelle',
+      movilidad: [{ ejercicioId: 'gato-vaca', logrado: [10, 10] }],
+    }
+    for (const patron of ['empuje', 'traccion', 'piernas', 'core', 'bisagra'] as const) {
+      expect(curvaDeFuerza([s], patron), patron).toEqual([])
+    }
+  })
+
+  it('sigue quedándose con la mejor serie del día, venga de la sesión que venga', () => {
+    // Tres sesiones el mismo día —el plan, una rutina y un mix—: un solo punto,
+    // el de la mejor serie, y no el de la última sesión.
+    const curva = curvaDeFuerza(
+      [
+        conRegistros('2026-09-08', [registro('flexion-completa', [6, 6, 6])]),
+        { ...conRegistros('2026-09-08', [registro('flexion-diamante', [7], { fijo: true })]), id: 'b' },
+        { ...conRegistros('2026-09-08', [registro(variante.id, [5])]), id: 'c' },
+      ],
+      'empuje',
+      undefined,
+      catalogo,
+    )
+    expect(curva).toHaveLength(1)
+    expect(curva[0]!.ejercicioId).toBe('flexion-diamante')
+  })
+
+  it('el día que la variante le gana al eslabón, el punto dice también la marca del eslabón', () => {
+    const s = conRegistros('2026-09-08', [registro('flexion-rodillas', [10]), registro(variante.id, [9])])
+    const [punto] = curvaDeFuerza([s], 'empuje', undefined, catalogo)
+    expect(punto?.ejercicioId).toBe(variante.id)
+    expect(punto?.eslabon?.ejercicioId).toBe('flexion-rodillas')
+    expect(punto!.eslabon!.carga).toBeLessThan(punto!.carga)
+    // Si el que gana es un eslabón, no hace falta repetirlo.
+    const soloEslabon = curvaDeFuerza([conRegistros('2026-09-08', [registro('flexion-completa', [8])])], 'empuje')
+    expect(soloEslabon[0]!.eslabon).toBeUndefined()
+  })
+})
+
+describe('fuerza por semana con variantes', () => {
+  const semanas = ['2026-09-07', '2026-09-14', '2026-09-21']
+  const completa = POR_ID.get('flexion-completa')!
+  const variante: Ejercicio = {
+    ...POR_ID.get('flexion-rodillas')!,
+    id: 'variante-de-prueba',
+    nombre: 'Variante de prueba',
+    nivel: completa.nivel,
+    ccr: completa.ccr,
+    equivale: { patron: 'empuje', nivel: completa.nivel },
+  }
+  const catalogo = new Map(POR_ID)
+  catalogo.set(variante.id, variante)
+
+  it('alternar el eslabón con una variante no es un cambio de eslabón', () => {
+    // El plan los lunes y una rutina con la variante fija los jueves: la cadena
+    // no se movió, y "pasaste de una a otra" cada semana sería falso.
+    const fuerza = fuerzaPorSemana(
+      [
+        sesion('2026-09-07', 'flexion-completa', [8, 8, 8]),
+        sesion('2026-09-10', variante.id, [10, 10, 10]),
+        sesion('2026-09-14', 'flexion-completa', [9, 8, 8]),
+        sesion('2026-09-17', variante.id, [11, 10, 10]),
+      ],
+      'empuje',
+      semanas,
+      undefined,
+      catalogo,
+    )
+    expect(fuerza[0]!.ejercicioId).toBe(variante.id)
+    expect(fuerza[0]!.cambio).toBeUndefined()
+    expect(fuerza[1]!.cambio).toBeUndefined()
+  })
+
+  it('el cambio de eslabón se sigue viendo con variantes en el medio', () => {
+    const fuerza = fuerzaPorSemana(
+      [
+        sesion('2026-09-07', 'flexion-rodillas', [15, 15, 15]),
+        sesion('2026-09-09', variante.id, [12, 12, 12]),
+        sesion('2026-09-15', 'flexion-completa', [6, 6, 6]),
+      ],
+      'empuje',
+      semanas,
+      undefined,
+      catalogo,
+    )
+    const rodillas = curvaDeFuerza([sesion('2026-09-07', 'flexion-rodillas', [15])], 'empuje')[0]!
+    expect(fuerza[0]!.cambio).toBeUndefined()
+    expect(fuerza[1]!.cambio).toEqual({
+      de: 'flexion-rodillas',
+      cargaAntes: rodillas.carga,
+      a: 'flexion-completa',
+    })
+  })
+})
+
+describe('la entrada en calor no es una marca', () => {
+  /** Una sesión con la serie fácil del eslabón anterior antes del trabajo. */
+  const conEntrada = (fecha: string, logros: number[]): Sesion => ({
+    ...sesion(fecha, 'flexion-rodillas', logros),
+    registros: [
+      {
+        ejercicioId: 'flexion-rodillas',
+        objetivo: { series: 1, cantidad: logros[0] ?? 0 },
+        series: logros.map((logrado) => ({ logrado })),
+        calentamiento: true,
+      },
+      {
+        ejercicioId: 'flexion-completa',
+        objetivo: { series: 3, cantidad: 8 },
+        series: [{ logrado: 8 }, { logrado: 8 }, { logrado: 7 }],
+      },
+    ],
+  })
+
+  it('no es "la vez pasada": la vara la pone la última vez que fue trabajo', () => {
+    const historial = [
+      sesion('2026-09-01', 'flexion-rodillas', [12, 12, 11]),
+      conEntrada('2026-09-08', [15]),
+    ]
+    const vara = laVezPasada(historial, 'flexion-rodillas', '2026-09-10')
+    expect(vara?.fecha).toBe('2026-09-01')
+    expect(vara?.logros).toEqual([12, 12, 11])
+    // Sin otra vez que la de la entrada en calor, no hay vara.
+    expect(laVezPasada([conEntrada('2026-09-08', [15])], 'flexion-rodillas', '2026-09-10')).toBeNull()
+    // Y el trabajo de esa misma sesión sigue siendo la vara de su ejercicio.
+    expect(laVezPasada(historial, 'flexion-completa', '2026-09-10')?.logros).toEqual([8, 8, 7])
+  })
+
+  it('no entra en el histórico ni en el récord', () => {
+    const historial = [
+      sesion('2026-09-01', 'flexion-rodillas', [12, 12, 11]),
+      conEntrada('2026-09-08', [15]),
+    ]
+    expect(historicoDeEjercicio(historial, 'flexion-rodillas').map((p) => p.fecha)).toEqual(['2026-09-01'])
+    expect(recordDe(historial, 'flexion-rodillas')).toBe(12)
+  })
+
+  it('pero sí cuenta como series hechas en la sesión', () => {
+    // Las series por semana suman todo lo que se hizo, que es trabajo real.
+    expect(seriesDeSesion(conEntrada('2026-09-08', [15]))).toBe(4)
   })
 })

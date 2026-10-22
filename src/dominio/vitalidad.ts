@@ -16,9 +16,16 @@
  * - **Calibración**: cuánto se parece lo que predecías a lo que te salió. Es
  *   una medida de conciencia corporal construida enteramente sobre datos que
  *   la app ya registraba, sin sensores y sin preguntar nada nuevo.
+ *
+ * Donde acá se dice "sesión" (la primera del día, los días con sesión) se
+ * cuenta con `cuentaComoSesion`, como en la adherencia: una movilidad de cinco
+ * minutos se guarda en el historial, pero no es una sesión de práctica (§5.6
+ * A, Decisión 55), no tiene preguntas al final y no puede ocupar el lugar de
+ * la primera del día ni un día de la ventana del ánimo.
  */
 
 import type { Sesion } from './tipos'
+import { cuentaComoSesion } from './adherencia'
 import { POR_ID } from './biblioteca'
 
 /** Series mínimas para que la calibración signifique algo. */
@@ -155,11 +162,13 @@ export interface Vitalidad {
  * antes de esa regla traen la energía del chequeo repetida en la segunda y la
  * tercera del día, y contarlas sería comparar la mañana con la noche. Un día
  * cuya primera sesión no se midió (un Reloj, o sin contestar la energía al
- * terminar) no se mide con otra de más tarde.
+ * terminar) no se mide con otra de más tarde. Una movilidad no es la
+ * primera de nadie: no cuenta como sesión, y la de fuerza que vino después
+ * es la que llevó la energía de antes (`vitalidadDeAntes`).
  */
 export function vitalidad(sesiones: Sesion[], ultimas = 10): Vitalidad | null {
   const primeras = new Map<string, Sesion>()
-  for (const s of sesiones) {
+  for (const s of sesiones.filter(cuentaComoSesion)) {
     const antes = primeras.get(s.fecha)
     if (!antes || s.finalizadaEn < antes.finalizadaEn) primeras.set(s.fecha, s)
   }
@@ -190,13 +199,18 @@ export const DIAS_DE_ANIMO = 3
  * número ya no es el de antes: reusarlo haría que el delta compare la energía
  * de la mañana con la de la noche y se lo cargue a una sesión. Sin medición
  * no hay delta, y está bien que no lo haya.
+ *
+ * Una movilidad de antes no cuenta (`cuentaComoSesion`): cinco minutos de
+ * movilidad a la mañana no son la sesión del día, y la de fuerza de la tarde
+ * sigue siendo la primera. Que la movilidad misma no guarde la energía es
+ * cosa de quien la cierra, que sabe qué está cerrando.
  */
 export function vitalidadDeAntes(
   energia: number | undefined,
   dia: string,
-  historial: readonly Pick<Sesion, 'fecha'>[],
+  historial: readonly Pick<Sesion, 'fecha' | 'origen'>[],
 ): number | undefined {
-  return historial.some((s) => s.fecha === dia) ? undefined : energia
+  return historial.some((s) => s.fecha === dia && cuentaComoSesion(s)) ? undefined : energia
 }
 
 /**
@@ -209,7 +223,8 @@ export function vitalidadDeAntes(
  *
  * Cuenta días y no sesiones: cada día vale el promedio de lo que se contestó
  * ese día. Con sesiones, una tarde de tres sesiones mala tapaba la semana
- * entera, y una buena la tapaba igual.
+ * entera, y una buena la tapaba igual. Y cuenta días con sesión: un día de
+ * pura movilidad no es uno (ver `animoPorDia`).
  */
 export function animoReciente(sesiones: Sesion[], ultimos = DIAS_DE_ANIMO): number | undefined {
   return promedioDeAnimos(animoPorDia(sesiones, ultimos))
@@ -219,13 +234,20 @@ export function animoReciente(sesiones: Sesion[], ultimos = DIAS_DE_ANIMO): numb
  * El ánimo de cada uno de los últimos días con sesión, del más nuevo al más
  * viejo: el promedio de lo que se contestó ese día, o undefined si ese día no
  * se contestó. Un día sin respuesta igual ocupa su lugar en la ventana.
+ *
+ * Una movilidad no ocupa lugar (`cuentaComoSesion`): no hace las preguntas
+ * del final, así que un día de pura movilidad entraría siempre sin respuesta
+ * y empujaría afuera días contestados. Dos movilidades después de dos días
+ * malos apagaban en silencio el freno del ánimo, que el motor mira antes de
+ * subir la exigencia.
  */
 export function animoPorDia(
   sesiones: readonly Sesion[],
   ultimos = DIAS_DE_ANIMO,
 ): (number | undefined)[] {
   const porDia = new Map<string, number[]>()
-  for (const s of [...sesiones].sort((a, b) => b.finalizadaEn - a.finalizadaEn)) {
+  const queCuentan = sesiones.filter(cuentaComoSesion)
+  for (const s of queCuentan.sort((a, b) => b.finalizadaEn - a.finalizadaEn)) {
     const delDia = porDia.get(s.fecha)
     if (!delDia && porDia.size >= ultimos) continue
     const lista = delDia ?? []

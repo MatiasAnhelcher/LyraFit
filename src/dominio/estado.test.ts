@@ -1,15 +1,18 @@
 import { describe, expect, it } from 'vitest'
 import {
   ENTRADAS_MINIMAS,
+  RECORTE_AMBAR,
   ajusteDelDia,
+  ajusteParaFijos,
   bandaSostenida,
   cadenasCongeladas,
   compuesto,
   contestoElChequeo,
+  hayFijosParaBajar,
   leerEstado,
   type Chequeo,
 } from './estado'
-import type { Estado } from './tipos'
+import type { Estado, PasoDelBorrador } from './tipos'
 
 function dia(
   n: number,
@@ -229,5 +232,122 @@ describe('molestia sin chequeo', () => {
     const historial = [...base(20, 4), dia(20, 1, 1, 1), soloMolestia(21, 'core')]
     expect(leerEstado(historial, fechaDe(21)).banda).not.toBe('normal')
     expect(bandaSostenida(historial, fechaDe(21))).toBe('normal')
+  })
+})
+
+/**
+ * "Bajar también los tuyos".
+ *
+ * El chequeo ámbar o rojo baja los pasos de cadena, como siempre. Los fijos
+ * llevan números que escribió la persona, y esos no cambian en silencio: solo
+ * con el botón, y solo para esa sesión. Lo que se prueba es que el botón baje
+ * exactamente lo mismo que baja el plan, y nada más que los fijos.
+ */
+describe('el chequeo en los pasos fijos', () => {
+  const fijo = (id: string, cantidad: number, extra: Partial<PasoDelBorrador> = {}): PasoDelBorrador => ({
+    id,
+    ejercicioId: 'flexion-diamante',
+    objetivo: { series: 3, cantidad },
+    clase: 'fijo',
+    fijo: true,
+    seccion: 'principal',
+    ...extra,
+  })
+  const cadena: PasoDelBorrador = {
+    id: 'c',
+    ejercicioId: 'flexion-completa',
+    objetivo: { series: 3, cantidad: 10 },
+    clase: 'cadena',
+    seccion: 'principal',
+  }
+  const volumen: PasoDelBorrador = {
+    id: 'v',
+    ejercicioId: 'flexion-rodillas',
+    objetivo: { series: 2, cantidad: 15 },
+    clase: 'volumen',
+    bajada: true,
+  }
+  const movilidad: PasoDelBorrador = {
+    id: 'm',
+    ejercicioId: 'gato-vaca',
+    objetivo: { series: 1, cantidad: 10 },
+    clase: 'movilidad',
+    seccion: 'entrada',
+  }
+  const entrada = fijo('e', 10, { calentamiento: true, seccion: 'entrada' })
+
+  it('en ámbar y en rojo baja los fijos con la misma cuenta que el plan', () => {
+    // La del plan: la cantidad por el factor, redondeada, nunca menos de 1.
+    for (const banda of ['ambar', 'rojo'] as const) {
+      const ajuste = ajusteDelDia(banda)
+      const [doce, veinte, treinta] = ajusteParaFijos(
+        [fijo('a', 12), fijo('b', 20), fijo('c', 30, { ejercicioId: 'plancha' })],
+        ajuste,
+      )
+      expect(doce!.objetivo.cantidad).toBe(Math.max(1, Math.round(12 * RECORTE_AMBAR)))
+      expect(doce!.objetivo.cantidad).toBe(11)
+      expect(veinte!.objetivo.cantidad).toBe(18)
+      expect(treinta!.objetivo.cantidad).toBe(27)
+      expect(doce!.objetivo.series).toBe(3)
+    }
+  })
+
+  it('no toca la cadena, el volumen, la movilidad ni la entrada en calor', () => {
+    // La cadena ya bajó por su lado; el volumen lo pone el motor; la movilidad
+    // y la entrada en calor son preparación, no trabajo.
+    const pasos = [cadena, volumen, movilidad, entrada]
+    const bajados = ajusteParaFijos(pasos, ajusteDelDia('ambar'))
+    bajados.forEach((paso, i) => expect(paso).toBe(pasos[i]))
+    expect(hayFijosParaBajar(pasos, ajusteDelDia('ambar'))).toBe(false)
+  })
+
+  it('un día normal o verde no cambia nada', () => {
+    const pasos = [fijo('a', 12), cadena]
+    for (const banda of ['normal', 'verde'] as const) {
+      expect(ajusteParaFijos(pasos, ajusteDelDia(banda))).toEqual(pasos)
+      expect(hayFijosParaBajar(pasos, ajusteDelDia(banda))).toBe(false)
+    }
+  })
+
+  it('nunca sube un número, aunque le llegue un factor mayor que 1', () => {
+    expect(ajusteParaFijos([fijo('a', 10)], { factor: 1.2 })[0]!.objetivo.cantidad).toBe(10)
+  })
+
+  it('no baja de una repetición ni toca los kilos', () => {
+    const [uno, conKilos] = ajusteParaFijos(
+      [fijo('a', 1), fijo('b', 10, { objetivo: { series: 3, cantidad: 10, kg: 20 } })],
+      ajusteDelDia('ambar'),
+    )
+    expect(uno!.objetivo.cantidad).toBe(1)
+    expect(conKilos!.objetivo).toEqual({ series: 3, cantidad: 9, kg: 20 })
+  })
+
+  it('el botón aparece solo si cambia algún número', () => {
+    // Con fijos que el redondeo deja igual (1, 4), tocarlo no haría nada.
+    expect(hayFijosParaBajar([fijo('a', 1), fijo('b', 4)], ajusteDelDia('ambar'))).toBe(false)
+    expect(hayFijosParaBajar([fijo('a', 1), fijo('b', 12)], ajusteDelDia('ambar'))).toBe(true)
+    expect(hayFijosParaBajar([], ajusteDelDia('rojo'))).toBe(false)
+  })
+
+  it('lee un paso viejo sin clase como lo lee normalizarBorrador', () => {
+    const viejoFijo: PasoDelBorrador = {
+      ejercicioId: 'flexion-diamante',
+      objetivo: { series: 3, cantidad: 10 },
+      fijo: true,
+    }
+    const viejoDeCadena: PasoDelBorrador = {
+      ejercicioId: 'flexion-completa',
+      objetivo: { series: 3, cantidad: 10 },
+    }
+    const [fijoBajado, deCadena] = ajusteParaFijos([viejoFijo, viejoDeCadena], ajusteDelDia('ambar'))
+    expect(fijoBajado!.objetivo.cantidad).toBe(9)
+    expect(deCadena).toBe(viejoDeCadena)
+  })
+
+  it('es pura: no toca los pasos que recibe', () => {
+    const pasos = [fijo('a', 12), cadena]
+    const copia = structuredClone(pasos)
+    ajusteParaFijos(pasos, ajusteDelDia('rojo'))
+    expect(pasos).toEqual(copia)
   })
 })

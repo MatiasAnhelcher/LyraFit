@@ -22,10 +22,49 @@
  *
  * Todo se calcula desde el historial. No hay ningún contador guardado que
  * pueda quedar desincronizado con la realidad.
+ *
+ * Y todo cuenta con `cuentaComoSesion`: una movilidad de cinco minutos se
+ * guarda en el historial y se ve en Tu día, pero no es una sesión de práctica,
+ * así que no suma días, ni semanas, ni hitos, ni corta un hueco (§5.6 A).
  */
 
 import { diaDeLaSemana } from './rutinas'
 import type { Sesion } from './tipos'
+
+/**
+ * Si una sesión es una movilidad.
+ *
+ * Se mira el origen y nada más. La movilidad se guarda con `tipo: 'fuelle'`,
+ * que también es el día de fuelle del plan, así que el tipo solo no alcanza; y
+ * se guarda sin registros, pero que no tenga registros tampoco alcanza, porque
+ * un fuelle de ráfagas tampoco los tiene. Las sesiones viejas no tienen origen
+ * y nunca son movilidad: la movilidad no existía.
+ *
+ * Vive acá y no en `dia.ts`, que la vuelve a exportar, porque `dia.ts` usa las
+ * zonas y las zonas usan este archivo: definida allá sería un ciclo.
+ */
+export function esMovilidad(sesion: Pick<Sesion, 'origen'>): boolean {
+  return sesion.origen?.clase === 'movilidad'
+}
+
+/**
+ * Si una sesión cuenta como sesión: para los días de práctica, la semana, los
+ * últimos 28 días, el contador de vida, los hitos, la vuelta y el número del
+ * Cierre.
+ *
+ * Deja afuera la movilidad y nada más (§5.6 A). Un tabata o un fuelle sí
+ * cuentan, como siempre: son entrenar, aunque no lean ninguna cadena. Qué se
+ * suma al mapa o a la fuerza es otra pregunta, y la contestan `musculos.ts`,
+ * `sectores.ts` y `estadisticas.ts`.
+ */
+export function cuentaComoSesion(sesion: Pick<Sesion, 'origen'>): boolean {
+  return !esMovilidad(sesion)
+}
+
+/** Las sesiones que cuentan, en el orden en que vinieron. */
+function queCuentan(sesiones: Sesion[]): Sesion[] {
+  return sesiones.filter(cuentaComoSesion)
+}
 
 /** Días de la ventana rodante. Cuatro semanas: entra un mes de vida real. */
 export const VENTANA_DIAS = 28
@@ -67,6 +106,10 @@ export function sumarDias(iso: string, n: number): string {
  *
  * El día 28 exacto queda AFUERA, que es lo que hace que la ventana tenga
  * veintiocho días y no veintinueve.
+ *
+ * Es un filtro de fechas y nada más: no saca la movilidad. Quien cuenta días o
+ * sesiones la saca con `cuentaComoSesion`, y quien suma series no la ve,
+ * porque una movilidad no trae registros.
  */
 export function enLaVentana(sesiones: Sesion[], hoy: string, dias = VENTANA_DIAS): Sesion[] {
   return sesiones.filter((s) => {
@@ -80,7 +123,8 @@ export interface Adherencia {
   hechas: number
   /**
    * Cuántas correspondían: los días del plan que ya pasaron desde la primera
-   * sesión, con tope de 28. Cero sin historial, porque no hay nada que medir.
+   * sesión, con tope de 28. Cero sin historial, porque no hay nada que medir,
+   * y cero sin plan, porque no hay contra qué medir.
    */
   meta: number
   /** Créditos de perdón disponibles. */
@@ -123,12 +167,22 @@ export interface Adherencia {
  * `diasDelPlan` son los días de la semana que el plan pide entrenar, de 1
  * (lunes) a 7 (domingo), como los da `diasDe`. Se usa el plan de hoy para toda
  * la ventana: si la persona lo cambió hace poco, la cuenta es aproximada.
+ *
+ * **Sin plan (`null`) no hay meta** (Decisión 62). Quien eligió cada día qué
+ * hacer no le debe días a ninguna semana, así que no hay barra ni créditos:
+ * queda solo cuántos días tuvieron sesión en los últimos 28, que es lo que
+ * dice `dichoSinPlan`.
  */
 export function adherencia(
-  sesiones: Sesion[],
+  todas: Sesion[],
   hoy: string,
-  diasDelPlan: readonly number[],
+  diasDelPlan: readonly number[] | null,
 ): Adherencia {
+  const sesiones = queCuentan(todas)
+  if (diasDelPlan === null) {
+    return { hechas: diasConSesion(sesiones, hoy), meta: 0, creditos: 0, cubiertos: 0, porcentaje: 0 }
+  }
+
   const primera = primeraFecha(sesiones)
   if (primera === null) {
     return { hechas: 0, meta: 0, creditos: 0, cubiertos: 0, porcentaje: 0 }
@@ -170,16 +224,42 @@ function primeraFecha(sesiones: Sesion[]): string | null {
   )
 }
 
+/**
+ * Cuántos días tuvieron alguna sesión que cuenta en los últimos `dias`, hoy
+ * incluido. Tres sesiones en una tarde son un día.
+ */
+export function diasConSesion(sesiones: Sesion[], hoy: string, dias = VENTANA_DIAS): number {
+  return new Set(enLaVentana(queCuentan(sesiones), hoy, dias).map((s) => s.fecha)).size
+}
+
+/**
+ * Lo que dice ÚLTIMOS 28 DÍAS sin plan: "12 días con sesión en los últimos
+ * 28.", sin barra y sin créditos, porque no hay meta (§4.2).
+ *
+ * Con cero no hay línea: es una sección que aparece con la primera sesión,
+ * como la barra con plan, y "ningún día" sería nombrar lo que no hubo.
+ */
+export function dichoSinPlan(dias: number): string | null {
+  if (!Number.isFinite(dias) || dias < 1) return null
+  const cuantos = dias === 1 ? 'Un día' : `${Math.round(dias)} días`
+  return `${cuantos} con sesión en los últimos ${VENTANA_DIAS}.`
+}
+
 /** Cuántas semanas hace que la persona viene usando la app. */
 export function semanasDeUso(sesiones: Sesion[], hoy: string): number {
-  const primera = primeraFecha(sesiones)
+  const primera = primeraFecha(queCuentan(sesiones))
   if (primera === null) return 0
   return Math.max(0, diasEntre(primera, hoy) / 7)
 }
 
-/** El contador que solo sube. Es el que habla de identidad. */
+/**
+ * El contador que solo sube. Es el que habla de identidad.
+ *
+ * Cuenta sesiones y no días, como siempre: con tres en un día los hitos llegan
+ * antes, y es verdad (Tarjeta T3). La movilidad no suma.
+ */
 export function sesionesDeVida(sesiones: Sesion[]): number {
-  return sesiones.length
+  return queCuentan(sesiones).length
 }
 
 /** El próximo hito, y cuánto falta. Devuelve null cuando ya se pasaron todos. */
@@ -198,7 +278,7 @@ export function esHito(total: number): boolean {
  * según lo que dijo que iba a hacer. Mediana de los últimos diez intervalos.
  */
 export function intervaloHabitual(sesiones: Sesion[]): number | null {
-  const dias = [...new Set(sesiones.map((s) => s.fecha))].sort().reverse().slice(0, 11)
+  const dias = [...new Set(queCuentan(sesiones).map((s) => s.fecha))].sort().reverse().slice(0, 11)
   if (dias.length < 3) return null
 
   const intervalos: number[] = []
@@ -258,9 +338,12 @@ function huecoNormal(intervalos: number[]): number {
  * Mira solo los días anteriores a hoy. Con la última fecha de todas, la
  * segunda sesión del día de la vuelta encontraba la primera, contaba un hueco
  * de cero días y dejaba de ser vuelta; todas las sesiones de ese día lo son.
+ *
+ * Una movilidad no corta el hueco: cinco minutos de movilidad en medio de dos
+ * semanas sin entrenar no sostienen lo que la vuelta protege.
  */
 export function esVuelta(sesiones: Sesion[], hoy: string): boolean {
-  const antes = sesiones.filter((s) => s.fecha < hoy)
+  const antes = queCuentan(sesiones).filter((s) => s.fecha < hoy)
   const ultima = antes.reduce<string | null>(
     (max, s) => (max === null || s.fecha > max ? s.fecha : max),
     null,
@@ -299,7 +382,11 @@ export const SEMANAS_SIN_CORTAR = 3
 export function vieneSinCortar(sesiones: Sesion[], hoy: string): boolean {
   const desde = sumarDias(hoy, -(7 * SEMANAS_SIN_CORTAR - 1))
   const dias = [
-    ...new Set(sesiones.filter((s) => s.fecha >= desde && s.fecha <= hoy).map((s) => s.fecha)),
+    ...new Set(
+      queCuentan(sesiones)
+        .filter((s) => s.fecha >= desde && s.fecha <= hoy)
+        .map((s) => s.fecha),
+    ),
   ].sort()
   if (dias.length === 0) return false
   // Cada hueco son los días sin sesión: antes de la primera (contando desde
@@ -323,7 +410,7 @@ export const DIAS_DE_ENTRENO_RECIENTE = 2
  * un par de días, no una de hace un mes.
  */
 export function entrenoHacePoco(sesiones: Sesion[], hoy: string): boolean {
-  return sesiones.some(
+  return queCuentan(sesiones).some(
     (s) => s.fecha <= hoy && diasEntre(s.fecha, hoy) <= DIAS_DE_ENTRENO_RECIENTE,
   )
 }
@@ -336,7 +423,7 @@ export function entrenoHacePoco(sesiones: Sesion[], hoy: string): boolean {
  */
 function primeraDeCadaDia(sesiones: Sesion[]): Sesion[] {
   const primera = new Map<string, Sesion>()
-  for (const s of sesiones) {
+  for (const s of queCuentan(sesiones)) {
     const vista = primera.get(s.fecha)
     if (!vista || s.finalizadaEn < vista.finalizadaEn) primera.set(s.fecha, s)
   }

@@ -51,6 +51,7 @@ import {
   quedaPorCerrar,
 } from '@/dominio/borrador'
 import { revisarCopia } from '@/dominio/copia'
+import { cuentaComoSesion } from '@/dominio/adherencia'
 
 /** Fecha local en formato AAAA-MM-DD, sin arrastrar la zona horaria de UTC. */
 export function fechaISO(fecha: Date = new Date()): string {
@@ -392,7 +393,12 @@ export interface ResumenSesion {
    * recortado y no es dónde te tenía el motor.
    */
   decisiones: { patron: Patron; decision: Decision; antes: Avance }[]
-  /** El número de sesión en la vida de esta persona. */
+  /**
+   * El número de sesión en la vida de esta persona: las que cuentan
+   * (`cuentaComoSesion`), esta incluida. Una movilidad no lo corre: el suyo es
+   * el de la última que contó, y su Cierre no lo muestra ni festeja un hito
+   * con él (§4.15).
+   */
   numeroDeSesion: number
   /**
    * Cuántos pasos seguían tu nivel, hechos o no. Con cero no había nada que
@@ -643,7 +649,10 @@ export async function cerrarSesion(entrada: CierreDeSesion): Promise<ResumenSesi
     return {
       sesion,
       decisiones,
-      numeroDeSesion: historial.length + 1,
+      // Con `cuentaComoSesion`, como el contador de vida: una movilidad no
+      // corre el número (§5.6 A). `historial` es de antes de esta sesión.
+      numeroDeSesion:
+        historial.filter(cuentaComoSesion).length + (cuentaComoSesion(sesion) ? 1 : 0),
       // Con todos los registros y no solo los que tienen series: un paso de
       // cadena sin hacer sigue siendo un paso de cadena.
       pasosDeCadena: pasosQueSiguenTuNivel(entrada.registros, avances),

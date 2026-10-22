@@ -36,8 +36,17 @@
  */
 
 import { bajadaDe } from './bajada'
-import { NOMBRE_PATRON } from './biblioteca'
-import type { Cadena, Ejercicio, Estado, Objetivo, Patron } from './tipos'
+import { CADENA_POR_PATRON, NOMBRE_PATRON, POR_ID } from './biblioteca'
+import type {
+  Cadena,
+  ClaseDePaso,
+  Ejercicio,
+  Estado,
+  Objetivo,
+  PasoDelBorrador,
+  Patron,
+  Serie,
+} from './tipos'
 
 /**
  * Cuántas series del eslabón de abajo, el día de la molestia.
@@ -209,4 +218,233 @@ export function fueraDeLaMolestia<T extends { ejercicio: Ejercicio }>(
 ): readonly T[] {
   const libres = entradas.filter((e) => !molestias.has(e.ejercicio.patron))
   return libres.length > 0 ? libres : entradas
+}
+
+// ─── Los pasos de la reestructura: rutinas propias, mixes y cualquier cosa ───
+
+/**
+ * Qué se hace con los pasos fijos de una cadena con molestia.
+ *
+ * - `regla-del-plan`: la misma regla que el plan, que es la que va por
+ *   defecto. Marcar la molestia ya fue el pedido: cargar igual la zona que
+ *   avisó porque ese ejercicio lo eligió la persona sería ignorar lo último
+ *   que pidió.
+ * - `como-los-armaste`: los fijos quedan exactamente como estaban. Es
+ *   "Dejarlo como lo armé", a un toque y solo para esa sesión. Los pasos de
+ *   cadena y de volumen bajan igual: esos los pone el motor, no la persona.
+ */
+export type FijosConMolestia = 'regla-del-plan' | 'como-los-armaste'
+
+/** Lo que la molestia le hizo a un paso, para decirlo en su línea. */
+export interface CambioDelPaso {
+  /** El id del paso; en un paso viejo sin id, el de su ejercicio. */
+  paso: string
+  /** La cadena con molestia que lo cambió. */
+  patron: Patron
+  cambio: CambioPorMolestia
+  /** El ejercicio que tenía el paso. */
+  de: string
+  /** Adónde bajó. Solo con `baja`. */
+  a?: string
+  /**
+   * Si era un paso fijo, de los que eligió la persona (o el mix, en una
+   * variante o un accesorio). Es el que lleva "Dejarlo como lo armé"; los de
+   * cadena y volumen se dicen con la línea de siempre (`lineaDeMolestia`).
+   */
+  fijo: boolean
+}
+
+export interface PasosConMolestia {
+  /** Los pasos de la sesión, con lo bajado en su lugar y sin lo salteado. */
+  pasos: PasoDelBorrador[]
+  /** Lo que cambió, en el orden de los pasos. Vacío si no cambió nada. */
+  cambios: CambioDelPaso[]
+}
+
+/**
+ * La clase de un paso, también de un borrador viejo que no la guardaba.
+ *
+ * La misma deducción que `normalizarBorrador`, sin el avance: lo que traía
+ * `bajada` es volumen, lo que traía `fijo` es fijo, y el resto es el eslabón
+ * del motor. En el plan de antes, todo lo que no era el eslabón (la bajada,
+ * el volumen, los accesorios) iba con `bajada`.
+ */
+function claseDelPaso(paso: PasoDelBorrador): ClaseDePaso {
+  return paso.clase ?? (paso.bajada ? 'volumen' : paso.fijo ? 'fijo' : 'cadena')
+}
+
+/** La molestia como conjunto, venga como venga: una cadena, varias o ninguna. */
+function comoConjunto(molestia: Patron | Iterable<Patron> | null | undefined): ReadonlySet<Patron> {
+  if (!molestia) return new Set()
+  if (typeof molestia === 'string') return new Set([molestia])
+  return new Set(molestia)
+}
+
+/**
+ * La regla del plan, aplicada a un ejercicio que eligió alguien y no el motor.
+ *
+ * Devuelve `null` si el ejercicio no carga ninguna cadena con molestia: el
+ * paso queda como estaba.
+ *
+ * - **Un eslabón de su cadena** baja al anterior, como el del motor
+ *   (`bajadaDe`); en el primero no hay dónde bajar y se saltea.
+ * - **Una variante** baja al eslabón `equivale.nivel − 1` de su cadena. No hay
+ *   otra forma: `bajadaDe` busca el ejercicio en la cadena, y una variante no
+ *   está en ninguna. La de nivel 1 no tiene dónde bajar y se saltea.
+ * - **Un accesorio, o algo con barra con discos**, se saltea: es carga extra
+ *   sobre la misma zona, igual que en el plan.
+ *
+ * Lo bajado va como en el plan: dos series al piso de la ventana del eslabón
+ * de abajo, sin kilos.
+ */
+function fijoConMolestia(
+  ejercicio: Ejercicio,
+  objetivo: Objetivo,
+  molestias: ReadonlySet<Patron>,
+  ejercicios: Map<string, Ejercicio>,
+):
+  | { patron: Patron; cambio: 'saltea' }
+  | { patron: Patron; cambio: 'baja'; ejercicio: Ejercicio; objetivo: Objetivo }
+  | null {
+  const equivale = ejercicio.equivale
+  const patron = molestias.has(ejercicio.patron)
+    ? ejercicio.patron
+    : equivale && molestias.has(equivale.patron)
+      ? equivale.patron
+      : null
+  if (!patron) return null
+
+  const bajado = (abajo: Ejercicio) => ({
+    patron,
+    cambio: 'baja' as const,
+    ejercicio: abajo,
+    objetivo: {
+      series: Math.min(SERIES_CON_MOLESTIA, objetivo.series),
+      cantidad: abajo.ventana.min,
+    },
+  })
+
+  if (ejercicio.accesorio) return { patron, cambio: 'saltea' }
+
+  const suCadena = CADENA_POR_PATRON.get(ejercicio.patron)
+  if (suCadena?.ejercicios.includes(ejercicio.id)) {
+    const abajo = bajadaDe(ejercicio, suCadena, ejercicios)
+    return abajo ? bajado(abajo.ejercicio) : { patron, cambio: 'saltea' }
+  }
+
+  if (equivale) {
+    // `nivel` cuenta desde 1 y el arreglo desde 0: el eslabón `nivel − 1`
+    // está en la posición `nivel − 2`.
+    const id = CADENA_POR_PATRON.get(equivale.patron)?.ejercicios[equivale.nivel - 2]
+    const abajo = id === undefined ? undefined : ejercicios.get(id)
+    return abajo ? bajado(abajo) : { patron, cambio: 'saltea' }
+  }
+
+  return { patron, cambio: 'saltea' }
+}
+
+/**
+ * Los pasos de una sesión armada con pasos, con la molestia aplicada.
+ *
+ * Es lo mismo que `bloqueConMolestia` hace con los bloques del plan, para lo
+ * que ahora se puede empezar: una rutina tuya, un mix, un ejercicio solo o lo
+ * que falta de una sesión en curso ("Me molesta algo" en la hoja La sesión).
+ *
+ * - **Los pasos `cadena`** pasan por `bloqueConMolestia`, como hoy: bajan un
+ *   eslabón o, en el primero, se saltean. Lo bajado se guarda como volumen
+ *   (`bajada`), que es lo que es: un eslabón más fácil que no lee la cadena.
+ * - **Los de `volumen`** se saltean, como en el plan: ya son el eslabón de
+ *   abajo, y dejarlos sería cargar dos veces lo que tenía que bajar una.
+ * - **Los fijos**, también la entrada en calor, reciben por defecto la regla
+ *   del plan (`fijoConMolestia`); con `fijos: 'como-los-armaste'` quedan
+ *   como estaban. Lo bajado lleva `bajada` además de su `fijo`: un eslabón de
+ *   abajo con dos series al piso no puede hundir la curva de fuerza.
+ * - **La movilidad**, un id que no está en el catálogo y lo que ya tiene
+ *   series anotadas quedan como estaban. Cambiar a mitad de camino algo que ya
+ *   empezó dejaría esas series fuera de lo que se guarda.
+ *
+ * Recibe los pasos como salieron de la rutina o del mix, sin la molestia
+ * aplicada, igual que `bloqueConMolestia` recibe el bloque del motor: pasados
+ * dos veces bajarían dos eslabones. Por eso la sesión guarda las molestias con
+ * las que se armó (`SesionEnCurso.molestias`) y el plan se vuelve a armar
+ * desde lo que se eligió, no desde lo que ya bajó.
+ *
+ * `hechas` es lo anotado en la sesión, por id de paso (o de ejercicio, en un
+ * borrador viejo). Pura: no toca los pasos que recibe.
+ */
+export function pasosConMolestia(
+  pasos: readonly PasoDelBorrador[],
+  molestia: Patron | Iterable<Patron> | null | undefined,
+  opciones: {
+    fijos?: FijosConMolestia
+    hechas?: Readonly<Record<string, readonly Serie[]>>
+    ejercicios?: Map<string, Ejercicio>
+  } = {},
+): PasosConMolestia {
+  const molestias = comoConjunto(molestia)
+  const { fijos = 'regla-del-plan', hechas = {}, ejercicios = POR_ID } = opciones
+  const quedan: PasoDelBorrador[] = []
+  const cambios: CambioDelPaso[] = []
+
+  for (const paso of pasos) {
+    const clave = paso.id ?? paso.ejercicioId
+    const ejercicio = ejercicios.get(paso.ejercicioId)
+    const clase = claseDelPaso(paso)
+    const yaEmpezado = (hechas[clave]?.length ?? 0) > 0
+    if (molestias.size === 0 || !ejercicio || clase === 'movilidad' || yaEmpezado) {
+      quedan.push(paso)
+      continue
+    }
+
+    if (clase === 'cadena' || clase === 'volumen') {
+      const cadena = CADENA_POR_PATRON.get(ejercicio.patron)
+      if (!cadena) {
+        quedan.push(paso)
+        continue
+      }
+      const hoy = bloqueConMolestia(
+        { ejercicio, objetivo: paso.objetivo, accesorio: clase === 'volumen' },
+        molestias,
+        ejercicios,
+        cadena,
+      )
+      if (hoy.cambio === null) {
+        quedan.push(paso)
+        continue
+      }
+      const base = { paso: clave, patron: cadena.patron, de: ejercicio.id, fijo: false }
+      if (hoy.cambio === 'saltea') {
+        cambios.push({ ...base, cambio: 'saltea' })
+        continue
+      }
+      quedan.push({
+        ...paso,
+        ejercicioId: hoy.ejercicio.id,
+        objetivo: hoy.objetivo,
+        bajada: true,
+        clase: 'volumen',
+      })
+      cambios.push({ ...base, cambio: 'baja', a: hoy.ejercicio.id })
+      continue
+    }
+
+    if (fijos === 'como-los-armaste') {
+      quedan.push(paso)
+      continue
+    }
+    const hoy = fijoConMolestia(ejercicio, paso.objetivo, molestias, ejercicios)
+    if (!hoy) {
+      quedan.push(paso)
+      continue
+    }
+    const base = { paso: clave, patron: hoy.patron, de: ejercicio.id, fijo: true }
+    if (hoy.cambio === 'saltea') {
+      cambios.push({ ...base, cambio: 'saltea' })
+      continue
+    }
+    quedan.push({ ...paso, ejercicioId: hoy.ejercicio.id, objetivo: hoy.objetivo, bajada: true })
+    cambios.push({ ...base, cambio: 'baja', a: hoy.ejercicio.id })
+  }
+
+  return { pasos: quedan, cambios }
 }

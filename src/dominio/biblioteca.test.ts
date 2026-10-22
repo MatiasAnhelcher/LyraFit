@@ -8,6 +8,8 @@
 
 import { describe, expect, it } from 'vitest'
 import { CADENAS, EJERCICIOS, FUERA_DE_CADENA, POR_ID, REQUISITOS, cadenaDe } from './biblioteca'
+import { EQUIPOS } from './equipo'
+import { NECESITAN_BARRA, NECESITAN_BARRA_CARGABLE } from './musculos'
 import { PROHIBIDAS, loProhibido } from './palabras'
 import { requisitoDicho } from './progresion'
 
@@ -242,5 +244,55 @@ describe('el vocabulario no promete lo que no puede', () => {
       }
     }
     expect(PROHIBIDAS.length).toBeGreaterThan(30)
+  })
+})
+
+describe('el equipo de cada ficha', () => {
+  // El equipo decide qué entra en un mix y qué muestra "Con lo que tengo". Una
+  // ficha sin el dato no se propone nunca (ver `alcanza`), así que olvidarlo
+  // en un ejercicio nuevo lo esconde en silencio: esto lo hace ruidoso.
+
+  it('los 53 ejercicios dicen qué piden', () => {
+    expect(EJERCICIOS).toHaveLength(53)
+    for (const e of EJERCICIOS) {
+      expect(e.equipo, e.id).toBeDefined()
+      expect(e.equipo?.length, e.id).toBeGreaterThan(0)
+    }
+  })
+
+  it('cada pieza es equipo que la app conoce, sin repetir', () => {
+    for (const e of EJERCICIOS) {
+      const equipo = e.equipo ?? []
+      expect(new Set(equipo).size, e.id).toBe(equipo.length)
+      for (const pieza of equipo) expect(EQUIPOS, `${e.id}: ${pieza}`).toContain(pieza)
+    }
+  })
+
+  it('"nada" va solo: si algo hace falta, ya no es sin nada', () => {
+    for (const e of EJERCICIOS) {
+      const equipo = e.equipo ?? []
+      if (equipo.includes('nada')) expect(equipo, e.id).toEqual(['nada'])
+    }
+  })
+
+  it('pide la barra exactamente lo que el mapa muscular cuenta como colgado', () => {
+    // `NECESITAN_BARRA` es la lista que ya usan la apertura del plan, el Reloj
+    // y el mapa muscular. Si una ficha pidiera la barra sin estar ahí, el mix
+    // la escondería y la apertura la propondría igual, o al revés.
+    for (const e of EJERCICIOS) {
+      expect(e.equipo?.includes('barra'), e.id).toBe(NECESITAN_BARRA.has(e.id))
+    }
+  })
+
+  it('pide discos exactamente lo que necesita la barra cargable', () => {
+    for (const e of EJERCICIOS) {
+      expect(e.equipo?.includes('discos'), e.id).toBe(NECESITAN_BARRA_CARGABLE.has(e.id))
+    }
+  })
+
+  it('las listas viejas no nombran ejercicios que no existen', () => {
+    for (const id of [...NECESITAN_BARRA, ...NECESITAN_BARRA_CARGABLE]) {
+      expect(POR_ID.has(id), id).toBe(true)
+    }
   })
 })

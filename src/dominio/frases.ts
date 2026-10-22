@@ -636,6 +636,22 @@ export interface Situacion {
 const POR_MOMENTO = new Map(FRASES.map((g) => [g.momento, g]))
 
 /**
+ * Las líneas de un grupo que son ciertas para esta persona (ver `Situacion`).
+ * Lo que la situación no dice se toma por lo más prudente.
+ */
+function ciertasPara(
+  lineas: readonly string[],
+  { sesiones = 0, sinCortar = false, entrenoReciente = false }: Situacion,
+): string[] {
+  return lineas.filter(
+    (l) =>
+      (DESDE_SESIONES.get(l) ?? 0) <= sesiones &&
+      (sinCortar || !PIDEN_CONTINUIDAD.has(l)) &&
+      (entrenoReciente || !PIDEN_ENTRENO_RECIENTE.has(l)),
+  )
+}
+
+/**
  * Una frase para este momento.
  *
  * `azar` es un número entre 0 y 1 que trae la pantalla: acá adentro no puede
@@ -654,17 +670,12 @@ export function fraseDe(
   momento: Momento,
   azar: number,
   dichas: readonly string[] = [],
-  { sesiones = 0, sinCortar = false, entrenoReciente = false }: Situacion = {},
+  situacion: Situacion = {},
 ): { texto: string; expresion: Expresion } | null {
   const grupo = POR_MOMENTO.get(momento)
   if (!grupo) return null
 
-  const ciertas = grupo.lineas.filter(
-    (l) =>
-      (DESDE_SESIONES.get(l) ?? 0) <= sesiones &&
-      (sinCortar || !PIDEN_CONTINUIDAD.has(l)) &&
-      (entrenoReciente || !PIDEN_ENTRENO_RECIENTE.has(l)),
-  )
+  const ciertas = ciertasPara(grupo.lineas, situacion)
   if (ciertas.length === 0) return null
 
   const recientes = new Set(dichas)
@@ -685,6 +696,90 @@ export const MEMORIA = 40
 /** Agrega una frase al buffer, recortándolo. */
 export function recordar(dichas: readonly string[], texto: string): string[] {
   return [texto, ...dichas.filter((d) => d !== texto)].slice(0, MEMORIA)
+}
+
+/**
+ * Las frases que comentan cuántas sesiones van.
+ *
+ * Son ciertas y quedan en el banco, pero no van en la frase del día: desde que
+ * se puede entrenar tres veces en un día, "Otra más en la cuenta" leída
+ * después de la tercera es celebrar la cantidad, y Lyra no comenta cuántas
+ * sesiones van. Se filtran en vez de borrarse, como pidió el rol 10
+ * (Decisión 25), así el banco no cambia de tamaño (`CUANTAS`).
+ */
+export const HABLAN_DE_LA_CUENTA: ReadonlySet<string> = new Set([
+  'Otra más en la cuenta.',
+  'Ese número solo sube.',
+  'Las sesiones se suman aunque no lo sientas.',
+  'Llevás más de las que creías.',
+  'Sumaste otra sin hacer ruido.',
+  'Una sesión más en la columna que importa.',
+])
+
+/** Un número fijo por frase, para barajarlas siempre igual: FNV-1a de 32 bits. */
+function huella(texto: string): number {
+  let h = 0x811c9dc5
+  for (let i = 0; i < texto.length; i++) {
+    h ^= texto.charCodeAt(i)
+    h = Math.imul(h, 0x01000193)
+  }
+  return h >>> 0
+}
+
+/**
+ * Qué número de día es una fecha AAAA-MM-DD, contado en UTC.
+ *
+ * En UTC a propósito: es aritmética de calendario y no un instante, así que
+ * da lo mismo en Buenos Aires que en Sídney y no lo mueve ningún cambio de
+ * hora. Una fecha que no se entiende es el día cero: devuelve una frase igual,
+ * y la misma siempre.
+ */
+function numeroDeDia(fecha: string): number {
+  const partes = /^(\d{4})-(\d{2})-(\d{2})$/.exec(fecha)
+  if (!partes) return 0
+  const dia = Date.UTC(Number(partes[1]), Number(partes[2]) - 1, Number(partes[3])) / 86_400_000
+  return Number.isFinite(dia) ? Math.round(dia) : 0
+}
+
+/**
+ * La frase del día: la misma de la mañana a la noche, aunque sumes sesiones.
+ *
+ * Lyra dice una frase por día en Hoy, elegida con la fecha como semilla y no
+ * con azar: con varias sesiones por día, una frase que cambia cada vez que se
+ * vuelve a Hoy se lee como un comentario sobre cada sesión, y eso ya es
+ * contar. Y como no cambia en el día, tampoco hace falta la memoria de lo
+ * dicho (`recordar`).
+ *
+ * Cómo se elige: las frases ciertas del momento se barajan siempre igual (por
+ * su `huella`) y cada día toma la que sigue. Así dos días seguidos nunca dicen
+ * la misma, y antes de repetir una salen todas, que es lo que el buffer de
+ * `fraseDe` busca con azar y acá sale de la cuenta.
+ *
+ * `antesDeHoy` es lo que se sabe de la persona **sin las sesiones de hoy**, y
+ * es lo que la deja quieta en el día: con las de hoy, la segunda sesión de un
+ * día podía habilitar una frase que pide dos y cambiar la de la mañana.
+ * Contar solo hasta ayer nunca hace decir algo falso, porque la cuenta solo
+ * crece: a lo sumo se calla una frase que hoy ya sería cierta. Lo que falte
+ * se toma por lo más prudente, como en `fraseDe`.
+ *
+ * Nunca dice una de `HABLAN_DE_LA_CUENTA`.
+ */
+export function fraseDelDia(
+  momento: Momento,
+  fecha: string,
+  antesDeHoy: Situacion = {},
+): { texto: string; expresion: Expresion } | null {
+  const grupo = POR_MOMENTO.get(momento)
+  if (!grupo) return null
+
+  const ciertas = ciertasPara(grupo.lineas, antesDeHoy).filter((l) => !HABLAN_DE_LA_CUENTA.has(l))
+  if (ciertas.length === 0) return null
+
+  const baraja = ciertas
+    .map((linea) => ({ linea, huella: huella(linea) }))
+    .sort((a, b) => a.huella - b.huella || a.linea.localeCompare(b.linea))
+  const i = ((numeroDeDia(fecha) % baraja.length) + baraja.length) % baraja.length
+  return { texto: baraja[i]!.linea, expresion: grupo.expresion }
 }
 
 /**

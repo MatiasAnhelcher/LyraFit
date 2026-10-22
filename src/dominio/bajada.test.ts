@@ -172,3 +172,44 @@ describe('cuánto dura una sesión', () => {
     expect(minutosDeSesion(plan(0, true), 0)).toBeLessThan(180)
   })
 })
+
+describe('un ejercicio por lado cuenta su trabajo dos veces', () => {
+  // La marca `porLado` la ponen los datos del catálogo; acá se pone a mano
+  // sobre un ejercicio real, así el test no depende de qué ficha la lleva.
+  const zancada = POR_ID.get('zancada')!
+  const plancha = POR_ID.get('plancha')!
+
+  it('en repeticiones: veinte por pierna son cuarenta, y el descanso no se duplica', () => {
+    // 3 × 20 a tres segundos por repetición son 180 s de trabajo; con dos
+    // descansos de 60 y los cinco minutos de alrededor, 600 s: diez minutos.
+    // Por lado, el trabajo es 360 s y la sesión, 780 s: trece minutos.
+    const objetivo = { series: 3, cantidad: 20 }
+    expect(minutosDeSesion([{ ejercicio: zancada, objetivo, descansoSegundos: 60 }])).toBe(10)
+    expect(
+      minutosDeSesion([{ ejercicio: { ...zancada, porLado: true }, objetivo, descansoSegundos: 60 }]),
+    ).toBe(13)
+  })
+
+  it('en segundos: treinta por lado son sesenta', () => {
+    // 4 × 30 s son 120 s, con tres descansos de 60 y los 300 de alrededor:
+    // 600 s. Por lado, 240 s de trabajo: 720 s, doce minutos.
+    const objetivo = { series: 4, cantidad: 30 }
+    expect(minutosDeSesion([{ ejercicio: plancha, objetivo, descansoSegundos: 60 }])).toBe(10)
+    expect(
+      minutosDeSesion([{ ejercicio: { ...plancha, porLado: true }, objetivo, descansoSegundos: 60 }]),
+    ).toBe(12)
+  })
+
+  it('lo que no es por lado no cambia', () => {
+    // La marca suma trabajo a su ejercicio y a nada más: en una sesión con
+    // uno por lado y otro que no, la diferencia es exactamente la del primero.
+    const objetivo = { series: 3, cantidad: 20 }
+    const otro = { ejercicio: POR_ID.get('flexion-completa')!, objetivo, descansoSegundos: 60 }
+    const sin = minutosDeSesion([otro, { ejercicio: zancada, objetivo, descansoSegundos: 60 }])
+    const con = minutosDeSesion([
+      otro,
+      { ejercicio: { ...zancada, porLado: true }, objetivo, descansoSegundos: 60 },
+    ])
+    expect(con - sin).toBe(3)
+  })
+})

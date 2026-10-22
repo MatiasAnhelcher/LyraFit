@@ -6,8 +6,10 @@ import {
   LARGO_MAXIMO,
   MEMORIA,
   TODAS,
+  HABLAN_DE_LA_CUENTA,
   dichoDelDescanso,
   fraseDe,
+  fraseDelDia,
   momentoDeHoy,
   PIDEN_CONTINUIDAD,
   PIDEN_ENTRENO_RECIENTE,
@@ -15,6 +17,8 @@ import {
   type Situacion,
   type Momento,
 } from './frases'
+import { sumarDias } from './adherencia'
+import { diaLocal } from './borrador'
 import { loProhibido } from './palabras'
 
 /**
@@ -625,5 +629,121 @@ describe('las frases que piden continuidad o un entreno reciente', () => {
   it('cada una está en su grupo, así que el filtro saca algo de verdad', () => {
     for (const frase of PIDEN_CONTINUIDAD) expect(constancia.lineas).toContain(frase)
     for (const frase of PIDEN_ENTRENO_RECIENTE) expect(descanso.lineas).toContain(frase)
+  })
+})
+
+/**
+ * La frase del día.
+ *
+ * Con varias sesiones por día, Hoy dice una sola frase de la mañana a la noche,
+ * elegida con la fecha como semilla. Lo que se prueba es eso, que no se le
+ * cuelen las frases que comentan la cuenta, y que la semilla no la vuelva un
+ * cartel: dos días seguidos nunca dicen lo mismo.
+ */
+describe('la frase del día', () => {
+  /** Lo que sabe Hoy de alguien que entrena hace rato y sin cortar. */
+  const conHistoria: Situacion = { sesiones: 40, sinCortar: true, entrenoReciente: true }
+
+  it('es la misma todo el día, a cualquier hora y en cualquier huso', () => {
+    // Hoy pide la frase con el día local de ahora. Cada media hora de un día
+    // entero da el mismo día, y por eso la misma frase. El CI corre esto
+    // también con TZ=Australia/Sydney, que cambia de hora el 4 de octubre.
+    for (const dia of ['2026-10-22', '2026-10-04', '2026-04-05', '2026-12-31']) {
+      const base = new Date(`${dia}T00:00:00`).getTime()
+      const frases = new Set<string>()
+      for (let media = 0; media < 48; media++) {
+        const ahora = base + media * 30 * 60 * 1000
+        if (diaLocal(ahora) !== dia) continue
+        frases.add(fraseDelDia('constancia', diaLocal(ahora), conHistoria)!.texto)
+      }
+      expect(frases.size, dia).toBe(1)
+    }
+  })
+
+  it('no cambia al sumar sesiones en el día: cuenta lo de antes de hoy', () => {
+    // La pantalla le pasa lo que sabe sin las sesiones de hoy. Con una o con
+    // tres sesiones hoy, lo de antes es lo mismo, y la frase también.
+    const hoy = '2026-10-22'
+    const historial = ['2026-10-20', '2026-10-21', hoy, hoy, hoy]
+    const antesDeHoy = (hechas: number) => ({
+      sesiones: historial.slice(0, hechas).filter((f) => f < hoy).length,
+    })
+    const despuesDeUna = fraseDelDia('constancia', hoy, antesDeHoy(3))
+    const despuesDeTres = fraseDelDia('constancia', hoy, antesDeHoy(5))
+    expect(despuesDeUna).toEqual(despuesDeTres)
+  })
+
+  it('dos días seguidos nunca dicen la misma, y antes de repetir salen todas', () => {
+    for (const momento of MOMENTOS) {
+      const ciertas = new Set<string>()
+      const dias = 400
+      let anterior: string | undefined
+      for (let n = 0; n < dias; n++) {
+        const texto = fraseDelDia(momento, sumarDias('2026-01-01', n), conHistoria)!.texto
+        expect(texto, `${momento}, día ${n}`).not.toBe(anterior)
+        anterior = texto
+        ciertas.add(texto)
+      }
+      // En tantos días como frases ciertas tiene el momento, sale cada una.
+      const primeras = new Set(
+        Array.from({ length: ciertas.size }, (_, n) =>
+          fraseDelDia(momento, sumarDias('2026-01-01', n), conHistoria)!.texto,
+        ),
+      )
+      expect(primeras.size, momento).toBe(ciertas.size)
+    }
+  })
+
+  it('nunca comenta cuántas sesiones van', () => {
+    for (const momento of MOMENTOS) {
+      for (let n = 0; n < 60; n++) {
+        const texto = fraseDelDia(momento, sumarDias('2026-01-01', n), conHistoria)!.texto
+        expect(HABLAN_DE_LA_CUENTA.has(texto), `${momento}: "${texto}"`).toBe(false)
+      }
+    }
+  })
+
+  it('las que comentan la cuenta existen, y se filtran sin salir del banco', () => {
+    // Si alguien reescribe una y no la lista, la lista deja de filtrar sin
+    // avisar. Y siguen en el banco: el rol 10 pidió filtrarlas, no borrarlas.
+    for (const linea of HABLAN_DE_LA_CUENTA) expect(TODAS, linea).toContain(linea)
+    expect(TODAS.length).toBe(CUANTAS)
+    expect(CUANTAS).toBe(343)
+  })
+
+  it('respeta lo que la persona tiene de historia, con la prudencia por defecto', () => {
+    // Sin decir nada, ninguna condicionada; el primer día, ninguna que pida
+    // otra sesión antes.
+    for (const momento of MOMENTOS) {
+      for (let n = 0; n < 60; n++) {
+        const dia = sumarDias('2026-01-01', n)
+        const sinNada = fraseDelDia(momento, dia)
+        if (sinNada) expect(DESDE_SESIONES.has(sinNada.texto), sinNada.texto).toBe(false)
+        const conUna = fraseDelDia(momento, dia, { sesiones: 1 })
+        if (conUna) expect(DESDE_SESIONES.get(conUna.texto) ?? 0, conUna.texto).toBeLessThanOrEqual(1)
+        const sinDecirSiCorto = fraseDelDia(momento, dia, { sesiones: 40 })
+        if (sinDecirSiCorto) {
+          expect(PIDEN_CONTINUIDAD.has(sinDecirSiCorto.texto), sinDecirSiCorto.texto).toBe(false)
+        }
+      }
+    }
+  })
+
+  it('trae la cara de su momento', () => {
+    for (const grupo of FRASES) {
+      const frase = fraseDelDia(grupo.momento, '2026-10-22', conHistoria)!
+      expect(grupo.lineas).toContain(frase.texto)
+      expect(frase.expresion).toBe(grupo.expresion)
+    }
+  })
+
+  it('es pura y no se rompe con lo que no entiende', () => {
+    expect(fraseDelDia('constancia', '2026-10-22', conHistoria)).toEqual(
+      fraseDelDia('constancia', '2026-10-22', conHistoria),
+    )
+    expect(fraseDelDia('inventado' as Momento, '2026-10-22')).toBeNull()
+    const rara = fraseDelDia('abrir', 'no es una fecha')
+    expect(rara).not.toBeNull()
+    expect(fraseDelDia('abrir', 'no es una fecha')).toEqual(rara)
   })
 })
