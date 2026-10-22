@@ -450,12 +450,15 @@ export function revisarSemana(semana: Semana, rutina: Rutina): Aviso[] {
     })
   }
 
+  // Los dos avisos dicen lo que el motor hace de verdad: cada cadena se lee una
+  // vez por día, con lo que sale ese día. Ni reto ni una regla de horas que la
+  // app no tiene con qué sostener; la persona decide con el dato.
   if (fuerza.length >= 5 && fuelle.length === 0) {
+    const cuantos = ['Cinco', 'Seis', 'Siete'][fuerza.length - 5] ?? 'Siete'
     avisos.push({
       clave: 'sin-recuperacion',
       gravedad: 'avisa',
-      texto:
-        'Cinco días de fuerza sin ninguno de fuelle no es voluntad, es no recuperar. El motor es reactivo y lo lee como pérdida de capacidad: baja de eslabón. Cambiá uno o dos por fuelle.',
+      texto: `${cuantos} días de fuerza y ninguno de fuelle. Tu nivel se lee con lo que sale cada día: si llegás con menos resto, eso es lo que va a leer. Si querés, cambiá uno por fuelle.`,
     })
   }
 
@@ -464,7 +467,7 @@ export function revisarSemana(semana: Semana, rutina: Rutina): Aviso[] {
     avisos.push({
       clave: 'seguidos',
       gravedad: 'avisa',
-      texto: `Hay ${seguidos} días de fuerza seguidos. Los mismos patrones sin 48 horas en el medio se entrenan cansados, y el motor mide lo que sale, no lo que quisiste.`,
+      texto: `Hay ${seguidos} días de fuerza seguidos. Cada uno lee una vez las cadenas que entrena, con lo que salga ese día.`,
     })
   }
 

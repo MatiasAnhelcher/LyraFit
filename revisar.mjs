@@ -97,6 +97,50 @@ async function forzarVispera(pagina, patron) {
   }, patron)
 }
 
+/**
+ * Pasa a ayer las sesiones de hoy.
+ *
+ * Cada cadena se lee una vez por día, y la víspera calla sobre una que ya se
+ * leyó hoy: "pasás a X" no puede anunciar algo que esta sesión no va a leer.
+ * La sesión completa del recorrido lee tracción hoy, así que la víspera
+ * forzada recién puede verse si esa lectura fue ayer. Va por IndexedDB crudo,
+ * igual que `forzarVispera`, y pide la misma recarga de verdad después.
+ *
+ * @returns {Promise<number>} cuántas sesiones pasó.
+ */
+async function pasarLasDeHoyAAyer(pagina) {
+  return pagina.evaluate(async () => {
+    // La fecha local, como la guarda la app (`fechaISO`).
+    const dd = (n) => String(n).padStart(2, '0')
+    const fecha = (d) => `${d.getFullYear()}-${dd(d.getMonth() + 1)}-${dd(d.getDate())}`
+    const ahora = new Date()
+    const hoy = fecha(ahora)
+    const ayer = fecha(new Date(ahora.getFullYear(), ahora.getMonth(), ahora.getDate() - 1))
+
+    const base = await new Promise((res, rej) => {
+      const r = indexedDB.open('lyrafit')
+      r.onsuccess = () => res(r.result)
+      r.onerror = () => rej(r.error)
+    })
+    const sesiones = await new Promise((res, rej) => {
+      const q = base.transaction('sesiones').objectStore('sesiones').getAll()
+      q.onsuccess = () => res(q.result)
+      q.onerror = () => rej(q.error)
+    })
+    const deHoy = sesiones.filter((s) => s.fecha === hoy)
+    await new Promise((res, rej) => {
+      const tx = base.transaction('sesiones', 'readwrite')
+      for (const s of deHoy) {
+        tx.objectStore('sesiones').put({ ...s, fecha: ayer, finalizadaEn: s.finalizadaEn - 86_400_000 })
+      }
+      tx.oncomplete = () => res()
+      tx.onerror = () => rej(tx.error)
+      tx.onabort = () => rej(tx.error)
+    })
+    return deHoy.length
+  })
+}
+
 /*
  * EL GUARDIÁN DEL BUILD VIVE EN `lib/portones.mjs`, Y ACÁ HABÍA UNA COPIA.
  *
@@ -293,9 +337,9 @@ async function main() {
     await revisarDesborde(pagina, `Ficha de ejercicio (${tema})`)
 
     // La distancia se dice de tres formas y las tres tienen que salir: en
-    // sesiones solo para el eslabón que viene, en eslabones para todo lo que
-    // está más lejos, y "ya pasaste por acá" para lo que quedó atrás. La
-    // primera versión de esto contaba sesiones hasta cualquier ejercicio y
+    // días de práctica solo para el eslabón que viene, en eslabones para todo
+    // lo que está más lejos, y "ya pasaste por acá" para lo que quedó atrás.
+    // La primera versión de esto contaba sesiones hasta cualquier ejercicio y
     // prometía la flexión a una mano en dieciséis sesiones.
     for (const [id, esperado] of [
       ['flexion-pared', /Ya pasaste por acá/i],
@@ -314,8 +358,9 @@ async function main() {
     await capturar(pagina, `7b-ficha-lejos-${tema}`)
     await revisarDesborde(pagina, `Ficha de un ejercicio lejano (${tema})`)
 
-    // Y la tercera redacción, la única que cuenta sesiones: el eslabón que
-    // viene. Se deriva del avance real en vez de escribirlo a mano, porque
+    // Y la tercera redacción, la única que cuenta días de práctica: el
+    // eslabón que viene. La expresión mira también la concordancia: "1 día",
+    // "7 días", nunca "1 días" ni "7 día". Se deriva del avance real en vez de escribirlo a mano, porque
     // dónde cae la persona depende de lo que contestó en el alta.
     const proximo = await pagina.evaluate(async () => {
       const base = await new Promise((res, rej) => {
@@ -343,12 +388,12 @@ async function main() {
         await pagina.waitForTimeout(400)
         const cuenta = await pagina
           .locator('p')
-          .filter({ hasText: /Estás a .* de acá, si sale todo bien/i })
+          .filter({ hasText: /Estás a (?:1 día|(?:[2-9]|\d{2,}) días) de práctica de [a-zñáéíóú]+ de acá, si sale todo bien/i })
           .first()
           .isVisible()
           .catch(() => false)
         if (!cuenta) {
-          problemas.push(`El eslabón siguiente no dice a cuántas sesiones está (${tema})`)
+          problemas.push(`El eslabón siguiente no dice a cuántos días de práctica está (${tema})`)
         }
       }
     }
@@ -556,6 +601,18 @@ async function main() {
     await pagina.waitForTimeout(300)
     const forzado = await forzarVispera(pagina, 'traccion')
     if (!forzado) problemas.push(`No se pudo forzar la víspera (${tema})`)
+
+    // Tracción ya se leyó en la sesión de hoy: con el techo forzado y todo,
+    // la víspera calla. Leída ayer, vuelve.
+    await pagina.goto(`${BASE}/#/`, { waitUntil: 'networkidle' })
+    await pagina.reload({ waitUntil: 'networkidle' })
+    await pagina.waitForTimeout(900)
+    if (await pagina.getByText(/pasás a/).first().isVisible().catch(() => false)) {
+      problemas.push(`La víspera anuncia un salto de tracción, que ya se leyó hoy (${tema})`)
+    }
+    if ((await pasarLasDeHoyAAyer(pagina)) === 0) {
+      problemas.push(`No quedó ninguna sesión de hoy para pasar a ayer (${tema})`)
+    }
 
     // Recarga de verdad, no navegación de hash: ver la nota de `forzarVispera`.
     await pagina.goto(`${BASE}/#/`, { waitUntil: 'networkidle' })

@@ -8,9 +8,14 @@ import {
   TODAS,
   dichoDelDescanso,
   fraseDe,
+  momentoDeHoy,
+  PIDEN_CONTINUIDAD,
+  PIDEN_ENTRENO_RECIENTE,
   recordar,
+  type Situacion,
   type Momento,
 } from './frases'
+import { loProhibido } from './palabras'
 
 /**
  * Que la voz de Lyra no se convierta en un cartel.
@@ -82,45 +87,15 @@ describe('el banco de frases', () => {
 })
 
 describe('las cuatro reglas, que son el punto', () => {
-  it('ninguna promete un resultado', () => {
+  it('ninguna promete, culpa, aprieta ni reta', () => {
     // El motor es lo único que proyecta en esta app, y proyecta con una cuenta.
     // Una promesa de una mascota no se puede cumplir ni verificar, y cuando no
-    // se cumple se lleva puesta la credibilidad de lo que sí es cierto.
-    const promesas = [
-      /\bvas a (lograr|conseguir|poder|tener|llegar)\b/i,
-      /\bvas a estar\b/i,
-      /\bgarantiz/i,
-      /\ben (un|dos|tres|seis) (mes|meses|semanas?)\b/i,
-      /\bte lo prometo\b/i,
-      /\bseguro que\b/i,
-    ]
+    // se cumple se lleva puesta la credibilidad de lo que sí es cierto. La
+    // culpa, la urgencia y el reto (racha, "deberías", "te pasaste") no existen
+    // en esta app, y nombrarlos los resucitaría. La lista es una sola para
+    // toda la app y vive en `palabras.ts`: los portones leen la misma.
     for (const linea of TODAS) {
-      for (const patron of promesas) {
-        expect(patron.test(linea), `promete un resultado: "${linea}"`).toBe(false)
-      }
-    }
-  })
-
-  it('ninguna culpa, avergüenza ni mete urgencia', () => {
-    const feas = [
-      /\bno aflojes\b/i,
-      /\bsin excusas?\b/i,
-      /\bvago\b|\bvaga\b/i,
-      /\bperdiste la racha\b/i,
-      /\bracha\b/i, // no existe en esta app, y nombrarla la resucitaría
-      /\búltima oportunidad\b/i,
-      /\bte vas a arrepentir\b/i,
-      /\bnadie más\b.*\bque vos\b/i,
-      /\bdeberías\b/i,
-      /\b(es|fue|por) tu culpa\b/i,
-      /\bculpable\b/i,
-      /\bfracas/i,
-      /\bdébil\b/i,
-    ]
-    for (const linea of TODAS) {
-      for (const patron of feas) {
-        expect(patron.test(linea), `culpa o aprieta: "${linea}"`).toBe(false)
-      }
+      expect(loProhibido(linea), `"${linea}"`).toBeNull()
     }
   })
 
@@ -305,9 +280,10 @@ describe('las cuatro reglas, que son el punto', () => {
 })
 
 describe('elegir una frase', () => {
-  // Con historia de sobra, para que las que piden sesiones también cuenten:
-  // estos tests miden el azar y la memoria, no las condiciones.
-  const CON_HISTORIA = 1000
+  // Con historia de sobra, para que las que piden sesiones, continuidad o un
+  // entreno reciente también cuenten: estos tests miden el azar y la memoria,
+  // no las condiciones.
+  const CON_HISTORIA: Situacion = { sesiones: 1000, sinCortar: true, entrenoReciente: true }
 
   it('siempre devuelve algo para cualquier momento y cualquier azar', () => {
     for (const momento of MOMENTOS) {
@@ -372,7 +348,9 @@ describe('las frases que piden historia', () => {
   function alcanzables(momento: Momento, sesiones: number): Set<string> {
     const salieron = new Set<string>()
     const pasos = 400
-    for (let i = 0; i < pasos; i++) salieron.add(fraseDe(momento, i / pasos, [], sesiones)!.texto)
+    for (let i = 0; i < pasos; i++) {
+      salieron.add(fraseDe(momento, i / pasos, [], { sesiones, sinCortar: true, entrenoReciente: true })!.texto)
+    }
     return salieron
   }
 
@@ -583,5 +561,69 @@ describe('lo que Lyra dice en el descanso', () => {
     const uno = dichoDelDescanso({ ...base, azar: 0.37 })
     const otro = dichoDelDescanso({ ...base, azar: 0.37 })
     expect(uno).toEqual(otro)
+  })
+})
+
+describe('el momento de Hoy', () => {
+  it('el día de la vuelta, después de entrenar, ya es constancia', () => {
+    // "Tomátelo con calma esta primera" no es cierto con la primera hecha.
+    expect(momentoDeHoy({ esDiaDeEntrenar: true, entrenoHoy: true, vuelve: true })).toBe('constancia')
+    expect(momentoDeHoy({ esDiaDeEntrenar: true, entrenoHoy: false, vuelve: true })).toBe('vuelta')
+  })
+
+  it('sin vuelta: abrir antes de entrenar, constancia después, descanso si no toca', () => {
+    expect(momentoDeHoy({ esDiaDeEntrenar: true, entrenoHoy: false, vuelve: false })).toBe('abrir')
+    expect(momentoDeHoy({ esDiaDeEntrenar: true, entrenoHoy: true, vuelve: false })).toBe('constancia')
+    expect(momentoDeHoy({ esDiaDeEntrenar: false, entrenoHoy: false, vuelve: false })).toBe('descanso')
+    expect(momentoDeHoy({ esDiaDeEntrenar: false, entrenoHoy: false, vuelve: true })).toBe('descanso')
+  })
+
+  it('un día de descanso en el que igual entrenó es constancia, no descanso', () => {
+    // "Hoy toca descansar" es falso con la sesión de hoy ya hecha.
+    expect(momentoDeHoy({ esDiaDeEntrenar: false, entrenoHoy: true, vuelve: false })).toBe('constancia')
+    expect(momentoDeHoy({ esDiaDeEntrenar: false, entrenoHoy: true, vuelve: true })).toBe('constancia')
+  })
+})
+
+describe('las frases que piden continuidad o un entreno reciente', () => {
+  // Un barrido fino del azar: con 25 frases, de a 0.01 sale cada una.
+  const BARRIDO = Array.from({ length: 101 }, (_, i) => i / 100)
+  const constancia = FRASES.find((g) => g.momento === 'constancia')!
+  const descanso = FRASES.find((g) => g.momento === 'descanso')!
+  const salen = (momento: Momento, situacion: Situacion) =>
+    new Set(BARRIDO.map((azar) => fraseDe(momento, azar, [], situacion)!.texto))
+
+  it('sin venir sin cortar, ninguna dice que la persona viene sin cortar', () => {
+    // Con cincuenta sesiones de hace meses: la vuelta, y el día siguiente.
+    for (const texto of salen('constancia', { sesiones: 50, sinCortar: false, entrenoReciente: true })) {
+      expect(PIDEN_CONTINUIDAD.has(texto), texto).toBe(false)
+    }
+  })
+
+  it('viniendo sin cortar, salen', () => {
+    const dichas = salen('constancia', { sesiones: 50, sinCortar: true })
+    for (const frase of PIDEN_CONTINUIDAD) expect(dichas.has(frase), frase).toBe(true)
+  })
+
+  it('sin un entreno reciente, el descanso no habla de lo que el cuerpo está terminando', () => {
+    for (const texto of salen('descanso', { sesiones: 50, sinCortar: true, entrenoReciente: false })) {
+      expect(PIDEN_ENTRENO_RECIENTE.has(texto), texto).toBe(false)
+    }
+    const conEntreno = salen('descanso', { sesiones: 50, entrenoReciente: true })
+    for (const frase of PIDEN_ENTRENO_RECIENTE) expect(conEntreno.has(frase), frase).toBe(true)
+  })
+
+  it('sin decir nada de la persona, no sale ninguna de las dos', () => {
+    // El valor por defecto es el prudente, igual que con las sesiones.
+    for (const grupo of FRASES) {
+      for (const texto of salen(grupo.momento, { sesiones: 1000 })) {
+        expect(PIDEN_CONTINUIDAD.has(texto) || PIDEN_ENTRENO_RECIENTE.has(texto), texto).toBe(false)
+      }
+    }
+  })
+
+  it('cada una está en su grupo, así que el filtro saca algo de verdad', () => {
+    for (const frase of PIDEN_CONTINUIDAD) expect(constancia.lineas).toContain(frase)
+    for (const frase of PIDEN_ENTRENO_RECIENTE) expect(descanso.lineas).toContain(frase)
   })
 })

@@ -202,7 +202,33 @@ export interface DecisionGuardada {
   movimiento: string
   explicacion: string
   cambioDeNivel: boolean
+  /**
+   * Por qué salió así, cuando el movimiento solo no lo dice. Ausente en las
+   * sesiones viejas y en las decisiones de siempre.
+   */
+  motivo?: MotivoDeDecision
+  /** Con `ya-leida-hoy`: a qué hora se leyó esa cadena antes, ese mismo día. */
+  leidaA?: number
 }
+
+/**
+ * Las razones que una decisión guarda aparte.
+ *
+ * - **ya-leida-hoy**: la cadena ya se leyó ese día en otra sesión. Es neutra y
+ *   no escribe el avance: cada cadena se lee una vez por día.
+ * - **a-medias**: la sesión se cerró desde afuera con el paso sin terminar. Es
+ *   neutra y no gasta la lectura del día.
+ * - **protegida**: la lectura salió floja con una razón conocida —el chequeo
+ *   del día o la prefatiga— y se sostuvo tal cual: ni subió ni bajó. Gasta la
+ *   lectura del día igual que cualquier otra.
+ * - **prefatiga**: el paso llegó después de muchas series de sus músculos y
+ *   la lectura iba protegida, pero no salió floja, así que contó como
+ *   cualquier otra.
+ * - **meseta**: el objetivo se movió porque llevaba varios días de práctica
+ *   igual (`MESETA`), o porque venció la protección de una racha de
+ *   protegidas. El Cierre la firma con esa regla y no con la del movimiento.
+ */
+export type MotivoDeDecision = 'ya-leida-hoy' | 'a-medias' | 'protegida' | 'prefatiga' | 'meseta'
 
 /**
  * Una ráfaga metabólica efectivamente hecha.
@@ -313,6 +339,19 @@ export interface Avance {
    * a consolidar ninguno.
    */
   graciaRestante: number
+  /**
+   * Cuántas lecturas seguidas, hasta la última, se sostuvieron por protegidas
+   * con este mismo objetivo. Ausente es cero.
+   *
+   * Vive en el avance y no se reconstruye del historial a propósito: el
+   * objetivo que guarda cada sesión puede venir recortado (un día ámbar lo
+   * baja al 90%), y una sesión también guarda los registros de bajada, así
+   * que comparar contra el historial cortaba la racha todos los días ámbar o
+   * la heredaba de otro ejercicio. Acá la suma solo la lectura protegida que
+   * se sostiene, y cualquier otro cambio del avance la deja en cero: otra
+   * lectura que cuenta, cambiar de nivel a mano, bajar de lo colgado.
+   */
+  protegidasSeguidas?: number
   actualizadoEn: number
 }
 

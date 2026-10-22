@@ -3,12 +3,15 @@ import {
   CREDITOS_MAXIMOS,
   adherencia,
   consistenciaHoraria,
+  entrenoHacePoco,
   esHito,
   esVuelta,
   horaHabitual,
   intervaloHabitual,
   proximoHito,
   sesionesDeVida,
+  sumarDias,
+  vieneSinCortar,
 } from './adherencia'
 import type { Sesion } from './tipos'
 
@@ -376,6 +379,20 @@ describe('consistencia horaria', () => {
     expect(horaHabitual([sesion('2026-01-05')])).toBeNull()
   })
 
+  it('la hora habitual es la de la primera sesión de cada día', () => {
+    // Siete días a las 8. Si contaran todas, la tarde de tres sesiones del
+    // último día movería la hora habitual hacia el mediodía.
+    const mananas = Array.from({ length: 7 }, (_, i) =>
+      sesion(`2026-01-${String(i + 5).padStart(2, '0')}`, 8),
+    )
+    const masDelUltimo = [13, 19, 21].map((h) => sesion('2026-01-11', h))
+    expect(horaHabitual(mananas)).toBe(8)
+    expect(horaHabitual([...mananas, ...masDelUltimo])).toBe(8)
+    expect(consistenciaHoraria([...mananas, ...masDelUltimo])).toBe(consistenciaHoraria(mananas))
+    // Y cinco sesiones en un día no son cinco días de datos.
+    expect(horaHabitual([8, 10, 13, 17, 21].map((h) => sesion('2026-01-05', h)))).toBeNull()
+  })
+
   it('la hora típica cruza la medianoche sin volverse loca', () => {
     // Las 23 y la 1 están a dos horas, no a veintidós: por eso la cuenta es
     // circular. El promedio ingenuo daría el mediodía.
@@ -438,11 +455,96 @@ describe('una vuelta es faltar, no es el fin de semana', () => {
     })
   }
 
+  it('todas las sesiones del día de la vuelta son vuelta', () => {
+    // La segunda del día encuentra a la primera, que es de hoy: si contara,
+    // el hueco sería de cero días y dejaría de ser vuelta a la tarde.
+    const sesiones = impecable([0, 2, 4])
+    const ultima = sesiones[sesiones.length - 1]!.fecha
+    const dia = masTarde(ultima, 5)
+    const manana = { ...sesiones[0]!, id: 'manana', fecha: dia, finalizadaEn: 10_000 }
+    const tarde = { ...sesiones[0]!, id: 'tarde', fecha: dia, finalizadaEn: 20_000 }
+    expect(esVuelta(sesiones, dia)).toBe(true)
+    expect(esVuelta([...sesiones, manana], dia)).toBe(true)
+    expect(esVuelta([...sesiones, manana, tarde], dia)).toBe(true)
+    // Y al día siguiente ya no: la vuelta fue ayer.
+    expect(esVuelta([...sesiones, manana, tarde], masTarde(dia, 1))).toBe(false)
+  })
+
   it('y una ausencia real no le sube el umbral para siempre', () => {
     // Quien faltó una semana entera no puede quedar con un "hueco normal" de
     // siete días: dejaría de detectarse cualquier vuelta durante dos semanas.
     const sesiones = impecable([0, 2, 4]).filter((s) => !s.fecha.startsWith('2026-01-19'))
     const ultima = sesiones[sesiones.length - 1]!.fecha
     expect(esVuelta(sesiones, masTarde(ultima, 5))).toBe(true)
+  })
+})
+
+describe('viene sin cortar, para las frases de costumbre', () => {
+  // Lunes, miércoles y viernes desde el lunes 5 de enero, seis semanas.
+  const tresPorSemana = rutina('2026-01-05', [0, 2, 4], 6)
+  const ultima = '2026-02-13'
+
+  it('con tres semanas sin un hueco de siete días, sí', () => {
+    expect(vieneSinCortar(tresPorSemana, ultima)).toBe(true)
+    // Y una vez por semana, el mismo día, también: el hueco es de seis.
+    expect(vieneSinCortar(rutina('2026-01-05', [0], 6), '2026-02-09')).toBe(true)
+  })
+
+  it('el día de la vuelta y el siguiente, no', () => {
+    // Un mes sin entrenar y una sesión: la vuelta. Y al otro día, otra.
+    const vuelta = sumarDias(ultima, 30)
+    const conVuelta = [...tresPorSemana, sesion(vuelta)]
+    expect(vieneSinCortar(conVuelta, vuelta)).toBe(false)
+    const siguiente = sumarDias(vuelta, 1)
+    const conOtra = [...conVuelta, sesion(siguiente)]
+    expect(esVuelta(conOtra, siguiente)).toBe(false)
+    expect(vieneSinCortar(conOtra, siguiente)).toBe(false)
+  })
+
+  it('una sesión por semana en los bordes deja casi dos semanas sin nada, y eso corta', () => {
+    // Una en cada una de las tres semanas de la ventana, pero la de la
+    // primera al principio y la de la segunda al final: doce días sin nada.
+    const hoy = '2026-03-21'
+    const sesiones = [sesion('2026-03-01'), sesion('2026-03-14'), sesion(hoy)]
+    expect(vieneSinCortar(sesiones, hoy)).toBe(false)
+  })
+
+  it('siete días seguidos sin sesión cortan, seis no', () => {
+    const hoy = '2026-03-21'
+    // Seis días sin nada entre el 7 y el 14, y entre el 14 y hoy.
+    expect(vieneSinCortar([sesion('2026-03-01'), sesion('2026-03-07'), sesion('2026-03-14'), sesion(hoy)], hoy)).toBe(true)
+    // Siete entre el 6 y el 14.
+    expect(vieneSinCortar([sesion('2026-03-01'), sesion('2026-03-06'), sesion('2026-03-14'), sesion(hoy)], hoy)).toBe(false)
+  })
+
+  it('con dos semanas de historia, no; con una sesión en la primera de las tres, sí', () => {
+    const hoy = '2026-03-21'
+    // Todos los días desde el 8: catorce días antes de hoy, ninguno en la
+    // primera semana de la ventana (del 1 al 7).
+    const dosSemanas = rutina('2026-03-08', [0, 1, 2, 3, 4, 5, 6], 2)
+    expect(vieneSinCortar(dosSemanas, hoy)).toBe(false)
+    expect(vieneSinCortar([sesion('2026-03-07'), ...dosSemanas], hoy)).toBe(true)
+    expect(vieneSinCortar([], hoy)).toBe(false)
+  })
+
+  it('mira hasta hoy: si hace una semana que no entrena, no', () => {
+    expect(vieneSinCortar(tresPorSemana, sumarDias(ultima, 7))).toBe(false)
+    expect(vieneSinCortar(tresPorSemana, sumarDias(ultima, 6))).toBe(true)
+  })
+})
+
+describe('entrenó hace poco, para el descanso', () => {
+  it('hoy, ayer o anteayer sí; hace tres días o un mes, no', () => {
+    const hoy = '2026-03-21'
+    expect(entrenoHacePoco([sesion(hoy)], hoy)).toBe(true)
+    expect(entrenoHacePoco([sesion('2026-03-20')], hoy)).toBe(true)
+    expect(entrenoHacePoco([sesion('2026-03-19')], hoy)).toBe(true)
+    expect(entrenoHacePoco([sesion('2026-03-18')], hoy)).toBe(false)
+    expect(entrenoHacePoco([sesion('2026-02-19')], hoy)).toBe(false)
+    expect(entrenoHacePoco([], hoy)).toBe(false)
+  })
+
+  it('una sesión con fecha de mañana no cuenta', () => {
+    expect(entrenoHacePoco([sesion('2026-03-22')], '2026-03-21')).toBe(false)
   })
 })

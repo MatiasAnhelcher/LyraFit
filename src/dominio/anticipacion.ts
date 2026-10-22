@@ -22,7 +22,7 @@
  */
 
 import type { Avance, Cadena, Ejercicio, Sesion } from './tipos'
-import { indiceDeCarga, proximoHitoDeCadena, proyectar, type Cierre } from './progresion'
+import { indiceDeCarga, proximoHitoDeCadena, proyectar, yaLeidaHoy, type Cierre } from './progresion'
 
 /**
  * A partir de acá la app puede hablar. Con más sesiones por delante, la
@@ -93,6 +93,10 @@ export function anticipacion(
  * sostenido— y en esos días prometer un cambio de eslabón sería mentir con un
  * dato correcto. Cuando la sesión no cuenta, no hay nada que anticipar.
  *
+ * `hoy` es lo mismo, cadena por cadena: una cadena que ya se leyó hoy no se
+ * vuelve a leer hasta mañana, así que esta sesión, cumplida o no, no abre
+ * nada en ella.
+ *
  * Frecuencia medida, no supuesta: habla en el 19-30% de las sesiones según cómo
  * le vaya a la persona, o sea alrededor de una vez por semana entrenando tres.
  * El número está atado con un test en `simulacion.test.ts`, porque el error de
@@ -106,8 +110,10 @@ export function seAbreHoy(
   ejercicios: Map<string, Ejercicio>,
   cuenta: boolean,
   cerrados?: ReadonlyMap<string, Cierre>,
+  hoy?: { dia: string; historial: readonly Sesion[] },
 ): Ejercicio | null {
   if (!cuenta) return null
+  if (hoy && yaLeidaHoy(avance.patron, hoy.dia, hoy.historial) !== null) return null
   const previsto = anticipacion(avance, cadena, ejercicios, cerrados)
   return previsto.aUnaSesion ? previsto.siguiente : null
 }

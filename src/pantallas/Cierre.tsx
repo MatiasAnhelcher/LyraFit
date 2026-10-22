@@ -44,7 +44,7 @@ import { fraseDe } from '@/dominio/frases'
 const REGLA: Record<string, string> = {
   'nivel-arriba': 'Regla · techo de la ventana sostenido',
   'nivel-abajo': 'Regla · señal por debajo del piso',
-  subida: 'Regla · objetivo cumplido',
+  subida: 'Regla · señal por encima de la vara de subir',
   bajada: 'Regla · objetivo por encima de lo posible',
   sostiene: 'Regla · consolidando',
   neutra: 'Regla · sesión fuera de la progresión',
@@ -85,7 +85,7 @@ export function Cierre({
     bajo ? 'reencuadre' : huboSalto ? 'esfuerzo' : 'cierre',
     azar,
     [],
-    numeroDeSesion,
+    { sesiones: numeroDeSesion },
   )
 
   /**
@@ -164,7 +164,13 @@ export function Cierre({
             <div key={patron}>
               <Rotulo className="mb-2">{NOMBRE_PATRON[patron].toUpperCase()}</Rotulo>
               <Glosa
-                cita={REGLA[decision.movimiento] ?? 'Regla del motor'}
+                cita={
+                  decision.motivo === 'protegida'
+                    ? 'Regla · lectura protegida'
+                    : decision.motivo === 'meseta'
+                      ? 'Regla · varios días con el mismo objetivo'
+                      : (REGLA[decision.movimiento] ?? 'Regla del motor')
+                }
                 {...(decision.movimiento === 'bajada' || decision.movimiento === 'nivel-abajo'
                   ? { tono: 'ambar' as const }
                   : {})}

@@ -242,6 +242,7 @@ export function usePlanDeLaSesion({
       // anterior al que ya tenés. Anunciarlo sería una promesa falsa. El
       // eslabón bajado por una molestia, tampoco: no es el del motor. Y un
       // eslabón cerrado tampoco: el motor no lo va a abrir aunque cumplas.
+      // Ni una cadena que ya se leyó hoy: hasta mañana no se vuelve a leer.
       const abre =
         accesorio || porMolestia
           ? null
@@ -251,6 +252,7 @@ export function usePlanDeLaSesion({
               POR_ID,
               cuenta,
               eslabonesCerrados(cadenaDe(bloque.patron), avances, tieneBarra),
+              historial ? { dia, historial } : undefined,
             )
       const duro = {
         ejercicio,

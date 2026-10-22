@@ -54,7 +54,7 @@ export const EJERCICIOS: Ejercicio[] = [
     ],
     erroresComunes: [
       'Apoyarse en algo que se corre o se vuelca. Cargale el peso antes de empezar la serie.',
-      'Dejar los pies demasiado cerca del apoyo: quedás casi parado y el ejercicio no pesa nada.',
+      'Dejar los pies muy cerca del apoyo: quedás casi parado y el ejercicio no pesa nada.',
       'Adelantar la cabeza para tocar antes. El que tiene que llegar al borde es el pecho.',
     ],
     ventana: { min: 8, max: 15 },
@@ -173,7 +173,7 @@ export const EJERCICIOS: Ejercicio[] = [
       'Subí sin dejar que los codos se abran hacia afuera.',
     ],
     erroresComunes: [
-      'Poner las manos demasiado adelante y cargar los hombros.',
+      'Poner las manos muy adelante y cargar los hombros.',
       'Abrir los codos para poder bajar más: si se abren, todavía no es el momento.',
       'Forzar la muñeca. Si molesta, hacelas sobre los puños o sobre agarres.',
     ],
@@ -197,7 +197,7 @@ export const EJERCICIOS: Ejercicio[] = [
       'Bajá hasta tocar el piso con el pecho y empujá.',
     ],
     erroresComunes: [
-      'Elevar demasiado los pies de entrada y terminar haciendo otra cosa.',
+      'Elevar mucho los pies de entrada y terminar haciendo otra cosa.',
       'Dejar que la espalda baja se arquee.',
       'Apoyar los pies en algo con ruedas.',
     ],
@@ -247,7 +247,7 @@ export const EJERCICIOS: Ejercicio[] = [
     erroresComunes: [
       'Girar el torso para robarle trabajo al brazo que carga.',
       'Contar como una repetición lo que fueron dos medias.',
-      'Descuidar el lado más débil. Se avanza al ritmo del más flojo.',
+      'Descuidar el lado que menos sale. Se avanza al ritmo de ese lado.',
     ],
     ventana: { min: 3, max: 8 },
     series: 3,
@@ -392,7 +392,7 @@ export const EJERCICIOS: Ejercicio[] = [
     erroresComunes: [
       'Soltarse a mitad de camino en vez de resistir hasta abajo.',
       'Frenar arriba y no llegar a estirar los brazos.',
-      'Hacer demasiadas: son exigentes y dejan agujetas por varios días.',
+      'Hacer muchas: son exigentes y dejan agujetas por varios días.',
     ],
     ventana: { min: 8, max: 20 },
     series: 3,
@@ -631,7 +631,7 @@ export const EJERCICIOS: Ejercicio[] = [
       'Completá todas las repeticiones de un lado antes de cambiar.',
     ],
     erroresComunes: [
-      'Poner el pie de adelante demasiado cerca y cargar la rodilla.',
+      'Poner el pie de adelante muy cerca y cargar la rodilla.',
       'Inclinar el torso adelante y convertirlo en un ejercicio de cadera.',
       'Empujar con la pierna de atrás.',
     ],
@@ -977,7 +977,7 @@ export const EJERCICIOS: Ejercicio[] = [
     erroresComunes: [
       'Subir arqueando la espalda baja en vez de estirar la cadera. Si lo sentís en los lumbares, subiste de más.',
       'Empujar con las puntas de los pies: el trabajo se va a los cuádriceps.',
-      'Dejar los talones demasiado lejos de la cola, que es la receta del calambre en el isquiotibial.',
+      'Dejar los talones muy lejos de la cola, que es la receta del calambre en el isquiotibial.',
     ],
     ventana: { min: 10, max: 15 },
     series: 3,
@@ -1209,7 +1209,7 @@ export const EJERCICIOS: Ejercicio[] = [
       'Apretá glúteos y abdomen antes de empujar: lo que impide que la espalda se arquee es el torso, no los brazos.',
       'Empujá hacia arriba y, en cuanto la barra pasa la frente, metela apenas atrás para que termine sobre la mitad del pie.',
       'Arriba, estirá del todo y llevá la cabeza adelante hasta que las orejas queden entre los brazos.',
-      'Bajá controlado hasta el pecho. Si la barra baja sola, el peso es demasiado.',
+      'Bajá controlado hasta el pecho. Si la barra baja sola, sobra peso.',
     ],
     erroresComunes: [
       'Arquear la espalda baja para ganar impulso. Eso convierte el press en un press inclinado de pie, y le pasa la cuenta a los lumbares.',
@@ -1241,7 +1241,7 @@ export const EJERCICIOS: Ejercicio[] = [
       'Bajá controlado hasta estirar los brazos, sin dejar que los hombros se vayan adelante.',
     ],
     erroresComunes: [
-      'Levantar el torso en cada repetición para ayudarse. Si el ángulo cambia, el peso es demasiado.',
+      'Levantar el torso en cada repetición para ayudarse. Si el ángulo cambia, sobra peso.',
       'Tirar hacia el pecho en vez del ombligo: el codo se abre y el trabajo se va al hombro.',
       'Redondear la espalda baja. Antes que corregirlo con el abdomen, bajá el peso.',
       'Hacerlo con tirón de cadera, que es otro ejercicio y no este.',
@@ -1329,7 +1329,7 @@ export const EJERCICIOS: Ejercicio[] = [
       'Bajá en dos o tres segundos hasta estirar del todo. El tramo de abajo es el que más cuesta.',
     ],
     erroresComunes: [
-      'Balancear el torso para arrancar la repetición. Si hace falta impulso, el peso es demasiado.',
+      'Balancear el torso para arrancar la repetición. Si hace falta impulso, sobra peso.',
       'Adelantar los codos arriba, que convierte el final en un descanso en vez del tramo más duro.',
       'No estirar del todo abajo. Media repetición es medio ejercicio.',
     ],
@@ -1357,7 +1357,7 @@ export const EJERCICIOS: Ejercicio[] = [
       'Abrir los codos hacia los costados al bajar. Eso carga el hombro y descarga el tríceps.',
       'Mover el brazo entero en vez del antebrazo: ahí se convirtió en un press.',
       'Empezar con los brazos perpendiculares al piso. Arriba el tríceps queda sin tensión y la mitad del recorrido se regala.',
-      'Usar demasiado peso. El codo es una articulación chica y acá no hay dónde esconderse.',
+      'Usar más peso del que se controla. El codo es una articulación chica y acá no hay dónde esconderse.',
     ],
     ventana: { min: 10, max: 15 },
     series: 3,

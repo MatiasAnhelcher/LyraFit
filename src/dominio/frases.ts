@@ -84,6 +84,30 @@ export type Momento =
   | 'ultima'
   | 'final'
 
+/**
+ * El momento de Hoy, el de la pantalla de todos los días.
+ *
+ * Entrenar hoy va antes que todo. Antes que volver: el día de la vuelta,
+ * `vuelve` sigue en true después de la sesión —cuenta desde antes de hoy, para
+ * que el motor la lea como vuelta—, y "tomátelo con calma esta primera" ya no
+ * sería cierto. Y antes que descansar: quien entrenó un día de descanso no
+ * puede leer "hoy toca no entrenar". Lo mismo ordenan el rótulo del Plan y el
+ * del día.
+ */
+export function momentoDeHoy({
+  esDiaDeEntrenar,
+  entrenoHoy,
+  vuelve,
+}: {
+  esDiaDeEntrenar: boolean
+  entrenoHoy: boolean
+  vuelve: boolean
+}): Momento {
+  if (entrenoHoy) return 'constancia'
+  if (!esDiaDeEntrenar) return 'descanso'
+  return vuelve ? 'vuelta' : 'abrir'
+}
+
 /** La cara con la que lo dice. Son las mismas expresiones que tiene el dibujo. */
 export type Expresion = 'calma' | 'contenta' | 'festejo' | 'guino' | 'orgullosa' | 'piensa' | 'dormida'
 
@@ -170,7 +194,7 @@ export const FRASES: Grupo[] = [
       'Quedar corto una vez es información, no un veredicto.',
       'El cuerpo tiene días. El plan lo contempla.',
       'Esto no es un techo, es una curva.',
-      'No fallaste vos. Falló el intento.',
+      'El intento no salió. Eso no habla de vos.',
       'Bajar el objetivo no es retroceder. Es medir bien.',
       'El motor ajustó el objetivo. Es un ajuste, no un castigo.',
       'Nadie sube todas las semanas. Nadie.',
@@ -337,7 +361,7 @@ export const FRASES: Grupo[] = [
       'Acordate de cuando esto era imposible.',
       'Estás arriba del rango. Eso es lo que buscábamos.',
       'Esto ya lo tenés. Vamos por lo que sigue.',
-      'Cuidado con acelerar: el salto se gana consolidando.',
+      'Sin apuro: el salto se gana consolidando.',
       'Una o dos sesiones más así y cambiás.',
       'Buen momento para revisar la técnica antes de subir.',
       'Cuando subas, el número baja. El nivel sube.',
@@ -398,7 +422,7 @@ export const FRASES: Grupo[] = [
       'No compares tu día uno con el día cien de nadie.',
       'Hoy tu trabajo es moverte bien, no moverte mucho.',
       'La postura de todos los días también se entrena acá.',
-      'Estirar no previene nada mágico, pero se siente bien.',
+      'Estirar no hace magia, pero se siente bien.',
       'Cuidá los hombros: son los primeros en quejarse.',
     ],
   },
@@ -572,6 +596,43 @@ export const DESDE_SESIONES: ReadonlyMap<string, number> = new Map([
   ['Se te está haciendo normal. Eso es lo bueno.', 10],
 ])
 
+/**
+ * Las frases que hablan de seguir sin cortar. Solo son ciertas si la persona
+ * viene entrenando sin cortar (`vieneSinCortar`), lleve las sesiones que
+ * lleve: el día de la vuelta después de semanas sin entrenar no lo son, y
+ * tampoco el día siguiente, que ya no cuenta como vuelta. `fraseDe` las saca.
+ */
+export const PIDEN_CONTINUIDAD: ReadonlySet<string> = new Set([
+  'Nadie sostiene esto por ganas. Lo sostenés por costumbre.',
+  'Semana tras semana, ahí seguís.',
+  'Se te está haciendo normal. Eso es lo bueno.',
+])
+
+/**
+ * Las frases de descanso que dan por hecho que la persona entrenó hace poco:
+ * "lo que empezaste" es la sesión de ayer o de anteayer, no una de hace un
+ * mes (`entrenoHacePoco`).
+ */
+export const PIDEN_ENTRENO_RECIENTE: ReadonlySet<string> = new Set([
+  'Dejá que el cuerpo termine lo que empezaste.',
+])
+
+/**
+ * Lo que la pantalla sabe de la persona y decide qué frases son ciertas.
+ *
+ * Todo es opcional y lo que falta se toma por lo más prudente: una pantalla
+ * que se olvide de pasar algo se pierde algunas frases, pero no dice ninguna
+ * falsa.
+ */
+export interface Situacion {
+  /** Cuántas sesiones lleva (ver `DESDE_SESIONES`). Por defecto, cero. */
+  sesiones?: number
+  /** Si viene entrenando sin cortar (`PIDEN_CONTINUIDAD`). Por defecto, no. */
+  sinCortar?: boolean
+  /** Si entrenó en los últimos días (`PIDEN_ENTRENO_RECIENTE`). Por defecto, no. */
+  entrenoReciente?: boolean
+}
+
 const POR_MOMENTO = new Map(FRASES.map((g) => [g.momento, g]))
 
 /**
@@ -586,20 +647,24 @@ const POR_MOMENTO = new Map(FRASES.map((g) => [g.momento, g]))
  * veces seguidas más seguido de lo que la intuición dice, y una frase repetida
  * deja de ser una voz y pasa a ser un cartel.
  *
- * `sesiones` es cuántas lleva la persona (ver `DESDE_SESIONES`). Por defecto
- * es cero a propósito: una pantalla que se olvide de pasarlo se pierde algunas
- * frases, pero no dice ninguna falsa.
+ * `situacion` es lo que se sabe de la persona, y saca las frases que no
+ * serían ciertas para ella (ver `Situacion`).
  */
 export function fraseDe(
   momento: Momento,
   azar: number,
   dichas: readonly string[] = [],
-  sesiones = 0,
+  { sesiones = 0, sinCortar = false, entrenoReciente = false }: Situacion = {},
 ): { texto: string; expresion: Expresion } | null {
   const grupo = POR_MOMENTO.get(momento)
   if (!grupo) return null
 
-  const ciertas = grupo.lineas.filter((l) => (DESDE_SESIONES.get(l) ?? 0) <= sesiones)
+  const ciertas = grupo.lineas.filter(
+    (l) =>
+      (DESDE_SESIONES.get(l) ?? 0) <= sesiones &&
+      (sinCortar || !PIDEN_CONTINUIDAD.has(l)) &&
+      (entrenoReciente || !PIDEN_ENTRENO_RECIENTE.has(l)),
+  )
   if (ciertas.length === 0) return null
 
   const recientes = new Set(dichas)

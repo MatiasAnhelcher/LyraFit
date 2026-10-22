@@ -188,6 +188,16 @@ describe('una sola fila rota rechaza el archivo, y dice cuál', () => {
     expect(problemaDe(copia({ avances: [sinSenal] }))).toContain('motor')
   })
 
+  it('la racha de protegidas viaja con el nivel, y una que no es un número no entra', () => {
+    const conRacha = { ...avance, protegidasSeguidas: 2 }
+    const r = revisarCopia(copia({ avances: [conRacha] }))
+    if ('problema' in r) throw new Error(r.problema)
+    expect(r.copia.avances).toEqual([conRacha])
+    for (const rota of ['2', -1, Number.NaN]) {
+      expect(problemaDe(copia({ avances: [{ ...avance, protegidasSeguidas: rota }] }))).toContain('protegidas')
+    }
+  })
+
   it('un chequeo o un día del diario rotos', () => {
     expect(problemaDe(copia({ estados: [{ fecha: '2026-09-15', sueno: 4 }] }))).toContain(
       'El chequeo 1',

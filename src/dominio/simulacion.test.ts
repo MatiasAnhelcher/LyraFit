@@ -20,14 +20,18 @@
 import { describe, expect, it } from 'vitest'
 import { CADENAS, POR_ID, cadenaDe } from './biblioteca'
 import { seAbreHoy } from './anticipacion'
+import { sumarDias } from './adherencia'
 import {
+  CONSOLIDACION,
   MESETA,
   avanceInicial,
+  incremento,
+  leerLaSesion,
   logradoTipico,
   rendimientoDeSesion,
   siguienteAvance,
 } from './progresion'
-import type { Avance, Ejercicio, Patron, Serie } from './tipos'
+import type { Avance, Ejercicio, Patron, Serie, Sesion } from './tipos'
 
 interface Paso {
   sesion: number
@@ -36,16 +40,22 @@ interface Paso {
   logrado: number
   senal: number
   movimiento: string
+  motivo?: string
 }
 
 /**
  * Corre el motor `sesiones` veces contra alguien cuya capacidad real está dada
  * por `capacidad`, y devuelve la trayectoria completa.
+ *
+ * Con `protegida`, todas las lecturas van protegidas (un chequeo flojo, o la
+ * prefatiga de una rutina que siempre carga los mismos músculos antes). La
+ * racha de protegidas seguidas viaja en el avance, como en la app.
  */
 function simular(
   patron: Patron,
-  capacidad: (e: Ejercicio) => number,
+  capacidad: (e: Ejercicio, sesion: number) => number,
   sesiones: number,
+  { protegida = false } = {},
 ): Paso[] {
   const cadena = cadenaDe(patron)
   const ctx = { cadena, ejercicios: POR_ID }
@@ -55,7 +65,7 @@ function simular(
   for (let i = 1; i <= sesiones; i++) {
     const ejercicio = POR_ID.get(avance.ejercicioId)!
     const objetivo = avance.objetivoActual
-    const logrado = Math.max(0, Math.min(capacidad(ejercicio), objetivo.cantidad))
+    const logrado = Math.max(0, Math.min(capacidad(ejercicio, i), objetivo.cantidad))
     const series: Serie[] = Array.from({ length: objetivo.series }, () => ({ logrado }))
 
     const decision = siguienteAvance(
@@ -63,6 +73,7 @@ function simular(
       {
         rendimiento: rendimientoDeSesion(objetivo, series),
         tipico: logradoTipico(series),
+        ...(protegida ? { protegida } : {}),
       },
       ctx,
       i,
@@ -75,6 +86,7 @@ function simular(
       logrado,
       senal: avance.senal,
       movimiento: decision.movimiento,
+      ...(decision.motivo ? { motivo: decision.motivo } : {}),
     })
     avance = decision.avance
   }
@@ -135,6 +147,44 @@ describe('el motor nunca se traba', () => {
     (patron) => {
       const traza = simular(patron, capacidadHasta(patron, 3), 80)
       expect(estancamientoMaximo(traza)).toBeLessThanOrEqual(MESETA + 1)
+    },
+  )
+
+  // La protección no puede ser una puerta trasera para el mismo defecto: con
+  // todas las lecturas protegidas, una floja no contaba nunca y la cadena
+  // quedaba con la misma frase para siempre.
+  it.each(CADENAS.map((c) => c.patron))(
+    'en %s, con todas las lecturas protegidas, alguien que siempre queda corto igual ve cambios',
+    (patron) => {
+      const traza = simular(patron, (e) => Math.max(1, e.ventana.min - 1), 60, { protegida: true })
+      expect(estancamientoMaximo(traza)).toBeLessThanOrEqual(MESETA + 1)
+      // Y es porque la protección venció, no porque otra cosa la saltó: hubo
+      // protegidas, y hubo vencimientos, que se firman como meseta.
+      expect(traza.some((p) => p.motivo === 'protegida')).toBe(true)
+      expect(traza.some((p) => p.motivo === 'meseta')).toBe(true)
+    },
+  )
+
+  it.each(CADENAS.map((c) => c.patron))(
+    'en %s, con todas protegidas y un día bueno de cada cuatro, el objetivo no sube como un trinquete',
+    (patron) => {
+      const traza = simular(
+        patron,
+        (e, sesion) => (sesion % 4 === 0 ? e.ventana.min + 3 : e.ventana.min + 1),
+        80,
+        { protegida: true },
+      )
+      expect(estancamientoMaximo(traza)).toBeLessThanOrEqual(MESETA + 1)
+      // Los días flojos protegidos no lo bajan, y los buenos lo suben: sin el
+      // vencimiento, cada día bueno era un escalón que no se devolvía. Con él,
+      // el objetivo queda a un paso de lo mejor que hace, como mucho.
+      for (const paso of traza) {
+        const e = POR_ID.get(paso.ejercicioId)!
+        const mejor = e.ventana.min + 3
+        expect(paso.cantidad, `sesión ${paso.sesion} en ${e.id}`).toBeLessThanOrEqual(mejor + incremento(e.medida, mejor))
+      }
+      expect(traza.some((p) => p.motivo === 'protegida')).toBe(true)
+      expect(traza.some((p) => p.motivo === 'meseta')).toBe(true)
     },
   )
 })
@@ -340,4 +390,240 @@ describe('cuánta merma aguanta el motor antes de romperse', () => {
       expect(subidas(patron, 0.18)).toBe(0)
     })
   }
+})
+
+/**
+ * Varias sesiones por día.
+ *
+ * Cada cadena se lee una vez por día, y eso es justo lo que solo se ve
+ * corriendo el motor: una regla que deja leer dos veces no rompe ninguna
+ * decisión suelta, rompe la trayectoria. Con tres lecturas por día alguien
+ * subiría de eslabón en una tarde, o bajaría el objetivo por el cansancio de
+ * la segunda sesión.
+ *
+ * Todo pasa por `leerLaSesion`, que es exactamente lo que corre `cerrarSesion`,
+ * con las sesiones guardadas como las guarda la app.
+ */
+describe('varias sesiones por día', () => {
+  /** Lo que el motor decidió en una sesión, para mirar la trayectoria. */
+  interface Huella {
+    dia: string
+    /** La sesión del día: 0 la primera. */
+    sesion: number
+    patron: Patron
+    ejercicioId: string
+    cantidad: number
+    movimiento: string
+    motivo?: string
+  }
+
+  const HORAS = ['09:10', '13:30', '19:05']
+
+  /**
+   * Entrena `dias` días seguidos, `porDia` sesiones por día, todas las cadenas
+   * en cada sesión. `logra` dice cuánto le sale a la persona en la sesión `n`
+   * del día; las de después de la primera van en orden inverso, como otra
+   * rutina.
+   */
+  function entrenar(opciones: {
+    dias: number
+    porDia: number
+    logra: (e: Ejercicio, objetivo: number, n: number) => number
+    inicio?: Map<Patron, Avance>
+  }) {
+    const avances = new Map<Patron, Avance>(
+      opciones.inicio ?? CADENAS.map((c) => [c.patron, avanceInicial(c, POR_ID, 0)]),
+    )
+    const historial: Sesion[] = []
+    const huellas: Huella[] = []
+
+    for (let d = 0; d < opciones.dias; d++) {
+      const dia = sumarDias('2026-11-02', d)
+      for (let n = 0; n < opciones.porDia; n++) {
+        const orden = n === 0 ? CADENAS : [...CADENAS].reverse()
+        const registros = orden.map(({ patron }) => {
+          const avance = avances.get(patron)!
+          const objetivo = avance.objetivoActual
+          const ejercicio = POR_ID.get(avance.ejercicioId)!
+          const logrado = Math.max(0, opciones.logra(ejercicio, objetivo.cantidad, n))
+          const series: Serie[] = Array.from({ length: objetivo.series }, () => ({ logrado }))
+          return { ejercicioId: ejercicio.id, objetivo: { ...objetivo }, series }
+        })
+        const finalizadaEn = new Date(`${dia}T${HORAS[n % HORAS.length]}:00`).getTime() + n
+
+        const lecturas = leerLaSesion({
+          registros,
+          avances,
+          dia,
+          historial,
+          neutra: false,
+          congeladas: new Set(),
+          protegida: false,
+          contextoDe: (patron) => ({ cadena: cadenaDe(patron), ejercicios: POR_ID }),
+          ahora: finalizadaEn,
+        })
+
+        for (const { patron, decision } of lecturas) {
+          const antes = avances.get(patron)!
+          huellas.push({
+            dia,
+            sesion: n,
+            patron,
+            ejercicioId: antes.ejercicioId,
+            cantidad: antes.objetivoActual.cantidad,
+            movimiento: decision.movimiento,
+            ...(decision.motivo ? { motivo: decision.motivo } : {}),
+          })
+        }
+        for (const { patron, decision, guardar } of lecturas) {
+          if (guardar) avances.set(patron, decision.avance)
+        }
+        historial.push({
+          id: `${dia}-${n}`,
+          fecha: dia,
+          finalizadaEn,
+          duracionSegundos: 1800,
+          tipo: 'plan',
+          registros,
+          decisiones: lecturas.map(({ patron, decision }) => ({
+            patron,
+            movimiento: decision.movimiento,
+            explicacion: decision.explicacion,
+            cambioDeNivel: decision.cambioDeNivel,
+            ...(decision.motivo ? { motivo: decision.motivo } : {}),
+            ...(decision.leidaA !== undefined ? { leidaA: decision.leidaA } : {}),
+          })),
+        })
+      }
+    }
+    return { avances, historial, huellas }
+  }
+
+  /** Las lecturas de verdad: todo lo que no es "ya se leyó hoy". */
+  const leidas = (huellas: Huella[]) => huellas.filter((h) => h.motivo !== 'ya-leida-hoy')
+
+  it('tres sesiones por día durante 30 días dan la misma trayectoria que una', () => {
+    // La segunda sale floja y la tercera sobrada: si alguna de las dos se
+    // leyera, la trayectoria cambiaría en un sentido o en el otro.
+    const logra = (e: Ejercicio, objetivo: number, n: number) =>
+      n === 0 ? Math.min(objetivo, e.ventana.max - 1) : n === 1 ? Math.floor(objetivo / 2) : objetivo + 5
+    const una = entrenar({ dias: 30, porDia: 1, logra })
+    const tres = entrenar({ dias: 30, porDia: 3, logra })
+
+    expect(leidas(tres.huellas)).toEqual(una.huellas)
+    // Los avances, idénticos: la fecha incluida, porque las sesiones de después
+    // no los escriben.
+    expect(tres.avances).toEqual(una.avances)
+    // Y las de después de la primera quedaron todas como ya leídas.
+    const despues = tres.huellas.filter((h) => h.sesion > 0)
+    expect(despues.length).toBe(30 * 2 * CADENAS.length)
+    expect(despues.every((h) => h.motivo === 'ya-leida-hoy' && h.movimiento === 'neutra')).toBe(
+      true,
+    )
+  })
+
+  describe('siete días seguidos con lectura', () => {
+    // Empuje arranca a un paso del techo de la flexión completa, así el salto
+    // de eslabón cae adentro de la semana; las demás cadenas, desde el
+    // principio. Quien entrena cumple exactamente lo que le piden, tres veces
+    // por día.
+    const completa = POR_ID.get('flexion-completa')!
+    const inicio = new Map<Patron, Avance>(
+      CADENAS.map((c) => [c.patron, avanceInicial(c, POR_ID, 0)]),
+    )
+    inicio.set('empuje', {
+      ...avanceInicial(cadenaDe('empuje'), POR_ID, 0),
+      ejercicioId: completa.id,
+      objetivoActual: {
+        series: completa.series,
+        cantidad: completa.ventana.max - incremento(completa.medida, completa.ventana.max),
+      },
+    })
+    const { historial, huellas } = entrenar({
+      dias: 7,
+      porDia: 3,
+      logra: (_e, objetivo) => objetivo,
+      inicio,
+    })
+
+    it('dan una trayectoria fija', () => {
+      const trayectoria = leidas(huellas).map(
+        (h) => `${h.dia} ${h.patron} ${h.ejercicioId} ${h.cantidad} ${h.movimiento}`,
+      )
+      expect(trayectoria).toMatchInlineSnapshot(`
+        [
+          "2026-11-02 empuje flexion-completa 11 subida",
+          "2026-11-02 traccion remo-australiano-alto 8 subida",
+          "2026-11-02 piernas sentadilla-banco 10 subida",
+          "2026-11-02 core plancha-rodillas 15 subida",
+          "2026-11-02 bisagra puente-gluteos 10 subida",
+          "2026-11-03 empuje flexion-completa 12 sostiene",
+          "2026-11-03 traccion remo-australiano-alto 9 subida",
+          "2026-11-03 piernas sentadilla-banco 11 subida",
+          "2026-11-03 core plancha-rodillas 18 subida",
+          "2026-11-03 bisagra puente-gluteos 11 subida",
+          "2026-11-04 empuje flexion-completa 12 sostiene",
+          "2026-11-04 traccion remo-australiano-alto 10 subida",
+          "2026-11-04 piernas sentadilla-banco 12 subida",
+          "2026-11-04 core plancha-rodillas 21 subida",
+          "2026-11-04 bisagra puente-gluteos 12 subida",
+          "2026-11-05 empuje flexion-completa 12 nivel-arriba",
+          "2026-11-05 traccion remo-australiano-alto 11 subida",
+          "2026-11-05 piernas sentadilla-banco 13 subida",
+          "2026-11-05 core plancha-rodillas 24 subida",
+          "2026-11-05 bisagra puente-gluteos 13 subida",
+          "2026-11-06 empuje flexion-diamante 9 subida",
+          "2026-11-06 traccion remo-australiano-alto 12 subida",
+          "2026-11-06 piernas sentadilla-banco 14 subida",
+          "2026-11-06 core plancha-rodillas 28 subida",
+          "2026-11-06 bisagra puente-gluteos 14 subida",
+          "2026-11-07 empuje flexion-diamante 10 subida",
+          "2026-11-07 traccion remo-australiano-alto 13 subida",
+          "2026-11-07 piernas sentadilla-banco 15 sostiene",
+          "2026-11-07 core plancha-rodillas 30 sostiene",
+          "2026-11-07 bisagra puente-gluteos 15 sostiene",
+          "2026-11-08 empuje flexion-diamante 11 subida",
+          "2026-11-08 traccion remo-australiano-alto 14 subida",
+          "2026-11-08 piernas sentadilla-banco 15 sostiene",
+          "2026-11-08 core plancha-rodillas 30 sostiene",
+          "2026-11-08 bisagra puente-gluteos 15 sostiene",
+        ]
+      `)
+    })
+
+    it('una sola decisión no neutra por día y por cadena', () => {
+      const porDiaYCadena = new Map<string, number>()
+      for (const sesion of historial) {
+        for (const d of sesion.decisiones ?? []) {
+          if (d.movimiento === 'neutra') continue
+          const clave = `${sesion.fecha} ${d.patron}`
+          porDiaYCadena.set(clave, (porDiaYCadena.get(clave) ?? 0) + 1)
+        }
+      }
+      expect(porDiaYCadena.size).toBe(7 * CADENAS.length)
+      expect([...porDiaYCadena.values()].every((n) => n === 1)).toBe(true)
+    })
+
+    it(`ningún cambio de eslabón sin ${CONSOLIDACION} días con lectura en el techo`, () => {
+      let saltos = 0
+      for (const { patron } of CADENAS) {
+        const suyas = leidas(huellas).filter((h) => h.patron === patron)
+        suyas.forEach((h, i) => {
+          if (h.movimiento !== 'nivel-arriba') return
+          saltos++
+          const antes = suyas.slice(i - CONSOLIDACION, i)
+          expect(antes, `${patron} ${h.dia}`).toHaveLength(CONSOLIDACION)
+          const techo = POR_ID.get(h.ejercicioId)!.ventana.max
+          for (const previa of antes) {
+            expect(previa.ejercicioId).toBe(h.ejercicioId)
+            expect(previa.cantidad).toBe(techo)
+            expect(previa.dia < h.dia).toBe(true)
+          }
+          expect(new Set(antes.map((p) => p.dia)).size).toBe(CONSOLIDACION)
+        })
+      }
+      // Sin un salto en la semana, lo de arriba no estaría probando nada.
+      expect(saltos).toBeGreaterThan(0)
+    })
+  })
 })

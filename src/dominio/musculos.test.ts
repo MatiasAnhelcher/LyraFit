@@ -17,6 +17,7 @@ import {
   SIN_PRIMARIO,
   loQueFalta,
   musculosAlcanzables,
+  principalMasCargado,
   NECESITAN_BARRA_CARGABLE,
   musculosDe,
   musculosDelPatron,
@@ -348,6 +349,33 @@ const reg = (ejercicioId: string, cuantas: number, extra: Record<string, unknown
 
 const HOY = '2026-09-24'
 
+describe('el principal más cargado, para la prefatiga', () => {
+  it('suma las series de antes por su aporte en cada principal', () => {
+    // La diamante tiene dos principales, pectoral y tríceps. Cuatro series de
+    // flexión completa le dan 4 al pectoral y 2 al tríceps.
+    expect(principalMasCargado('flexion-diamante', [reg('flexion-completa', 4)])).toEqual({
+      musculo: 'pectoral',
+      series: 4,
+    })
+    // Tres de diamante y cuatro de rodillas son siete de pectoral, de dos
+    // ejercicios distintos: los músculos no saben de ejercicios.
+    expect(
+      principalMasCargado('flexion-completa', [reg('flexion-diamante', 3), reg('flexion-rodillas', 4)]),
+    ).toEqual({ musculo: 'pectoral', series: 7 })
+  })
+
+  it('el estabilizador no suma, y lo de otro grupo tampoco', () => {
+    // La flexión completa toca al glúteo con 0,25: no es dosis de nada.
+    expect(principalMasCargado('puente-gluteos', [reg('flexion-completa', 6)])).toBeNull()
+    expect(principalMasCargado('flexion-completa', [reg('remo-australiano-medio', 6)])).toBeNull()
+    expect(principalMasCargado('flexion-completa', [])).toBeNull()
+  })
+
+  it('un ejercicio sin vector no tiene principales', () => {
+    expect(principalMasCargado('no-existe', [reg('flexion-completa', 6)])).toBeNull()
+  })
+})
+
 describe('las series efectivas', () => {
   it('suma la serie por el aporte, y solo de 0,5 para arriba', () => {
     // Tres series de flexión completa: pectoral 1 → 3, tríceps 0,5 → 1,5,
@@ -474,6 +502,23 @@ describe('qué te está faltando', () => {
     const dos = [sesion('2026-09-20', [reg('flexion-completa', 3)]), sesion('2026-09-18', [reg('flexion-completa', 3)])]
     expect(loQueFalta({ ...base, sesiones: dos })).toEqual({ clase: 'sin-datos', sesiones: 2 })
     expect(MINIMO_PARA_OPINAR).toBe(3)
+  })
+
+  it('cuenta días con sesión: tres en una tarde siguen siendo un día', () => {
+    const tarde = [9, 13, 19].map((h) =>
+      sesion('2026-09-20', [reg('flexion-completa', 3)], {
+        id: `tarde-${h}`,
+        finalizadaEn: new Date(`2026-09-20T${String(h).padStart(2, '0')}:00:00`).getTime(),
+      }),
+    )
+    expect(loQueFalta({ ...base, sesiones: tarde })).toEqual({ clase: 'sin-datos', sesiones: 3 })
+    // Con un segundo día, todavía no; con el tercero, ya opina.
+    const segundo = sesion('2026-09-18', [reg('flexion-completa', 3)])
+    expect(loQueFalta({ ...base, sesiones: [...tarde, segundo] }).clase).toBe('sin-datos')
+    const tercero = sesion('2026-09-16', [reg('flexion-completa', 3)])
+    expect(loQueFalta({ ...base, sesiones: [...tarde, segundo, tercero] }).clase).not.toBe(
+      'sin-datos',
+    )
   })
 
   it('en "La mínima" señala el patrón entero que la rutina no incluye', () => {

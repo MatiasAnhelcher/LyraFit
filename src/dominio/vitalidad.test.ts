@@ -2,6 +2,8 @@ import { describe, expect, it } from 'vitest'
 import {
   SERIES_MINIMAS,
   SESIONES_MINIMAS,
+  animoDentroDe,
+  animoPorDia,
   animoReciente,
   calibracion,
   cargaInterna,
@@ -156,6 +158,70 @@ describe('ánimo reciente', () => {
 
   it('con un solo dato no dice nada', () => {
     expect(animoReciente([sesion(1, [{ logrado: 10 }], { animo: -2 })])).toBeUndefined()
+  })
+
+  it('cuenta los tres últimos días distintos, no las tres últimas sesiones', () => {
+    // Una tarde con tres sesiones malas vale un día: no tapa los dos de antes.
+    const dia = (n: number, animo: number, extra: Partial<Sesion> = {}) =>
+      sesion(n, [{ logrado: 10 }], { animo, ...extra })
+    const sesiones = [
+      dia(1, 0),
+      dia(2, 2),
+      dia(3, 2),
+      dia(4, -2, { id: 'a', finalizadaEn: 4 * 86_400_000 + 1 }),
+      dia(4, -2, { id: 'b', finalizadaEn: 4 * 86_400_000 + 2 }),
+      dia(4, -2, { id: 'c', finalizadaEn: 4 * 86_400_000 + 3 }),
+    ]
+    // Días 2, 3 y 4: (2 + 2 - 2) / 3. Por sesiones habría dado -2.
+    expect(animoReciente(sesiones)).toBeCloseTo(2 / 3)
+  })
+
+  it('dentro de un día, promedia lo que se contestó ese día', () => {
+    const sesiones = [
+      sesion(1, [{ logrado: 10 }], { animo: 0 }),
+      sesion(2, [{ logrado: 10 }], { id: 'a', animo: 2, finalizadaEn: 2 * 86_400_000 + 1 }),
+      sesion(2, [{ logrado: 10 }], { id: 'b', animo: -2, finalizadaEn: 2 * 86_400_000 + 2 }),
+      sesion(2, [{ logrado: 10 }], { id: 'c', finalizadaEn: 2 * 86_400_000 + 3 }),
+    ]
+    expect(animoReciente(sesiones)).toBeCloseTo(0)
+    // Tres sesiones contestadas en un solo día son un dato, no tres.
+    expect(animoReciente(sesiones.slice(1))).toBeUndefined()
+  })
+})
+
+describe('el ánimo día por día, y el de los días que vienen', () => {
+  const dia = (n: number, animo?: number) =>
+    sesion(n, [{ logrado: 10 }], animo !== undefined ? { animo } : {})
+
+  it('de hoy para atrás, con su lugar el día que no se contestó', () => {
+    expect(animoPorDia([dia(1, 2), dia(2), dia(3, -1)])).toEqual([-1, undefined, 2])
+    // Solo los tres últimos días con sesión.
+    expect(animoPorDia([dia(1, 2), dia(2, 1), dia(3, 0), dia(4, -1)])).toEqual([-1, 0, 1])
+  })
+
+  it('contestando como hoy, el promedio se corre hacia la respuesta de hoy', () => {
+    // Dos días de +1 y hoy -1: hoy da 1/3; mañana, con otro -1, da -1/3.
+    const dias = animoPorDia([dia(1, 1), dia(2, 1), dia(3, -1)])
+    expect(animoDentroDe(dias, 0)).toBeCloseTo(1 / 3)
+    expect(animoDentroDe(dias, 1)).toBeCloseTo(-1 / 3)
+    expect(animoDentroDe(dias, 2)).toBeCloseTo(-1)
+  })
+
+  it('con la primera respuesta, mañana ya dice algo', () => {
+    const dias = animoPorDia([dia(1, -1)])
+    expect(animoDentroDe(dias, 0)).toBeUndefined()
+    expect(animoDentroDe(dias, 1)).toBeCloseTo(-1)
+  })
+
+  it('sin contestar hoy, los días nuevos no suman respuestas y empujan afuera a las viejas', () => {
+    const dias = animoPorDia([dia(1, -2), dia(2, -2), dia(3)])
+    expect(animoDentroDe(dias, 0)).toBeCloseTo(-2)
+    expect(animoDentroDe(dias, 1)).toBeUndefined()
+  })
+
+  it('animoReciente es el de hoy', () => {
+    const sesiones = [dia(1, 2), dia(2, -1), dia(3, 0)]
+    expect(animoReciente(sesiones)).toBeCloseTo(animoDentroDe(animoPorDia(sesiones), 0)!)
   })
 })
 
