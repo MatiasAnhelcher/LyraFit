@@ -324,13 +324,19 @@
     border-radius: var(--radio-chico);
     outline-offset: -4px;
   }
-  /* La acción del esfuerzo va contra el canto: también hacia adentro, y como
-     es menta, en sobre-acento (13,40:1). Va a 4 px y no a 2: pegado al
-     canto, el contorno oscuro se funde con el fondo de al lado (1,05:1) y se
-     lee como un botón que se achicó; con una franja de menta afuera se ve
-     como lo que es. */
+  /* La acción del esfuerzo va contra el canto: también hacia adentro, a 2 px
+     (§4.1 y §5.5), y como es menta, en sobre-acento: 13,40:1 contra la menta
+     que lo rodea por dentro. Los 2 px del trazo caen enteros adentro del
+     botón, así que ni el canto ni el borde de la pantalla le cortan un lado,
+     y siguen el radio de arriba. */
   .accion-esfuerzo:focus-visible {
     outline-color: var(--color-sobre-acento);
+    outline-offset: -2px;
+  }
+  /* Y la fila de arriba de Entrenar: "Salir" y "Deshacer la última" van
+     contra el borde de arriba de la pantalla, y deshacer también contra el de
+     la derecha. Afuera, el borde se comería el contorno. */
+  .encabezado-esfuerzo-fila > :focus-visible {
     outline-offset: -4px;
   }
   /* Los segmentos van a 4 px uno del otro y del borde de la regleta. A 3 px
@@ -345,10 +351,13 @@
   .hoja:focus-visible {
     outline: none;
   }
-  /* Lo mismo el título de la pantalla que llega, o su `main` si no tiene:
-     reciben el foco para que el lector diga dónde estás, y no son controles. */
+  /* Lo mismo el título de la pantalla que llega, o su `main` si no tiene, y
+     en Entrenar el rótulo de cada estado nuevo (DESCANSO, EJERCICIO
+     COMPLETO, ANTES DE CERRAR): reciben el foco para que el lector diga
+     dónde estás, y no son controles. */
   h1[tabindex='-1']:focus,
-  main[tabindex='-1']:focus {
+  main[tabindex='-1']:focus,
+  .rotulo[tabindex='-1']:focus {
     outline: none;
   }
 }
@@ -1947,21 +1956,86 @@
 
   /* El arco del descanso. No es decoración: es el reloj.
      Lineal y no eased porque representa tiempo real.
-     JS: elemento.style.setProperty('--resto', restante / total) */
-  .arco-descanso {
+     JS: elemento.style.setProperty('--resto', restante / total)
+
+     La caja es un contenedor de tamaño —la cifra crece con el arco y no con
+     la pantalla— y con contención de tamaño el contenido no le da alto: el
+     lado se dice siempre, y el otro sale de `aspect-ratio`. El círculo va en
+     píxeles, sin `viewBox`: el radio es la mitad del lado menos medio trazo,
+     y así los 4 px de lo que queda miden 4 en un arco de 119 y en uno de
+     204.
+     El lado de siempre, el del reloj, es el `h-44` que tuvo desde el
+     principio: 176 px con el `--spacing` de 4 px. En `rem` crecía con el
+     `rem` de 17 del esfuerzo. P7 le da al reloj los suyos (§5.8). */
+  .arco {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    container-type: size;
+    aspect-ratio: 1;
+    inline-size: calc(var(--spacing) * 44);
+    color: var(--color-tinta);
+  }
+  .arco[data-lado='fila'] {
+    inline-size: auto;
+    block-size: min(100%, 12rem);
+  }
+  .arco[data-lado='ancho'] {
+    inline-size: min(100%, 12rem);
+  }
+  .arco > svg {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+  }
+  .arco circle {
+    cx: 50%;
+    cy: 50%;
+    r: calc(50% - 3px);
     fill: none;
-    stroke: var(--color-vega);
-    stroke-width: 2;
+  }
+  .arco-descanso {
+    stroke: var(--color-tinta);
+    stroke-width: 4;
+    stroke-linecap: round;
     stroke-dasharray: 1;
     stroke-dashoffset: calc(1 - var(--resto, 1));
     transform: rotate(-90deg);
+    transform-box: fill-box;
     transform-origin: center;
-    transition: stroke-dashoffset 1s linear;
+    /* El mismo segundo lineal para los dos lados: se vacía y, con "+30 s" o
+       un tramo nuevo, crece de vuelta. Verlo crecer es información (§5.8). */
+    transition:
+      stroke-dashoffset 1s linear,
+      stroke var(--dur-breve) var(--sal-ambas);
+  }
+  /* El AFLOJÁ del fuelle: el arco baja a glosa. No es la única señal —cambia
+     la palabra de arriba—, así que nadie depende del color. */
+  .arco[data-apagado] .arco-descanso {
+    stroke: var(--color-glosa);
+  }
+  /* Los tres últimos segundos, en la luz de "seguí": van con el earcon y la
+     vibración, y el cambio de color es la única transición que no es tiempo.
+     Va después del AFLOJÁ, con la misma especificidad, para ganarle: los
+     últimos 3 s son menta en cualquier tramo que los marque. */
+  .arco[data-ultimos='true'] .arco-descanso {
+    stroke: var(--color-acento);
   }
   .arco-descanso-fondo {
-    fill: none;
     stroke: var(--color-regla);
     stroke-width: 2;
+  }
+  /* "de 2:00": el total contra el que mide el arco, con lo sumado. */
+  .arco-total {
+    margin-top: 0.125rem;
+    font-family: var(--font-sans);
+    font-size: 0.75rem;
+    font-variant-numeric: tabular-nums lining-nums;
+    line-height: 1;
+    color: var(--color-glosa);
   }
 
   /* ── (6) LATIR ──────────────────────────────────────────────────────
@@ -2050,7 +2124,10 @@
    * sube, se apaga todo lo que no sea legibilidad bruta.
    * ------------------------------------------------------------------ */
 
-  [data-pantalla='entrenar'] {
+  /* La letra crece desde el primer cuadro: la lee también la clase de la
+     pantalla, que está antes de que llegue `data-pantalla` (§7.4). */
+  [data-pantalla='entrenar'],
+  :root:has(.pantalla-esfuerzo) {
     font-size: 1.0625rem;
   }
   /*
@@ -2083,8 +2160,542 @@
    */
   [data-pantalla='entrenar'] *,
   [data-pantalla='entrenar'] *::before,
-  [data-pantalla='entrenar'] *::after {
+  [data-pantalla='entrenar'] *::after,
+  :root:has(.pantalla-esfuerzo) *,
+  :root:has(.pantalla-esfuerzo) *::before,
+  :root:has(.pantalla-esfuerzo) *::after {
     animation: none !important;
+  }
+
+  /* ── EL ARMAZÓN DEL ESFUERZO (§7.4) ─────────────────────────────────
+     Tres filas a la altura de la pantalla: el encabezado, `main` con su
+     propio scroll y la acción a sangre (o los botones del descanso). Los
+     botones son una fila de la grilla y no una capa encima: nada pegado tapa
+     texto, y lo que no entra scrollea adentro de `main`, con la acción
+     siempre en su lugar. La página no scrollea nunca. */
+  .armazon-esfuerzo {
+    display: grid;
+    grid-template-rows: auto minmax(0, 1fr) auto;
+    grid-template-columns: minmax(0, 32rem);
+    justify-content: center;
+    height: 100svh;
+  }
+  .armazon-esfuerzo > main {
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    padding: 12px 16px 16px;
+    /* Lo que el foco trae a la vista llega con aire para su contorno: sin
+       esto queda contra el borde de `main`, y el borde se lo come. */
+    scroll-padding-block: 8px;
+  }
+  /* Nada se encoge para entrar: lo que no entra, scrollea. Sin esto, un hijo
+     con `overflow: hidden` —la víspera o el título recortados a un renglón—
+     se achicaba hasta cero cuando `main` scrolleaba, porque en un flex su
+     alto mínimo pasa a ser 0. */
+  .armazon-esfuerzo > main > * {
+    flex-shrink: 0;
+  }
+
+  /* El encabezado: "Salir", el cronómetro y "Deshacer la última" en una fila
+     de 56, y la barra de la sesión debajo. La celda de deshacer está siempre:
+     sin serie que deshacer el botón va oculto, y el cronómetro no salta. */
+  .encabezado-esfuerzo {
+    padding: 0 16px 4px;
+  }
+  .encabezado-esfuerzo-fila {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    align-items: center;
+    min-height: 56px;
+  }
+  .cronometro {
+    justify-self: center;
+    font-family: var(--font-cifra);
+    font-weight: 600;
+    font-size: 0.875rem;
+    font-variant-numeric: tabular-nums lining-nums;
+    line-height: 1;
+    white-space: nowrap;
+    color: var(--color-glosa);
+  }
+  /* Un contorno sin borde: es un control del encabezado y no una acción, y
+     con borde competía con "Salir" del otro lado. Con las dos clases, porque
+     `.boton-contorno` se define más abajo y con una sola le ganaba. */
+  .boton-contorno.boton-deshacer {
+    padding-inline: 12px;
+    margin-inline-end: -12px;
+    border-color: transparent;
+  }
+  .boton-contorno.boton-deshacer[data-oculto] {
+    visibility: hidden;
+  }
+  /* La barra de la sesión: un segmento por ejercicio. Hecho, en glosa y a
+     media altura; el de ahora, entero y en tinta; lo que falta, una raya. */
+  .barra-sesion {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    height: 8px;
+    margin-top: 4px;
+  }
+  .barra-sesion > i {
+    flex: 1;
+    height: 2px;
+    border-radius: 2px;
+    background-color: var(--color-regla-fuerte);
+  }
+  .barra-sesion > i[data-estado='hecho'] {
+    height: 4px;
+    background-color: var(--color-glosa);
+  }
+  .barra-sesion > i[data-estado='actual'] {
+    height: 8px;
+    background-color: var(--color-tinta);
+  }
+  /* La retomada: el rótulo a la izquierda, en sus dos frases, y "Empezar de
+     cero" a la derecha, en 56 de alto. Cuando no entran lado a lado —a 320,
+     o con la letra grande— cede primero el botón, que pasa su texto a dos
+     renglones parejos ("Empezar / de cero") adentro de sus 56; si ni así
+     entra, baja a su propio renglón. Así no se sale a lo ancho mientras la
+     frase más larga y la palabra más larga entren solas en el ancho: con la
+     letra al 125 %, a 320, sobran 120 px (§10.3.6).
+     Por eso las dos bases van en 0: lo que decide el corte de renglón es lo
+     mínimo de cada uno (la frase más larga y la palabra más larga), y el
+     espacio que sobra lo toma el botón hasta su ancho natural. Lo que queda
+     va al margen de su izquierda, que lo deja contra el borde derecho. */
+  .franja-retomada {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px 12px;
+    min-height: 56px;
+  }
+  .franja-retomada > .rotulo {
+    flex: 0 1 0;
+  }
+  .franja-retomada > .boton-contorno {
+    flex: 1 1 0;
+    max-width: max-content;
+    margin-left: auto;
+    padding-inline: 12px;
+    text-wrap: balance;
+  }
+
+  /* -- La serie, de arriba abajo -- */
+  .fila-patron {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    min-height: 56px;
+  }
+  .linea-patron {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
+  }
+  /* "Cómo se hace" con 12 de relleno y no 17: con el de siempre, "TRACCIÓN ·
+     SERIE 2 DE 3" no entraba en un renglón a 360. */
+  .boton-contorno.boton-como-se-hace {
+    padding-inline: 12px;
+  }
+  .titulo-ejercicio {
+    margin-top: 8px;
+    font-family: var(--font-cifra);
+    font-weight: 600;
+    font-size: 1.5rem;
+    line-height: 1.15;
+    letter-spacing: -0.01em;
+    color: var(--color-tinta);
+  }
+  /* La víspera y la molestia: una frase, en glosa, debajo del título. */
+  .linea-esfuerzo {
+    margin-top: 8px;
+    font-size: 0.8125rem;
+    line-height: 1.1875rem;
+    color: var(--color-glosa);
+  }
+  .linea-esfuerzo > span {
+    color: var(--color-tinta);
+  }
+
+  /* Los nodos de la serie: la constelación del ejercicio. La línea de atrás
+     va de centro a centro, y el tramo hecho llega hasta la última serie
+     anotada. Cada nodo tapa la línea con su fondo. */
+  .nodos-serie {
+    --nodo: 56px;
+    position: relative;
+    margin-top: 16px;
+  }
+  .nodos-serie[data-cuantos='4'] {
+    --nodo: 52px;
+  }
+  .nodos-serie[data-cuantos='5'] {
+    --nodo: 48px;
+  }
+  .nodos-serie > ul {
+    position: relative;
+    display: flex;
+    gap: 12px;
+  }
+  .nodos-linea {
+    position: absolute;
+    top: calc(var(--nodo) / 2 - 1px);
+    left: calc(var(--nodo) / 2);
+    width: calc((var(--cuantos) - 1) * (var(--nodo) + 12px));
+    height: 2px;
+    overflow: visible;
+  }
+  .nodos-linea line {
+    stroke-width: 2;
+  }
+  .nodos-linea .por-hacer {
+    stroke: var(--color-regla-fuerte);
+    stroke-dasharray: 2 4;
+  }
+  .nodo-serie {
+    display: flex;
+    flex: none;
+    align-items: center;
+    justify-content: center;
+    width: var(--nodo);
+    height: var(--nodo);
+    border: 1px solid var(--color-regla-fuerte);
+    border-radius: 50%;
+    background-color: var(--color-fondo);
+    font-family: var(--font-cifra);
+    font-weight: 600;
+    font-size: 1.0625rem;
+    font-variant-numeric: tabular-nums lining-nums;
+    line-height: 1;
+    color: var(--color-tenue);
+  }
+  .nodo-serie[data-estado='hecha'] {
+    border: 2px solid var(--tinta-cadena);
+    background-color: var(--color-papel);
+    color: var(--color-tinta);
+  }
+  .nodo-serie[data-estado='actual'] {
+    border: 2px dashed var(--color-tinta);
+    color: var(--color-tinta);
+  }
+  .nodo-serie[data-estado='actual'][data-paso='2'] {
+    border-style: solid;
+  }
+  .vez-pasada {
+    margin-top: 8px;
+    text-align: right;
+  }
+
+  /* La pregunta, el número y los kilos. */
+  .pregunta-serie {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    margin-top: 16px;
+    font-size: 0.875rem;
+    line-height: 1.25rem;
+    text-align: center;
+    color: var(--color-glosa);
+  }
+  .pregunta-serie svg {
+    flex: none;
+    width: 28px;
+    height: 12px;
+  }
+  .numero-serie {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 24px;
+    margin-top: 12px;
+  }
+  .numero-serie > .paso {
+    flex: none;
+    width: 64px;
+    height: 64px;
+    font-size: 1.75rem;
+  }
+  .numero-serie > .cifra-esfuerzo {
+    min-width: 2ch;
+    text-align: center;
+  }
+  .dijiste {
+    margin-top: 4px;
+    font-size: 0.8125rem;
+    line-height: 1.125rem;
+    text-align: center;
+    color: var(--color-tenue);
+  }
+  .fila-kilos {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    margin-top: 8px;
+  }
+  .fila-kilos > .paso {
+    flex: none;
+    width: 56px;
+    height: 56px;
+    font-size: 1.375rem;
+  }
+  .kilos {
+    min-width: 5.5rem;
+    font-family: var(--font-cifra);
+    font-weight: 600;
+    font-size: 1.625rem;
+    font-variant-numeric: tabular-nums lining-nums;
+    line-height: 1;
+    text-align: center;
+    color: var(--color-tinta);
+  }
+  .con-discos {
+    align-self: center;
+    margin-top: 8px;
+  }
+  /* La secundaria va al final de `main`, con 16 o más arriba: la empuja el
+     margen automático y la separa el relleno, así que con lugar se apoya
+     abajo y sin lugar queda en el scroll, nunca encima del número. */
+  .secundaria-esfuerzo {
+    margin-top: auto;
+    padding-top: 16px;
+  }
+
+  /* LA COMPRESIÓN (§7.4): `data-apretado` de 0 a 5, acumulada. Los dos
+     primeros niveles son para que entre la secundaria; los otros tres, solo
+     para que se vean enteros el número y los kilos. */
+  main:is([data-apretado='1'], [data-apretado='2'], [data-apretado='3'], [data-apretado='4'], [data-apretado='5'])
+    .vez-pasada {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    margin: -1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+  main:is([data-apretado='2'], [data-apretado='3'], [data-apretado='4'], [data-apretado='5']) .cifra-esfuerzo {
+    font-size: min(4rem, 10svh);
+  }
+  main:is([data-apretado='3'], [data-apretado='4'], [data-apretado='5']) .vispera,
+  main:is([data-apretado='4'], [data-apretado='5']) .titulo-ejercicio {
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 1;
+    line-clamp: 1;
+    overflow: hidden;
+  }
+  main[data-apretado='5'] .nodos-serie {
+    --nodo: 2.25rem;
+  }
+
+  /* -- El descanso y la ráfaga (§7.4.1) --
+     `main` pasa a una grilla: patrón, título, nodos, el rótulo, el arco,
+     "después ·", la técnica, el aire y la secundaria. El arco es la fila que
+     crece primero, hasta 12rem; el aire se lleva lo que sobre después. */
+  .armazon-esfuerzo > main.main-descanso {
+    display: grid;
+    grid-template-rows: auto auto auto auto minmax(7rem, 12rem) auto auto 1fr auto;
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .main-descanso > .titulo-ejercicio {
+    margin-top: 4px;
+  }
+  .main-descanso > .nodos-serie {
+    margin-top: 12px;
+  }
+  .main-descanso > section {
+    display: contents;
+  }
+  .rotulo-tramo {
+    margin: 16px 0 8px;
+    text-align: center;
+  }
+  .main-descanso .arco {
+    justify-self: center;
+  }
+  .despues-del-descanso {
+    margin-top: 8px;
+    font-size: 0.8125rem;
+    line-height: 1.25rem;
+    text-align: center;
+    color: var(--color-glosa);
+  }
+  .despues-del-descanso > span {
+    color: var(--color-tinta);
+  }
+  .tecnica-del-descanso {
+    margin-top: 12px;
+    font-size: 0.875rem;
+    line-height: 1.5;
+    color: var(--color-glosa);
+  }
+  .tecnica-del-descanso > .lyra {
+    float: left;
+    margin: 2px 8px 0 0;
+  }
+  .nombre-rafaga {
+    margin-top: 8px;
+    font-family: var(--font-cifra);
+    font-weight: 600;
+    font-size: 1.25rem;
+    line-height: 1.3;
+    text-align: center;
+    color: var(--color-tinta);
+  }
+  .gesto-rafaga {
+    justify-self: center;
+    max-width: 32ch;
+    margin-top: 8px;
+    font-size: 0.8125rem;
+    line-height: 1.1875rem;
+    text-align: center;
+    color: var(--color-glosa);
+  }
+  .main-descanso > .secundaria-esfuerzo {
+    grid-row: 9;
+    margin-top: 0;
+  }
+  @media (max-height: 600px) {
+    .armazon-esfuerzo > main.main-descanso {
+      grid-template-rows: auto auto auto auto minmax(6rem, 12rem) auto auto 1fr auto;
+    }
+    .main-descanso > .nodos-serie {
+      --nodo: 2.25rem;
+    }
+  }
+  /* Los botones del descanso, en la fila de la acción: reparten el ancho. */
+  .pie-esfuerzo {
+    display: flex;
+    gap: 16px;
+    padding: 16px 16px calc(16px + env(safe-area-inset-bottom));
+  }
+  .pie-esfuerzo[data-tres] {
+    gap: 8px;
+  }
+  .pie-esfuerzo > .boton-contorno {
+    flex: 1 1 0;
+    min-width: 0;
+    padding-inline: 8px;
+  }
+  /* El error al cerrar va en la fila de pie, arriba de la acción: la fila
+     crece y `main` se achica, así que nunca queda escondido en el scroll. */
+  .error-al-cerrar {
+    padding: 12px 16px 16px;
+    font-size: 0.875rem;
+    line-height: 1.45;
+    color: var(--color-ambar);
+  }
+
+  /* -- El ejercicio completo, la serie de cierre y las preguntas -- */
+  .ejercicio-completo {
+    margin-block: auto;
+    padding-top: 24px;
+    text-align: center;
+  }
+  .lo-que-viene {
+    margin-top: 4px;
+    font-family: var(--font-cifra);
+    font-weight: 600;
+    font-size: 1.25rem;
+    line-height: 1.2;
+    color: var(--color-tinta);
+  }
+  .explicacion-esfuerzo {
+    margin-top: 16px;
+    max-width: 38ch;
+    font-size: 0.8125rem;
+    line-height: 1.1875rem;
+    color: var(--color-glosa);
+  }
+  .pregunta-final {
+    margin-top: 24px;
+    font-family: var(--font-sans);
+    font-weight: 600;
+    font-size: 1.0625rem;
+    line-height: 1.4;
+    color: var(--color-tinta);
+  }
+  .pregunta-final + .regleta {
+    margin-top: 8px;
+  }
+
+  /* -- El fuelle (§7.4.3): el rótulo arriba, el bloque al centro y "Cortar
+     el fuelle" en la fila de pie. El bloque se centra con márgenes y no con
+     `justify-content`: si alguna vez no entra, scrollea entero en vez de
+     perder la palabra de arriba. -- */
+  .encabezado-fuelle {
+    display: flex;
+    align-items: center;
+    min-height: 56px;
+    padding: 0 16px;
+  }
+  .encabezado-fuelle > .rotulo {
+    color: var(--dominio-fuelle-luz);
+  }
+  .bloque-fuelle {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    margin-block: auto;
+  }
+  .rotulo.palabra-tramo {
+    font-family: var(--font-cifra);
+    font-size: 1.625rem;
+    line-height: 1.2;
+    letter-spacing: 0.04em;
+    color: var(--color-tinta);
+  }
+  .bloque-fuelle > .arco {
+    margin-top: 12px;
+  }
+  .bloque-fuelle > .nombre-rafaga {
+    margin-top: 16px;
+  }
+  .bloque-fuelle > .gesto-rafaga {
+    min-height: calc(3 * 1.1875rem);
+  }
+  .gesto-rafaga[data-reservado] {
+    visibility: hidden;
+  }
+  .pie-quieto {
+    padding: 16px 16px calc(16px + env(safe-area-inset-bottom));
+  }
+
+  /* -- "Cómo se hace": la hoja completa, con el pie siempre a la vista -- */
+  .hoja[data-completa].hoja-como-se-hace {
+    display: flex;
+    flex-direction: column;
+    padding: 0;
+    overflow: hidden;
+  }
+  /* El cuerpo scrollea, y un cuerpo que scrollea sin nada enfocable adentro
+     se enfoca con Tab para moverlo con las flechas. Su contorno va hacia
+     adentro (§4.1): el cuerpo llena la hoja de canto a canto, y afuera la
+     hoja y la pantalla se lo comían por tres lados. Lleva la curva de
+     adentro de la hoja (su radio menos el borde de 1 px), que es por donde
+     la hoja lo recorta, para que el contorno la siga en vez de cortarse en
+     las esquinas. */
+  .hoja-como-se-hace > .hoja-cuerpo {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    padding: calc(1.5rem + env(safe-area-inset-top)) 16px 24px;
+    border-radius: calc(var(--radio-hoja) - 1px) calc(var(--radio-hoja) - 1px) 0 0;
+  }
+  .hoja-como-se-hace > .hoja-cuerpo:focus-visible {
+    outline-offset: -2px;
+  }
+  .hoja-como-se-hace > .hoja-pie {
+    padding: 12px 16px calc(16px + env(safe-area-inset-bottom));
+    border-top: 1px solid var(--color-regla);
   }
 
   /* ------------------------------------------------------------------ *
@@ -2821,8 +3432,9 @@
 }
 
 /* El arco del descanso es información y no adorno: sigue corriendo parejo,
-   segundo a segundo. Lo que va en seco es su cambio de color de los últimos
-   tres segundos. */
+   segundo a segundo, y crece de vuelta con el mismo segundo cuando sube
+   (§6.11). Lo que va en seco es su cambio de color de los últimos tres
+   segundos. */
 :root[data-movimiento='reducido'] .arco-descanso {
   transition: stroke-dashoffset 1s linear !important;
 }

@@ -1,10 +1,11 @@
 import { useEffect, useRef, useState } from 'react'
 import { Arco } from '@/componentes/arco'
-import { AccionQuieta, Rotulo } from '@/componentes/ui'
+import { AccionQuieta } from '@/componentes/ui'
 import { useTemporizador } from '@/hooks/useTemporizador'
 import { sonar, tocar } from '@/respuesta'
 import type { PasoDeFuelle } from '@/dominio/metabolico'
 import type { RegistroRafaga } from '@/dominio/tipos'
+import { tramoDelFuelle } from './tramoDelFuelle'
 
 /**
  * El bloque de fuelle: lo metabólico, al final de la fuerza.
@@ -17,6 +18,13 @@ import type { RegistroRafaga } from '@/dominio/tipos'
  * Cada ráfaga se avisa apenas termina, en vez de entregar la lista al final.
  * Es a propósito: si el navegador recicla la pestaña a mitad del bloque, lo que
  * ya se hizo está en el borrador y no se pierde.
+ *
+ * La pantalla es la del esfuerzo sin series (§7.4.3): el rótulo arriba, la
+ * palabra, el arco, el nombre y el gesto en un bloque al centro, y "Cortar el
+ * fuelle" en la fila de abajo. En AFLOJÁ el nombre ya es el de la ráfaga que
+ * viene (`tramoDelFuelle`), y el gesto no se dibuja pero su lugar queda
+ * reservado, así que el arco y el nombre no saltan en cada cambio de tramo:
+ * veinte cambios por bloque serían veinte saltos.
  */
 export function BloqueDeFuelle({
   pasos,
@@ -67,30 +75,38 @@ export function BloqueDeFuelle({
   if (!paso) return null
 
   const total = pausando ? paso.descansoSegundos : paso.segundos
-  const quedan = pasos.length - indice
+  const { rotulo, rafaga = paso.rafaga } = tramoDelFuelle(pasos, indice, pausando)
 
   return (
-    <div className="flex min-h-dvh flex-col">
-      <header className="px-4 py-3">
-        <Rotulo>EL FUELLE · {quedan === 1 ? 'LA ÚLTIMA' : `QUEDAN ${quedan}`}</Rotulo>
+    <div className="pantalla-esfuerzo armazon-esfuerzo">
+      <header className="encabezado-fuelle">
+        <p className="rotulo">{rotulo}</p>
       </header>
 
-      <section className="flex flex-1 flex-col items-center justify-center pb-8">
-        <Rotulo>{pausando ? 'AFLOJÁ' : 'AHORA'}</Rotulo>
-        <div className="mt-3">
-          <Arco restante={reloj.restante} total={total} />
-        </div>
-        <p className="mt-6 text-center text-lg font-semibold" data-prueba="nombre-rafaga">
-          {paso.rafaga.nombre}
-        </p>
-        {!pausando && (
-          <p className="mt-2 max-w-[32ch] text-center text-sm leading-relaxed text-[var(--color-glosa)]">
-            {paso.rafaga.gesto}
+      <main>
+        <div className="bloque-fuelle">
+          {/* Sigue siendo un rótulo —los portones la leen entre los
+              `.rotulo`— pero al tamaño de una palabra que se lee de lejos. */}
+          <p className="rotulo palabra-tramo" data-foco>
+            {pausando ? 'AFLOJÁ' : 'AHORA'}
           </p>
-        )}
-      </section>
+          <Arco
+            restante={reloj.restante}
+            total={total}
+            lado="ancho"
+            etiqueta={pausando ? 'Pausa del fuelle' : 'Ráfaga del fuelle'}
+            apagado={pausando}
+          />
+          <p className="nombre-rafaga" data-prueba="nombre-rafaga">
+            {rafaga.nombre}
+          </p>
+          <p className="gesto-rafaga" data-reservado={pausando || undefined}>
+            {rafaga.gesto}
+          </p>
+        </div>
+      </main>
 
-      <div className="mx-auto w-full max-w-lg px-4 mt-auto pb-[calc(1rem+env(safe-area-inset-bottom))]">
+      <div className="pie-quieto">
         <AccionQuieta onClick={onSaltear}>Cortar el fuelle</AccionQuieta>
       </div>
     </div>

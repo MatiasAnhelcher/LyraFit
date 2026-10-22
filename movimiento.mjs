@@ -412,7 +412,8 @@ async function main() {
      * `getAnimations()` no ve: por eso se cuentan los cuadros. Tiene que
      * estar en sus dos posturas, quieta, y sin pedir un solo cuadro.
      */
-    const comoSeHace = pagina.getByRole('button', { name: 'cómo se hace', exact: true })
+    // En tipo oración, como todo botón (§5.6 y la fila del patrón de §7.4).
+    const comoSeHace = pagina.getByRole('button', { name: 'Cómo se hace', exact: true })
     if (await comoSeHace.isVisible().catch(() => false)) {
       await comoSeHace.click()
       await pagina.getByRole('dialog').waitFor({ state: 'visible', timeout: 3000 }).catch(() => {})
@@ -428,7 +429,7 @@ async function main() {
       await pagina.getByRole('button', { name: 'Volver a la serie' }).click()
       await pagina.waitForTimeout(250)
     } else {
-      fallos.push('En la serie no apareció "cómo se hace": la figura en el esfuerzo quedó sin medir. Este bloque no está en verde: está ciego.')
+      fallos.push('En la serie no apareció "Cómo se hace": la figura en el esfuerzo quedó sin medir. Este bloque no está en verde: está ciego.')
     }
 
     const voy = pagina.getByRole('button', { name: 'Voy', exact: true })

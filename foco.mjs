@@ -34,20 +34,19 @@
  *      página: ya está a la vista.
  *   3. **El Diario.** Después de tocar "Cambiar" con el teclado, el foco está
  *      en la hora marcada, y su contorno pasa por lo mismo que el de arriba.
+ *   4. **Entrenar** (P2). El foco va al encabezado de cada estado nuevo
+ *      (§7.1): el rótulo DESCANSO, el `h1` de la serie de cierre, ANTES DE
+ *      CERRAR. Y "Cómo se hace", que es una `.hoja[data-completa]`, toma el
+ *      foco al abrirse, no lo deja salir con Tab y lo devuelve al botón que
+ *      la abrió al cerrarse con Escape.
  *
  * ## Lo que todavía es deuda
  *
- * Se mide igual y se informa sin fallar, como la deuda de `toques.mjs`: lo
- * resuelve P2, que rehace Entrenar y el Cierre.
- *
- *   - En Entrenar y el Cierre, lo que depende de cómo está armada la pantalla:
- *     un elemento tapado, un contorno cortado por el borde o perdido contra
- *     lo de al lado. Lo del contorno mismo —2 px, el color, hacia dónde va—
- *     es de toda la app y falla también ahí.
- *   - En Entrenar, el foco al encabezado de cada estado nuevo (§7.1): el
- *     rótulo DESCANSO, el `h1` de la serie de cierre, ANTES DE CERRAR.
- *   - La hoja que atrapa el foco y lo devuelve: "Cómo se hace" todavía es un
- *     diálogo propio, y pasa a `.hoja[data-completa]` en P2.
+ * Se mide igual y se informa sin fallar, como la deuda de `toques.mjs`: en el
+ * Cierre, que rehace P3, lo que depende de cómo está armada la pantalla —un
+ * elemento tapado, un contorno cortado por el borde o perdido contra lo de al
+ * lado—. Lo del contorno mismo —2 px, el color, hacia dónde va— es de toda la
+ * app y falla también ahí.
  *
  * Uso: npm run build && npx vite preview --port 4173, y después `node foco.mjs`.
  * Con otro puerto: `BASE=http://localhost:4187 node foco.mjs`.
@@ -385,9 +384,9 @@ if ((await ruta()) !== '/entrenar') fallos.push(`"Empezar" no llevó a Entrenar 
 
 // ─── Entrenar y el Cierre ────────────────────────────────────────────────
 
-await recorrerConTab('La serie', { duenio: 'P2' })
+await recorrerConTab('La serie')
 
-/** El encabezado de cada estado nuevo: deuda de P2 hasta que llegue. */
+/** El encabezado de cada estado nuevo, adonde Entrenar lleva el foco. */
 async function revisarElEncabezado(estado, encabezado) {
   const enfocado = await p.evaluate(() => {
     const a = document.activeElement
@@ -395,14 +394,15 @@ async function revisarElEncabezado(estado, encabezado) {
     return { es: `${a.tagName.toLowerCase()} «${(a.textContent ?? '').trim().slice(0, 30)}»`, h1: a.tagName === 'H1', texto: (a.textContent ?? '').trim() }
   })
   const bien = encabezado === 'h1' ? enfocado.h1 : enfocado.texto === encabezado
-  if (!bien) deudas.push(`${estado} · el foco está en ${enfocado.es} y no en ${encabezado === 'h1' ? 'el h1' : `«${encabezado}»`} (P2).`)
+  if (!bien) fallos.push(`${estado} · el foco está en ${enfocado.es} y no en ${encabezado === 'h1' ? 'el h1' : `«${encabezado}»`}.`)
 }
 
-// La hoja: "Cómo se hace" con el teclado. Deuda de P2 hasta que sea `.hoja`.
+// La hoja: "Cómo se hace" con el teclado. El nombre va en tipo oración, como
+// todo botón (§5.6 y la fila del patrón de §7.4).
 {
-  const abrirla = p.getByRole('button', { name: 'cómo se hace', exact: true })
+  const abrirla = p.getByRole('button', { name: 'Cómo se hace', exact: true })
   if (!(await abrirla.isVisible().catch(() => false))) {
-    fallos.push('La serie · no está "cómo se hace": la hoja quedó sin medir.')
+    fallos.push('La serie · no está "Cómo se hace": la hoja quedó sin medir.')
   } else {
     await abrirla.focus()
     await p.keyboard.press('Enter')
@@ -410,20 +410,20 @@ async function revisarElEncabezado(estado, encabezado) {
     const dialogo = p.getByRole('dialog')
     const adentro = () => p.evaluate(() => !!document.activeElement?.closest('[role="dialog"]'))
     if (!(await dialogo.isVisible().catch(() => false))) {
-      fallos.push('La serie · Enter sobre "cómo se hace" no abrió nada.')
+      fallos.push('La serie · Enter sobre "Cómo se hace" no abrió nada.')
     } else {
-      if (!(await adentro())) deudas.push('"Cómo se hace" · al abrirse, el foco no entra en la hoja (P2).')
+      if (!(await adentro())) fallos.push('"Cómo se hace" · al abrirse, el foco no entra en la hoja.')
       let escapo = false
       for (let i = 0; i < 12 && !escapo; i++) {
         await p.keyboard.press('Tab')
         escapo = !(await adentro())
       }
-      if (escapo) deudas.push('"Cómo se hace" · el Tab sale de la hoja: no atrapa el foco (P2).')
+      if (escapo) fallos.push('"Cómo se hace" · el Tab sale de la hoja: no atrapa el foco.')
       await p.keyboard.press('Escape')
       await p.waitForTimeout(400)
       if (await dialogo.isVisible().catch(() => false)) fallos.push('"Cómo se hace" · Escape no la cierra.')
       const devuelto = await abrirla.evaluate((b) => document.activeElement === b).catch(() => false)
-      if (!devuelto) deudas.push('"Cómo se hace" · al cerrarse, el foco no vuelve a "cómo se hace" (P2).')
+      if (!devuelto) fallos.push('"Cómo se hace" · al cerrarse, el foco no vuelve a "Cómo se hace".')
     }
   }
 }
@@ -431,15 +431,15 @@ async function revisarElEncabezado(estado, encabezado) {
 const razon = await completarUnaSesion(p, {
   alVerElDescanso: async () => {
     await revisarElEncabezado('El descanso', 'DESCANSO')
-    await recorrerConTab('El descanso', { duenio: 'P2' })
+    await recorrerConTab('El descanso')
   },
   alVerElFinal: async (cual) => {
     if (cual === 'la serie de cierre') {
       await revisarElEncabezado('La serie de cierre', 'h1')
-      await recorrerConTab('La serie de cierre', { duenio: 'P2' })
+      await recorrerConTab('La serie de cierre')
     } else {
       await revisarElEncabezado('Las preguntas', 'ANTES DE CERRAR')
-      await recorrerConTab('Las preguntas', { duenio: 'P2' })
+      await recorrerConTab('Las preguntas')
     }
   },
 })
@@ -447,7 +447,7 @@ if (razon) fallos.push(`La sesión no se pudo recorrer: ${razon}.`)
 else {
   const titulo = await p.evaluate(() => document.title)
   if (titulo !== 'Sesión · LyraFit') fallos.push(`El Cierre · el título del documento es «${titulo}» y no «Sesión · LyraFit».`)
-  await recorrerConTab('El Cierre', { minimo: 1, duenio: 'P2' })
+  await recorrerConTab('El Cierre', { minimo: 1, duenio: 'P3' })
 }
 
 // ─── 3. El Diario: "Cambiar" ─────────────────────────────────────────────
@@ -507,7 +507,7 @@ await navegador.close()
 for (const linea of medidas) console.log(linea)
 
 if (deudas.length > 0) {
-  console.log('\nDeuda de foco que no hace fallar todavía (la resuelve P2):\n' + deudas.map((d) => `· ${d}`).join('\n'))
+  console.log('\nDeuda de foco que no hace fallar todavía (la del Cierre la resuelve P3):\n' + deudas.map((d) => `· ${d}`).join('\n'))
 }
 
 if (fallos.length > 0) {

@@ -34,6 +34,10 @@
  *      incluidos.
  *   4. **Los botones de contorno del descanso** ("+30 s", "Hoy no",
  *      "Saltear") miden 56 de alto: son del esfuerzo.
+ *   5. **Entrenar entero** (P2). Todo lo que se toca mide 56 o más de alto y
+ *      de ancho en la serie en sus dos pasos y con los kilos, "Cómo se hace",
+ *      la ráfaga, el descanso, la retomada, el ejercicio completo, el fuelle
+ *      en AHORA y en AFLOJÁ, la serie de cierre y las preguntas del final.
  *
  * ## La maquinaria, y lo que todavía no afirma
  *
@@ -438,6 +442,129 @@ async function revisarQueElegirNoCorra(p, telefono, pantalla, grupo, nombre) {
   }
 }
 
+// ─── Entrenar (P2) ───────────────────────────────────────────────────────
+
+/** En el esfuerzo, 56 de alto y de ancho, todo lo que se toca. */
+async function exigirEsfuerzo(p, telefono, pantalla) {
+  const lista = await tocables(p, 'body')
+  if (lista.length === 0) {
+    fallos.push(`[${telefono.nombre}] ${pantalla} · no hay nada que tocar: la pantalla quedó sin medir.`)
+    return
+  }
+  for (const t of chicos(lista, MINIMO_ESFUERZO)) {
+    fallos.push(`[${telefono.nombre}] ${pantalla} · ${comoCaja(t)}: en el esfuerzo son ${MINIMO_ESFUERZO} de alto y de ancho.`)
+  }
+  medidas.push(`[${telefono.nombre}] ${pantalla} · ${lista.length} toques, el más chico de ${comoCaja(lista.reduce((a, b) => (Math.min(b.ancho, b.alto) < Math.min(a.ancho, a.alto) ? b : a)))}.`)
+}
+
+/**
+ * Hoy, puesto en "las dos" en Ajustes: con eso el primer descanso arranca
+ * con ráfaga. La fila se toca hasta que lo diga, y no un número fijo de
+ * veces: el ciclo depende de dónde arranca.
+ */
+async function ponerLasDos(p) {
+  await ir(p, '/ajustes')
+  const DIAS = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado']
+  const hoy = DIAS[await p.evaluate(() => new Date().getDay())]
+  const fila = p.getByRole('button', { name: new RegExp(hoy) })
+  for (let i = 0; i < 4 && !/LAS DOS/i.test(await fila.innerText().catch(() => '')); i++) {
+    await fila.click()
+    await p.waitForTimeout(250)
+  }
+  return /LAS DOS/i.test(await fila.innerText().catch(() => ''))
+}
+
+/**
+ * La sesión desde Hoy, estado por estado, en un contexto propio: un día de
+ * las dos, con el peso y la barra cargados para que aparezcan los kilos. Los
+ * estados que el recorrido de abajo no ve —la ráfaga, la retomada, el
+ * fuelle— se miden acá.
+ */
+async function revisarEntrenar(telefono) {
+  const viewport = { width: telefono.width, height: telefono.height }
+  const { navegador, pagina: p, fallos: errores } = await abrir({ viewport })
+  const boton = (nombre) => p.getByRole('button', { name: nombre, exact: true })
+  const sePuede = (b) => b.isVisible().catch(() => false)
+  const faltaron = (que) => fallos.push(`[${telefono.nombre}] Entrenar · ${que}: quedó sin medir.`)
+  try {
+    await alta(p)
+    await ir(p, '/ajustes')
+    for (const titulo of ['tu peso', 'barra cargable']) {
+      const subir = p.getByRole('button', { name: `Subir ${titulo}` })
+      await subir.waitFor({ state: 'visible', timeout: 5000 })
+      await subir.click()
+      await p.waitForTimeout(150)
+    }
+    if (!(await ponerLasDos(p))) faltaron('no se pudo poner hoy en "las dos", y la ráfaga')
+    await ir(p, '/')
+    await p.locator('.dock').getByRole('button', { name: 'Empezar', exact: true }).click()
+    await boton('Voy').waitFor({ state: 'visible', timeout: 5000 })
+    await exigirEsfuerzo(p, telefono, 'La serie, paso 1')
+
+    await boton('Cómo se hace').click()
+    await p.getByRole('dialog').waitFor({ state: 'visible', timeout: 3000 })
+    await exigirEsfuerzo(p, telefono, 'Cómo se hace')
+    await boton('Volver a la serie').click()
+    await p.waitForTimeout(300)
+
+    await boton('Voy').click()
+    await p.waitForTimeout(200)
+    await exigirEsfuerzo(p, telefono, 'La serie, paso 2')
+    if (await sePuede(boton('Con discos'))) {
+      await boton('Con discos').click()
+      await p.waitForTimeout(200)
+      await exigirEsfuerzo(p, telefono, 'La serie con kilos')
+    } else faltaron('no apareció "Con discos", y los kilos')
+
+    await boton('Anotar serie').click()
+    await p.waitForTimeout(400)
+    if (await sePuede(boton('Hoy no'))) {
+      await exigirEsfuerzo(p, telefono, 'La ráfaga')
+      await boton('Hoy no').click()
+      await p.waitForTimeout(300)
+    } else faltaron('el primer descanso de un día de las dos no trajo ráfaga, y la ráfaga')
+    await exigirEsfuerzo(p, telefono, 'El descanso')
+    await boton('Saltear').click()
+    await p.waitForTimeout(300)
+
+    // Recargar a mitad de la sesión es lo que la retoma.
+    await p.reload({ waitUntil: 'networkidle' })
+    await boton('Empezar de cero').waitFor({ state: 'visible', timeout: 5000 }).catch(() => {})
+    if (await sePuede(boton('Empezar de cero'))) await exigirEsfuerzo(p, telefono, 'La retomada')
+    else faltaron('después de recargar no apareció la retomada')
+
+    for (let i = 0; i < 10 && !(await sePuede(boton('Siguiente ejercicio'))); i++) {
+      if (await sePuede(boton('Saltear'))) await boton('Saltear').click()
+      else if (await sePuede(boton('Voy'))) await boton('Voy').click()
+      else if (await sePuede(boton('Anotar serie'))) await boton('Anotar serie').click()
+      await p.waitForTimeout(250)
+    }
+    if (await sePuede(boton('Siguiente ejercicio'))) await exigirEsfuerzo(p, telefono, 'El ejercicio completo')
+    else faltaron('el ejercicio no llegó a completo')
+  } catch (e) {
+    fallos.push(`[${telefono.nombre}] Entrenar · el recorrido se cortó: ${e.message.split('\n')[0]}`)
+  }
+  fallos.push(...errores.map((e) => `[${telefono.nombre}] Entrenar · ${e}`))
+  await navegador.close()
+
+  // El fuelle, en un día de fuelle: abre en el bloque. AFLOJÁ llega cuando
+  // termina la primera ráfaga, que dura menos de un minuto.
+  const fuelle = await abrir({ viewport })
+  try {
+    await alta(fuelle.pagina)
+    await ir(fuelle.pagina, '/entrenar?fuelle=1')
+    if (await fuelle.pagina.getByText('AHORA', { exact: true }).isVisible().catch(() => false)) {
+      await exigirEsfuerzo(fuelle.pagina, telefono, 'El fuelle, AHORA')
+      await fuelle.pagina.getByText('AFLOJÁ', { exact: true }).waitFor({ state: 'visible', timeout: 90_000 })
+      await exigirEsfuerzo(fuelle.pagina, telefono, 'El fuelle, AFLOJÁ')
+    } else faltaron('el día de fuelle no abrió en AHORA, y el fuelle')
+  } catch (e) {
+    fallos.push(`[${telefono.nombre}] El fuelle · el recorrido se cortó: ${e.message.split('\n')[0]}`)
+  }
+  fallos.push(...fuelle.fallos.map((e) => `[${telefono.nombre}] El fuelle · ${e}`))
+  await fuelle.navegador.close()
+}
+
 // ─── El recorrido ────────────────────────────────────────────────────────
 
 for (const telefono of TELEFONOS) {
@@ -545,10 +672,14 @@ for (const telefono of TELEFONOS) {
           fallos.push(`[${telefono.nombre}] Descanso · «${b.nombre}» mide ${b.alto.toFixed(1)} de alto: en el esfuerzo son ${MINIMO_ESFUERZO}.`)
         }
       }
-      await anotarDeuda(p, telefono, 'Descanso', MINIMO_ESFUERZO)
+      await exigirEsfuerzo(p, telefono, 'El descanso de un día cualquiera')
     },
     alVerElFinal: async (cual) => {
-      if (cual !== 'las preguntas') return
+      if (cual !== 'las preguntas') {
+        await exigirEsfuerzo(p, telefono, 'La serie de cierre')
+        return
+      }
+      await exigirEsfuerzo(p, telefono, 'Las preguntas del final')
       await revisarRegletas(p, telefono, 'Preguntas del final', { esperadas: 3 })
       const esfuerzo = await p.locator('.regleta[data-esfuerzo]').count()
       if (esfuerzo !== 3) {
@@ -561,6 +692,8 @@ for (const telefono of TELEFONOS) {
 
   fallos.push(...errores.map((e) => `[${telefono.nombre}] ${e}`))
   await navegador.close()
+
+  await revisarEntrenar(telefono)
 }
 
 // A 360 igual que a 320: la regla se toma contra un 320 en cualquier teléfono.
@@ -589,4 +722,4 @@ if (fallos.length > 0) {
   process.exit(1)
 }
 
-console.log('\nLa barra, las regletas, las filas de Ajustes y el descanso tienen el tamaño de un dedo.')
+console.log('\nLa barra, las regletas, las filas de Ajustes y Entrenar entero tienen el tamaño de un dedo.')

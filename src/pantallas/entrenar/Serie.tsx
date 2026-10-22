@@ -1,24 +1,31 @@
+import { useEffect, useRef } from 'react'
+import { Glifo, Rotulo } from '@/componentes/ui'
 import { NOMBRE_PATRON } from '@/dominio/biblioteca'
 import { lineaDeMolestia, type CambioPorMolestia } from '@/dominio/molestia'
 import { haceCuanto } from '@/dominio/estadisticas'
 import type { Medida, Patron, Serie as SerieHecha } from '@/dominio/tipos'
-import { Rotulo, nombreUnidad } from '@/componentes/ui'
 import { BotonComoSeHace } from './ComoSeHace'
+import { MarcaDelPaso, NodosDeLaSerie } from './Nodos'
 import type { PasoDelPlan } from './usePlanDeLaSesion'
 
 /**
- * El ejercicio en curso: qué es, qué está en juego hoy y los casilleros de
- * sus series.
+ * El ejercicio en curso: qué es, qué está en juego hoy y los nodos de sus
+ * series.
  *
  * Es lo de arriba de la serie, del descanso y del ejercicio completo: lo que
  * cambia abajo es el momento, y esto se queda quieto en su lugar para que el
- * hilo no se pierda entre una pantalla y la otra.
+ * hilo no se pierda entre una pantalla y la otra. En el descanso va sin la
+ * víspera, la molestia y "la vez pasada": el arco y la técnica necesitan ese
+ * alto, y lo que dicen ya se leyó en la serie.
  */
 export function ElEjercicio({
   paso,
   series,
   enCurso,
   avisos,
+  pasoDeLaSerie,
+  enDescanso,
+  focoEnElTitulo,
   onComoSeHace,
 }: {
   paso: PasoDelPlan
@@ -28,24 +35,45 @@ export function ElEjercicio({
   enCurso: number
   /** Lo que la molestia de hoy le cambió a la sesión. */
   avisos: { patron: Patron; cambio: CambioPorMolestia }[]
+  /** 1 mientras se predice la serie de ahora; 2 mientras se hace y se anota. */
+  pasoDeLaSerie: 1 | 2
+  enDescanso: boolean
+  /** Si el título es el encabezado de este estado, adonde va el foco al llegar. */
+  focoEnElTitulo: boolean
   onComoSeHace: () => void
 }) {
   const { ejercicio, objetivo, antes, abre, porMolestia } = paso
+  const salteadas = enCurso === 0 ? avisos.filter((aviso) => aviso.cambio === 'saltea') : []
   return (
     <>
-      <Rotulo>
-        {NOMBRE_PATRON[ejercicio.patron].toUpperCase()} · SERIE {Math.min(series.length + 1, objetivo.series)} DE{' '}
-        {objetivo.series}
-      </Rotulo>
-      <div className="mt-2 flex items-start justify-between gap-3">
-        <h1
-          className="text-3xl font-bold leading-tight tracking-tight"
-          data-prueba="titulo-ejercicio"
-        >
-          {ejercicio.nombre}
-        </h1>
+      {/* El primer `main p.rotulo`, con el glifo de la cadena adelante. Lo
+          buscan los portones por su `data-prueba` y no por ser el primero.
+          Si no entra en un renglón —a 320, o con la letra grande— se corta
+          en el punto y no adentro de "SERIE 2 DE 3", que partido no se lee. */}
+      <div className="fila-patron">
+        <p className="rotulo linea-patron" data-prueba="linea-patron">
+          <Glifo patron={ejercicio.patron} />
+          <span>
+            <span className="whitespace-nowrap">{`${NOMBRE_PATRON[ejercicio.patron].toUpperCase()} ·`}</span>{' '}
+            <span className="whitespace-nowrap">
+              {`SERIE ${Math.min(series.length + 1, objetivo.series)} DE ${objetivo.series}`}
+            </span>
+          </span>
+        </p>
         <BotonComoSeHace onAbrir={onComoSeHace} />
       </div>
+
+      {/* El nombre entero va también en el `aria-label`: apretada la
+          pantalla, el título se recorta a un renglón y el lector lo sigue
+          diciendo completo. */}
+      <h1
+        className="titulo-ejercicio"
+        data-prueba="titulo-ejercicio"
+        aria-label={ejercicio.nombre}
+        data-foco={focoEnElTitulo || undefined}
+      >
+        {ejercicio.nombre}
+      </h1>
 
       {/* La víspera, adentro de la sesión: lo que está en juego hoy en esta
           cadena. Es una sola línea y aparece muy poco —solo cuando falta
@@ -59,10 +87,9 @@ export function ElEjercicio({
           título gritándole al nombre del ejercicio. Tampoco va en `.glosa`:
           esta pantalla apaga la voz del motor a propósito, y eso es una
           decisión de diseño, no un descuido que haya que esquivar. */}
-      {abre && (
-        <p className="mt-2 max-w-[34ch] text-sm leading-relaxed text-[var(--color-glosa)]">
-          Si cerrás esta sesión, pasás a{' '}
-          <span className="text-[var(--color-tinta)]">{abre.nombre.toLowerCase()}</span>.
+      {!enDescanso && abre && (
+        <p className="linea-esfuerzo vispera">
+          Si cerrás esta sesión, pasás a <span>{abre.nombre.toLowerCase()}</span>.
         </p>
       )}
 
@@ -71,71 +98,44 @@ export function ElEjercicio({
           así que va en el primero, que es donde la persona está mirando
           cuando la sesión arranca. Una línea, con el motivo y sin retar:
           avisar fue lo correcto. Mismo tono que la víspera, por lo mismo. */}
-      {porMolestia && (
-        <p
-          className="mt-2 max-w-[34ch] text-sm leading-relaxed text-[var(--color-glosa)]"
-          data-prueba="linea-molestia"
-        >
+      {!enDescanso && porMolestia && (
+        <p className="linea-esfuerzo" data-prueba="linea-molestia">
           {lineaDeMolestia({ patron: ejercicio.patron, cambio: 'baja' })}
         </p>
       )}
-      {enCurso === 0 &&
-        avisos
-          .filter((aviso) => aviso.cambio === 'saltea')
-          .map((aviso) => (
-            <p
-              key={aviso.patron}
-              className="mt-2 max-w-[34ch] text-sm leading-relaxed text-[var(--color-glosa)]"
-              data-prueba="linea-molestia"
-            >
-              {lineaDeMolestia(aviso)}
-            </p>
-          ))}
+      {!enDescanso &&
+        salteadas.map((aviso) => (
+          <p key={aviso.patron} className="linea-esfuerzo" data-prueba="linea-molestia">
+            {lineaDeMolestia(aviso)}
+          </p>
+        ))}
 
-      {/* Los casilleros, con la vara adentro.
-          Un casillero vacío no dice nada; un casillero con el número de la
-          vez pasada dice exactamente qué hay que hacer, y lo dice con un dato
-          que puso la propia persona. Cuando la serie se anota, el número de
-          hoy lo tapa: la comparación importa antes, no después. */}
-      <ul className="mt-6 flex gap-2" aria-label="Series de este ejercicio">
-        {Array.from({ length: objetivo.series }).map((_, i) => {
-          const serie = series[i]
-          const activa = i === series.length
-          const vara = antes?.logros[i]
-          return (
-            <li
-              key={i}
-              className="cifra relative flex h-14 flex-1 items-center justify-center text-lg"
-              style={{
-                border: `1px ${activa && !serie ? 'dashed' : 'solid'} ${
-                  serie || activa ? 'var(--color-vega)' : 'var(--color-regla)'
-                }`,
-                color: serie ? 'var(--color-tinta)' : 'var(--color-glosa)',
-              }}
-              aria-label={
-                serie
-                  ? `Serie ${i + 1}: ${serie.logrado}`
-                  : vara !== undefined
-                    ? `Serie ${i + 1}, sin hacer. La vez pasada: ${vara}`
-                    : `Serie ${i + 1}, sin hacer`
-              }
-            >
-              {serie ? serie.logrado : vara !== undefined ? <span className="vara">{vara}</span> : '·'}
-            </li>
-          )
-        })}
-      </ul>
+      <NodosDeLaSerie
+        total={objetivo.series}
+        series={series}
+        varas={antes?.logros}
+        patron={ejercicio.patron}
+        paso={pasoDeLaSerie}
+      />
 
-      {antes && (
-        <p className="rotulo mt-2 text-right">
+      {!enDescanso && antes && (
+        <Rotulo className="vez-pasada">
           {antes.hace === 0 ? 'hoy, más temprano' : `la vez pasada, ${haceCuanto(antes.hace)}`}
-        </p>
+        </Rotulo>
       )}
     </>
   )
 }
 
-/** La serie: cuántas, con los pasos para corregir el número y, si hay barra, los kilos. */
+/**
+ * La serie: la pregunta del momento, el número con sus pasos y, si hay
+ * barra, los kilos.
+ *
+ * La pregunta dice en qué momento estás. Antes decía "¿Cuántas te salen
+ * ahora?" y abajo el botón decía "Anotar serie": la misma pantalla preguntaba
+ * por lo que iba a pasar y guardaba lo que había pasado. De ahí salía el cero
+ * eterno de la calibración. Son dos preguntas porque son dos momentos.
+ */
 export function Serie({
   tocaPredecir,
   predicho,
@@ -148,8 +148,6 @@ export function Serie({
   tope,
   pasoDeDisco,
   onPonerKg,
-  hayAnotadas,
-  onDeshacer,
 }: {
   /** Si es el momento de predecir: la primera serie del ejercicio, antes de hacerla. */
   tocaPredecir: boolean
@@ -167,47 +165,50 @@ export function Serie({
   tope: number
   pasoDeDisco: number
   onPonerKg: (kg: number) => void
-  /** Si ya hay una serie de este ejercicio para deshacer. */
-  hayAnotadas: boolean
-  onDeshacer: () => void
 }) {
-  // 16 abajo: la secundaria de abajo es una caja de 56 con su propio aire, y
-  // con más la serie no entra entera en un 640.
+  // "Con discos" se va cuando aparecen los kilos, y el foco se iría con él
+  // a `<body>`: pasa a "Más peso", que es lo que se toca después.
+  const masPeso = useRef<HTMLButtonElement>(null)
+  const pidioDiscos = useRef(false)
+  useEffect(() => {
+    if (kg > 0 && pidioDiscos.current) masPeso.current?.focus()
+    pidioDiscos.current = false
+  }, [kg])
+
   return (
-    <section className="flex flex-1 flex-col justify-center pb-4">
-      {/* La pregunta dice en qué momento estás.
-          Antes decía "¿Cuántas te salen ahora?" y abajo el botón decía
-          "Anotar serie": la misma pantalla preguntaba por lo que iba a
-          pasar y guardaba lo que había pasado. De ahí salía el cero
-          eterno de la calibración. Ahora son dos preguntas distintas
-          porque son dos momentos distintos. */}
-      <p className="text-center text-sm text-[var(--color-glosa)]">
+    <section className="flex flex-col">
+      <p className="pregunta-serie">
+        {(tocaPredecir || predicho !== null) && <MarcaDelPaso paso={tocaPredecir ? 1 : 2} />}
         {tocaPredecir
           ? '¿Cuántas te salen ahora?'
           : predicho !== null
             ? '¿Cuántas hiciste?'
-            : `${nombreUnidad(medida)} de esta serie`}
+            : medida === 'segundos'
+              ? 'Segundos de esta serie'
+              : 'Repeticiones de esta serie'}
       </p>
 
-      <div className="mt-4 flex items-center justify-center gap-6">
+      <div className="numero-serie" data-medir="numero">
         <button
+          type="button"
           onClick={() => onCambiar(Math.max(0, propuesto - salto))}
-          className="paso h-16 w-16 text-3xl"
+          className="paso"
           aria-label="Restar"
         >
           −
         </button>
-        <p className="cifra w-32 text-center text-7xl" data-prueba="repeticiones">
+        <p className="cifra-esfuerzo" data-prueba="repeticiones">
           {propuesto}
         </p>
-        <button
-          onClick={() => onCambiar(propuesto + salto)}
-          className="paso h-16 w-16 text-3xl"
-          aria-label="Sumar"
-        >
+        <button type="button" onClick={() => onCambiar(propuesto + salto)} className="paso" aria-label="Sumar">
           +
         </button>
       </div>
+
+      {/* Lo que dijiste, debajo de lo que hiciste: el número viene
+          precargado con la predicción, así que acertar cuesta cero toques, y
+          si lo corregís sigue a la vista con cuánto habías dicho. */}
+      {!tocaPredecir && predicho !== null && <p className="dijiste">Dijiste {predicho}</p>}
 
       {/* Los discos. Cerrado por defecto: la inmensa mayoría de los
           ejercicios de esta app se hacen con el cuerpo y una fila de
@@ -216,25 +217,26 @@ export function Serie({
           Los rótulos dicen "peso" y no "sumar" o "restar" a propósito:
           `rescate.mjs` busca los botones de repeticiones por nombre y
           sin `exact`, así que un aria-label con esas palabras le parte
-          el portón por ambigüedad. Y el número va en `w-20` y no en
-          `w-32` por lo mismo: el portón lee `main p.cifra.w-32` para
-          sacar las repeticiones. */}
+          el portón por ambigüedad. */}
       {puedeCargar &&
         (kg > 0 ? (
-          <div className="mt-5 flex items-center justify-center gap-3">
+          <div className="fila-kilos" data-medir="kilos">
             <button
+              type="button"
               onClick={() => onPonerKg(Math.max(0, Number((kg - pasoDeDisco).toFixed(2))))}
-              className="paso h-10 w-10"
+              className="paso"
               aria-label="Menos peso"
             >
               −
             </button>
-            <span className="cifra w-20 text-center text-lg" data-prueba="kilos">
+            <span className="kilos" data-prueba="kilos">
               {kg} kg
             </span>
             <button
+              type="button"
+              ref={masPeso}
               onClick={() => onPonerKg(Math.min(tope, Number((kg + pasoDeDisco).toFixed(2))))}
-              className="paso h-10 w-10"
+              className="paso"
               aria-label="Más peso"
             >
               +
@@ -242,21 +244,17 @@ export function Serie({
           </div>
         ) : (
           <button
-            onClick={() => onPonerKg(pasoDeDisco)}
-            className="rotulo mt-5 block w-full text-center underline underline-offset-4"
+            type="button"
+            onClick={() => {
+              pidioDiscos.current = true
+              onPonerKg(pasoDeDisco)
+            }}
+            className="boton-contorno con-discos"
+            data-medir="kilos"
           >
             Con discos
           </button>
         ))}
-
-      {hayAnotadas && (
-        <button
-          onClick={onDeshacer}
-          className="mt-6 text-center text-sm text-[var(--color-glosa)] underline underline-offset-4"
-        >
-          Deshacer la última
-        </button>
-      )}
     </section>
   )
 }

@@ -10,6 +10,12 @@
  * con algo adelante. Se cierra y seguís exactamente donde estabas, porque nunca
  * te fuiste.
  *
+ * Es la hoja completa del sistema (§5.8): a pantalla entera, en papel y en
+ * seco —en el esfuerzo no entra nada deslizándose—, con el foco adentro
+ * mientras está abierta, Escape para cerrarla y el foco de vuelta en el botón
+ * que la abrió. Eso lo hace `Hoja`; antes era un diálogo escrito a mano que
+ * dejaba el foco en la sesión de abajo.
+ *
  * El orden de adentro no es casual. Primero el dibujo, que contesta "qué forma
  * tiene esto" en un segundo; después el gesto en una línea; después los pasos,
  * que son el detalle que el dibujo no puede dar —agarre, separación de manos,
@@ -18,92 +24,67 @@
  * sabés hacer es ruido.
  */
 
-import { useEffect } from 'react'
 import type { Ejercicio } from '@/dominio/tipos'
 import { POSTURAS } from '@/dominio/posturas'
 import { FiguraEjercicio } from './figura'
-import { AccionQuieta, Rotulo, Simbolo } from './ui'
+import { AccionQuieta, Hoja, Rotulo, Simbolo } from './ui'
 
 export function ComoSeHace({ ejercicio, alCerrar }: { ejercicio: Ejercicio; alCerrar: () => void }) {
   const figura = POSTURAS[ejercicio.id]
 
-  // Escape cierra, y mientras está abierto el fondo no se mueve: si no, al
-  // cerrar aparecés en otro punto de la sesión y no sabés dónde estabas.
-  useEffect(() => {
-    const tecla = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') alCerrar()
-    }
-    document.addEventListener('keydown', tecla)
-    const antes = document.body.style.overflow
-    document.body.style.overflow = 'hidden'
-    return () => {
-      document.removeEventListener('keydown', tecla)
-      document.body.style.overflow = antes
-    }
-  }, [alCerrar])
-
   return (
-    <div
-      className="fixed inset-0 z-50 overflow-y-auto"
-      style={{ backgroundColor: 'var(--color-fondo)' }}
-      role="dialog"
-      aria-modal="true"
-      aria-label={`Cómo se hace: ${ejercicio.nombre}`}
-    >
-      <div className="mx-auto w-full max-w-lg px-4 pt-8 pb-24">
-        <Rotulo>CÓMO SE HACE</Rotulo>
-        <h1 className="mt-2 text-2xl font-bold leading-tight tracking-tight">{ejercicio.nombre}</h1>
+    <Hoja completa etiqueta={`Cómo se hace: ${ejercicio.nombre}`} onCerrar={alCerrar} className="hoja-como-se-hace">
+      {(cerrar) => (
+        <>
+          {/* El cuerpo scrollea y el pie no: "Volver a la serie" queda a la
+              vista con la técnica más larga, y nada pasa por detrás de él. */}
+          <div className="hoja-cuerpo">
+            <div className="mx-auto w-full max-w-lg">
+              <Rotulo>CÓMO SE HACE</Rotulo>
+              <h2 className="titulo-ejercicio">{ejercicio.nombre}</h2>
 
-        {figura && (
-          <>
-            {/* Quieta y con las dos posturas: esto se abre en medio del
-                esfuerzo, donde nada se mueve. La figura lo sabría sola, pero
-                acá no hay otro caso y se escribe para que se lea. */}
-            <FiguraEjercicio figura={figura} postura="ambas-quietas" className="mt-4" />
-            <p className="mt-2 max-w-[38ch] text-sm leading-relaxed text-[var(--color-glosa)]">
-              {figura.gesto}
-            </p>
-          </>
-        )}
+              {figura && (
+                <>
+                  {/* Quieta y con las dos posturas: esto se abre en medio del
+                      esfuerzo, donde nada se mueve. La figura lo sabría sola,
+                      pero acá no hay otro caso y se escribe para que se lea. */}
+                  <FiguraEjercicio figura={figura} postura="ambas-quietas" className="mt-4" />
+                  <p className="explicacion-esfuerzo">{figura.gesto}</p>
+                </>
+              )}
 
-        <ol className="registro mt-6">
-          {ejercicio.tecnica.map((paso, i) => (
-            <li key={i}>
-              <span className="canal">{i + 1}</span>
-              <span className="text-sm leading-relaxed">{paso}</span>
-              <span />
-            </li>
-          ))}
-        </ol>
+              <ol className="registro mt-6">
+                {ejercicio.tecnica.map((paso, i) => (
+                  <li key={i}>
+                    <span className="canal">{i + 1}</span>
+                    <span className="text-sm leading-relaxed">{paso}</span>
+                    <span />
+                  </li>
+                ))}
+              </ol>
 
-        <Rotulo className="mt-8">LO QUE SALE MAL</Rotulo>
-        <ul className="registro mt-3">
-          {ejercicio.erroresComunes.map((error, i) => (
-            <li key={i}>
-              <span className="canal">
-                <Simbolo nombre="cruz" />
-              </span>
-              <span className="text-sm leading-relaxed text-[var(--color-glosa)]">{error}</span>
-              <span />
-            </li>
-          ))}
-        </ul>
-      </div>
+              <Rotulo className="mt-8">LO QUE SALE MAL</Rotulo>
+              <ul className="registro mt-3">
+                {ejercicio.erroresComunes.map((error, i) => (
+                  <li key={i}>
+                    <span className="canal">
+                      <Simbolo nombre="cruz" />
+                    </span>
+                    <span className="text-sm leading-relaxed text-[var(--color-glosa)]">{error}</span>
+                    <span />
+                  </li>
+                ))}
+              </ul>
+            </div>
+          </div>
 
-      {/* Fondo sólido y una regla arriba: la barra es fija, así que sin esto el
-          texto se ve pasar por detrás y parece un error de dibujo. */}
-      <div
-        className="fixed inset-x-0 bottom-0 px-4 pt-3"
-        style={{
-          backgroundColor: 'var(--color-fondo)',
-          borderTop: '1px solid var(--color-regla)',
-          paddingBottom: 'calc(0.75rem + env(safe-area-inset-bottom))',
-        }}
-      >
-        <div className="mx-auto w-full max-w-lg">
-          <AccionQuieta onClick={alCerrar}>Volver a la serie</AccionQuieta>
-        </div>
-      </div>
-    </div>
+          <div className="hoja-pie">
+            <div className="mx-auto w-full max-w-lg">
+              <AccionQuieta onClick={cerrar}>Volver a la serie</AccionQuieta>
+            </div>
+          </div>
+        </>
+      )}
+    </Hoja>
   )
 }

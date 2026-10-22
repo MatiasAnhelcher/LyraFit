@@ -1,52 +1,73 @@
 import { comoReloj } from '@/hooks/useTemporizador'
-import type { PasoDelPlan } from './usePlanDeLaSesion'
+import { BotonSalir } from '@/componentes/ui'
 
 /**
- * Lo de arriba de la sesión: la salida, el cronómetro, cuánto falta y, si la
- * sesión se retomó, el aviso.
+ * La primera fila del armazón: la salida, el cronómetro, deshacer, cuánto
+ * falta de la sesión y, si la sesión se retomó, el aviso.
  *
- * Son tres piezas sueltas y no una caja: van directo en la columna de la
- * pantalla, que es la que reparte el alto.
+ * "Deshacer la última" vive acá y en ningún otro lado: hay uno solo por
+ * pantalla, en el mismo lugar en la serie, el descanso y el ejercicio
+ * completo, que es donde se busca cuando una serie se anotó mal. Su celda
+ * está siempre reservada —sin serie para deshacer va con `visibility:
+ * hidden`, que no se enfoca ni se lee—, así que el cronómetro no salta de
+ * lugar cuando aparece.
  */
 export function Encabezado({
   duracion,
-  plan,
+  ejercicios,
   enCurso,
   retomada,
   onSalir,
   onEmpezarDeCero,
+  onDeshacer,
 }: {
   /** Los segundos que lleva la sesión. */
   duracion: number
-  plan: PasoDelPlan[]
-  /** Qué ejercicio del plan está en curso, empezando en cero. */
+  /** Cuántos ejercicios tiene la sesión. */
+  ejercicios: number
+  /** Qué ejercicio está en curso, empezando en cero. Pasados todos, `ejercicios`. */
   enCurso: number
   retomada: boolean
   onSalir: () => void
   onEmpezarDeCero: () => void
+  /** Null si no hay serie de este ejercicio para deshacer. */
+  onDeshacer: (() => void) | null
 }) {
   return (
-    <>
-      <header className="flex items-center justify-between px-4 py-3">
-        <button onClick={onSalir} className="rotulo">
-          Salir
-        </button>
-        <p className="cifra text-sm text-[var(--color-glosa)]" data-prueba="cronometro">
+    <header className="encabezado-esfuerzo">
+      <div className="encabezado-esfuerzo-fila">
+        <BotonSalir onClick={onSalir} />
+        <p className="cronometro" data-prueba="cronometro">
           {comoReloj(duracion)}
         </p>
-      </header>
+        <button
+          type="button"
+          onClick={onDeshacer ?? undefined}
+          className="boton-contorno boton-deshacer"
+          aria-label="Deshacer la última serie"
+          data-oculto={onDeshacer ? undefined : ''}
+        >
+          Deshacer la última
+        </button>
+      </div>
 
-      <div className="flex gap-px px-4">
-        {plan.map((p, i) => (
-          <div
-            key={p.ejercicio.id}
-            className="h-0.5 flex-1"
-            style={{
-              backgroundColor: i <= enCurso ? 'var(--color-vega)' : 'var(--color-regla)',
-              opacity: i < enCurso ? 0.5 : 1,
-            }}
+      {/* Cambia por corte, como todo en el esfuerzo. Para un lector dice la
+          posición y no "hechos": un ejercicio salteado también quedó atrás. */}
+      <div className="barra-sesion">
+        {Array.from({ length: ejercicios }, (_, i) => (
+          <i
+            key={i}
+            aria-hidden="true"
+            data-estado={i < enCurso ? 'hecho' : i === enCurso ? 'actual' : undefined}
           />
         ))}
+        <span className="sr-only">
+          {enCurso < ejercicios
+            ? `Ejercicio ${enCurso + 1} de ${ejercicios}`
+            : ejercicios === 1
+              ? 'Pasado el único ejercicio'
+              : `Pasados los ${ejercicios} ejercicios`}
+        </span>
       </div>
 
       {/* El único aviso de que esto se retomó. Va acá y no en un cartel: lo
@@ -54,13 +75,19 @@ export function Encabezado({
           que las series ya anotadas estén en su lugar. El botón es para el
           otro caso, el que salió a propósito y quiere arrancar limpio. */}
       {retomada && (
-        <p className="rotulo mt-3 flex items-center justify-between gap-3 px-4">
-          <span>sesión retomada donde la dejaste</span>
-          <button onClick={onEmpezarDeCero} className="underline underline-offset-4">
-            empezar de cero
+        <div className="franja-retomada">
+          {/* Cortado en dos frases y no donde caiga: a 320 son dos renglones
+              parejos y no cuatro sueltos. Cuando no entra al lado del botón,
+              el que cede es el botón (ver `.franja-retomada`). */}
+          <p className="rotulo">
+            <span className="whitespace-nowrap">sesión retomada</span>{' '}
+            <span className="whitespace-nowrap">donde la dejaste</span>
+          </p>
+          <button type="button" onClick={onEmpezarDeCero} className="boton-contorno">
+            Empezar de cero
           </button>
-        </p>
+        </div>
       )}
-    </>
+    </header>
   )
 }

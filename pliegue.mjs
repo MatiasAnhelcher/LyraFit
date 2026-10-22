@@ -27,6 +27,17 @@
  *      entera adentro de la pantalla. La pausa dura diez segundos y nadie
  *      scrollea con las manos en el piso: si la cuenta queda abajo del borde,
  *      no existe.
+ *   5. Entrenar con la piel de Pulso (P2, §10.3), en los tres teléfonos:
+ *      - la serie con víspera, kilos y retomada: el número y sus pasos
+ *        enteros arriba de `.accion-esfuerzo`, y la víspera a la vista;
+ *      - el descanso con la técnica más larga (145 caracteres) y el nombre
+ *        más largo: "después ·" a la vista, los renglones de técnica
+ *        garantizados de §7.4.1, el fondo de los botones adentro de la
+ *        pantalla y la secundaria alcanzable con el scroll de `main`;
+ *      - la ráfaga y el fuelle con el gesto más largo a la vista, y "Cortar
+ *        el fuelle" adentro de la pantalla en AHORA y en AFLOJÁ;
+ *      - el arco, en el descanso, la ráfaga y el fuelle en sus dos tramos:
+ *        mide más de 0 y es cuadrado, con 1 px de tolerancia.
  *
  * Uso: npm run build && npx vite preview --port 4173, y después `node pliegue.mjs`.
  */
@@ -44,6 +55,10 @@ import { BASE, CHROMIUM, revisarQueSirvaLoCompilado } from './lib/portones.mjs'
  * termina abajo del borde y el botón "cómo se hace" se sale a lo ancho— y
  * hacer fallar el portón por deuda vieja lo volvería ruido que nadie mira.
  * Los números quedan impresos para que la deuda no se olvide.
+ *
+ * Esas dos deudas eran de Entrenar, y P2 las saldó: el descanso y todo lo de
+ * Entrenar (el punto 5) fallan también a 320. Lo demás de ese teléfono —Hoy,
+ * Ajustes y el reloj— se sigue informando, hasta que sus paquetes lo exijan.
  */
 const TELEFONOS = [
   { nombre: '320×568', width: 320, height: 568, exige: false },
@@ -69,9 +84,14 @@ const AIRE_MINIMO = 12
 
 /**
  * Cuánto se le permite salirse al ÚLTIMO descanso, por teléfono, con la página
- * arriba de todo. Es deuda declarada, no un objetivo: los tres números son lo
- * que mide hoy, y el portón falla si alguno sube. Cuando bajen, hay que
- * bajarlos acá — el propio portón lo avisa cuando detecta una mejora sin trabar.
+ * arriba de todo. Desde P2 es CERO en los tres (§7.4.1): los botones del
+ * descanso son la última fila de la grilla de Entrenar, y lo que no entra
+ * scrollea adentro de `main` en vez de empujarlos abajo del borde. Lo que
+ * sigue es la historia de cuando esto era deuda, y por qué se medía así.
+ *
+ * Era deuda declarada, no un objetivo: los tres números eran lo que medía, y
+ * el portón fallaba si alguno subía. Cuando bajaban, había que bajarlos acá
+ * — el propio portón lo avisa cuando detecta una mejora sin trabar.
  *
  * Son el PEOR valor y no el de una corrida, y eso importa: el alto del
  * descanso depende de cuánto envuelve lo que dice Lyra, que se sortea en cada
@@ -100,8 +120,8 @@ const AIRE_MINIMO = 12
  * cero sin scroll.
  */
 const DESBORDE_ACEPTADO = {
-  '320×568': 104,
-  '360×640': 16,
+  '320×568': 0,
+  '360×640': 0,
   '390×844': 0,
 }
 
@@ -394,7 +414,7 @@ async function medirDescanso(p, telefono, dia) {
   const ultimo = await fondoDeLosBotones()
 
   if (medio === null || ultimo === null) {
-    culpar(telefono, `[${telefono.nombre}] No se encontraron los botones del descanso de ${dia}.`)
+    fallos.push(`[${telefono.nombre}] No se encontraron los botones del descanso de ${dia}.`)
     return
   }
 
@@ -439,19 +459,21 @@ async function medirDescanso(p, telefono, dia) {
   const seVa = (fondo) => Math.max(0, fondo - telefono.height)
   const desborde = seVa(ultimo)
   const tope = DESBORDE_ACEPTADO[telefono.nombre] ?? 0
+  // Falla en los tres teléfonos, también en el que no se exige: esta era la
+  // deuda por la que 320×568 no se exigía, y desde P2 es cero (ver TELEFONOS).
   if (desborde > tope) {
-    culpar(
-      telefono,
-      `[${telefono.nombre}] El último descanso de ${dia} se va ${Math.round(desborde)} px abajo del borde y el tope aceptado es ${tope}. Algo nuevo lo empujó: o se saca, o se baja el tope con el número medido.`,
+    fallos.push(
+      `[${telefono.nombre}] El último descanso de ${dia} se va ${Math.round(desborde)} px abajo del borde y el tope aceptado es ${tope}. Los botones del descanso son la última fila de la grilla: algo los sacó de ahí.`,
     )
   }
   desbordesDelUltimo[telefono.nombre] = [...(desbordesDelUltimo[telefono.nombre] ?? []), desborde]
 
+  // También en los tres: "cómo se hace" saliéndose a lo ancho era la otra
+  // deuda de 320×568, y P2 la saldó.
   const ancho = await p.evaluate(() => document.documentElement.scrollWidth)
   if (ancho > telefono.width + 1) {
     const quien = await quienDesborda(p)
-    culpar(
-      telefono,
+    fallos.push(
       `[${telefono.nombre}] El descanso de ${dia} desborda a lo ancho: ${ancho} px en ${telefono.width}. Lo empuja ${quien?.que ?? 'algo que ya no está'}.`,
     )
   }
@@ -581,6 +603,405 @@ async function medirReloj(p, telefono) {
 
   await p.getByRole('button', { name: 'Salir', exact: true }).click()
   await p.waitForTimeout(300)
+}
+
+/*
+ * ENTRENAR CON LA PIEL DE PULSO (P2, §10.3).
+ *
+ * El armazón de Entrenar es una grilla al alto de la pantalla: la acción —o
+ * los botones del descanso— es su última fila, y lo que no entra scrollea
+ * adentro de `main`. Que la acción no se vaya abajo del borde ya no se mide:
+ * no puede. Lo que se mide es que lo que no puede quedar en el scroll no
+ * quede: el número y sus pasos en la serie más alta, "después ·" y los
+ * renglones garantizados de la técnica en el descanso, el gesto en la ráfaga
+ * y en el fuelle. Y el arco, cuadrado en cada estado donde aparece.
+ *
+ * Todo esto falla en los tres teléfonos: la deuda por la que 320×568 no se
+ * exige era de Entrenar (ver TELEFONOS).
+ */
+
+/**
+ * Los textos más largos de hoy, inyectados en la pantalla: la técnica de
+ * 145 caracteres (la del nórdico de rodillas), el nombre de 42, la ráfaga de
+ * 23 y su gesto de 81 (§7.4.1). Se escriben acá y no se buscan: el recorrido
+ * llega a otros ejercicios, y lo que se mide es si el peor caso entra.
+ */
+const TECNICA_MAS_LARGA =
+  'Arrodillate sobre algo blando, con los talones trabados abajo del travesaño de una silla apoyada contra la pared o del borde de un mueble pesado.'
+const NOMBRE_MAS_LARGO = 'Puente a una pierna con el pie en la silla'
+const RAFAGA_MAS_LARGA = 'Marcha alta en el lugar'
+const GESTO_MAS_LARGO = 'En posición de plancha, llevá una rodilla al pecho y cambiá, sin subir la cadera.'
+
+/**
+ * Los renglones de técnica que se tienen que ver sin scroll (§7.4.1): a 360,
+ * 3 con el título en un renglón y 2 con el título en dos; a 320, 2 y 1. A 390
+ * se pide lo de 360, que es más bajo.
+ */
+const RENGLONES_GARANTIZADOS = {
+  '320×568': [2, 1],
+  '360×640': [3, 2],
+  '390×844': [3, 2],
+}
+
+const enEntrenar = (p, nombre) => p.getByRole('button', { name: nombre, exact: true })
+const seVe = (localizador) => localizador.isVisible().catch(() => false)
+
+/** "Voy" si toca predecir, y "Anotar serie". */
+async function anotarUnaSerie(p) {
+  if (await seVe(enEntrenar(p, 'Voy'))) {
+    await enEntrenar(p, 'Voy').click()
+    await p.waitForTimeout(150)
+  }
+  await enEntrenar(p, 'Anotar serie').click()
+  await p.waitForTimeout(400)
+}
+
+/** El arco: más de 0 y cuadrado, con 1 px de tolerancia. Devuelve su caja. */
+async function revisarElArco(p, telefono, estado) {
+  const arco = await p.locator('.arco').first().boundingBox().catch(() => null)
+  if (!arco) {
+    fallos.push(`[${telefono.nombre}] ${estado} · no apareció el arco.`)
+    return null
+  }
+  medidas.push(`[${telefono.nombre}] ${estado} · el arco mide ${arco.width.toFixed(1)}×${arco.height.toFixed(1)}.`)
+  if (!(arco.width > 0 && arco.height > 0)) {
+    fallos.push(`[${telefono.nombre}] ${estado} · el arco mide ${arco.width.toFixed(1)}×${arco.height.toFixed(1)}: no se ve.`)
+  } else if (Math.abs(arco.width - arco.height) > 1) {
+    fallos.push(`[${telefono.nombre}] ${estado} · el arco mide ${arco.width.toFixed(1)}×${arco.height.toFixed(1)}: no es cuadrado.`)
+  }
+  return arco
+}
+
+/**
+ * Inyecta el gesto y el nombre de ráfaga más largos, y mide si el gesto se ve
+ * entero con `main` arriba de todo. Sirve para la ráfaga del descanso y para
+ * el fuelle: los dos usan las mismas piezas.
+ */
+async function revisarElGesto(p, telefono, estado) {
+  const m = await p.evaluate(
+    ([nombre, gesto]) => {
+      const main = document.querySelector('main')
+      const elNombre = document.querySelector('[data-prueba="nombre-rafaga"]')
+      const elGesto = document.querySelector('.gesto-rafaga')
+      if (!main || !elNombre || !elGesto) return null
+      elNombre.textContent = nombre
+      elGesto.textContent = gesto
+      main.scrollTo({ top: 0 })
+      const a = main.getBoundingClientRect()
+      const g = elGesto.getBoundingClientRect()
+      return { mainArriba: a.top, mainAbajo: a.bottom, arriba: g.top, abajo: g.bottom }
+    },
+    [RAFAGA_MAS_LARGA, GESTO_MAS_LARGO],
+  )
+  if (!m) {
+    fallos.push(`[${telefono.nombre}] ${estado} · no están el nombre y el gesto de la ráfaga.`)
+    return
+  }
+  medidas.push(`[${telefono.nombre}] ${estado} · con el gesto más largo, el gesto termina en ${Math.round(m.abajo)} y main en ${Math.round(m.mainAbajo)}.`)
+  if (m.arriba < m.mainArriba - 0.5 || m.abajo > m.mainAbajo + 0.5) {
+    fallos.push(
+      `[${telefono.nombre}] ${estado} · el gesto más largo va de ${Math.round(m.arriba)} a ${Math.round(m.abajo)}, y lo que se ve de main va de ${Math.round(m.mainArriba)} a ${Math.round(m.mainAbajo)}: queda en el scroll.`,
+    )
+  }
+}
+
+/**
+ * La serie más alta: el número y sus pasos enteros arriba de la acción, con
+ * `main` arriba de todo, que es como se llega.
+ */
+async function revisarLaSerieAlta(p, telefono, caso, { retomada = false } = {}) {
+  const m = await p.evaluate(() => {
+    const main = document.querySelector('main')
+    if (!main) return null
+    main.scrollTo({ top: 0 })
+    const caja = (el) => {
+      if (!el) return null
+      const r = el.getBoundingClientRect()
+      return { arriba: r.top, abajo: r.bottom, alto: r.height }
+    }
+    return {
+      main: caja(main),
+      accion: caja(document.querySelector('.accion-esfuerzo')),
+      piezas: [document.querySelector('[data-prueba="repeticiones"]'), ...document.querySelectorAll('[data-medir="numero"] .paso')].map(caja),
+      vispera: caja(document.querySelector('.vispera')),
+      deshacerArriba: !!document.querySelector('header [aria-label="Deshacer la última serie"]'),
+      retomadaArriba: !!document.querySelector('header .franja-retomada'),
+      apretado: main.dataset.apretado ?? '',
+    }
+  })
+  const donde = `[${telefono.nombre}] La serie ${caso}`
+  if (!m || !m.accion || m.piezas.length < 3 || m.piezas.some((c) => !c)) {
+    fallos.push(`${donde} · no están el número, sus pasos o la acción.`)
+    return
+  }
+  const fondo = Math.max(...m.piezas.map((c) => c.abajo))
+  medidas.push(`${donde} · el número y sus pasos terminan en ${Math.round(fondo)} y la acción arranca en ${Math.round(m.accion.arriba)} (nivel ${m.apretado}).`)
+  for (const c of m.piezas) {
+    if (c.arriba < m.main.arriba - 0.5 || c.abajo > m.accion.arriba + 0.5) {
+      fallos.push(`${donde} · el número o uno de sus pasos va de ${Math.round(c.arriba)} a ${Math.round(c.abajo)}, y la acción arranca en ${Math.round(m.accion.arriba)}: no queda entero a la vista.`)
+      break
+    }
+  }
+  if (!m.vispera) fallos.push(`${donde} · no está la víspera.`)
+  else if (m.vispera.alto < 1) fallos.push(`${donde} · la víspera mide ${m.vispera.alto.toFixed(1)} de alto: está, pero no se ve.`)
+  if (!m.deshacerArriba) fallos.push(`${donde} · "Deshacer la última" no está en el header.`)
+  if (retomada && !m.retomadaArriba) fallos.push(`${donde} · la retomada no está en el header.`)
+}
+
+/** El peso y la barra: con los dos, cada serie ofrece los kilos. */
+async function subirElPesoYLaBarra(p) {
+  await p.goto(`${BASE}/#/ajustes`, { waitUntil: 'networkidle' })
+  await p.waitForTimeout(500)
+  for (const titulo of ['tu peso', 'barra cargable']) {
+    const boton = p.getByRole('button', { name: `Subir ${titulo}` })
+    await boton.waitFor({ state: 'visible', timeout: 5000 })
+    await boton.click()
+    await p.waitForTimeout(150)
+  }
+}
+
+/**
+ * La víspera, forzada: tracción en el techo de su ventana, ya consolidada.
+ * Es lo que hace `revisar.mjs` para verla, y por lo mismo: aparece en una de
+ * cada cinco sesiones reales y nunca en una instalación nueva. Va por
+ * IndexedDB crudo, así que después hace falta una recarga de verdad.
+ */
+async function forzarLaVispera(p) {
+  return p.evaluate(async () => {
+    const base = await new Promise((res, rej) => {
+      const r = indexedDB.open('lyrafit')
+      r.onsuccess = () => res(r.result)
+      r.onerror = () => rej(r.error)
+    })
+    const avance = await new Promise((res, rej) => {
+      const q = base.transaction('avances').objectStore('avances').get('traccion')
+      q.onsuccess = () => res(q.result)
+      q.onerror = () => rej(q.error)
+    })
+    if (!avance) return false
+    avance.objetivoActual = { ...avance.objetivoActual, cantidad: 999 }
+    avance.senal = 1
+    avance.sesionesEnObjetivo = 5
+    avance.graciaRestante = 0
+    await new Promise((res, rej) => {
+      const tx = base.transaction('avances', 'readwrite')
+      tx.objectStore('avances').put(avance)
+      tx.oncomplete = () => res()
+      tx.onerror = () => rej(tx.error)
+      tx.onabort = () => rej(tx.error)
+    })
+    return true
+  })
+}
+
+/** La serie con víspera y kilos, y después con la retomada encima. */
+async function medirLaSerieAlta(telefono) {
+  const { contexto, pagina: p } = await abrir(telefono)
+  try {
+    await alta(p)
+    await subirElPesoYLaBarra(p)
+    // La rutina de cuatro días, para que hoy toque entrenar sea el día que sea.
+    await p.getByRole('button', { name: /Empuje y tracción/ }).click()
+    await p.waitForTimeout(300)
+    if (!(await forzarLaVispera(p))) {
+      fallos.push(`[${telefono.nombre}] No se pudo forzar la víspera: la serie más alta quedó sin medir.`)
+      return
+    }
+    await p.goto(`${BASE}/#/entrenar`, { waitUntil: 'networkidle' })
+    await p.reload({ waitUntil: 'networkidle' })
+    await p.waitForTimeout(900)
+    const vispera = p.getByText(/^Si cerrás esta sesión/)
+    for (let i = 0; i < 6 && !(await seVe(vispera)); i++) {
+      if (!(await seVe(enEntrenar(p, 'Saltear este ejercicio')))) break
+      await enEntrenar(p, 'Saltear este ejercicio').click()
+      await p.waitForTimeout(400)
+    }
+    if (!(await seVe(vispera))) {
+      fallos.push(`[${telefono.nombre}] La sesión no llegó a la víspera de tracción: la serie más alta quedó sin medir.`)
+      return
+    }
+    await enEntrenar(p, 'Con discos').click()
+    await p.waitForTimeout(300)
+    await revisarLaSerieAlta(p, telefono, 'con víspera y kilos')
+
+    // Una serie anotada y una recarga: la misma serie, retomada.
+    await anotarUnaSerie(p)
+    if (await seVe(enEntrenar(p, 'Saltear'))) await enEntrenar(p, 'Saltear').click()
+    await p.waitForTimeout(300)
+    await p.reload({ waitUntil: 'networkidle' })
+    await p.waitForTimeout(900)
+    if (await seVe(enEntrenar(p, 'Con discos'))) await enEntrenar(p, 'Con discos').click()
+    await p.waitForTimeout(300)
+    await revisarLaSerieAlta(p, telefono, 'con víspera, kilos y retomada', { retomada: true })
+  } catch (e) {
+    fallos.push(`[${telefono.nombre}] El recorrido de la serie más alta se cortó: ${e.message.split('\n')[0]}`)
+  } finally {
+    await contexto.close()
+  }
+}
+
+/**
+ * El último descanso de un ejercicio, el que lleva "después ·", con la
+ * técnica y el nombre más largos. Y antes, la ráfaga del primero.
+ */
+async function medirElDescansoLargo(telefono) {
+  const { contexto, pagina: p } = await abrir(telefono)
+  try {
+    await alta(p)
+    if (!(await ponerDiaDeEntrenar(p))) {
+      fallos.push(`[${telefono.nombre}] No se pudo poner hoy en "las dos": la ráfaga y el descanso largo quedaron sin medir.`)
+      return
+    }
+    await p.goto(`${BASE}/#/`, { waitUntil: 'networkidle' })
+    await p.waitForTimeout(600)
+    await p.getByRole('button', { name: /^Empezar$/ }).click()
+    await p.waitForTimeout(600)
+
+    await anotarUnaSerie(p)
+    if (await seVe(enEntrenar(p, 'Hoy no'))) {
+      await revisarElArco(p, telefono, 'La ráfaga')
+      await revisarElGesto(p, telefono, 'La ráfaga')
+      await enEntrenar(p, 'Hoy no').click()
+      await p.waitForTimeout(300)
+    } else {
+      fallos.push(`[${telefono.nombre}] El primer descanso de un día de las dos no trajo ráfaga: quedó sin medir.`)
+    }
+
+    // Hasta el descanso que dice lo que viene, que es el último del ejercicio.
+    const despues = p.getByText(/^después ·/)
+    for (let i = 0; i < 6 && !(await seVe(despues)); i++) {
+      await revisarElArco(p, telefono, 'El descanso')
+      await enEntrenar(p, 'Saltear').click()
+      await p.waitForTimeout(300)
+      await anotarUnaSerie(p)
+      if (await seVe(enEntrenar(p, 'Hoy no'))) {
+        await enEntrenar(p, 'Hoy no').click()
+        await p.waitForTimeout(300)
+      }
+    }
+    if (!(await seVe(despues))) {
+      fallos.push(`[${telefono.nombre}] Ningún descanso dijo lo que viene: el descanso largo quedó sin medir.`)
+      return
+    }
+
+    const m = await p.evaluate(
+      ([tecnica, nombre]) => {
+        const main = document.querySelector('main')
+        const tec = document.querySelector('.tecnica-del-descanso')
+        const h1 = document.querySelector('[data-prueba="titulo-ejercicio"]')
+        if (!main || !tec?.lastChild || !h1) return null
+        tec.lastChild.textContent = tecnica
+        h1.textContent = nombre
+        main.scrollTo({ top: 0 })
+        const caja = (el) => {
+          if (!el) return null
+          const r = el.getBoundingClientRect()
+          return { arriba: r.top, abajo: r.bottom }
+        }
+        // Un renglón por cada `top` distinto de los pedazos del texto.
+        const renglones = (nodo) => {
+          const rango = document.createRange()
+          rango.selectNodeContents(nodo)
+          const porArriba = new Map()
+          for (const r of rango.getClientRects()) {
+            if (r.width === 0) continue
+            const clave = Math.round(r.top)
+            porArriba.set(clave, Math.max(porArriba.get(clave) ?? 0, r.bottom))
+          }
+          return [...porArriba.values()].sort((a, b) => a - b)
+        }
+        const enMain = caja(main)
+        const despues = [...main.querySelectorAll('p')].find((x) => /^después ·/.test(x.textContent ?? ''))
+        const botones = [...document.querySelectorAll('.pie-esfuerzo .boton-contorno')].map(caja)
+        const lineas = renglones(tec.lastChild)
+        const titulo = renglones(h1.firstChild ?? h1).length
+        const secundaria = main.querySelector('.secundaria-esfuerzo button')
+        const aLaVistaArriba = caja(secundaria)
+        main.scrollTo({ top: main.scrollHeight })
+        const alFondo = caja(secundaria)
+        main.scrollTo({ top: 0 })
+        return {
+          main: enMain,
+          despues: caja(despues),
+          lineas,
+          titulo,
+          botones,
+          secundaria: secundaria ? { nombre: secundaria.textContent.trim(), arriba: aLaVistaArriba, alFondo } : null,
+        }
+      },
+      [TECNICA_MAS_LARGA, NOMBRE_MAS_LARGO],
+    )
+    const donde = `[${telefono.nombre}] El descanso largo`
+    if (!m) {
+      fallos.push(`${donde} · no están la técnica o el título.`)
+      return
+    }
+    await revisarElArco(p, telefono, 'El descanso largo')
+    const visibles = m.lineas.filter((abajo) => abajo <= m.main.abajo + 0.5).length
+    const [conUno, conDos] = RENGLONES_GARANTIZADOS[telefono.nombre]
+    const garantizados = m.titulo <= 1 ? conUno : conDos
+    const fondo = Math.max(0, ...m.botones.map((b) => b.abajo))
+    medidas.push(
+      `${donde} · título en ${m.titulo} renglones; "después ·" termina en ${Math.round(m.despues?.abajo ?? 0)}; se ven ${visibles} de ${m.lineas.length} renglones de técnica; los botones terminan en ${Math.round(fondo)}, de ${telefono.height}.`,
+    )
+    if (!m.despues || m.despues.arriba < m.main.arriba - 0.5 || m.despues.abajo > m.main.abajo + 0.5) {
+      fallos.push(`${donde} · "después ·" no queda a la vista sin scroll.`)
+    }
+    if (visibles < Math.min(garantizados, m.lineas.length)) {
+      fallos.push(`${donde} · se ven ${visibles} renglones de técnica sin scroll, y con el título en ${m.titulo} se garantizan ${garantizados}.`)
+    }
+    if (m.botones.length < 2) fallos.push(`${donde} · no están "+30 s" y "Saltear".`)
+    else if (fondo > telefono.height - 16 + 0.5) {
+      fallos.push(`${donde} · los botones terminan en ${Math.round(fondo)}: tienen que quedar 16 arriba del borde, en ${telefono.height - 16}.`)
+    }
+    if (!m.secundaria) fallos.push(`${donde} · no está "Saltear este ejercicio" ni "Terminar acá".`)
+    else if (m.secundaria.alFondo.arriba < m.main.arriba - 0.5 || m.secundaria.alFondo.abajo > m.main.abajo + 0.5) {
+      fallos.push(`${donde} · «${m.secundaria.nombre}» no se alcanza ni con main scrolleado hasta el fondo.`)
+    }
+  } catch (e) {
+    fallos.push(`[${telefono.nombre}] El recorrido del descanso largo se cortó: ${e.message.split('\n')[0]}`)
+  } finally {
+    await contexto.close()
+  }
+}
+
+/**
+ * El fuelle, en un día de fuelle, que abre en el bloque: AHORA con el gesto
+ * más largo y después AFLOJÁ, con el gesto reservado. El arco no se tiene que
+ * mover de un tramo al otro: eso es lo que compra la reserva.
+ */
+async function medirElFuelle(telefono) {
+  const { contexto, pagina: p } = await abrir(telefono)
+  try {
+    await alta(p)
+    await p.goto(`${BASE}/#/entrenar?fuelle=1`, { waitUntil: 'networkidle' })
+    await p.waitForTimeout(800)
+    if (!(await seVe(p.getByText('AHORA', { exact: true })))) {
+      fallos.push(`[${telefono.nombre}] El día de fuelle no abrió en AHORA: el fuelle quedó sin medir.`)
+      return
+    }
+    const cortar = async (tramo) => {
+      const caja = await enEntrenar(p, 'Cortar el fuelle').boundingBox().catch(() => null)
+      if (!caja) fallos.push(`[${telefono.nombre}] El fuelle, ${tramo} · no está "Cortar el fuelle".`)
+      else if (caja.y < 0 || caja.y + caja.height > telefono.height + 0.5) {
+        fallos.push(`[${telefono.nombre}] El fuelle, ${tramo} · "Cortar el fuelle" va de ${Math.round(caja.y)} a ${Math.round(caja.y + caja.height)}, de ${telefono.height}: afuera de la pantalla.`)
+      }
+    }
+    const ahora = await revisarElArco(p, telefono, 'El fuelle, AHORA')
+    await revisarElGesto(p, telefono, 'El fuelle, AHORA')
+    await cortar('AHORA')
+    await p.getByText('AFLOJÁ', { exact: true }).waitFor({ state: 'visible', timeout: 90_000 })
+    await p.waitForTimeout(300)
+    const afloja = await revisarElArco(p, telefono, 'El fuelle, AFLOJÁ')
+    await cortar('AFLOJÁ')
+    if (ahora && afloja && Math.abs(ahora.y - afloja.y) > 1) {
+      fallos.push(`[${telefono.nombre}] El fuelle · el arco salta de ${Math.round(ahora.y)} a ${Math.round(afloja.y)} al pasar a AFLOJÁ: el lugar del gesto no quedó reservado.`)
+    }
+  } catch (e) {
+    fallos.push(`[${telefono.nombre}] El recorrido del fuelle se cortó: ${e.message.split('\n')[0]}`)
+  } finally {
+    await contexto.close()
+  }
 }
 
 /*
@@ -725,6 +1146,10 @@ for (const telefono of TELEFONOS) {
       `[${telefono.nombre}] El último descanso ahora se va ${peor} px en vez de ${tope}, el peor de los dos días: bajá DESBORDE_ACEPTADO a ${peor} para que la mejora quede trabada.`,
     )
   }
+
+  await medirLaSerieAlta(telefono)
+  await medirElDescansoLargo(telefono)
+  await medirElFuelle(telefono)
 }
 
 await navegador.close()
@@ -743,4 +1168,4 @@ if (fallos.length > 0) {
   process.exit(1)
 }
 
-console.log('\nLa acción de Hoy tiene su aire y nada nuevo se fue abajo del pliegue.')
+console.log('\nLa acción de Hoy tiene su aire, nada nuevo se fue abajo del pliegue y en Entrenar lo que tiene que verse se ve.')

@@ -282,7 +282,9 @@ if (lineaSaltea !== 'Hoy no cargamos empuje: avisaste una molestia.') {
 }
 const rotulos = []
 for (let i = 0; i < 12; i++) {
-  rotulos.push(await texto('main p.rotulo'))
+  // La línea del patrón por su `data-prueba` y no por ser el primer rótulo
+  // de `main`: el orden de la pantalla puede cambiar, lo que la línea dice no.
+  rotulos.push(await texto('main p.rotulo[data-prueba="linea-patron"]'))
   const saltear = boton('Saltear este ejercicio')
   if (!(await saltear.isVisible().catch(() => false))) break
   await saltear.click()

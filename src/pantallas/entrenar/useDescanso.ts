@@ -17,11 +17,34 @@ import { sonar, tocar } from '@/respuesta'
 export function useDescanso(
   /** Las ráfagas de la sesión: viven en el borrador, y acá solo se les agrega la terminada. */
   setRafagas: Dispatch<SetStateAction<RegistroRafaga[]>>,
+  avisos: {
+    /** Al entrar en los tres últimos segundos, una vez por descanso: el anuncio. */
+    alQuedarTres?: () => void
+    /**
+     * Cuando el descanso llega a cero o se corta: lo que se dijo de él deja
+     * de ser cierto. También al cortar sin descanso en curso, porque cortar
+     * es pasar a otra cosa —el ejercicio siguiente, el final—.
+     */
+    alTerminar?: () => void
+  } = {},
 ) {
+  const avisar = useRef(avisos)
+  avisar.current = avisos
   const descanso = useTemporizador(() => {
     sonar('descanso')
     tocar('descanso')
+    avisar.current.alTerminar?.()
   })
+
+  /**
+   * Lo sumado con "+30 s" en este descanso.
+   *
+   * Es lo que dice "de 2:30" adentro del arco, y lo que hace que el arco mida
+   * contra el total de verdad: contra el programado, sumar le pasaba el
+   * círculo entero. Vuelve a cero en cada descanso, y no se guarda en el
+   * borrador porque el descanso tampoco: una recarga lo corta.
+   */
+  const [sumado, setSumado] = useState(0)
 
   /** La ráfaga del descanso en curso, o null si este descanso no tiene. */
   const [rafagaActual, setRafagaActual] = useState<{
@@ -72,8 +95,12 @@ export function useDescanso(
       ultimoTic.current = faltan
       tocar('antes')
       // La nota grave solo al entrar en la cuenta: tres notas seguidas serían
-      // insoportables a la octava repetición de la sesión.
-      if (faltan === 3) sonar('aviso')
+      // insoportables a la octava repetición de la sesión. El anuncio, lo
+      // mismo.
+      if (faltan === 3) {
+        sonar('aviso')
+        avisar.current.alQuedarTres?.()
+      }
     }
   }, [descanso.activo, descanso.restante])
 
@@ -114,6 +141,7 @@ export function useDescanso(
       elegida ? { ...elegida, total: segundos } : null,
     )
     setRafagaSalteada(false)
+    setSumado(0)
     setAzarDeLaFrase(Math.random())
     pendiente.current = elegida
       ? { rafagaId: elegida.rafaga.id, segundos: elegida.segundos, despuesDe }
@@ -142,21 +170,30 @@ export function useDescanso(
    * corta el descanso antes de que el tramo de la ráfaga termine, la ráfaga se
    * descarta. Si ya había terminado, `pendiente` está en null y esto no hace
    * nada. Es más barato que acordarse en los cinco lugares que detienen el
-   * descanso.
+   * descanso, y por lo mismo `alTerminar` va acá.
    */
   function cortar() {
     pendiente.current = null
     descanso.detener()
+    avisar.current.alTerminar?.()
+  }
+
+  /** "+30 s": el reloj y lo que dice el arco, juntos. */
+  function sumar(segundos: number) {
+    if (!descanso.activo) return
+    setSumado((antes) => antes + segundos)
+    descanso.sumar(segundos)
   }
 
   return {
     activo: descanso.activo,
     restante: descanso.restante,
+    sumado,
     /** La ráfaga, solo mientras dura su tramo. */
     rafaga: enRafaga && rafagaActual ? rafagaActual.rafaga : null,
     azarDeLaFrase,
     arrancar,
-    sumar: descanso.sumar,
+    sumar,
     cortar,
     saltearRafaga,
   }

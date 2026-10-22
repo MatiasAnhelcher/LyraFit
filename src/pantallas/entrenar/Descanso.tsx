@@ -1,39 +1,28 @@
 import { Lyra } from '@/componentes/lyra'
 import { Arco } from '@/componentes/arco'
-import { Rotulo } from '@/componentes/ui'
 import { dichoDelDescanso, type Expresion } from '@/dominio/frases'
 import { textoDeLoQueViene, type LoQueViene } from '@/dominio/siguiente'
 import type { Rafaga } from '@/dominio/metabolico'
 
 /**
- * El aviso de lo que viene, en una línea.
+ * El descanso: un arco que se vacía en silencio. Lineal, porque es tiempo real.
  *
- * Está en un solo lugar a propósito. Antes el `<p>` estaba escrito adentro de
- * una de las dos ramas del descanso y la otra rama quedaba sin aviso: el mismo
- * error que duplicar el arco, con la diferencia de que acá no se ve, porque
- * nadie mira las dos ramas en la misma sesión.
+ * Son filas de la grilla de `main` (§7.4.1): la `section` no tiene caja
+ * propia, y el rótulo, el arco, "después ·" y la técnica caen cada uno en su
+ * fila. La del arco es la que crece: entre 7rem y 12rem, antes que el aire.
+ * Así el arco se achica en un teléfono bajo en vez de empujar la técnica o
+ * los botones afuera de la pantalla, que era lo que pasaba cuando todo esto
+ * era una columna centrada.
  */
-function Aviso({ viene, className = '' }: { viene: LoQueViene | null; className?: string }) {
-  if (!viene) return null
-  return (
-    <p className={`rotulo ${className}`} aria-live="polite">
-      después · <span className="text-[var(--color-tinta)]">{textoDeLoQueViene(viene)}</span>
-    </p>
-  )
-}
-
-/** El descanso: un arco que se vacía en silencio. Lineal, porque es tiempo real. */
 export function Descanso({
   restante,
   total,
   clave,
   rafaga,
   viene,
-  onSumar,
-  onSaltear,
-  onSaltearRafaga,
 }: {
   restante: number
+  /** El total del descanso con lo sumado: contra eso mide el arco, y es lo que dice "de 2:30". */
   total: number
   /**
    * Lo que hace falta para saber QUÉ decir en este descanso: la técnica del
@@ -57,9 +46,6 @@ export function Descanso({
    * Lo resuelve el dominio; acá solo se dibuja.
    */
   viene: LoQueViene | null
-  onSumar: () => void
-  onSaltear: () => void
-  onSaltearRafaga: () => void
 }) {
   // Lo que se dice en el descanso, y con qué cara. La decisión entera vive en
   // el dominio, con test: son cuatro caminos y la garantía de que ninguno deja
@@ -72,98 +58,96 @@ export function Descanso({
   // sesión y entrar a la ficha, que es exactamente lo que nadie hace con el
   // pulso a ciento cuarenta.
   //
-  // Y quién lo dice: Lyra, en el descanso y NUNCA durante la serie. El aliento
-  // verbal aumenta las repeticiones, pero funciona como voz, no como algo que
-  // compita por la mirada mientras se lee un número.
+  // Y quién lo dice: Lyra, en el descanso y NUNCA durante la serie. Quieta y
+  // chica, flotando al lado de la frase: no es un botón, y en el esfuerzo no
+  // se mueve nada que no sea el arco.
   //
-  // Los errores comunes no van acá y sí en la ficha: un "no hagas esto" leído
-  // de reojo y a medias se puede entender al revés, y la ficha tiene lugar
-  // para enmarcarlo.
+  // Los errores comunes no van acá y sí en "Cómo se hace": un "no hagas esto"
+  // leído de reojo y a medias se puede entender al revés, y la hoja tiene
+  // lugar para enmarcarlo.
   const dicho = dichoDelDescanso(clave)
   const texto = dicho?.texto ?? null
   const cara: Expresion = dicho?.expresion ?? 'piensa'
 
   return (
-    <section className="flex flex-1 flex-col items-center justify-center pb-8">
-      {/* El rótulo es lo único que dice en qué tramo estás. El arco no cambia:
-          sigue midiendo el descanso entero, que es el tiempo que de verdad
-          falta para la serie siguiente. Partirlo en dos arcos habría sido una
-          animación nueva y, peor, habría escondido cuánto falta en serio. */}
-      <Rotulo>{rafaga ? 'RÁFAGA' : 'DESCANSO'}</Rotulo>
-      <div className="mt-3">
-        <Arco restante={restante} total={total} />
-      </div>
+    <section>
+      {/* El rótulo es lo único que dice en qué tramo estás, y es el
+          encabezado de este estado: ahí va el foco al llegar. El arco no
+          cambia: sigue midiendo el descanso entero, que es el tiempo que de
+          verdad falta para la serie siguiente. */}
+      <p className="rotulo rotulo-tramo" data-foco>
+        {rafaga ? 'RÁFAGA' : 'DESCANSO'}
+      </p>
+      <Arco restante={restante} total={total} lado="fila" etiqueta="Descanso" conTotal />
 
       {rafaga ? (
         <>
-          <p className="mt-6 text-center text-lg font-semibold" data-prueba="nombre-rafaga">
+          <p className="nombre-rafaga" data-prueba="nombre-rafaga">
             {rafaga.nombre}
           </p>
-          <p className="mt-2 max-w-[32ch] text-center text-sm leading-relaxed text-[var(--color-glosa)]">
-            {rafaga.gesto}
-          </p>
-          {/* Acá NO va el aviso de lo que viene, y conviene dejar escrito por
-              qué, porque yo mismo lo agregué y lo tuve que sacar.
-
-              Primero la razón de fondo: no falta. La ráfaga ocupa el PRINCIPIO
+          <p className="gesto-rafaga">{rafaga.gesto}</p>
+          {/* Acá NO va el aviso de lo que viene. La ráfaga ocupa el PRINCIPIO
               del descanso —`enRafaga` se apaga cuando quedan los segundos de
               descanso verdadero— así que al terminar el tramo esta misma
-              pantalla pasa a la rama de abajo, con Lyra y con el aviso, y se
-              queda ahí todo el tramo pegado a la serie siguiente. Medido en el
-              portón del fuelle: 150 s de descanso total, 105 de ellos con el
-              aviso puesto.
-
-              Y después la razón de píxeles, que es la que lo cierra: agregarlo
-              también en el tramo de ráfaga costaba 45 px —el renglón se parte
-              en dos— en una pantalla que en 360×640 ya termina 52 px abajo del
-              borde. `pliegue.mjs` lo midió y lo rechazó, con razón. */}
+              pantalla pasa a la rama de abajo, con el aviso, y se queda ahí
+              todo el tramo pegado a la serie siguiente. Medido en el portón
+              del fuelle: 150 s de descanso total, 105 de ellos con el aviso
+              puesto. */}
         </>
       ) : (
-        texto && (
-          /* El ancho es fijo —`w-full` con tope— y no el que pida la frase.
-             Con una caja que se encoge, Lyra aparecía a 24 px del borde con la
-             indicación larga y a 140 con "La última sale": saltaba de lugar en
-             cada descanso, y el descanso vuelve doce veces por sesión. Con el
-             ancho fijo cae siempre en el mismo punto y lo único que cambia es
-             lo que dice. */
-          <div className="mt-6 flex w-full max-w-[36ch] items-start gap-3">
-            <Lyra tamano={44} expresion={cara} className="shrink-0" />
-            <div className="min-w-0">
-              <p className="mt-1 text-sm leading-relaxed text-[var(--color-glosa)]">{texto}</p>
-              {/* El aviso previo va PEGADO a la línea de Lyra y no como párrafo
-                  aparte: medido en 320×568, como renglón suelto costaba 33 px y
-                  acá cuesta 19. Esta pantalla ya termina abajo del borde en el
-                  teléfono más chico —el descanso del medio, con la indicación
-                  de técnica de tres renglones, llega a 690 de 568— así que cada
-                  píxel que se agregue acá tiene que pelearse. */}
-              <Aviso viene={viene} className="mt-2" />
-            </div>
-          </div>
-        )
+        <>
+          {/* Justo debajo del arco, que es lo segundo que se mira. Sin
+              `aria-live`: se monta junto con su texto y no anunciaría nada;
+              lo dice la región viva de la sesión al arrancar el descanso. */}
+          {viene && (
+            <p className="despues-del-descanso">
+              después · <span>{textoDeLoQueViene(viene)}</span>
+            </p>
+          )}
+          {texto && (
+            <p className="tecnica-del-descanso">
+              <Lyra tamano={28} expresion={cara} interactiva={false} />
+              {texto}
+            </p>
+          )}
+        </>
       )}
-
-      {/* 24 de aire arriba, acá y arriba de Lyra: con los botones de 56 del
-          esfuerzo, más aire los baja del borde en un 640. */}
-      <div className="mt-6 flex gap-3">
-        <button onClick={onSumar} className="boton-contorno">
-          +30 s
-        </button>
-        {/* Saltear la ráfaga NO saltea el descanso: lo que queda sigue siendo
-            descanso. Es la diferencia entre "hoy no" y "ya estoy listo", y
-            confundirlas le cobraría recuperación a alguien que solo quería no
-            hacer burpees. */}
-        {rafaga && (
-          <button
-            onClick={onSaltearRafaga}
-            className="boton-contorno"
-          >
-            Hoy no
-          </button>
-        )}
-        <button onClick={onSaltear} className="boton-contorno">
-          Saltear
-        </button>
-      </div>
     </section>
+  )
+}
+
+/**
+ * Los botones del descanso, en la fila de la acción: abajo de todo, a la
+ * vista siempre y sin tapar nada, porque son una fila de la grilla.
+ */
+export function PieDelDescanso({
+  conRafaga,
+  onSumar,
+  onSaltear,
+  onSaltearRafaga,
+}: {
+  conRafaga: boolean
+  onSumar: () => void
+  onSaltear: () => void
+  onSaltearRafaga: () => void
+}) {
+  return (
+    <div className="pie-esfuerzo" data-tres={conRafaga || undefined}>
+      <button type="button" onClick={onSumar} className="boton-contorno">
+        +30 s
+      </button>
+      {/* Saltear la ráfaga NO saltea el descanso: lo que queda sigue siendo
+          descanso. Es la diferencia entre "hoy no" y "ya estoy listo", y
+          confundirlas le cobraría recuperación a alguien que solo quería no
+          hacer burpees. */}
+      {conRafaga && (
+        <button type="button" onClick={onSaltearRafaga} className="boton-contorno">
+          Hoy no
+        </button>
+      )}
+      <button type="button" onClick={onSaltear} className="boton-contorno">
+        Saltear
+      </button>
+    </div>
   )
 }

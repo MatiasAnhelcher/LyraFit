@@ -1,12 +1,22 @@
-import { useState } from 'react'
-import { Accion, Regleta, Rotulo, Segmento } from '@/componentes/ui'
+import { useEffect, useRef, useState, type ReactNode } from 'react'
+import { Accion, Regleta, Segmento } from '@/componentes/ui'
+import { Armazon } from './Armazon'
 
-/** Las preguntas del final. Tres toques, todos opcionales. */
+/**
+ * Las preguntas del final. Tres toques, todos opcionales.
+ *
+ * En el armazón de la sesión: las preguntas scrollean adentro de `main` y
+ * "Cerrar la sesión" es la fila de abajo, siempre a la vista. Con tres
+ * regletas de 3 + 2 no entran en un 640 (§7.4.2), y si scrolleara la página,
+ * la acción quedaría debajo del borde.
+ */
 export function Preguntas({
+  encabezado,
   guardando,
   error,
   onListo,
 }: {
+  encabezado: ReactNode
   guardando: boolean
   /** Si el último intento de cerrar falló, qué decir. */
   error: string | null
@@ -16,99 +26,102 @@ export function Preguntas({
   const [animo, setAnimo] = useState<number | undefined>()
   const [energia, setEnergia] = useState<number | undefined>()
 
-  // Una grilla de dos filas al alto de la pantalla: las preguntas scrollean
-  // adentro de `main` y "Cerrar la sesión" es la fila de abajo, siempre a la
-  // vista. Con tres regletas de 3 + 2 la página entera no entra en un 640, y
-  // si scrolleara ella, la acción quedaría debajo del borde.
+  // Mientras guarda, el botón está deshabilitado y el foco se le cae a
+  // `<body>`. Si falla, vuelve al botón: el aviso lo dice la región de alerta,
+  // y el Tab siguiente tiene que arrancar de "Cerrar la sesión", no de arriba.
+  const pie = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    if (!error || (document.activeElement && document.activeElement !== document.body)) return
+    pie.current?.querySelector<HTMLButtonElement>('button')?.focus()
+  }, [error])
+
   return (
-    <div className="grid h-svh grid-rows-[minmax(0,1fr)_auto]">
-      <main className="overflow-y-auto overscroll-contain">
-        <div className="mx-auto w-full max-w-lg px-4 pt-10 pb-6">
-          <Rotulo>ANTES DE CERRAR</Rotulo>
-
-          <Pregunta
-            titulo="¿Qué tan dura te resultó?"
-            opciones={[
-              [2, 'Suave'],
-              [4, 'Moderada'],
-              [6, 'Exigente'],
-              [8, 'Dura'],
-              [10, 'Al límite'],
-            ]}
-            valor={esfuerzo}
-            onElegir={setEsfuerzo}
-          />
-
-          <Pregunta
-            titulo="¿Cómo te sentiste haciéndola?"
-            opciones={[
-              [-2, 'Mal'],
-              [-1, 'Cuesta arriba'],
-              [0, 'Neutra'],
-              [1, 'Bien'],
-              [2, 'Muy bien'],
-            ]}
-            valor={animo}
-            onElegir={setAnimo}
-          />
-
-          <Pregunta
-            titulo="¿Cuánta energía tenés ahora?"
-            // La misma escala de cinco puntos y las mismas etiquetas que el
-            // chequeo diario. Si las dos puntas del delta no se miden con la
-            // misma vara, el delta no significa nada.
-            opciones={[
-              [1, 'En el piso'],
-              [2, 'Con poca energía'],
-              [3, 'Normal'],
-              [4, 'Con energía'],
-              [5, 'A pleno'],
-            ]}
-            valor={energia}
-            onElegir={setEnergia}
-          />
-
-          <p className="mt-8 max-w-[38ch] text-xs leading-relaxed text-[var(--color-glosa)]">
-            Nada de esto es obligatorio. Lo usa el motor para no bajarte el objetivo por un mal día,
-            y para mostrarte con tus propios datos qué te deja entrenar.
-          </p>
-        </div>
-      </main>
-
-      <div>
-        {/* En ámbar, que es el techo de alarma de esta pantalla: el rojo de
-            borrar no existe en el entrenamiento. Va en la fila de abajo, arriba
-            del botón que lo provocó: en el scroll de `main` quedaría escondido
-            debajo de las preguntas. */}
-        {error && (
-          <p
-            role="alert"
-            className="mx-auto w-full max-w-lg px-4 pt-3 pb-4 text-sm leading-relaxed text-[var(--color-ambar)]"
+    <Armazon
+      encabezado={encabezado}
+      pie={
+        <div ref={pie}>
+          {/* En ámbar, que es el techo de alarma de esta pantalla: el rojo de
+              borrar no existe en el entrenamiento. Va en la fila de abajo,
+              arriba del botón que lo provocó: la fila crece y `main` se
+              achica, así que nunca queda escondido debajo de las preguntas. */}
+          {error && (
+            <p role="alert" className="error-al-cerrar">
+              {error}
+            </p>
+          )}
+          <Accion
+            esfuerzo
+            deshabilitado={guardando}
+            onClick={() =>
+              onListo({
+                ...(esfuerzo !== undefined ? { esfuerzo } : {}),
+                ...(animo !== undefined ? { animo } : {}),
+                ...(energia !== undefined ? { vitalidadPost: energia } : {}),
+              })
+            }
           >
-            {error}
-          </p>
-        )}
-        <Accion
-          esfuerzo
-          deshabilitado={guardando}
-          onClick={() =>
-            onListo({
-              ...(esfuerzo !== undefined ? { esfuerzo } : {}),
-              ...(animo !== undefined ? { animo } : {}),
-              ...(energia !== undefined ? { vitalidadPost: energia } : {}),
-            })
-          }
-        >
-          {guardando ? 'Guardando…' : 'Cerrar la sesión'}
-        </Accion>
-      </div>
-    </div>
+            {guardando ? 'Guardando…' : 'Cerrar la sesión'}
+          </Accion>
+        </div>
+      }
+    >
+      <p className="rotulo" data-foco>
+        ANTES DE CERRAR
+      </p>
+
+      <Pregunta
+        titulo="¿Qué tan dura te resultó?"
+        opciones={[
+          [2, 'Suave'],
+          [4, 'Moderada'],
+          [6, 'Exigente'],
+          [8, 'Dura'],
+          [10, 'Al límite'],
+        ]}
+        valor={esfuerzo}
+        onElegir={setEsfuerzo}
+      />
+
+      <Pregunta
+        titulo="¿Cómo te sentiste haciéndola?"
+        opciones={[
+          [-2, 'Mal'],
+          [-1, 'Cuesta arriba'],
+          [0, 'Neutra'],
+          [1, 'Bien'],
+          [2, 'Muy bien'],
+        ]}
+        valor={animo}
+        onElegir={setAnimo}
+      />
+
+      <Pregunta
+        titulo="¿Cuánta energía tenés ahora?"
+        // La misma escala de cinco puntos y las mismas etiquetas que el
+        // chequeo diario. Si las dos puntas del delta no se miden con la
+        // misma vara, el delta no significa nada.
+        opciones={[
+          [1, 'En el piso'],
+          [2, 'Con poca energía'],
+          [3, 'Normal'],
+          [4, 'Con energía'],
+          [5, 'A pleno'],
+        ]}
+        valor={energia}
+        onElegir={setEnergia}
+      />
+
+      <p className="texto-chico mt-6 max-w-[38ch]">
+        Nada de esto es obligatorio. Lo usa el motor para no bajarte el objetivo por un mal día,
+        y para mostrarte con tus propios datos qué te deja entrenar.
+      </p>
+    </Armazon>
   )
 }
 
 /**
- * Una pregunta y su regleta de 56, la del esfuerzo. Lo elegido va en tinta,
- * no en el acento, que acá es de "Cerrar la sesión".
+ * Una pregunta y su regleta de 56, la del esfuerzo, en 3 + 2. Lo elegido va
+ * en tinta, no en el acento, que acá es de "Cerrar la sesión".
  */
 function Pregunta({
   titulo,
@@ -122,9 +135,9 @@ function Pregunta({
   onElegir: (n: number) => void
 }) {
   return (
-    <section className="mt-8">
-      <p className="nombre">{titulo}</p>
-      <Regleta className="mt-3" etiqueta={titulo} esfuerzo>
+    <section>
+      <h2 className="pregunta-final">{titulo}</h2>
+      <Regleta etiqueta={titulo} esfuerzo>
         {opciones.map(([n, etiqueta]) => (
           <Segmento key={n} elegido={valor === n} onClick={() => onElegir(n)}>
             {etiqueta}
