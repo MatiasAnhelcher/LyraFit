@@ -200,6 +200,41 @@ describe('subiendo: primero las repeticiones, después los discos', () => {
   })
 })
 
+describe('la meseta del último eslabón, cerca del objetivo', () => {
+  // Señal entre las dos varas y cuatro días con el mismo objetivo: no hay
+  // eslabón al que cambiar, así que el empujón es el de la subida.
+  const ultimo = ultimoDe('traccion')
+  const enMeseta = (kg?: number) =>
+    avanceEn(ultimo.id, 12, { senal: 0.9, sesionesEnObjetivo: 3, ...(kg !== undefined ? { kg } : {}) })
+  const casi = (avance: Avance, extra: { animo?: number } = {}) =>
+    siguienteAvance(avance, { rendimiento: 0.9, tipico: 11, ...extra }, ctxDe('traccion'))
+
+  it('con barra pone un disco, lo dice y lo firma como meseta', () => {
+    const d = casi(enMeseta())
+    expect(d.movimiento).toBe('subida')
+    expect(d.motivo).toBe('meseta')
+    expect(d.avance.objetivoActual.kg).toBe(2.5)
+    expect(d.avance.objetivoActual.cantidad).toBe(ultimo.ventana.min)
+    expect(d.explicacion).toBe(
+      `Llevás varios días de práctica con este objetivo y estás listo: le ponemos 2.5 kg y volvés a ${ultimo.ventana.min} por serie.`,
+    )
+  })
+
+  it('en el tope de la barra suma repeticiones', () => {
+    const d = casi(enMeseta(BARRA.cargaMaximaKg))
+    expect(d.movimiento).toBe('subida')
+    expect(d.avance.objetivoActual.kg).toBe(BARRA.cargaMaximaKg)
+    expect(d.avance.objetivoActual.cantidad).toBeGreaterThan(12)
+  })
+
+  it('con el ánimo bajo se queda, y dice por qué', () => {
+    const d = casi(enMeseta(), { animo: -1 })
+    expect(d.movimiento).toBe('sostiene')
+    expect(d.avance.objetivoActual).toEqual(enMeseta().objetivoActual)
+    expect(d.explicacion).toContain('cuesta arriba')
+  })
+})
+
 describe('bajando: primero el peso, y las repeticiones al medio', () => {
   const ultimo = ultimoDe('traccion')
   const medio = Math.round((ultimo.ventana.min + ultimo.ventana.max) / 2)

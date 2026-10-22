@@ -453,29 +453,21 @@ export interface Evaluacion {
    */
   protegida?: boolean
   /**
-   * Cuántas lecturas seguidas de esta cadena, justo antes de esta, se
-   * sostuvieron por protegidas. Lo cuenta `leerLaSesion` en el historial.
-   *
-   * Con la protección sola, una cadena con todas sus lecturas protegidas —la
-   * prefatiga de una rutina que siempre pone lo mismo antes— quedaba trabada
-   * para siempre con la misma frase. A la cuarta seguida (`MESETA`) la
-   * protección vence y la lectura cuenta.
-   */
-  protegidasSeguidas?: number
-  /**
    * Si cada serie del objetivo llegó a la cantidad, sin faltar ninguna. Es lo
    * único que deja decir "Objetivo cumplido": la señal puede pasar la vara de
    * subir con una sesión que no llegó, por lo que venía de antes.
    */
   cumplido?: boolean
   /**
-   * Si `tipico` es una traducción (series con otros kilos que los del
-   * objetivo) y no un número que la persona hizo. Entonces no se le puede
-   * decir "que es lo que te salió esta vez".
+   * Si `tipico` es una cuenta y no un número que la persona hizo en alguna
+   * serie: una traducción de otros kilos que los del objetivo, o la mediana de
+   * dos series distintas. Entonces no se le puede decir "que es lo que te
+   * salió esta vez".
    */
-  tipicoTraducido?: boolean
+  tipicoEsCuenta?: boolean
   /**
-   * Cómo se viene sintiendo, de -2 a +2, promediando las últimas sesiones.
+   * Cómo se viene sintiendo, de -2 a +2, promediando los últimos días con
+   * sesión, el de hoy incluido (`animoReciente`).
    *
    * Frena las subidas cuando la persona viene cumpliendo pero pasándola mal.
    * No vetea entrenamientos ni hace bajar de nivel: solo evita apretar el
@@ -646,10 +638,9 @@ function vecino(ctx: Contexto, id: string, salto: 1 | -1): Ejercicio | null {
  * - Ni una cosa ni la otra → se sostiene… pero no para siempre: a las cuatro
  *   sesiones sin cambios el motor mueve algo sí o sí.
  *
- * Y dos garantías que valen para cualquier rama, presente o futura, por eso
- * viven acá afuera y no adentro de cada una: el día que se llega al total del
- * objetivo no se baja nada, y una lectura protegida tampoco, hasta que la
- * protección vence.
+ * Y una garantía que vale para cualquier rama, presente o futura, por eso
+ * vive acá afuera y no adentro de cada una: una lectura protegida no baja
+ * nada, hasta que la protección vence.
  */
 export function siguienteAvance(
   avance: Avance,
@@ -657,32 +648,37 @@ export function siguienteAvance(
   ctx: Contexto,
   ahora: number = Date.now(),
 ): Decision {
-  const decision = decidir(avance, evaluacion, ctx, ahora)
-  if (decision.movimiento !== 'bajada' && decision.movimiento !== 'nivel-abajo') return decision
+  return avanzar(avance, evaluacion, ctx, ahora, false)
+}
 
-  // La señal arrastra lo de antes, así que puede quedar abajo el mismo día en
-  // que la persona llegó. "Vienen saliendo cortas" sería cierto de los días
-  // anteriores y falso del que acaba de hacer.
-  if (evaluacion.rendimiento >= 1) {
-    return {
-      movimiento: 'sostiene',
-      cambioDeNivel: false,
-      explicacion: LLEGASTE_AL_TOTAL,
-      avance: {
-        ...avance,
-        senal: decision.avance.senal,
-        sesionesEnObjetivo: avance.sesionesEnObjetivo + 1,
-        graciaRestante: Math.max(0, avance.graciaRestante - 1),
-        actualizadoEn: ahora,
-      },
-    }
+/**
+ * `siguienteAvance`, con `simulando` para las cuentas que corren el motor
+ * hacia adelante (`seCumple`, en `decidir`). Simulando no se revisa ninguna
+ * promesa: el movimiento es el mismo, el texto no se usa, y la cuenta no se
+ * llama a sí misma.
+ */
+function avanzar(
+  avance: Avance,
+  evaluacion: Evaluacion,
+  ctx: Contexto,
+  ahora: number,
+  simulando: boolean,
+): Decision {
+  const decision = decidir(avance, evaluacion, ctx, ahora, simulando)
+
+  // La floja con la protección vencida cuenta como cualquier otra, y lo que
+  // la movió es la racha: varios días con el mismo objetivo. Se firma como
+  // meseta y no como prefatiga, que es la protegida que no salió floja.
+  if (esFlojaProtegida(avance, evaluacion) && venceLaProteccion(avance)) {
+    return decision.motivo ? decision : deLaMeseta(decision)
   }
+  if (decision.movimiento !== 'bajada' && decision.movimiento !== 'nivel-abajo') return decision
 
   // Protegida no baja nada. Sin esto, una lectura un poco MEJOR que la señal
   // la arrastraba hasta la vara de bajar y bajaba el objetivo, mientras que
   // una peor se sostenía (la salida temprana de `decidir`). La señal sube si
   // la lectura la empujaba para arriba: premiar sí, castigar no.
-  if (evaluacion.protegida && !venceLaProteccion(evaluacion)) {
+  if (evaluacion.protegida && !venceLaProteccion(avance)) {
     return protegidaQueSostiene(avance, ahora, Math.max(avance.senal, decision.avance.senal))
   }
 
@@ -690,10 +686,23 @@ export function siguienteAvance(
 }
 
 /**
+ * Floja es por debajo de lo que venía (la señal) y por debajo de la vara de
+ * subir: una protegida que igual cumple cuenta como cualquier otra.
+ */
+function esFlojaProtegida(avance: Avance, evaluacion: Evaluacion): boolean {
+  return (
+    evaluacion.protegida === true &&
+    evaluacion.rendimiento < avance.senal &&
+    evaluacion.rendimiento < SUBE
+  )
+}
+
+/**
  * Una lectura floja protegida: se sostiene tal cual, sin sumar a la meseta ni
- * gastar gracia, porque no midió lo que la persona puede. Gasta la lectura del
- * día igual que cualquier otra que no es neutra (`yaLeidaHoy`). Con prefatiga,
- * `leerLaSesion` cambia el texto por uno que dice por qué.
+ * gastar gracia, porque no midió lo que la persona puede. Suma a la racha de
+ * protegidas (`Avance.protegidasSeguidas`), que es lo que la hace vencer. Gasta
+ * la lectura del día igual que cualquier otra que no es neutra (`yaLeidaHoy`).
+ * Con prefatiga, `leerLaSesion` cambia el texto por uno que dice por qué.
  */
 function protegidaQueSostiene(avance: Avance, ahora: number, senal: number = avance.senal): Decision {
   return {
@@ -701,27 +710,39 @@ function protegidaQueSostiene(avance: Avance, ahora: number, senal: number = ava
     cambioDeNivel: false,
     explicacion: PROTEGIDA_EN_UN_DIA_FLOJO,
     motivo: 'protegida',
-    avance: { ...avance, senal, actualizadoEn: ahora },
+    avance: {
+      ...avance,
+      senal,
+      protegidasSeguidas: (avance.protegidasSeguidas ?? 0) + 1,
+      actualizadoEn: ahora,
+    },
   }
 }
 
 /**
  * Si la protección ya venció: esta sería la cuarta lectura protegida seguida
- * que se sostiene (`MESETA`). Ahí cuenta, para que ninguna cadena quede
- * trabada con la misma frase para siempre.
+ * que se sostiene con el mismo objetivo (`MESETA`). Ahí cuenta, para que
+ * ninguna cadena quede trabada con la misma frase para siempre.
  */
-function venceLaProteccion(evaluacion: Evaluacion): boolean {
-  return (evaluacion.protegidasSeguidas ?? 0) + 1 >= MESETA
+function venceLaProteccion(avance: Avance): boolean {
+  return (avance.protegidasSeguidas ?? 0) + 1 >= MESETA
+}
+
+/** El avance sin la racha de protegidas: cualquier lectura que cuenta la corta. */
+function sinRacha(avance: Avance): Avance {
+  const { protegidasSeguidas, ...resto } = avance
+  void protegidasSeguidas
+  return resto
 }
 
 /**
  * Lo que dice el motor al llevar el objetivo a lo que la persona hace. "Lo que
  * te salió esta vez" solo si es eso: no cuando se baja un paso porque lo de
- * esta vez quedó más cerca, ni cuando `tipico` es una traducción de otros
- * kilos.
+ * esta vez quedó más cerca, ni cuando `tipico` es una cuenta (otros kilos
+ * traducidos, o la mediana de dos series).
  */
 function textoAlTipico(medida: Medida, cantidad: number, objetivoReal: number, evaluacion: Evaluacion): string {
-  const loQueSalio = objetivoReal === evaluacion.tipico && !evaluacion.tipicoTraducido
+  const loQueSalio = objetivoReal === evaluacion.tipico && !evaluacion.tipicoEsCuenta
   return `El objetivo de ${conUnidad(medida, cantidad)} por serie no se termina de cerrar. Era optimista: lo llevamos a ${conUnidad(medida, objetivoReal)}${
     loQueSalio ? ', que es lo que te salió esta vez' : ''
   }.`
@@ -730,7 +751,13 @@ function textoAlTipico(medida: Medida, cantidad: number, objetivoReal: number, e
 /** Las decisiones que salen de la meseta lo dicen, y el Cierre las firma con esa regla. */
 const deLaMeseta = (decision: Decision): Decision => ({ ...decision, motivo: 'meseta' })
 
-function decidir(avance: Avance, evaluacion: Evaluacion, ctx: Contexto, ahora: number): Decision {
+function decidir(
+  avance: Avance,
+  evaluacion: Evaluacion,
+  ctx: Contexto,
+  ahora: number,
+  simulando: boolean,
+): Decision {
   const actual = ejercicioDe(ctx, avance.ejercicioId)
   const { medida, ventana } = actual
   const cantidad = avance.objetivoActual.cantidad
@@ -747,16 +774,10 @@ function decidir(avance: Avance, evaluacion: Evaluacion, ctx: Contexto, ahora: n
 
   // Protegida quiere decir que una sesión floja no cuenta en contra. Y tampoco
   // a favor: con la señal alta de antes, seguir de largo subía el objetivo o
-  // cambiaba de eslabón con una lectura floja. Floja es por debajo de lo que
-  // venía (la señal) y por debajo de la vara de subir: una que igual cumple
-  // cuenta como cualquier otra. Que ninguna protegida baje nada lo garantiza
-  // `siguienteAvance`, afuera.
-  const vence = evaluacion.protegida === true && venceLaProteccion(evaluacion)
-  if (
-    evaluacion.protegida &&
-    evaluacion.rendimiento < avance.senal &&
-    evaluacion.rendimiento < SUBE
-  ) {
+  // cambiaba de eslabón con una lectura floja (`esFlojaProtegida`). Que
+  // ninguna protegida baje nada lo garantiza `avanzar`, afuera.
+  const vence = evaluacion.protegida === true && venceLaProteccion(avance)
+  if (esFlojaProtegida(avance, evaluacion)) {
     if (!vence) return protegidaQueSostiene(avance, ahora)
 
     // La cuarta floja protegida seguida: la protección vence. Se lleva el
@@ -772,7 +793,7 @@ function decidir(avance: Avance, evaluacion: Evaluacion, ctx: Contexto, ahora: n
         cambioDeNivel: false,
         explicacion: textoAlTipico(medida, cantidad, objetivoReal, evaluacion),
         avance: {
-          ...avance,
+          ...sinRacha(avance),
           senal: SUAVIZADO * evaluacion.rendimiento + (1 - SUAVIZADO) * avance.senal,
           objetivoActual: { ...avance.objetivoActual, cantidad: objetivoReal },
           sesionesEnObjetivo: 0,
@@ -810,6 +831,41 @@ function decidir(avance: Avance, evaluacion: Evaluacion, ctx: Contexto, ahora: n
       sesionesEnObjetivo: avance.sesionesEnObjetivo + 1,
     },
   })
+
+  /**
+   * Si lo que se promete se cumple repitiendo esta misma lectura: sostener
+   * hoy, sostener los próximos `dias - 1` días de práctica y que el siguiente
+   * pase `movimiento`.
+   *
+   * Se corre el motor de verdad hacia adelante y no se cuenta con la gracia o
+   * la consolidación, porque con la misma lectura la señal se sigue moviendo
+   * (`SUAVIZADO`) y puede cruzar una vara: "un día de práctica más así y
+   * cambiamos" salía con la señal de hoy por encima de la de subir y, haciendo
+   * lo mismo, mañana quedaba abajo. El freno por ánimo y la protección entran
+   * solos en la cuenta. Simulando no se revisa (ver `avanzar`).
+   */
+  const seCumple = (dias: number, movimiento: Movimiento): boolean => {
+    if (simulando) return true
+    let siguienteDia = sostener('').avance
+    for (let dia = 1; dia <= dias; dia++) {
+      const d = avanzar(siguienteDia, evaluacion, ctx, ahora, true)
+      if (dia === dias) return d.movimiento === movimiento
+      if (d.movimiento !== 'sostiene') return false
+      siguienteDia = d.avance
+    }
+    return false
+  }
+
+  /**
+   * "Llegaste al techo" solo si llegó: con la señal alta de antes se está en
+   * el techo también el día que las series quedaron cortas.
+   */
+  const enElTecho = evaluacion.cumplido
+    ? `Llegaste al techo de ${actual.nombre}`
+    : `Estás en el techo de ${actual.nombre}`
+
+  /** Cómo se viene sintiendo, si es mal. Frena lo que pide más (ver abajo). */
+  const animoBajo = evaluacion.animo !== undefined && evaluacion.animo < 0
 
   /**
    * Mover la cantidad, sobre el mismo ejercicio y con los mismos discos.
@@ -923,7 +979,7 @@ function decidir(avance: Avance, evaluacion: Evaluacion, ctx: Contexto, ahora: n
         medioDeAca,
         nuevos > 0
           ? `${actual.nombre} te viene costando. Antes de cambiar de ejercicio sacamos peso: ${nuevos} kg, ${conUnidad(medida, medioDeAca)} por serie.`
-          : `${actual.nombre} te viene costando. Sacamos los discos y lo hacemos a peso corporal, ${conUnidad(medida, medioDeAca)} por serie. Si sigue costando, el próximo paso es volver un eslabón.`,
+          : `${actual.nombre} te viene costando. Sacamos los discos y lo hacemos a peso corporal, ${conUnidad(medida, medioDeAca)} por serie. Si sigue costando, más adelante puede tocar volver un eslabón.`,
         'bajada',
       )
     }
@@ -934,13 +990,25 @@ function decidir(avance: Avance, evaluacion: Evaluacion, ctx: Contexto, ahora: n
     return { ...decision, avance: { ...decision.avance, graciaRestante: GRACIA * 2 } }
   }
 
+  // El eslabón que viene, y si está cerrado. Se mira antes que nada porque
+  // cambia lo que se puede prometer: con el siguiente cerrado, llegar al techo
+  // no es pasar de nivel.
+  const siguiente = vecino(ctx, actual.id, 1)
+  const cierre = siguiente ? ctx.cerrados?.get(siguiente.id) : undefined
+
+  // El salto al eslabón que sigue, y si el freno por ánimo lo para: solo
+  // cuando el salto de verdad sube la carga (ver el comentario largo de la
+  // rama de subida). Lo usan la subida y la meseta, que tienen que frenar lo
+  // mismo: si no, quedarse un poco corto pasaba de nivel y cumplir no.
+  const nuevaArriba = siguiente ? recalibrar(actual, cantidad, siguiente) : cantidad
+  const frenaElSalto =
+    siguiente !== null &&
+    animoBajo &&
+    indiceDeCarga(siguiente, nuevaArriba, cargaPuesta(avance, ctx)) >
+      indiceDeCarga(actual, cantidad, cargaPuesta(avance, ctx))
+
   // ── Sube ───────────────────────────────────────────────────────────────
   if (senal >= SUBE) {
-    // El eslabón que viene, y si está cerrado. Se mira antes que nada porque
-    // cambia lo que se puede prometer: con el siguiente cerrado, llegar al
-    // techo no es pasar de nivel.
-    const siguiente = vecino(ctx, actual.id, 1)
-    const cierre = siguiente ? ctx.cerrados?.get(siguiente.id) : undefined
 
     if (cantidad < ventana.max) {
       // Viene cumpliendo, pero la está pasando mal. Subirle la carga ahora es
@@ -953,7 +1021,7 @@ function decidir(avance: Avance, evaluacion: Evaluacion, ctx: Contexto, ahora: n
       // la persona ya se lo ganó. El "casi" importa y está resuelto más abajo:
       // en los bordes de la ventana el salto sí puede pedir más, y ahí el freno
       // vuelve a aplicar.
-      if (evaluacion.animo !== undefined && evaluacion.animo < 0) {
+      if (animoBajo) {
         return sostener(
           'Venís cumpliendo, pero las últimas sesiones se te hicieron cuesta arriba. Nos quedamos acá para consolidar.',
         )
@@ -993,23 +1061,12 @@ function decidir(avance: Avance, evaluacion: Evaluacion, ctx: Contexto, ahora: n
     if (siguiente && cierre) {
       return ajustar(
         cantidad + incremento(medida, cantidad),
-        `Llegaste al techo de ${actual.nombre}. ${loQueFalta(siguiente, cierre)}: mientras tanto seguís sumando acá.${
+        `${enElTecho}. ${loQueFalta(siguiente, cierre)}: mientras tanto seguís sumando acá.${
           cierre.motivo === 'sin-barra' ? ' Si conseguís una, marcalo en Ajustes.' : ''
         }`,
         'subida',
       )
     }
-
-    // El salto al eslabón que sigue, y si el freno por ánimo lo para. Se
-    // calcula antes de consolidar porque cambia lo que se puede prometer: con
-    // el freno puesto, "un día más y cambiamos de ejercicio" es falso.
-    const nuevaArriba = siguiente ? recalibrar(actual, cantidad, siguiente) : cantidad
-    const frenaElSalto =
-      siguiente !== null &&
-      evaluacion.animo !== undefined &&
-      evaluacion.animo < 0 &&
-      indiceDeCarga(siguiente, nuevaArriba, cargaPuesta(avance, ctx)) >
-        indiceDeCarga(actual, cantidad, cargaPuesta(avance, ctx))
 
     // Está en el techo de la ventana. Dominar un eslabón no es tocar el techo
     // una vez: es poder repetirlo. Una sola sesión buena puede ser un buen día,
@@ -1023,23 +1080,30 @@ function decidir(avance: Avance, evaluacion: Evaluacion, ctx: Contexto, ahora: n
       const faltan = Math.max(CONSOLIDACION - avance.sesionesEnObjetivo, avance.graciaRestante)
       if (siguiente && frenaElSalto) {
         return sostener(
-          `Llegaste al techo de ${actual.nombre}. Lo sostenemos acá: las últimas sesiones se te hicieron cuesta arriba y el paso a ${siguiente.nombre} pide más.`,
+          `${enElTecho}. Lo sostenemos acá: las últimas sesiones se te hicieron cuesta arriba y el paso a ${siguiente.nombre} pide más.`,
         )
       }
+      // El plazo se dice solo si haciendo lo mismo se cumple (`seCumple`).
+      const plazo = seCumple(faltan, siguiente ? 'nivel-arriba' : 'subida')
+      const dias = faltan === 2 ? 'un par de' : `${faltan}`
       // En el último eslabón no hay ejercicio al que cambiar: después de
       // consolidar se suman discos o repeticiones, y eso es subir. Y pasado el
       // techo de su ventana —ahí se sigue sumando— ya no se lo nombra.
       if (!siguiente && cantidad > ventana.max) {
         return sostener(
-          faltan <= 1
-            ? `Seguís sumando sobre ${actual.nombre}. Un día de práctica más así y subimos.`
-            : `Seguís sumando sobre ${actual.nombre}: lo sostenemos en ${conUnidad(medida, cantidad)} por serie ${faltan === 2 ? 'un par de' : faltan} días de práctica antes de subir.`,
+          !plazo
+            ? `Seguís sumando sobre ${actual.nombre}: lo sostenemos en ${conUnidad(medida, cantidad)} por serie para consolidarlo.`
+            : faltan <= 1
+              ? `Seguís sumando sobre ${actual.nombre}. Un día de práctica más así y subimos.`
+              : `Seguís sumando sobre ${actual.nombre}: lo sostenemos en ${conUnidad(medida, cantidad)} por serie ${dias} días de práctica antes de subir.`,
         )
       }
       return sostener(
-        faltan <= 1
-          ? `Llegaste al techo de ${actual.nombre}. Un día de práctica más así y ${siguiente ? 'cambiamos de ejercicio' : 'subimos'}.`
-          : `Techo de ${actual.nombre} alcanzado. Lo sostenemos ${faltan === 2 ? 'un par de' : faltan} días de práctica antes de subir: dominar es poder repetirlo.`,
+        !plazo
+          ? `${enElTecho}. Lo sostenemos acá para consolidarlo: dominar es poder repetirlo.`
+          : faltan <= 1
+            ? `${enElTecho}. Un día de práctica más así y ${siguiente ? 'cambiamos de ejercicio' : 'subimos'}.`
+            : `${enElTecho}. Lo sostenemos ${dias} días de práctica antes de subir: dominar es poder repetirlo.`,
       )
     }
 
@@ -1082,14 +1146,18 @@ function decidir(avance: Avance, evaluacion: Evaluacion, ctx: Contexto, ahora: n
       // ninguno.
       if (frenaElSalto) {
         return sostener(
-          `Llegaste al techo de ${actual.nombre}, pero las últimas sesiones se te hicieron cuesta arriba y el paso a ${siguiente.nombre} pide más. Lo dejamos listo para cuando estés mejor.`,
+          `${enElTecho}, pero las últimas sesiones se te hicieron cuesta arriba y el paso a ${siguiente.nombre} pide más. Lo dejamos listo para cuando estés mejor.`,
         )
       }
 
       return cambiarDeNivel(
         siguiente,
         nueva,
-        `Dominaste ${actual.nombre} con ${conUnidad(medida, cantidad)}. Subís a ${siguiente.nombre}, arrancando en ${conUnidad(siguiente.medida, nueva)}.`,
+        `${
+          evaluacion.cumplido
+            ? `Dominaste ${actual.nombre} con ${conUnidad(medida, cantidad)}.`
+            : `Sostuviste el techo de ${actual.nombre} estos días.`
+        } Subís a ${siguiente.nombre}, arrancando en ${conUnidad(siguiente.medida, nueva)}.`,
         'nivel-arriba',
       )
     }
@@ -1118,8 +1186,12 @@ function decidir(avance: Avance, evaluacion: Evaluacion, ctx: Contexto, ahora: n
           nuevos,
           ventana.min,
           puestos === 0
-            ? `Llegaste al final de la cadena de ${ctx.cadena.nombre} y a ${conUnidad(medida, cantidad)} por serie, que es donde sumar repeticiones deja de medir. Le ponemos ${nuevos} kg y volvemos a ${ventana.min}: la misma doble progresión, un escalón más arriba.`
-            : `Dominaste ${actual.nombre} con ${puestos} kg. Subimos a ${nuevos} y volvés a ${ventana.min} por serie.`,
+            ? `Llegaste al final de la cadena de ${ctx.cadena.nombre}, y con ${conUnidad(medida, cantidad)} por serie sumar repeticiones deja de medir. Le ponemos ${nuevos} kg y volvemos a ${ventana.min}: la misma doble progresión, un escalón más arriba.`
+            : `${
+                evaluacion.cumplido
+                  ? `Dominaste ${actual.nombre} con ${puestos} kg.`
+                  : `Sostuviste ${actual.nombre} con ${puestos} kg estos días.`
+              } Subimos a ${nuevos} y volvés a ${ventana.min} por serie.`,
           'subida',
         )
       }
@@ -1273,7 +1345,12 @@ function decidir(avance: Avance, evaluacion: Evaluacion, ctx: Contexto, ahora: n
     // no —puede haberse cerrado, o haberse cerrado una tarde que no se leyó—:
     // dice lo que es seguro, que son varios días con el mismo objetivo (cada
     // cadena se lee una vez por día).
+    //
+    // El empujón frena con el ánimo bajo, igual que la subida: si no, quedarse
+    // un poco corto subía el objetivo y cumplir, con el mismo ánimo, no.
+    const conAnimoBajo = `Llevás varios días con este objetivo, pero las últimas sesiones se te hicieron cuesta arriba. Nos quedamos acá para consolidar.`
     if (cantidad < ventana.max) {
+      if (animoBajo) return sostener(conAnimoBajo)
       const nueva = Math.min(cantidad + incremento(medida, cantidad), ventana.max)
       return deLaMeseta(
         ajustar(
@@ -1283,20 +1360,33 @@ function decidir(avance: Avance, evaluacion: Evaluacion, ctx: Contexto, ahora: n
         ),
       )
     }
-    const siguiente = vecino(ctx, actual.id, 1)
-    const cierre = siguiente ? ctx.cerrados?.get(siguiente.id) : undefined
-    // Con el siguiente cerrado no hay empujón que dar, y "la próxima
-    // cambiamos" sería una promesa que el motor no va a cumplir.
+    // Con el siguiente cerrado no hay a qué cambiar, pero sí se puede sumar
+    // acá, como en la rama de subida con cierre. Antes se sostenía, y con la
+    // señal en esta franja se sostenía para siempre, con la misma frase.
     if (siguiente && cierre) {
-      return sostener(`Seguimos en ${actual.nombre}. ${loQueFalta(siguiente, cierre)}.`)
+      if (animoBajo) return sostener(conAnimoBajo)
+      const nueva = cantidad + incremento(medida, cantidad)
+      return deLaMeseta(
+        ajustar(
+          nueva,
+          `Llevás varios días de práctica con este objetivo y estás listo: subimos a ${conUnidad(medida, nueva)}. ${loQueFalta(siguiente, cierre)}: mientras tanto seguís sumando acá.${
+            cierre.motivo === 'sin-barra' ? ' Si conseguís una, marcalo en Ajustes.' : ''
+          }`,
+          'subida',
+        ),
+      )
     }
     if (siguiente && avance.graciaRestante === 0) {
-      const nueva = recalibrar(actual, cantidad, siguiente)
+      if (frenaElSalto) {
+        return sostener(
+          `Estás hace rato en el techo de ${actual.nombre}, pero las últimas sesiones se te hicieron cuesta arriba y el paso a ${siguiente.nombre} pide más. Lo dejamos listo para cuando estés mejor.`,
+        )
+      }
       return deLaMeseta(
         cambiarDeNivel(
           siguiente,
-          nueva,
-          `Estás hace rato en el techo de ${actual.nombre}. Probemos ${siguiente.nombre} con ${conUnidad(siguiente.medida, nueva)}.`,
+          nuevaArriba,
+          `Estás hace rato en el techo de ${actual.nombre}. Probemos ${siguiente.nombre} con ${conUnidad(siguiente.medida, nuevaArriba)}.`,
           'nivel-arriba',
         ),
       )
@@ -1306,6 +1396,7 @@ function decidir(avance: Avance, evaluacion: Evaluacion, ctx: Contexto, ahora: n
     // Antes se sostenía, y con la señal en esta franja se sostenía para
     // siempre, con la misma frase.
     if (!siguiente) {
+      if (animoBajo) return sostener(conAnimoBajo)
       if (admiteDiscos(actual, cantidad, ctx.barra)) {
         const nuevos = (avance.objetivoActual.kg ?? 0) + pasoDeCarga(actual, ctx.barra)
         if (nuevos <= ctx.barra.cargaMaximaKg) {
@@ -1330,12 +1421,15 @@ function decidir(avance: Avance, evaluacion: Evaluacion, ctx: Contexto, ahora: n
     }
     // Con gracia, el cambio llega cuando se termina: la que queda en cero es
     // la que cambia, y lo que falta se cuenta en días de práctica porque la
-    // cadena se lee una vez por día.
+    // cadena se lee una vez por día. El plazo se dice solo si haciendo lo
+    // mismo se cumple (`seCumple`).
     const faltan = avance.graciaRestante
     return sostener(
-      faltan === 1
-        ? `Seguimos en ${actual.nombre}. Un día de práctica más así y cambiamos de ejercicio.`
-        : `Seguimos en ${actual.nombre}. Faltan ${faltan} días de práctica así para cambiar de ejercicio.`,
+      !seCumple(faltan, 'nivel-arriba')
+        ? `Seguimos en ${actual.nombre} con el mismo objetivo.`
+        : faltan === 1
+          ? `Seguimos en ${actual.nombre}. Un día de práctica más así y cambiamos de ejercicio.`
+          : `Seguimos en ${actual.nombre}. Faltan ${faltan} días de práctica así para cambiar de ejercicio.`,
     )
   }
 
@@ -1415,39 +1509,6 @@ export function yaLeidaHoy(
     if (leyo && (hora === null || sesion.finalizadaEn < hora)) hora = sesion.finalizadaEn
   }
   return hora
-}
-
-/**
- * Cuántas lecturas seguidas de esta cadena, de la última para atrás, se
- * sostuvieron por protegidas (`motivo: 'protegida'`) sobre el mismo ejercicio
- * y el mismo objetivo que tiene hoy el avance.
- *
- * Las neutras no cortan la racha ni la alargan: no leyeron. Cualquier otra
- * lectura la corta, y también una protegida sobre otro ejercicio u otro
- * objetivo: después de cambiar de nivel a mano, las de antes no hablan del
- * objetivo de ahora, y vencer la protección el primer día diría que "no se
- * termina de cerrar" algo que se probó una vez. Es lo que hace vencer la
- * protección (`Evaluacion.protegidasSeguidas`), y sale del historial porque el
- * avance no lo guarda.
- */
-export function protegidasSeguidas(avance: Avance, historial: readonly Sesion[]): number {
-  const { ejercicioId, objetivoActual } = avance
-  const lecturas = historial
-    .flatMap((sesion) => {
-      const mismoObjetivo = sesion.registros.some(
-        (r) => r.ejercicioId === ejercicioId && r.objetivo.cantidad === objetivoActual.cantidad,
-      )
-      return (sesion.decisiones ?? [])
-        .filter((d) => d.patron === avance.patron && d.movimiento !== 'neutra')
-        .map((d) => ({ cuando: sesion.finalizadaEn, cuenta: d.motivo === 'protegida' && mismoObjetivo }))
-    })
-    .sort((a, b) => b.cuando - a.cuando)
-  let seguidas = 0
-  for (const lectura of lecturas) {
-    if (!lectura.cuenta) break
-    seguidas++
-  }
-  return seguidas
 }
 
 /**
@@ -1640,24 +1701,26 @@ export function leerLaSesion(sesion: SesionALeer): Lectura[] {
       ejercicio,
       ...(sesion.pesoCorporalKg !== undefined ? { pesoCorporalKg: sesion.pesoCorporalKg } : {}),
     }
-    // Lo típico es una traducción si alguna serie llevó otros kilos que los
-    // del objetivo y hay peso corporal para traducir: la misma condición con
-    // la que `traducirAlObjetivo` deja de devolver lo logrado tal cual.
+    // Lo típico es una cuenta y no algo que salió si alguna serie llevó otros
+    // kilos que los del objetivo y hay peso corporal para traducir (la misma
+    // condición con la que `traducirAlObjetivo` deja de devolver lo logrado
+    // tal cual), o si ninguna serie dio ese número: la mediana de dos.
     const kgDelObjetivo = registro.objetivo.kg ?? 0
-    const tipicoTraducido =
+    const traducido =
       sesion.pesoCorporalKg !== undefined &&
       registro.series.some((s) => !s.cierre && s.logrado > 0 && (s.kg ?? kgDelObjetivo) !== kgDelObjetivo)
+    const tipico = logradoTipico(registro.series, { ...carga, objetivo: registro.objetivo })
+    const tipicoEsCuenta = traducido || !registro.series.some((s) => !s.cierre && s.logrado === tipico)
     const protegida = sesion.protegida || prefatiga
     const decision = siguienteAvance(
       avance,
       {
         rendimiento: rendimientoDeSesion(registro.objetivo, registro.series, carga),
-        tipico: logradoTipico(registro.series, { ...carga, objetivo: registro.objetivo }),
+        tipico,
         neutra: sesion.neutra || sesion.congeladas.has(patron),
         protegida,
-        ...(protegida ? { protegidasSeguidas: protegidasSeguidas(avance, historial) } : {}),
         ...(cumpleCadaSerie(registro.objetivo, registro.series, carga) ? { cumplido: true } : {}),
-        ...(tipicoTraducido ? { tipicoTraducido: true } : {}),
+        ...(tipicoEsCuenta ? { tipicoEsCuenta: true } : {}),
         ...(sesion.animo !== undefined ? { animo: sesion.animo } : {}),
       },
       ctx,

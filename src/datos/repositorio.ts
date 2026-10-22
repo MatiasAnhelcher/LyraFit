@@ -417,7 +417,10 @@ export async function cerrarSesion(entrada: CierreDeSesion): Promise<ResumenSesi
 
     // El estado del día de la sesión, que es el que Entrenar usó para armarla.
     const ajuste = ajusteDelDia(bandaSostenida(estados, dia))
-    const animo = entrada.animo ?? animoReciente(historial)
+    // El ánimo de los últimos días con sesión, hoy incluido: el motor dice
+    // "las últimas sesiones se te hicieron cuesta arriba", y con la respuesta
+    // de hoy sola lo decía después de una sola.
+    const animo = animoReciente([...historial, sesion])
 
     /**
      * La barra cargable, o nada.
@@ -554,7 +557,9 @@ export async function fijarNivel(patron: Patron, ejercicioId: string): Promise<A
 }
 
 export async function ajustarObjetivo(patron: Patron, objetivo: Objetivo): Promise<Avance> {
-  const avance = await leerAvance(patron)
+  // Con otro objetivo, las protegidas de antes no hablan de este.
+  const { protegidasSeguidas, ...avance } = await leerAvance(patron)
+  void protegidasSeguidas
   const actualizado: Avance = { ...avance, objetivoActual: objetivo, actualizadoEn: Date.now() }
   await guardarAvance(actualizado)
   return actualizado

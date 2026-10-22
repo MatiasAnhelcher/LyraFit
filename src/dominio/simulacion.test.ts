@@ -40,6 +40,7 @@ interface Paso {
   logrado: number
   senal: number
   movimiento: string
+  motivo?: string
 }
 
 /**
@@ -47,9 +48,8 @@ interface Paso {
  * por `capacidad`, y devuelve la trayectoria completa.
  *
  * Con `protegida`, todas las lecturas van protegidas (un chequeo flojo, o la
- * prefatiga de una rutina que siempre carga los mismos músculos antes), y la
- * racha de protegidas seguidas se cuenta como la cuenta `leerLaSesion` desde
- * el historial.
+ * prefatiga de una rutina que siempre carga los mismos músculos antes). La
+ * racha de protegidas seguidas viaja en el avance, como en la app.
  */
 function simular(
   patron: Patron,
@@ -61,7 +61,6 @@ function simular(
   const ctx = { cadena, ejercicios: POR_ID }
   let avance: Avance = avanceInicial(cadena, POR_ID, 0)
   const traza: Paso[] = []
-  let protegidasSeguidas = 0
 
   for (let i = 1; i <= sesiones; i++) {
     const ejercicio = POR_ID.get(avance.ejercicioId)!
@@ -74,12 +73,11 @@ function simular(
       {
         rendimiento: rendimientoDeSesion(objetivo, series),
         tipico: logradoTipico(series),
-        ...(protegida ? { protegida, protegidasSeguidas } : {}),
+        ...(protegida ? { protegida } : {}),
       },
       ctx,
       i,
     )
-    protegidasSeguidas = decision.motivo === 'protegida' ? protegidasSeguidas + 1 : 0
 
     traza.push({
       sesion: i,
@@ -88,6 +86,7 @@ function simular(
       logrado,
       senal: avance.senal,
       movimiento: decision.movimiento,
+      ...(decision.motivo ? { motivo: decision.motivo } : {}),
     })
     avance = decision.avance
   }
@@ -159,6 +158,10 @@ describe('el motor nunca se traba', () => {
     (patron) => {
       const traza = simular(patron, (e) => Math.max(1, e.ventana.min - 1), 60, { protegida: true })
       expect(estancamientoMaximo(traza)).toBeLessThanOrEqual(MESETA + 1)
+      // Y es porque la protección venció, no porque otra cosa la saltó: hubo
+      // protegidas, y hubo vencimientos, que se firman como meseta.
+      expect(traza.some((p) => p.motivo === 'protegida')).toBe(true)
+      expect(traza.some((p) => p.motivo === 'meseta')).toBe(true)
     },
   )
 
@@ -172,6 +175,16 @@ describe('el motor nunca se traba', () => {
         { protegida: true },
       )
       expect(estancamientoMaximo(traza)).toBeLessThanOrEqual(MESETA + 1)
+      // Los días flojos protegidos no lo bajan, y los buenos lo suben: sin el
+      // vencimiento, cada día bueno era un escalón que no se devolvía. Con él,
+      // el objetivo queda a un paso de lo mejor que hace, como mucho.
+      for (const paso of traza) {
+        const e = POR_ID.get(paso.ejercicioId)!
+        const mejor = e.ventana.min + 3
+        expect(paso.cantidad, `sesión ${paso.sesion} en ${e.id}`).toBeLessThanOrEqual(mejor + incremento(e.medida, mejor))
+      }
+      expect(traza.some((p) => p.motivo === 'protegida')).toBe(true)
+      expect(traza.some((p) => p.motivo === 'meseta')).toBe(true)
     },
   )
 })

@@ -85,7 +85,7 @@ export function Cierre({
     bajo ? 'reencuadre' : huboSalto ? 'esfuerzo' : 'cierre',
     azar,
     [],
-    numeroDeSesion,
+    { sesiones: numeroDeSesion },
   )
 
   /**

@@ -279,6 +279,55 @@ export function esVuelta(sesiones: Sesion[], hoy: string): boolean {
 /** Cuánto se recorta el objetivo en una sesión de vuelta. */
 export const RECORTE_DE_VUELTA = 0.7
 
+/** Las semanas que mira `vieneSinCortar`. */
+export const SEMANAS_SIN_CORTAR = 3
+
+/**
+ * ¿Viene entrenando sin cortar? En las últimas tres semanas, hoy incluido,
+ * nunca pasaron siete días seguidos sin una sesión.
+ *
+ * Es lo que pide Lyra para decir "semana tras semana, ahí seguís" y las otras
+ * frases de costumbre (`PIDEN_CONTINUIDAD`). No alcanza con que hoy no sea
+ * vuelta: `esVuelta` mira solo el día de la vuelta, y al día siguiente, con una
+ * sesión ayer, ya no lo es, aunque antes de ayer hubiera un mes sin entrenar.
+ * Tampoco alcanza con una sesión en cada una de las tres semanas: el primer
+ * día de una y el último de la siguiente dejan casi dos semanas sin nada.
+ *
+ * Con menos de tres semanas de historia da que no: la frase diría algo que
+ * todavía no pasó.
+ */
+export function vieneSinCortar(sesiones: Sesion[], hoy: string): boolean {
+  const desde = sumarDias(hoy, -(7 * SEMANAS_SIN_CORTAR - 1))
+  const dias = [
+    ...new Set(sesiones.filter((s) => s.fecha >= desde && s.fecha <= hoy).map((s) => s.fecha)),
+  ].sort()
+  if (dias.length === 0) return false
+  // Cada hueco son los días sin sesión: antes de la primera (contando desde
+  // el arranque de la ventana), entre dos seguidas, y después de la última.
+  let anterior = sumarDias(desde, -1)
+  for (const dia of dias) {
+    if (diasEntre(anterior, dia) - 1 >= 7) return false
+    anterior = dia
+  }
+  return diasEntre(anterior, hoy) < 7
+}
+
+/** Los días para atrás que cuentan como entrenar hace poco (`entrenoHacePoco`). */
+export const DIAS_DE_ENTRENO_RECIENTE = 2
+
+/**
+ * ¿Entrenó hace poco? Hoy, ayer o anteayer.
+ *
+ * Es lo que pide "Dejá que el cuerpo termine lo que empezaste" en un día de
+ * descanso (`PIDEN_ENTRENO_RECIENTE`): lo que se empezó es una sesión de hace
+ * un par de días, no una de hace un mes.
+ */
+export function entrenoHacePoco(sesiones: Sesion[], hoy: string): boolean {
+  return sesiones.some(
+    (s) => s.fecha <= hoy && diasEntre(s.fecha, hoy) <= DIAS_DE_ENTRENO_RECIENTE,
+  )
+}
+
 /**
  * La primera sesión de cada día, de la más nueva a la más vieja.
  *

@@ -50,9 +50,11 @@ import {
 import {
   RECORTE_DE_VUELTA,
   adherencia,
+  entrenoHacePoco,
   esVuelta,
   proximoHito,
   sesionesDeVida,
+  vieneSinCortar,
 } from '@/dominio/adherencia'
 import { laVezPasada } from '@/dominio/estadisticas'
 import {
@@ -84,7 +86,7 @@ import { SesionSinCerrar } from '@/componentes/sinCerrar'
 import { FilaDeCadenaChica } from '@/componentes/filaDeCadena'
 import { Lyra } from '@/componentes/lyra'
 import { useIrA } from '@/componentes/movimiento'
-import { fraseDe, momentoDeHoy, recordar, type Momento } from '@/dominio/frases'
+import { fraseDe, momentoDeHoy, recordar } from '@/dominio/frases'
 import { Cargando, Glosa, Rotulo, Simbolo } from '@/componentes/ui'
 import { Encabezado, FORMATO_FECHA } from './Encabezado'
 import { Plan } from './Plan'
@@ -110,7 +112,7 @@ let dichas: string[] = []
  * vez que se navega y la gracia es que Lyra no se repita entre idas y
  * vueltas.
  */
-let ultimoSorteo: { azar: number; momento: Momento; dijo: ReturnType<typeof fraseDe> } | null = null
+let ultimoSorteo: { azar: number; clave: string; dijo: ReturnType<typeof fraseDe> } | null = null
 
 export function Hoy() {
   /**
@@ -393,10 +395,19 @@ export function Hoy() {
    * durante el render, pero ahora es IDEMPOTENTE, que es la propiedad que
    * importa: dos renders seguidos dan el mismo resultado.
    */
-  if (!ultimoSorteo || ultimoSorteo.azar !== azar || ultimoSorteo.momento !== momento) {
-    const sorteada = fraseDe(momento, azar, dichas, total, vuelve)
+  // Lo que decide qué frases son ciertas entra en la clave: con la app
+  // abierta pasada la medianoche, "entrenaste hace poco" puede dejar de serlo
+  // sin que cambie el momento.
+  const situacion = {
+    sesiones: total,
+    sinCortar: vieneSinCortar(sesiones, fecha),
+    entrenoReciente: entrenoHacePoco(sesiones, fecha),
+  }
+  const clave = `${momento}|${situacion.sesiones}|${situacion.sinCortar}|${situacion.entrenoReciente}`
+  if (!ultimoSorteo || ultimoSorteo.azar !== azar || ultimoSorteo.clave !== clave) {
+    const sorteada = fraseDe(momento, azar, dichas, situacion)
     if (sorteada) dichas = recordar(dichas, sorteada.texto)
-    ultimoSorteo = { azar, momento, dijo: sorteada }
+    ultimoSorteo = { azar, clave, dijo: sorteada }
   }
   const dijo = ultimoSorteo.dijo
 

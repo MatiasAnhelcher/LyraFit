@@ -597,15 +597,41 @@ export const DESDE_SESIONES: ReadonlyMap<string, number> = new Map([
 ])
 
 /**
- * Las frases que hablan de seguir sin cortar. El día de la vuelta —después de
- * semanas sin entrenar— no son ciertas aunque la persona lleve muchas
- * sesiones, y `fraseDe` las saca.
+ * Las frases que hablan de seguir sin cortar. Solo son ciertas si la persona
+ * viene entrenando sin cortar (`vieneSinCortar`), lleve las sesiones que
+ * lleve: el día de la vuelta después de semanas sin entrenar no lo son, y
+ * tampoco el día siguiente, que ya no cuenta como vuelta. `fraseDe` las saca.
  */
 export const PIDEN_CONTINUIDAD: ReadonlySet<string> = new Set([
   'Nadie sostiene esto por ganas. Lo sostenés por costumbre.',
   'Semana tras semana, ahí seguís.',
   'Se te está haciendo normal. Eso es lo bueno.',
 ])
+
+/**
+ * Las frases de descanso que dan por hecho que la persona entrenó hace poco:
+ * "lo que empezaste" es la sesión de ayer o de anteayer, no una de hace un
+ * mes (`entrenoHacePoco`).
+ */
+export const PIDEN_ENTRENO_RECIENTE: ReadonlySet<string> = new Set([
+  'Dejá que el cuerpo termine lo que empezaste.',
+])
+
+/**
+ * Lo que la pantalla sabe de la persona y decide qué frases son ciertas.
+ *
+ * Todo es opcional y lo que falta se toma por lo más prudente: una pantalla
+ * que se olvide de pasar algo se pierde algunas frases, pero no dice ninguna
+ * falsa.
+ */
+export interface Situacion {
+  /** Cuántas sesiones lleva (ver `DESDE_SESIONES`). Por defecto, cero. */
+  sesiones?: number
+  /** Si viene entrenando sin cortar (`PIDEN_CONTINUIDAD`). Por defecto, no. */
+  sinCortar?: boolean
+  /** Si entrenó en los últimos días (`PIDEN_ENTRENO_RECIENTE`). Por defecto, no. */
+  entrenoReciente?: boolean
+}
 
 const POR_MOMENTO = new Map(FRASES.map((g) => [g.momento, g]))
 
@@ -621,25 +647,23 @@ const POR_MOMENTO = new Map(FRASES.map((g) => [g.momento, g]))
  * veces seguidas más seguido de lo que la intuición dice, y una frase repetida
  * deja de ser una voz y pasa a ser un cartel.
  *
- * `sesiones` es cuántas lleva la persona (ver `DESDE_SESIONES`). Por defecto
- * es cero a propósito: una pantalla que se olvide de pasarlo se pierde algunas
- * frases, pero no dice ninguna falsa.
- *
- * `vuelve` es si la persona vuelve después de un tiempo sin entrenar: saca las
- * frases de continuidad (`PIDEN_CONTINUIDAD`).
+ * `situacion` es lo que se sabe de la persona, y saca las frases que no
+ * serían ciertas para ella (ver `Situacion`).
  */
 export function fraseDe(
   momento: Momento,
   azar: number,
   dichas: readonly string[] = [],
-  sesiones = 0,
-  vuelve = false,
+  { sesiones = 0, sinCortar = false, entrenoReciente = false }: Situacion = {},
 ): { texto: string; expresion: Expresion } | null {
   const grupo = POR_MOMENTO.get(momento)
   if (!grupo) return null
 
   const ciertas = grupo.lineas.filter(
-    (l) => (DESDE_SESIONES.get(l) ?? 0) <= sesiones && !(vuelve && PIDEN_CONTINUIDAD.has(l)),
+    (l) =>
+      (DESDE_SESIONES.get(l) ?? 0) <= sesiones &&
+      (sinCortar || !PIDEN_CONTINUIDAD.has(l)) &&
+      (entrenoReciente || !PIDEN_ENTRENO_RECIENTE.has(l)),
   )
   if (ciertas.length === 0) return null
 

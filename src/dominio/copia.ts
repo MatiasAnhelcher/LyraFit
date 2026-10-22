@@ -129,6 +129,9 @@ function avanceRoto(a: unknown, version: number): string | null {
   if (!esNumero(a.actualizadoEn)) return 'falta cuándo cambió'
   const motorDeHoy = esNumero(a.senal) && esNumero(a.sesionesEnObjetivo) && esNumero(a.graciaRestante)
   if (!motorDeHoy && version !== 1) return 'le faltan los números del motor'
+  if (!opcional(a.protegidasSeguidas, (x) => esNumero(x) && x >= 0)) {
+    return 'la racha de protegidas no es un número'
+  }
   return null
 }
 

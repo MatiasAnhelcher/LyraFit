@@ -339,6 +339,19 @@ export interface Avance {
    * a consolidar ninguno.
    */
   graciaRestante: number
+  /**
+   * Cuántas lecturas seguidas, hasta la última, se sostuvieron por protegidas
+   * con este mismo objetivo. Ausente es cero.
+   *
+   * Vive en el avance y no se reconstruye del historial a propósito: el
+   * objetivo que guarda cada sesión puede venir recortado (un día ámbar lo
+   * baja al 90%), y una sesión también guarda los registros de bajada, así
+   * que comparar contra el historial cortaba la racha todos los días ámbar o
+   * la heredaba de otro ejercicio. Acá la suma solo la lectura protegida que
+   * se sostiene, y cualquier otro cambio del avance la deja en cero: otra
+   * lectura que cuenta, cambiar de nivel a mano, bajar de lo colgado.
+   */
+  protegidasSeguidas?: number
   actualizadoEn: number
 }
 
