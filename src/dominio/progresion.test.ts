@@ -227,7 +227,7 @@ describe('siguienteAvance', () => {
     expect(d.avance.graciaRestante).toBe(GRACIA)
   })
 
-  it('en el techo, "una sesión más" es siempre la víspera del cambio, aunque quede gracia', () => {
+  it('en el techo, "un día de práctica más" es siempre la víspera del cambio, aunque quede gracia', () => {
     // Después de un retroceso se llega al techo con gracia, y el motor sostiene
     // mientras quede aunque ya lleves dos. Lo que dice tiene que coincidir con
     // lo que hace.
@@ -241,9 +241,9 @@ describe('siguienteAvance', () => {
       d = cumpliendo(avance)
     }
     expect(dichos).toHaveLength(3)
-    expect(dichos[0]).toContain('Lo sostenemos 3 sesiones')
-    expect(dichos[1]).toContain('Lo sostenemos un par de sesiones')
-    expect(dichos[2]).toContain('Una sesión más así y cambiamos')
+    expect(dichos[0]).toContain('Lo sostenemos 3 días de práctica')
+    expect(dichos[1]).toContain('Lo sostenemos un par de días de práctica')
+    expect(dichos[2]).toContain('Un día de práctica más así y cambiamos')
   })
 
   it('NO cambia de eslabón antes de dominar el actual', () => {

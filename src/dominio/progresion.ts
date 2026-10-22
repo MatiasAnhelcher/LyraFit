@@ -838,12 +838,14 @@ export function siguienteAvance(
     // se puede sostener.
     if (avance.graciaRestante > 0 || avance.sesionesEnObjetivo < CONSOLIDACION) {
       // Las que faltan, contando esta, cuentan la gracia: después de un
-      // retroceso se sostiene mientras quede, aunque ya lleves dos.
+      // retroceso se sostiene mientras quede, aunque ya lleves dos. Se dicen
+      // en días de práctica y no en sesiones: la cadena se lee una vez por
+      // día, y una segunda sesión esa tarde no acerca el cambio.
       const faltan = Math.max(CONSOLIDACION - avance.sesionesEnObjetivo, avance.graciaRestante)
       return sostener(
         faltan <= 1
-          ? `Llegaste al techo de ${actual.nombre}. Una sesión más así y cambiamos de ejercicio.`
-          : `Techo de ${actual.nombre} alcanzado. Lo sostenemos ${faltan === 2 ? 'un par de' : faltan} sesiones antes de subir: dominar es poder repetirlo.`,
+          ? `Llegaste al techo de ${actual.nombre}. Un día de práctica más así y cambiamos de ejercicio.`
+          : `Techo de ${actual.nombre} alcanzado. Lo sostenemos ${faltan === 2 ? 'un par de' : faltan} días de práctica antes de subir: dominar es poder repetirlo.`,
       )
     }
 
@@ -1023,7 +1025,7 @@ export function siguienteAvance(
 
     if (avance.graciaRestante > 0) {
       return sostener(
-        `${actual.nombre} todavía te está costando. Le damos un par de sesiones más antes de tocar nada.`,
+        `${actual.nombre} todavía te está costando. Le damos un par de días de práctica más antes de tocar nada.`,
       )
     }
 
