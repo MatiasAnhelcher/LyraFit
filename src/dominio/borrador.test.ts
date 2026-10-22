@@ -10,20 +10,24 @@
 import { describe, expect, it } from 'vitest'
 import {
   VIGENCIA_DEL_BORRADOR,
-  cambiarDeNivelLaTira,
+  alCambiarDeNivel,
   cierreDelBorrador,
   destinoDelBorrador,
   diaDelBorrador,
   diaLocal,
   esDiaValido,
   fechaDelDia,
+  iniciadaEn,
+  mismaSesion,
+  normalizarBorrador,
+  origenDelBorrador,
   quedaPorCerrar,
   registrosDeLaSesion,
   textoDeSinCerrar,
   textoDelBorradorAlRestaurar,
 } from './borrador'
 import { RUTINA_POR_ID, diaDeLaSemana, patronDelBloque, semanaDe } from './rutinas'
-import type { SesionEnCurso } from './tipos'
+import type { OrigenDeSesion, SesionEnCurso } from './tipos'
 
 /** Un instante en hora LOCAL, para que el test diga lo mismo en Buenos Aires y en Sídney. */
 const local = (anio: number, mes: number, dia: number, hora: number, minuto = 0) =>
@@ -144,19 +148,18 @@ describe('qué hacer con el borrador', () => {
     expect(quedaPorCerrar(vacio, vacio.actualizadoEn + VIGENCIA_DEL_BORRADOR + 1)).toBe(false)
   })
 
-  it('cambiar de nivel a mano no tira la sesión vencida que Hoy ofrece guardar', () => {
-    // "Empezar la cadena acá", en una ficha, tiraba el borrador siempre. Con
-    // uno vencido con series era perder la sesión entera sin que se mostrara:
-    // esa se guarda con su propio plan, así que cambiar de eslabón no le saca
-    // nada.
-    const b = borrador()
-    expect(cambiarDeNivelLaTira(b, b.actualizadoEn + VIGENCIA_DEL_BORRADOR + 1)).toBe(false)
-    // La que todavía se retoma sí: Entrenar la rearmaría con el eslabón nuevo
-    // y las series del viejo quedarían afuera del cierre.
-    expect(cambiarDeNivelLaTira(b, b.actualizadoEn + 60_000)).toBe(true)
-    // Y una vencida sin nada hecho no tiene nada que perder.
-    const vacio = borrador({ hechas: {} })
-    expect(cambiarDeNivelLaTira(vacio, vacio.actualizadoEn + VIGENCIA_DEL_BORRADOR + 1)).toBe(true)
+  it('mover un nivel a mano cierra con lo hecho, y tira solo lo vacío', () => {
+    // Con series adentro, se cierra: tirarla perdía las series, y dejarla
+    // hacía que Entrenar la rearmara con el eslabón nuevo, que las perdía igual.
+    expect(alCambiarDeNivel(borrador())).toBe('cerrar')
+    const conRafaga = borrador({
+      hechas: {},
+      rafagas: [{ rafagaId: 'x', segundos: 20, despuesDe: null }],
+    })
+    expect(alCambiarDeNivel(conRafaga)).toBe('cerrar')
+    // Sin nada hecho no hay qué guardar, y cerrarla escribiría una sesión vacía.
+    expect(alCambiarDeNivel(borrador({ hechas: {} }))).toBe('tirar')
+    expect(alCambiarDeNivel(borrador({ hechas: { a: [{ logrado: 0 }] } }))).toBe('tirar')
   })
 })
 
@@ -297,5 +300,183 @@ describe('cómo lo avisa Ajustes antes de restaurar', () => {
     expect(textoDelBorradorAlRestaurar(b, '2026-10-24')).toContain(
       'La sesión del miércoles 21/10 que quedó sin cerrar',
     )
+  })
+})
+
+/**
+ * Un borrador tal cual lo escribe la app de antes de la reestructura: pasos sin
+ * id ni clase, series por id de ejercicio, sin origen y sin hora de inicio. Un
+ * martes de empuje con la bajada, tracción y el saludo del final.
+ */
+function borradorV3(): SesionEnCurso {
+  return {
+    id: 'actual',
+    arrancadaEn: local(2026, 10, 20, 9, 10),
+    duracionAcumulada: 1240,
+    actualizadoEn: local(2026, 10, 20, 9, 31),
+    corta: false,
+    densa: false,
+    indice: 2,
+    etapa: 'series',
+    dia: '2026-10-20',
+    tipo: 'plan',
+    molestias: [],
+    pasos: [
+      { ejercicioId: 'flexion-completa', objetivo: { series: 3, cantidad: 9 } },
+      { ejercicioId: 'flexion-rodillas', objetivo: { series: 2, cantidad: 10 }, bajada: true },
+      { ejercicioId: 'remo-australiano-bajo', objetivo: { series: 3, cantidad: 8 } },
+      { ejercicioId: 'sentadilla-completa', objetivo: { series: 3, cantidad: 12 } },
+    ],
+    hechas: {
+      'flexion-completa': [{ logrado: 9 }, { logrado: 9 }, { logrado: 8 }],
+      'flexion-rodillas': [{ logrado: 10 }, { logrado: 10 }],
+      'remo-australiano-bajo': [{ logrado: 8, reservas: 1 }],
+    },
+  }
+}
+
+/** Los avances de ese martes: empuje y tracción en el eslabón del plan; piernas en otro. */
+const AVANCES = [
+  { ejercicioId: 'flexion-completa' },
+  { ejercicioId: 'remo-australiano-bajo' },
+  { ejercicioId: 'sentadilla-asistida' },
+]
+
+describe('un borrador de antes de la reestructura', () => {
+  it('se normaliza sin perder una serie ni cambiar ninguna', () => {
+    const viejo = borradorV3()
+    const nuevo = normalizarBorrador(viejo, AVANCES)
+    // Lo anotado queda idéntico, con las mismas claves.
+    expect(nuevo.hechas).toEqual(viejo.hechas)
+    // Y cada paso encuentra sus series por su id, que es el de su ejercicio.
+    for (const paso of nuevo.pasos!) expect(paso.id).toBe(paso.ejercicioId)
+    const cierre = cierreDelBorrador(nuevo, { historial: [], objetivoDe: () => undefined })
+    expect(cierre.registros.flatMap((r) => r.series)).toEqual(Object.values(viejo.hechas).flat())
+  })
+
+  it('cada paso toma su clase: cadena, volumen o fijo', () => {
+    const pasos = normalizarBorrador(borradorV3(), AVANCES).pasos!
+    expect(pasos.map((p) => [p.ejercicioId, p.clase])).toEqual([
+      ['flexion-completa', 'cadena'],
+      // La bajada era el volumen en el eslabón de abajo.
+      ['flexion-rodillas', 'volumen'],
+      ['remo-australiano-bajo', 'cadena'],
+      // No es el eslabón actual de piernas: no puede leer esa cadena.
+      ['sentadilla-completa', 'fijo'],
+    ])
+  })
+
+  it('es del plan, y sigue sin hora de inicio', () => {
+    const nuevo = normalizarBorrador(borradorV3(), AVANCES)
+    expect(nuevo.origen).toEqual({ clase: 'plan', nombre: 'Plan' })
+    // Ningún campo viejo guarda la hora de arranque: no se inventa.
+    expect('iniciadaEn' in nuevo).toBe(false)
+  })
+
+  it('la corta de antes es "Solo tengo 7 minutos", como en el historial', () => {
+    expect(origenDelBorrador({ corta: true })).toEqual({
+      clase: 'rapida',
+      cual: 'corta',
+      nombre: 'Solo tengo 7 minutos',
+    })
+  })
+
+  it('el mismo ejercicio dos veces no cuenta sus series dos veces', () => {
+    const b = borrador({
+      pasos: [
+        { ejercicioId: 'puente-gluteos', objetivo: { series: 3, cantidad: 10 } },
+        { ejercicioId: 'puente-gluteos', objetivo: { series: 2, cantidad: 10 } },
+      ],
+    })
+    const pasos = normalizarBorrador(b, []).pasos!
+    expect(pasos.map((p) => p.id)).toEqual(['puente-gluteos', 'puente-gluteos#2'])
+    const cierre = cierreDelBorrador({ ...b, pasos }, { historial: [], objetivoDe: () => undefined })
+    expect(cierre.registros.flatMap((r) => r.series)).toEqual(b.hechas['puente-gluteos'])
+  })
+
+  it('lo que ya trae no se toca', () => {
+    const origen: OrigenDeSesion = { clase: 'mix', sector: 'pecho', nombre: 'Mix de pecho', version: 'corta' }
+    const b = borrador({
+      origen,
+      iniciadaEn: 5,
+      pasos: [
+        { id: 'p1', clase: 'fijo', ejercicioId: 'puente-gluteos', objetivo: { series: 3, cantidad: 10 } },
+      ],
+    })
+    expect(normalizarBorrador(b, [{ ejercicioId: 'puente-gluteos' }])).toEqual(b)
+  })
+
+  it('un paso nuevo lee sus series por id de paso, y lleva sus marcas al registro', () => {
+    const cierre = cierreDelBorrador(
+      borrador({
+        pasos: [
+          { id: 'a', clase: 'fijo', fijo: true, ejercicioId: 'puente-gluteos', objetivo: { series: 2, cantidad: 10 } },
+          { id: 'b', clase: 'cadena', ejercicioId: 'puente-gluteos', objetivo: { series: 3, cantidad: 12 } },
+        ],
+        hechas: { a: [{ logrado: 10 }], b: [{ logrado: 12 }, { logrado: 11 }] },
+      }),
+      { historial: [], objetivoDe: () => undefined },
+    )
+    expect(cierre.registros).toEqual([
+      { ejercicioId: 'puente-gluteos', paso: 'a', fijo: true, objetivo: { series: 2, cantidad: 10 }, series: [{ logrado: 10 }] },
+      { ejercicioId: 'puente-gluteos', paso: 'b', objetivo: { series: 3, cantidad: 12 }, series: [{ logrado: 12 }, { logrado: 11 }] },
+    ])
+  })
+})
+
+describe('si lo que se empieza es la misma sesión', () => {
+  const plan: OrigenDeSesion = { clase: 'plan', nombre: 'Plan' }
+  const rutina: OrigenDeSesion = { clase: 'rutina', rutinaId: 'r1', nombre: 'Pecho en casa' }
+
+  it('la misma cosa, aunque cambie el nombre', () => {
+    expect(mismaSesion({ corta: false, origen: rutina }, { ...rutina, nombre: 'Pecho' })).toBe(true)
+    expect(mismaSesion({ corta: false, origen: plan }, plan)).toBe(true)
+  })
+
+  it('otra rutina, otra zona, otra versión u otra cosa no lo son', () => {
+    expect(mismaSesion({ corta: false, origen: rutina }, { ...rutina, rutinaId: 'r2' })).toBe(false)
+    expect(mismaSesion({ corta: false, origen: rutina }, { ...rutina, liviana: true })).toBe(false)
+    const mix: OrigenDeSesion = { clase: 'mix', sector: 'pecho', nombre: 'Mix de pecho', version: 'completa' }
+    expect(mismaSesion({ corta: false, origen: mix }, { ...mix, version: 'corta' })).toBe(false)
+    expect(mismaSesion({ corta: false, origen: mix }, { ...mix, sector: 'brazos' })).toBe(false)
+    expect(mismaSesion({ corta: false, origen: mix }, plan)).toBe(false)
+  })
+
+  it('un borrador viejo cuenta con lo que era: la corta no es el plan', () => {
+    expect(mismaSesion({ corta: false }, plan)).toBe(true)
+    expect(mismaSesion({ corta: true }, plan)).toBe(false)
+    expect(
+      mismaSesion({ corta: true }, { clase: 'rapida', cual: 'corta', nombre: 'Solo tengo 7 minutos' }),
+    ).toBe(true)
+  })
+})
+
+describe('la hora de inicio', () => {
+  it('la escribe la primera serie y después no se mueve', () => {
+    expect(iniciadaEn(null, 100)).toBe(100)
+    expect(iniciadaEn(borrador({ hechas: {} }), 100)).toBe(100)
+    expect(iniciadaEn(borrador({ iniciadaEn: 40 }), 100)).toBe(40)
+  })
+
+  it('un borrador viejo con trabajo adentro sigue sin hora: no se inventa', () => {
+    expect(iniciadaEn(borrador(), 100)).toBeUndefined()
+  })
+
+  it('tampoco uno viejo con solo una serie en 0 o una ráfaga: ya había empezado', () => {
+    expect(iniciadaEn(borrador({ hechas: { 'puente-gluteos': [{ logrado: 0 }] } }), 100)).toBeUndefined()
+    expect(
+      iniciadaEn(borrador({ hechas: {}, rafagas: [{ rafagaId: 'jumping-jacks', segundos: 20, despuesDe: null }] }), 100),
+    ).toBeUndefined()
+    expect(iniciadaEn(borrador({ hechas: { 'puente-gluteos': [] } }), 100)).toBe(100)
+  })
+})
+
+describe('guardar desde afuera', () => {
+  it('lo dice el cierre, y solo cuando se pide', () => {
+    const b = borrador()
+    expect(cierreDelBorrador(b, { historial: [], objetivoDe: () => undefined }).desdeAfuera).toBeUndefined()
+    expect(
+      cierreDelBorrador(b, { historial: [], objetivoDe: () => undefined, desdeAfuera: true }).desdeAfuera,
+    ).toBe(true)
   })
 })

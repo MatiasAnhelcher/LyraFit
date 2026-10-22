@@ -142,3 +142,27 @@ export function lineaCambiado(patrones: readonly Patron[]): string | null {
 export function lineaLiviana(liviana: boolean): string | null {
   return liviana ? 'La versión liviana suma volumen y no mueve tus cadenas.' : null
 }
+
+/**
+ * Los pasos de cadena que quedaron a medias al guardar una sesión desde
+ * afuera: no se leyeron, y por eso no gastaron la lectura del día.
+ *
+ * "se puede leer hoy" solo si la sesión es de hoy. Una de ayer que se guarda
+ * a la mañana no deja nada pendiente para ese día, que ya pasó: decirlo sería
+ * prometer algo que no existe.
+ */
+export function lineaAMedias({
+  patrones,
+  esHoy,
+}: {
+  patrones: readonly Patron[]
+  /** Si la sesión es del día en que se guarda. */
+  esHoy: boolean
+}): string | null {
+  const unicos = [...new Set(patrones)]
+  if (unicos.length === 0) return null
+  const varias = unicos.length > 1
+  const quedo = varias ? 'quedaron a medias: no se movieron' : 'quedó a medias: no se movió'
+  const despues = esHoy ? (varias ? ' y se pueden leer hoy' : ' y se puede leer hoy') : ''
+  return `${conMayuscula(cadenas(unicos))} ${quedo}${despues}.`
+}

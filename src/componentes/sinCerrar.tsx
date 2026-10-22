@@ -52,8 +52,8 @@ export function SesionSinCerrar({
       <Rotulo>SESIÓN SIN CERRAR</Rotulo>
       <p className="mt-3 max-w-[40ch] leading-relaxed">{textoDeSinCerrar(borrador, hoy)}</p>
       <p className="mt-2 max-w-[40ch] text-xs leading-relaxed text-[var(--color-glosa)]">
-        Guardarla la suma a tu historial como cualquier otra sesión. Descartarla la borra, y eso
-        no se puede deshacer.
+        Guardarla la suma a tu historial con lo hecho, y lo que quedó a medias no mueve tus
+        cadenas. Descartarla la borra, y eso no se puede deshacer.
       </p>
       <div className="mt-4 flex gap-3">
         <button

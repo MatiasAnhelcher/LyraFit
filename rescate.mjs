@@ -45,6 +45,13 @@
  *   te fuiste y volviste quedaba adentro. Empezar a las ocho y volver a las
  *   doce y media escribía una sesión de cuatro horas y media.
  *
+ * Y desde la reestructura, dos más: un borrador de antes, sin `origen` ni hora
+ * de inicio, se retoma como el plan que era y no se le inventa una hora; y lo
+ * que un borrador nuevo trae y esta pantalla no usa —de dónde salió, lo
+ * cambiado, la hora de la primera serie— sobrevive a que muera la pestaña y a
+ * que la sesión siga anotando. La hora de la primera serie se escribe con la
+ * primera serie y después no se mueve.
+ *
  * Uso: node rescate.mjs   (con `npm run preview` andando en el 4173)
  */
 
@@ -124,6 +131,7 @@ await p.getByRole('button', { name: /Cuerpo completo/ }).click()
 await p.waitForTimeout(500)
 
 // Media sesión: se anotan tres series salteando los descansos.
+const alEntrar = await p.evaluate(() => Date.now())
 await p.goto(`${BASE}/#/entrenar`, { waitUntil: 'networkidle' })
 await p.waitForTimeout(600)
 const salteaDescanso = async () => {
@@ -153,8 +161,27 @@ const enSegundos = (t) => {
     : partes[0] * 60 + partes[1]
 }
 
+const leerBorrador = () => p.evaluate(async () => {
+  const base = await new Promise((res, rej) => {
+    const r = indexedDB.open('lyrafit')
+    r.onsuccess = () => res(r.result)
+    r.onerror = () => rej(r.error)
+  })
+  const borrador = await new Promise((res, rej) => {
+    const q = base.transaction('curso').objectStore('curso').get('actual')
+    q.onsuccess = () => res(q.result ?? null)
+    q.onerror = () => rej(q.error)
+  })
+  base.close()
+  return borrador
+})
+
 const antes = await casilleros()
 const relojAntes = await reloj()
+const inicioAntes = (await leerBorrador())?.iniciadaEn
+if (typeof inicioAntes !== 'number' || inicioAntes < alEntrar) {
+  fallos.push(`El borrador no guardó la hora de la primera serie: ${JSON.stringify(inicioAntes)}.`)
+}
 if (!antes.some((t) => /\d/.test(t))) {
   fallos.push(`No se anotó nada antes de la prueba: ${JSON.stringify(antes)}`)
 }
@@ -176,6 +203,41 @@ if (JSON.stringify(antes) !== JSON.stringify(despues)) {
 if (!avisa) fallos.push('La sesión se retomó sin decírselo a la persona.')
 if (enSegundos(relojDespues) < enSegundos(relojAntes)) {
   fallos.push(`El cronómetro se reinició: ${relojAntes} → ${relojDespues}`)
+}
+// Y la hora de inicio no se mueve al retomar: sigue siendo la de la primera
+// serie. Se anota una serie más, que puede caer en el ejercicio siguiente si
+// el primero ya tenía todas, y después se recarga otra vez para que el aviso
+// de "sesión retomada" vuelva para lo que sigue.
+{
+  let anotada = false
+  for (let intento = 0; intento < 4 && !anotada; intento++) {
+    await salteaDescanso()
+    const siguiente = p.getByRole('button', { name: 'Siguiente ejercicio', exact: true })
+    if (await siguiente.isVisible().catch(() => false)) {
+      await siguiente.click()
+      await p.waitForTimeout(300)
+    }
+    const voy = p.getByRole('button', { name: 'Voy', exact: true })
+    if (await voy.isVisible().catch(() => false)) {
+      await voy.click()
+      await p.waitForTimeout(150)
+    }
+    const anotar = p.getByRole('button', { name: 'Anotar serie', exact: true })
+    if (await anotar.isVisible().catch(() => false)) {
+      await anotar.click()
+      anotada = true
+    }
+  }
+  await p.waitForTimeout(400)
+  if (!anotada) fallos.push('Después de retomar no se pudo anotar otra serie.')
+  else {
+    const inicioDespues = (await leerBorrador())?.iniciadaEn
+    if (inicioDespues !== inicioAntes) {
+      fallos.push(`La hora de inicio se movió al retomar: ${inicioAntes} → ${inicioDespues}.`)
+    }
+  }
+  await p.reload({ waitUntil: 'networkidle' })
+  await p.waitForTimeout(1200)
 }
 
 // Y "empezar de cero" tiene que borrar el borrador, no solo limpiar la pantalla.
@@ -349,6 +411,90 @@ if (enSegundos(relojRetomado) > acumulado + 120) {
   )
 }
 
+// ─── 4. Lo de la reestructura: un borrador viejo, y lo que uno nuevo trae ──
+
+const anotarUna = async () => {
+  await salteaDescanso()
+  await p.waitForTimeout(200)
+  const voy = p.getByRole('button', { name: 'Voy', exact: true })
+  if (await voy.isVisible().catch(() => false)) { await voy.click(); await p.waitForTimeout(200) }
+  const anotar = p.getByRole('button', { name: 'Anotar serie', exact: true })
+  if (!(await anotar.isVisible().catch(() => false))) return false
+  await anotar.click()
+  await p.waitForTimeout(500)
+  return true
+}
+const conAlgo = (b) => Object.values(b?.hechas ?? {}).flat().filter((x) => x.logrado > 0).length
+
+// (c) Un borrador de antes de la reestructura —sin origen ni hora de inicio—
+// se retoma como el plan que era, y no se le inventa una hora: la primera
+// serie fue antes de que existiera el campo.
+await enHoy()
+await conLaBase(async (leer, escribir) => escribir(null))
+await p.goto(`${BASE}/#/entrenar`, { waitUntil: 'networkidle' })
+await p.waitForTimeout(800)
+if (!(await anotarUna())) fallos.push('No se pudo anotar la primera serie del plan para armar el borrador viejo.')
+await enHoy()
+await conLaBase(async (leer, escribir) => {
+  const b = await leer()
+  if (!b) return
+  delete b.iniciadaEn
+  delete b.origen
+  delete b.cambios
+  b.actualizadoEn = Date.now()
+  await escribir(b)
+})
+const seriesDelViejo = conAlgo(await conLaBase(async (leer) => leer()))
+await p.goto(`${BASE}/#/entrenar`, { waitUntil: 'networkidle' })
+await p.waitForTimeout(1200)
+const retomoElViejo = await p.getByText('sesión retomada donde la dejaste').isVisible().catch(() => false)
+const casillasDelViejo = await p.locator('ul[aria-label="Series de este ejercicio"] li').count()
+if (!retomoElViejo) fallos.push('Un borrador sin origen no se retomó.')
+if (casillasDelViejo < 2) {
+  fallos.push(`Un borrador sin origen no se retomó como plan: pide ${casillasDelViejo} series por ejercicio.`)
+}
+await anotarUna()
+await enHoy()
+{
+  const b = await conLaBase(async (leer) => leer())
+  if (conAlgo(b) <= seriesDelViejo) {
+    fallos.push(`El borrador viejo retomado no sumó la serie nueva: ${seriesDelViejo} → ${conAlgo(b)}.`)
+  }
+  if (b?.iniciadaEn !== undefined) {
+    fallos.push(`Al borrador viejo se le inventó una hora de inicio (${b.iniciadaEn}): su primera serie fue antes.`)
+  }
+  if (b?.corta !== false) fallos.push('El borrador viejo se retomó como otra cosa que el plan.')
+}
+
+// (d) Un borrador con origen, lo cambiado y la hora de inicio: los tres
+// sobreviven a que muera la pestaña y a seguir anotando.
+const NUEVO = {
+  origen: { clase: 'plan', nombre: 'Plan' },
+  cambios: [{ clase: 'salteado', pasoId: 'paso-del-porton' }],
+  iniciadaEn: Date.parse('2026-10-21T09:10:00-03:00'),
+}
+await conLaBase(async (leer, escribir, extra) => {
+  const b = await leer()
+  if (!b) return
+  Object.assign(b, extra, { actualizadoEn: Date.now() })
+  await escribir(b)
+}, NUEVO)
+await p.goto(`${BASE}/#/entrenar`, { waitUntil: 'networkidle' })
+await p.waitForTimeout(1200)
+await anotarUna()
+await p.reload({ waitUntil: 'networkidle' })
+await p.waitForTimeout(1200)
+await anotarUna()
+await enHoy()
+{
+  const b = await conLaBase(async (leer) => leer())
+  for (const campo of ['origen', 'cambios', 'iniciadaEn']) {
+    if (JSON.stringify(b?.[campo]) !== JSON.stringify(NUEVO[campo])) {
+      fallos.push(`El borrador perdió "${campo}" al retomarse y seguir anotando: ${JSON.stringify(b?.[campo])}.`)
+    }
+  }
+}
+
 await navegador.close()
 
 if (fallos.length > 0) {
@@ -359,3 +505,4 @@ if (fallos.length > 0) {
 console.log(`La sesión sobrevive a que muera la pestaña (${relojAntes} → ${relojDespues}).`)
 console.log(`Predicho y logrado se guardan por separado (dije ${dijo}, hice ${hizo}).`)
 console.log(`Una sesión corta se retoma corta, y el hueco no cuenta (${relojRetomado}).`)
+console.log('Un borrador sin origen se retoma como plan y sin hora inventada; uno con origen la conserva.')

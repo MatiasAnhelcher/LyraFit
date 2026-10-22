@@ -21,6 +21,7 @@ import type {
   Preferencias,
   RegistroEjercicio,
   RegistroRafaga,
+  RutinaPropia,
   Sesion,
   SesionEnCurso,
   TipoSesion,
@@ -43,9 +44,10 @@ import {
 import { ajusteDelDia, bandaSostenida, cadenasCongeladas } from '@/dominio/estado'
 import { animoPorDia, promedioDeAnimos } from '@/dominio/vitalidad'
 import {
-  cambiarDeNivelLaTira,
+  alCambiarDeNivel,
   cierreDelBorrador,
   destinoDelBorrador,
+  normalizarBorrador,
   quedaPorCerrar,
 } from '@/dominio/borrador'
 import { revisarCopia } from '@/dominio/copia'
@@ -56,7 +58,7 @@ export function fechaISO(fecha: Date = new Date()): string {
   return `${fecha.getFullYear()}-${dd(fecha.getMonth() + 1)}-${dd(fecha.getDate())}`
 }
 
-function nuevoId(): string {
+export function nuevoId(): string {
   return crypto.randomUUID()
 }
 
@@ -152,25 +154,59 @@ export async function leerSesionSinCerrar(): Promise<SesionEnCurso | null> {
 }
 
 /**
- * "Guardarla": el borrador vencido se cierra como cualquier otra sesión.
+ * "Guardarla": el borrador se cierra como cualquier otra sesión, con lo hecho.
  *
  * Es el mismo camino que "Cerrar la sesión" —`cerrarSesion`, con el borrador
  * borrado en la misma transacción— así que mueve el motor igual que si se
- * hubiera cerrado esa noche. La sesión queda con el día en que se hizo, no
- * con el de hoy, y sin las tres preguntas del final: contestarlas al día
- * siguiente mediría el día siguiente.
+ * hubiera cerrado esa noche, con una diferencia: se guarda desde afuera, y un
+ * paso de cadena con menos series que las del objetivo queda a medias y no se
+ * lee (`a-medias`). La persona no eligió terminar ahí; eligió otra cosa, o
+ * nada. La sesión queda con el día en que se hizo, no con el de hoy, y sin las
+ * tres preguntas del final: contestarlas al día siguiente mediría el día
+ * siguiente.
+ *
+ * La usan la placa de una sesión sin cerrar y, desde la reestructura,
+ * "Guardarla y empezar" y el cambio de nivel a mano. Todo adentro de una
+ * transacción: leer el borrador afuera dejaba que otra pestaña lo cerrara en
+ * el medio y la sesión se guardara dos veces.
  *
  * Devuelve null si ya no había borrador (otra pestaña lo cerró o lo descartó).
+ *
+ * El callback es `async` a propósito, y tiene que seguir siéndolo: Dexie sigue
+ * la transacción a través de los `await` solo cuando la función es async. Con
+ * una flecha común que devolvía la promesa, el borrado del borrador caía
+ * afuera, en una transacción aparte; la de adentro confirmaba sola y todo
+ * terminaba en PrematureCommitError, con la sesión ya guardada y la pantalla
+ * diciendo "No se pudo guardar".
  */
 export async function guardarSesionSinCerrar(): Promise<ResumenSesion | null> {
-  const borrador = await leerSesionEnCurso()
-  if (!borrador) return null
+  return db.transaction('rw', TABLAS_DEL_CIERRE, async () => cerrarBorradorDesdeAfuera())
+}
+
+/**
+ * El cierre desde afuera, para llamarlo adentro de una transacción que ya
+ * incluye `TABLAS_DEL_CIERRE`.
+ *
+ * `sinLeer` es la cadena que `fijarNivel` está por mover a mano: ver
+ * `CierreDeSesion.sinLeer`.
+ */
+async function cerrarBorradorDesdeAfuera(sinLeer?: Patron): Promise<ResumenSesion | null> {
+  const guardado = await leerSesionEnCurso()
+  if (!guardado) return null
+  // Un borrador cuya sesión ya está en el historial es un resto, no una sesión
+  // por guardar: guardarlo duplicaría sus series. Se borra y nada más.
+  if (guardado.idDeLaSesion && (await db.sesiones.get(guardado.idDeLaSesion))) {
+    await db.curso.delete('actual')
+    return null
+  }
 
   const [avances, historial] = await Promise.all([leerAvances(), leerSesiones()])
+  const borrador = normalizarBorrador(guardado, avances.values())
   const cierre = cierreDelBorrador(borrador, {
     historial,
     objetivoDe: (ejercicioId) =>
       [...avances.values()].find((a) => a.ejercicioId === ejercicioId)?.objetivoActual,
+    desdeAfuera: true,
   })
   // La energía de antes sale del chequeo de ESE día, igual que en Entrenar.
   const vitalidadPre = (await db.estados.get(cierre.fecha))?.energia
@@ -178,14 +214,31 @@ export async function guardarSesionSinCerrar(): Promise<ResumenSesion | null> {
   return cerrarSesion({
     ...cierre,
     ...(vitalidadPre !== undefined ? { vitalidadPre } : {}),
+    ...(guardado.idDeLaSesion ? { idDeLaSesion: guardado.idDeLaSesion } : {}),
+    ...(sinLeer ? { sinLeer } : {}),
     cierraElBorrador: true,
   })
 }
 
+/** Qué pasó al escribir el borrador. */
+export type GuardadoDelBorrador = 'guardado' | 'ya-guardada'
+
+/**
+ * Escribe el borrador, salvo que su sesión ya esté en el historial.
+ *
+ * Pasa cuando otra pantalla la cerró mientras esta seguía abierta: la Ficha
+ * que cambia de nivel, o "Guardarla" en otra pestaña. Escribirlo otra vez la
+ * dejaba lista para guardarse dos veces, con las mismas series. Mirar y
+ * escribir van en la misma transacción, así que entre las dos no entra nada.
+ */
 export async function guardarSesionEnCurso(
   datos: Omit<SesionEnCurso, 'id' | 'actualizadoEn'>,
-): Promise<void> {
-  await db.curso.put({ ...datos, id: 'actual', actualizadoEn: Date.now() })
+): Promise<GuardadoDelBorrador> {
+  return db.transaction('rw', [db.curso, db.sesiones], async (): Promise<GuardadoDelBorrador> => {
+    if (datos.idDeLaSesion && (await db.sesiones.get(datos.idDeLaSesion))) return 'ya-guardada'
+    await db.curso.put({ ...datos, id: 'actual', actualizadoEn: Date.now() })
+    return 'guardado'
+  })
 }
 
 export async function descartarSesionEnCurso(): Promise<void> {
@@ -312,6 +365,19 @@ export async function contarSesiones(): Promise<number> {
   return db.sesiones.count()
 }
 
+/**
+ * Las sesiones de un día, AAAA-MM-DD, en el orden en que se cerraron.
+ *
+ * Por el índice `fecha`, que existe desde la primera versión de la base: con
+ * varias sesiones por día, Hoy y Tu día las piden sin leer el historial
+ * entero. El día es el de la sesión, no el del cierre: una que cruzó la
+ * medianoche, o una vencida que se guardó a la mañana, es del día en que se
+ * entrenó.
+ */
+export async function sesionesDelDia(fecha: string): Promise<Sesion[]> {
+  return db.sesiones.where('fecha').equals(fecha).sortBy('finalizadaEn')
+}
+
 /** Lo que devuelve cerrar una sesión: qué cambió en cada patrón entrenado. */
 export interface ResumenSesion {
   sesion: Sesion
@@ -363,7 +429,50 @@ export interface CierreDeSesion {
    * Reloj no lo pide: su sesión no tiene nada que ver con el borrador.
    */
   cierraElBorrador?: true
+  /**
+   * Cuándo arrancó, para la sesión que no viene del borrador (el Reloj). La
+   * del borrador toma la del borrador, que se lee adentro de la transacción.
+   */
+  iniciadaEn?: number
+  /** Ver `CierreDelBorrador.desdeAfuera`: un paso de cadena a medias no se lee. */
+  desdeAfuera?: true
+  /**
+   * El id de la sesión, el mismo que lleva su borrador (`idDeLaSesion`).
+   *
+   * Con él, cerrar una sesión que otra pantalla ya guardó no guarda otra con
+   * las mismas series: lanza `SesionYaGuardada`. Y el borrador que se borra y
+   * del que se toman el origen y la hora de inicio es solo el de esta sesión,
+   * no el de otra pestaña que escribió encima. Sin id —el Reloj— la sesión
+   * lleva uno nuevo.
+   */
+  idDeLaSesion?: string
+  /**
+   * Una cadena que este cierre no lee: la que `fijarNivel` está por mover a
+   * mano en la misma transacción.
+   *
+   * Leerla dejaba en el historial un salto que se pisaba enseguida —"Subís
+   * a…" un eslabón en el que la persona nunca estuvo, justo cuando eligió
+   * otro— y gastaba la lectura del día en una decisión que nadie aplicó. Sus
+   * series quedan en la sesión, como volumen.
+   */
+  sinLeer?: Patron
 }
+
+/**
+ * La sesión ya estaba en el historial: la guardó otra pantalla —la Ficha al
+ * cambiar de nivel, o "Guardarla" en otra pestaña— con lo que tenía su
+ * borrador. Guardarla otra vez duplicaría sus series, y con ellas el volumen,
+ * los récords y la lectura del día.
+ */
+export class SesionYaGuardada extends Error {
+  constructor() {
+    super('Esta sesión ya se guardó desde otra pantalla.')
+    this.name = 'SesionYaGuardada'
+  }
+}
+
+/** Las tablas que toca un cierre, para quien lo envuelve en su propia transacción. */
+const TABLAS_DEL_CIERRE = [db.sesiones, db.avances, db.estados, db.preferencias, db.pendientes, db.curso]
 
 /**
  * Cierra una sesión: la guarda y hace avanzar (o retroceder) cada patrón que
@@ -383,7 +492,7 @@ export async function cerrarSesion(entrada: CierreDeSesion): Promise<ResumenSesi
   const dia = entrada.fecha ?? fechaISO()
 
   const sesion: Sesion = {
-    id: nuevoId(),
+    id: entrada.idDeLaSesion ?? nuevoId(),
     fecha: dia,
     finalizadaEn: Date.now(),
     duracionSegundos: entrada.duracionSegundos,
@@ -406,14 +515,32 @@ export async function cerrarSesion(entrada: CierreDeSesion): Promise<ResumenSesi
   // historial, no se veían entre sí y leían la misma cadena dos veces en el
   // día. `pendientes` va porque `marcarPendiente` escribe ahí. Adentro solo hay
   // lecturas de Dexie y cuentas puras: nada que espere afuera de la base.
-  const tablas = [db.sesiones, db.avances, db.estados, db.preferencias, db.pendientes, db.curso]
-  return db.transaction('rw', tablas, async () => {
-    const [avances, estados, historial, preferencias] = await Promise.all([
+  return db.transaction('rw', TABLAS_DEL_CIERRE, async () => {
+    if (entrada.idDeLaSesion && (await db.sesiones.get(sesion.id))) throw new SesionYaGuardada()
+
+    const [avances, estados, historial, preferencias, enLaBase] = await Promise.all([
       leerAvances(),
       leerEstados(),
       leerSesiones(),
       leerPreferencias(),
+      entrada.cierraElBorrador ? leerSesionEnCurso() : null,
     ])
+    // El borrador de la fila es el de esta sesión si lleva su id, o si es uno
+    // viejo, sin id. Si es de otra —otra pestaña que escribió encima—, no se
+    // toca: ni se borra ni se le toman el origen y la hora.
+    const borrador =
+      enLaBase && (enLaBase.idDeLaSesion === undefined || enLaBase.idDeLaSesion === sesion.id)
+        ? enLaBase
+        : null
+
+    // De dónde salió y a qué hora empezó, del borrador que se está cerrando:
+    // lo escribió la sesión mientras corría, y la URL que lo sabía ya no está.
+    // Un borrador viejo no tiene ninguno de los dos, y no se inventan: el
+    // origen lo deduce `origenDe` al leer, y sin hora de inicio se muestra la
+    // de cierre, rotulada como tal.
+    const iniciadaEn = borrador?.iniciadaEn ?? entrada.iniciadaEn
+    if (iniciadaEn !== undefined) sesion.iniciadaEn = iniciadaEn
+    if (borrador?.origen) sesion.origen = borrador.origen
 
     // El estado del día de la sesión, que es el que Entrenar usó para armarla.
     const ajuste = ajusteDelDia(bandaSostenida(estados, dia))
@@ -457,6 +584,7 @@ export async function cerrarSesion(entrada: CierreDeSesion): Promise<ResumenSesi
       neutra: !mueveElPlan(tipo) || ajuste.neutra,
       congeladas: cadenasCongeladas(estados, dia),
       protegida: ajuste.protegida,
+      desdeAfuera: entrada.desdeAfuera === true,
       ...(animo !== undefined ? { animo } : {}),
       animoPorDia: animos,
       ...(preferencias.pesoCorporalKg !== undefined
@@ -474,7 +602,7 @@ export async function cerrarSesion(entrada: CierreDeSesion): Promise<ResumenSesi
         cerrados: eslabonesCerrados(cadenaDe(patron), avances, preferencias.tieneBarra !== false),
       }),
       ahora: sesion.finalizadaEn,
-    })
+    }).filter((lectura) => lectura.patron !== entrada.sinLeer)
     const decisiones: ResumenSesion['decisiones'] = lecturas.map(({ patron, decision, antes }) => ({
       patron,
       decision,
@@ -505,7 +633,7 @@ export async function cerrarSesion(entrada: CierreDeSesion): Promise<ResumenSesi
     }
     // Adentro y no después: o quedan la sesión guardada y el borrador borrado,
     // o no queda ninguna de las dos cosas y la sesión sigue en pantalla.
-    if (entrada.cierraElBorrador) await db.curso.delete('actual')
+    if (borrador) await db.curso.delete('actual')
 
     return {
       sesion,
@@ -523,40 +651,108 @@ export async function borrarSesion(id: string): Promise<void> {
   await marcarPendiente('sesiones', id, 'borrar')
 }
 
+// ─── Rutinas propias ─────────────────────────────────────────────────────
+
+/**
+ * Las rutinas armadas por la persona, de la tocada hace menos a la de hace más.
+ *
+ * Son decenas como mucho: se ordenan y se agrupan por carpeta en memoria, sin
+ * índices nuevos.
+ */
+export async function leerRutinas(): Promise<RutinaPropia[]> {
+  return db.rutinas.orderBy('actualizadaEn').reverse().toArray()
+}
+
+export async function leerRutina(id: string): Promise<RutinaPropia | undefined> {
+  return db.rutinas.get(id)
+}
+
+/**
+ * Guarda una rutina, nueva o cambiada, con `actualizadaEn` de ahora.
+ *
+ * La hora la pone esto y no quien llama: es lo que ordena Mis rutinas, y una
+ * pantalla que se olvidara de tocarla dejaría la rutina recién editada al
+ * fondo de la lista.
+ */
+export async function guardarRutina(rutina: RutinaPropia): Promise<RutinaPropia> {
+  const guardada: RutinaPropia = { ...rutina, actualizadaEn: Date.now() }
+  await db.rutinas.put(guardada)
+  await marcarPendiente('rutinas', guardada.id)
+  return guardada
+}
+
+/**
+ * Borra una rutina y la devuelve tal como estaba, para Deshacer.
+ *
+ * Las sesiones que salieron de ella no se tocan: guardan el nombre en su
+ * origen, y el historial sigue diciendo lo que eran.
+ */
+export async function borrarRutina(id: string): Promise<RutinaPropia | undefined> {
+  return db.transaction('rw', [db.rutinas, db.pendientes], async () => {
+    const rutina = await db.rutinas.get(id)
+    if (!rutina) return undefined
+    await db.rutinas.delete(id)
+    await marcarPendiente('rutinas', id, 'borrar')
+    return rutina
+  })
+}
+
+/**
+ * Deshacer un borrado: la rutina vuelve idéntica, con su id, su carpeta y sus
+ * horas. No pasa por `guardarRutina` a propósito: tocar `actualizadaEn` la
+ * movería en la lista, y deshacer tiene que dejar todo como estaba.
+ */
+export async function restaurarRutina(rutina: RutinaPropia): Promise<void> {
+  await db.rutinas.put(rutina)
+  await marcarPendiente('rutinas', rutina.id)
+}
+
 // ─── Ajustes manuales ────────────────────────────────────────────────────
 
 /**
  * Mover el nivel a mano. El motor decide solo, pero vos mandás: si ya hacés
  * dominadas y la app te propone remo australiano, corregís y listo.
+ *
+ * El ejercicio tiene que ser un eslabón de esa cadena (`CADENAS`), no solo del
+ * mismo patrón: una variante o un ejercicio de barra con ese patrón dejaría en
+ * el avance un id que la cadena no tiene, y la app ya no sabría dónde estás.
+ *
+ * Si hay una sesión a medio hacer con trabajo adentro, primero se cierra con
+ * lo hecho, desde afuera (`alCambiarDeNivel`): sus series quedan guardadas y
+ * las lee el motor que tenía esa sesión, menos la cadena que se está moviendo
+ * (`sinLeer`), cuya lectura se pisaría en el acto. Antes se tiraba, porque
+ * Entrenar la habría rearmado con el eslabón nuevo y las series del viejo
+ * quedaban afuera; tirarla era perderlas igual. Una vacía se tira, que no
+ * tiene nada que guardar. Las dos cosas y el nivel nuevo van en una sola
+ * transacción.
  */
 export async function fijarNivel(patron: Patron, ejercicioId: string): Promise<Avance> {
   const ejercicio = POR_ID.get(ejercicioId)
-  if (!ejercicio || ejercicio.patron !== patron) {
-    throw new Error(`"${ejercicioId}" no pertenece a la cadena de ${patron}.`)
+  if (!ejercicio || !cadenaDe(patron).ejercicios.includes(ejercicioId)) {
+    throw new Error(`"${ejercicioId}" no es un eslabón de la cadena de ${patron}.`)
   }
 
-  const avance: Avance = {
-    patron,
-    ejercicioId,
-    objetivoActual: { series: ejercicio.series, cantidad: ejercicio.ventana.min },
-    senal: 1,
-    sesionesEnObjetivo: 0,
-    graciaRestante: 0,
-    actualizadoEn: Date.now(),
-  }
+  return db.transaction('rw', TABLAS_DEL_CIERRE, async () => {
+    const borrador = await leerSesionEnCurso()
+    if (borrador) {
+      // La cadena que se mueve acá no se lee en ese cierre: su avance lo
+      // escribe esto, dos líneas más abajo.
+      if (alCambiarDeNivel(borrador) === 'cerrar') await cerrarBorradorDesdeAfuera(patron)
+      else await descartarSesionEnCurso()
+    }
 
-  await guardarAvance(avance)
-  // Y se tira el borrador de la sesión que todavía se retoma. Las series a
-  // medio anotar están indexadas por id de ejercicio, y Entrenar la rearma con
-  // el plan de ahora: cambiar de eslabón deja huérfanas las que ya se hicieron
-  // y desaparecen sin que nadie avise. Perder trabajo en silencio es peor que
-  // perderlo con un cartel, así que se descarta acá, que es donde se sabe.
-  // La vencida que Hoy ofrece guardar no: se guarda con su propio plan, así
-  // que no pierde nada, y tirarla era borrarla sin mostrarla
-  // (`cambiarDeNivelLaTira`).
-  const borrador = await leerSesionEnCurso()
-  if (borrador && cambiarDeNivelLaTira(borrador, Date.now())) await descartarSesionEnCurso()
-  return avance
+    const avance: Avance = {
+      patron,
+      ejercicioId,
+      objetivoActual: { series: ejercicio.series, cantidad: ejercicio.ventana.min },
+      senal: 1,
+      sesionesEnObjetivo: 0,
+      graciaRestante: 0,
+      actualizadoEn: Date.now(),
+    }
+    await guardarAvance(avance)
+    return avance
+  })
 }
 
 export async function ajustarObjetivo(patron: Patron, objetivo: Objetivo): Promise<Avance> {
@@ -689,7 +885,7 @@ export async function revisarRequisitosUnaVez(): Promise<void> {
 // ─── Copia de seguridad ──────────────────────────────────────────────────
 
 export interface Respaldo {
-  version: 3
+  version: 4
   exportadoEn: string
   sesiones: Sesion[]
   avances: Avance[]
@@ -710,6 +906,8 @@ export interface Respaldo {
    * así que lo recuerda el test de ida y vuelta.
    */
   diario: DiaDelDiario[]
+  /** Las rutinas propias, desde la versión 4. Entraron con su tabla, en el mismo commit. */
+  rutinas: RutinaPropia[]
 }
 
 /**
@@ -718,22 +916,24 @@ export interface Respaldo {
  * de no perderlos nunca, que importa más.
  */
 export async function exportarTodo(): Promise<Respaldo> {
-  const [sesiones, avances, estados, preferencias, diario] = await Promise.all([
+  const [sesiones, avances, estados, preferencias, diario, rutinas] = await Promise.all([
     db.sesiones.toArray(),
     db.avances.toArray(),
     db.estados.toArray(),
     leerPreferencias(),
     db.diario.toArray(),
+    db.rutinas.toArray(),
   ])
 
   return {
-    version: 3,
+    version: 4,
     exportadoEn: new Date().toISOString(),
     sesiones,
     avances,
     estados,
     preferencias,
     diario,
+    rutinas,
   }
 }
 
@@ -767,7 +967,16 @@ export function validarRespaldo(dato: unknown): Respaldo {
 export async function importarTodo(respaldo: Respaldo): Promise<void> {
   await db.transaction(
     'rw',
-    [db.sesiones, db.avances, db.estados, db.preferencias, db.pendientes, db.curso, db.diario],
+    [
+      db.sesiones,
+      db.avances,
+      db.estados,
+      db.preferencias,
+      db.pendientes,
+      db.curso,
+      db.diario,
+      db.rutinas,
+    ],
     async () => {
       await Promise.all([
         db.sesiones.clear(),
@@ -782,11 +991,18 @@ export async function importarTodo(respaldo: Respaldo): Promise<void> {
         // Y el borrador: viene de un plan que la copia que se está restaurando
         // no conoce, así que retomarlo sería anotar contra otro historial.
         db.curso.clear(),
+        // Las rutinas, por lo mismo que el diario: las de antes no pueden
+        // quedar pegadas a un historial que no es el suyo.
+        db.rutinas.clear(),
+        // Y la cola de sincronización, como en `borrarTodo`: nombra filas que
+        // ya no existen.
+        db.pendientes.clear(),
       ])
       await db.sesiones.bulkPut(respaldo.sesiones)
       await db.avances.bulkPut(respaldo.avances)
       if (respaldo.estados?.length) await db.estados.bulkPut(respaldo.estados)
       if (respaldo.diario?.length) await db.diario.bulkPut(respaldo.diario)
+      if (respaldo.rutinas?.length) await db.rutinas.bulkPut(respaldo.rutinas)
       if (respaldo.preferencias) await db.preferencias.put(respaldo.preferencias)
     },
   )
@@ -839,7 +1055,16 @@ export async function borrarTodo(): Promise<void> {
   await borrarCopiasAutomaticas()
   await db.transaction(
     'rw',
-    [db.sesiones, db.avances, db.estados, db.preferencias, db.pendientes, db.curso, db.diario],
+    [
+      db.sesiones,
+      db.avances,
+      db.estados,
+      db.preferencias,
+      db.pendientes,
+      db.curso,
+      db.diario,
+      db.rutinas,
+    ],
     async () => {
       await Promise.all([
         db.sesiones.clear(),
@@ -853,6 +1078,7 @@ export async function borrarTodo(): Promise<void> {
         // todas las tablas, la que alguien que toca "borrar todo" más quiere
         // que desaparezca.
         db.diario.clear(),
+        db.rutinas.clear(),
       ])
     },
   )

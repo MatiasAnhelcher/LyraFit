@@ -73,7 +73,7 @@ describe('una copia sana entra entera', () => {
   it('trae lo mismo que tenía, en la forma de hoy', () => {
     const r = revisarCopia(copia())
     if ('problema' in r) throw new Error(r.problema)
-    expect(r.copia.version).toBe(3)
+    expect(r.copia.version).toBe(4)
     expect(r.copia.sesiones).toHaveLength(2)
     expect(r.copia.sesiones[0]!.registros[0]!.series).toHaveLength(3)
     expect(r.copia.avances).toEqual([avance])
@@ -261,6 +261,7 @@ describe('el resumen antes de confirmar', () => {
     if ('problema' in r) throw new Error(r.problema)
     expect(resumenDeCopia(r.copia)).toEqual({
       sesiones: 2,
+      rutinas: 0,
       diario: 1,
       chequeos: 1,
       desde: '2026-08-30',
@@ -284,6 +285,7 @@ describe('el resumen antes de confirmar', () => {
   it('una base vacía no tiene rango', () => {
     expect(resumenDeCopia({ sesiones: [], estados: [], diario: [] })).toEqual({
       sesiones: 0,
+      rutinas: 0,
       diario: 0,
       chequeos: 0,
       desde: null,
@@ -293,6 +295,7 @@ describe('el resumen antes de confirmar', () => {
 
   const resumen = (cambios: Partial<ResumenDeCopia>): ResumenDeCopia => ({
     sesiones: 0,
+    rutinas: 0,
     diario: 0,
     chequeos: 0,
     desde: null,
@@ -322,6 +325,31 @@ describe('el resumen antes de confirmar', () => {
     )
   })
 
+  it('con rutinas de algún lado, la frase las nombra también', () => {
+    expect(
+      fraseDelReemplazo(resumen({ sesiones: 12 }), resumen({ sesiones: 47, rutinas: 3 })),
+    ).toBe('Vas a reemplazar 47 sesiones y 3 rutinas por 12 sesiones y ninguna rutina.')
+    expect(fraseDelReemplazo(resumen({ sesiones: 0, rutinas: 1 }), resumen({ sesiones: 1 }))).toBe(
+      'Vas a reemplazar 1 sesión por ninguna sesión y 1 rutina.',
+    )
+    // Sin sesiones pero con rutinas no es "no tenés nada": las rutinas se pierden.
+    expect(fraseDelReemplazo(resumen({ sesiones: 2 }), resumen({ rutinas: 2 }))).toBe(
+      'Vas a reemplazar 2 rutinas por 2 sesiones y ninguna rutina.',
+    )
+    expect(fraseDelReemplazo(resumen({}), resumen({ sesiones: 1, rutinas: 1 }))).toBe(
+      'Vas a reemplazar 1 sesión y 1 rutina por ninguna sesión y ninguna rutina.',
+    )
+    expect(fraseDelReemplazo(resumen({ sesiones: 2, rutinas: 1 }), resumen({}))).toBe(
+      'Hoy no tenés sesiones ni rutinas guardadas. El archivo trae 2 sesiones y 1 rutina.',
+    )
+    expect(fraseDelReemplazo(resumen({ rutinas: 1 }), resumen({}))).toBe(
+      'Hoy no tenés sesiones ni rutinas guardadas. El archivo trae 1 rutina.',
+    )
+    expect(detalleDelResumen(resumen({ desde: '2026-09-01', hasta: '2026-09-01', rutinas: 2 }))).toBe(
+      'del 1/9/2026 · 2 rutinas',
+    )
+  })
+
   it('las fechas como se escriben acá', () => {
     expect(fechaCorta('2026-09-01')).toBe('1/9/2026')
     expect(cuantasSesiones(1)).toBe('1 sesión')
@@ -334,5 +362,209 @@ describe('el resumen antes de confirmar', () => {
     )
     expect(avisoDeRestaurada(12, false)).toBe('Listo: 12 sesiones restauradas.')
     expect(avisoDeRestaurada(0, false)).toBe('Listo: 0 sesiones restauradas.')
+  })
+})
+
+describe('la versión 4: rutinas, de dónde salió cada sesión y lo nuevo de los registros', () => {
+  const paso = (cambios: Record<string, unknown> = {}) => ({
+    id: 'p1',
+    clase: 'fijo',
+    ejercicioId: 'flexion-completa',
+    series: 3,
+    cantidad: 10,
+    seccion: 'principal',
+    ...cambios,
+  })
+  const rutina = (cambios: Record<string, unknown> = {}) => ({
+    id: 'r1',
+    nombre: 'Mi rutina',
+    pasos: [paso(), paso({ id: 'p2', clase: 'cadena', patron: 'traccion', ejercicioId: undefined })],
+    creadaEn: 1,
+    actualizadaEn: 2,
+    ...cambios,
+  })
+  const v4 = (cambios: Record<string, unknown> = {}) =>
+    copia({ version: 4, rutinas: [rutina()], ...cambios })
+
+  it('la v4 entra con sus rutinas, y las v1 a v3 entran sin ninguna', () => {
+    const r = revisarCopia(v4())
+    if ('problema' in r) throw new Error(r.problema)
+    expect(r.copia.rutinas).toHaveLength(1)
+    expect(r.copia.rutinas[0]!.pasos.map((p) => p.clase)).toEqual(['fijo', 'cadena'])
+    const vieja = revisarCopia(copia())
+    if ('problema' in vieja) throw new Error(vieja.problema)
+    expect(vieja.copia.rutinas).toEqual([])
+    expect(vieja.copia.version).toBe(4)
+  })
+
+  it('una rutina sin pasos entra: una que ya existía puede quedar vacía', () => {
+    const r = revisarCopia(v4({ rutinas: [rutina({ pasos: [] })] }))
+    if ('problema' in r) throw new Error(r.problema)
+    expect(r.copia.rutinas[0]!.pasos).toEqual([])
+  })
+
+  it('un ejercicio que la app no conoce no rechaza la rutina: el paso entra igual', () => {
+    const r = revisarCopia(v4({ rutinas: [rutina({ pasos: [paso({ ejercicioId: 'del-futuro' })] })] }))
+    if ('problema' in r) throw new Error(r.problema)
+    expect(r.copia.rutinas[0]!.pasos[0]!.ejercicioId).toBe('del-futuro')
+  })
+
+  it('lo que una rutina no conoce no pasa: se rearma con sus campos', () => {
+    const r = revisarCopia(
+      v4({ rutinas: [rutina({ ajeno: 1, pasos: [paso({ ajeno: 2, patron: 'empuje' })] })] }),
+    )
+    if ('problema' in r) throw new Error(r.problema)
+    expect(r.copia.rutinas[0]).not.toHaveProperty('ajeno')
+    expect(r.copia.rutinas[0]!.pasos[0]).not.toHaveProperty('ajeno')
+    // Un paso fijo dice su ejercicio; el patrón no es suyo y no se guarda.
+    expect(r.copia.rutinas[0]!.pasos[0]).not.toHaveProperty('patron')
+  })
+
+  it('una rutina mal formada en cualquier campo rechaza la copia, y dice cuál', () => {
+    const rotas: [Record<string, unknown>, RegExp][] = [
+      [{ id: '' }, /identificador/],
+      [{ nombre: '' }, /nombre/],
+      [{ nombre: 'x'.repeat(41) }, /nombre/],
+      [{ carpeta: 'x'.repeat(25) }, /carpeta/],
+      [{ creadaEn: 'ayer' }, /fechas/],
+      [{ desde: { clase: 'mix', sector: 'cola' } }, /de dónde salió/],
+      [{ desde: { clase: 'sesion' } }, /de dónde salió/],
+      [{ dejarFijo: [1] }, /fijos/],
+      [{ pasos: 'muchos' }, /de 0 a 30 pasos/],
+      [{ pasos: Array.from({ length: 31 }, (_, i) => paso({ id: `p${i}` })) }, /de 0 a 30 pasos/],
+      [{ pasos: [paso(), paso()] }, /mismo identificador/],
+      [{ pasos: [paso({ clase: 'otra' })] }, /clase que no existe/],
+      [{ pasos: [paso({ seccion: 'medio' })] }, /dónde va/],
+      [{ pasos: [paso({ series: 0 })] }, /series/],
+      [{ pasos: [paso({ series: 11 })] }, /series/],
+      [{ pasos: [paso({ series: 2.5 })] }, /series/],
+      [{ pasos: [paso({ cantidad: 301 })] }, /cantidad/],
+      [{ pasos: [paso({ kg: -1 })] }, /kilos/],
+      [{ pasos: [paso({ descansoSegundos: 601 })] }, /descanso/],
+      [{ pasos: [paso({ editadoEn: 'hoy' })] }, /edición/],
+      [{ pasos: [paso({ clase: 'cadena', patron: 'cola' })] }, /cadena no dice cuál/],
+      [{ pasos: [paso({ ejercicioId: undefined })] }, /qué ejercicio/],
+    ]
+    for (const [cambios, motivo] of rotas) {
+      expect(problemaDe(v4({ rutinas: [rutina(cambios)] }))).toMatch(/^La rutina 1 de la copia está rota/)
+      expect(problemaDe(v4({ rutinas: [rutina(cambios)] }))).toMatch(motivo)
+    }
+    expect(problemaDe(v4({ rutinas: 'varias' }))).toMatch(/lista de rutinas/)
+  })
+
+  it('dos rutinas con el mismo identificador se pisarían', () => {
+    expect(problemaDe(v4({ rutinas: [rutina(), rutina({ nombre: 'Otra' })] }))).toBe(
+      'Hay dos rutinas con el mismo identificador en la copia.',
+    )
+  })
+
+  it('el origen de una sesión se revisa por clase, y una clase desconocida rechaza la copia', () => {
+    const con = (origen: unknown) =>
+      v4({ sesiones: [{ ...sesion('a', '2026-09-01'), origen }] })
+    const sanos = [
+      { clase: 'plan', nombre: 'Cuerpo completo', liviana: true },
+      { clase: 'rutina', rutinaId: 'r1', nombre: 'Mi rutina' },
+      { clase: 'mix', sector: 'pecho', nombre: 'Pecho', version: 'corta' },
+      { clase: 'ejercicio', ejercicioId: 'dominada', nombre: 'Dominada' },
+      { clase: 'repetir', sesionId: 'b', nombre: 'Lo del martes' },
+      { clase: 'libre', nombre: 'Sesión libre' },
+      { clase: 'movilidad', sector: 'todo', nombre: 'Movilidad' },
+      { clase: 'rapida', cual: 'reloj', nombre: 'Reloj' },
+    ]
+    for (const origen of sanos) {
+      const r = revisarCopia(con(origen))
+      if ('problema' in r) throw new Error(`${origen.clase}: ${r.problema}`)
+      expect(r.copia.sesiones[0]!.origen).toEqual(origen)
+    }
+    const rotos = [
+      { clase: 'otra', nombre: 'x' },
+      { clase: 'plan', nombre: 'x', liviana: false },
+      { clase: 'plan', nombre: '' },
+      { clase: 'rutina', nombre: 'x' },
+      { clase: 'mix', sector: 'pecho', nombre: 'x', version: 'larga' },
+      { clase: 'mix', sector: 'cola', nombre: 'x', version: 'corta' },
+      { clase: 'movilidad', sector: 'cuello', nombre: 'x' },
+      { clase: 'rapida', cual: 'lenta', nombre: 'x' },
+      'plan',
+    ]
+    for (const origen of rotos) expect(problemaDe(con(origen))).toMatch(/de dónde salió/)
+  })
+
+  it('lo nuevo de una sesión y sus registros se revisa uno por uno', () => {
+    const base = sesion('a', '2026-09-01')
+    const registro = base.registros[0]!
+    const conRegistro = (cambios: Record<string, unknown>) =>
+      v4({ sesiones: [{ ...base, registros: [{ ...registro, ...cambios }] }] })
+    const sana = revisarCopia(
+      v4({
+        sesiones: [
+          {
+            ...base,
+            iniciadaEn: 5,
+            movilidad: [{ ejercicioId: 'm1', logrado: [30, 30] }],
+            registros: [{ ...registro, paso: 'p1', fijo: true, calentamiento: true, cambiadoDe: 'x' }],
+            decisiones: [{ ...base.decisiones[0]!, motivo: 'ya-leida-hoy', leidaA: 3 }],
+          },
+        ],
+      }),
+    )
+    if ('problema' in sana) throw new Error(sana.problema)
+    // Los cinco motivos que guarda el motor pasan, y "toString" (que está en
+    // cualquier objeto) no.
+    for (const motivo of ['ya-leida-hoy', 'a-medias', 'protegida', 'prefatiga', 'meseta']) {
+      const conMotivo = revisarCopia(
+        v4({ sesiones: [{ ...base, decisiones: [{ ...base.decisiones[0]!, motivo }] }] }),
+      )
+      expect('problema' in conMotivo, motivo).toBe(false)
+    }
+    expect(
+      problemaDe(v4({ sesiones: [{ ...base, decisiones: [{ ...base.decisiones[0]!, motivo: 'toString' }] }] })),
+    ).toMatch(/decisión/)
+
+    expect(problemaDe(conRegistro({ fijo: false }))).toMatch(/marca/)
+    expect(problemaDe(conRegistro({ calentamiento: 'sí' }))).toMatch(/marca/)
+    expect(problemaDe(conRegistro({ paso: 3 }))).toMatch(/marca/)
+    expect(problemaDe(conRegistro({ cambiadoDe: '' }))).toMatch(/marca/)
+    expect(
+      problemaDe(v4({ sesiones: [{ ...base, decisiones: [{ ...base.decisiones[0]!, motivo: 'otro' }] }] })),
+    ).toMatch(/decisión/)
+    expect(
+      problemaDe(v4({ sesiones: [{ ...base, decisiones: [{ ...base.decisiones[0]!, leidaA: 'a la mañana' }] }] })),
+    ).toMatch(/decisión/)
+    expect(problemaDe(v4({ sesiones: [{ ...base, iniciadaEn: 'temprano' }] }))).toMatch(/empezó/)
+    expect(problemaDe(v4({ sesiones: [{ ...base, movilidad: [{ ejercicioId: 'm1' }] }] }))).toMatch(
+      /movilidad/,
+    )
+  })
+
+  it('las preferencias nuevas que no se entienden vuelven a su valor, no rechazan', () => {
+    const r = revisarCopia(
+      v4({
+        preferencias: {
+          id: 'unico',
+          rutinaActivaId: 'cuerpo-completo',
+          modoPlan: 'cuando-pinte',
+          tieneBanda: 'sí',
+          tieneParalelas: true,
+          novedadesVistas: 'cinco',
+          primeraVezVista: 1,
+          centro: { cerradas: ['rapidas', 'favoritos'], vista: 'costado' },
+        },
+      }),
+    )
+    if ('problema' in r) throw new Error(r.problema)
+    const p = r.copia.preferencias
+    expect(p).not.toHaveProperty('modoPlan')
+    expect(p).not.toHaveProperty('tieneBanda')
+    expect(p.tieneParalelas).toBe(true)
+    expect(p).not.toHaveProperty('novedadesVistas')
+    expect(p).not.toHaveProperty('primeraVezVista')
+    expect(p.centro).toEqual({ cerradas: ['rapidas'], vista: 'frente' })
+
+    const sinLista = revisarCopia(
+      v4({ preferencias: { id: 'unico', rutinaActivaId: 'x', centro: { vista: 'lista' } } }),
+    )
+    if ('problema' in sinLista) throw new Error(sinLista.problema)
+    expect(sinLista.copia.preferencias.centro).toEqual({ cerradas: ['rapidas', 'todos'], vista: 'lista' })
   })
 })

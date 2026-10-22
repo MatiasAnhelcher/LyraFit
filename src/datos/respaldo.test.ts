@@ -18,9 +18,10 @@
  * fila tiene sus casos en `src/dominio/copia.test.ts`.
  */
 
-import { describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { PREFERENCIAS_POR_DEFECTO, db } from './db'
 import { RespaldoInvalido, validarRespaldo } from './repositorio'
+import { ESPERA_DE_LA_COPIA, respaldarPronto } from './respaldo'
 
 const BASE = {
   version: 2 as const,
@@ -38,7 +39,9 @@ describe('una copia vieja se puede restaurar', () => {
     // si llegara `undefined` el bulkPut explotaría.
     const r = validarRespaldo(BASE)
     expect(r.diario).toEqual([])
-    expect(r.version).toBe(3)
+    // Y las rutinas, que tampoco existían: vacías, no indefinidas.
+    expect(r.rutinas).toEqual([])
+    expect(r.version).toBe(4)
   })
 
   it('la v1 también, que es la más vieja que existió', () => {
@@ -103,7 +106,7 @@ describe('la forma del respaldo no se puede quedar corta', () => {
      * decida explícitamente de qué lado va.
      */
     const SIN_RESPALDAR = new Set(['pendientes', 'curso'])
-    const DECLARADAS = new Set(['sesiones', 'avances', 'estados', 'preferencias', 'diario'])
+    const DECLARADAS = new Set(['sesiones', 'avances', 'estados', 'preferencias', 'diario', 'rutinas'])
 
     // Las tablas de la última versión del esquema, leídas de Dexie y no
     // copiadas: así no hay dos listas que se puedan desincronizar.
@@ -147,5 +150,69 @@ describe('los valores por defecto que encienden funciones', () => {
     // diga.
     expect(PREFERENCIAS_POR_DEFECTO.pesoCorporalKg).toBeUndefined()
     expect(PREFERENCIAS_POR_DEFECTO.cargaMaximaKg).toBeUndefined()
+  })
+})
+
+describe('la copia de cuando cambia algo fuera de una sesión', () => {
+  afterEach(() => {
+    vi.useRealTimers()
+    vi.unstubAllGlobals()
+  })
+
+  /**
+   * Un sistema de archivos privado que cuenta cuántas veces se pidió la
+   * carpeta: una por copia. La base no está (no hay IndexedDB en los tests),
+   * así que la copia falla después de pedirla, que es justo el caso de "una
+   * copia que falla no lanza".
+   */
+  function contarCopias(): { copias: () => number } {
+    let pedidas = 0
+    const carpeta = {
+      getDirectoryHandle: async () => carpeta,
+      getFileHandle: async () => {
+        throw new Error('sin archivos')
+      },
+      removeEntry: async () => {},
+      keys: async function* () {},
+    }
+    vi.stubGlobal('navigator', {
+      storage: {
+        getDirectory: async () => {
+          pedidas++
+          return carpeta
+        },
+      },
+    })
+    return { copias: () => pedidas }
+  }
+
+  it('varias seguidas hacen una sola copia, después de la espera', async () => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
+    const { copias } = contarCopias()
+    respaldarPronto()
+    respaldarPronto()
+    await vi.advanceTimersByTimeAsync(ESPERA_DE_LA_COPIA - 1)
+    respaldarPronto()
+    expect(copias()).toBe(0)
+    await vi.advanceTimersByTimeAsync(ESPERA_DE_LA_COPIA)
+    expect(copias()).toBe(1)
+  })
+
+  it('una copia que falla no lanza ni deja una promesa rechazada', async () => {
+    // Vitest marca la corrida entera como fallida ante una promesa rechazada
+    // que nadie atrapa, así que alcanza con que la copia corra y falle.
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
+    let intentos = 0
+    vi.stubGlobal('navigator', {
+      storage: {
+        getDirectory: async () => {
+          intentos++
+          throw new Error('cuota agotada')
+        },
+      },
+    })
+    expect(() => respaldarPronto()).not.toThrow()
+    await vi.advanceTimersByTimeAsync(ESPERA_DE_LA_COPIA)
+    expect(intentos).toBe(1)
   })
 })

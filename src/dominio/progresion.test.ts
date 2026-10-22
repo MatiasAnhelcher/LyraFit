@@ -1731,6 +1731,78 @@ describe('varias sesiones por día', () => {
       expect(decision.motivo).toBeUndefined()
     })
   })
+
+  describe('a medias, al guardar desde afuera', () => {
+    // Dos de tres series de empuje: la persona dejó la sesión para empezar otra.
+    const dosDeTres = registro('flexion-completa', [8, 8], {
+      objetivo: { series: 3, cantidad: 8 },
+    })
+
+    it('un paso de cadena sin terminar no se lee ni escribe el avance', () => {
+      const [lectura] = leer([dosDeTres], [], { desdeAfuera: true })
+      expect(lectura!.decision.movimiento).toBe('neutra')
+      expect(lectura!.decision.motivo).toBe('a-medias')
+      expect(lectura!.guardar).toBe(false)
+      expect(lectura!.decision.avance).toBe(avances.get('empuje'))
+      expect(lectura!.decision.explicacion).toBe(
+        'Empuje quedó a medias: no se movió y se puede leer hoy.',
+      )
+    })
+
+    it('no gasta la lectura del día: la sesión siguiente la lee', () => {
+      const primera = leer([dosDeTres], [], { desdeAfuera: true })
+      const historial = [guardada(primera, a(9, 10), [dosDeTres])]
+      const [tarde] = leer([registro('flexion-completa', [8, 8, 8])], historial, {
+        ahora: a(19, 5),
+      })
+      expect(tarde!.decision.motivo).toBeUndefined()
+      expect(tarde!.decision.movimiento).not.toBe('neutra')
+      expect(tarde!.guardar).toBe(true)
+    })
+
+    it('terminado, se lee como siempre aunque se guarde desde afuera', () => {
+      const [lectura] = leer([registro('flexion-completa', [8, 8, 8])], [], { desdeAfuera: true })
+      expect(lectura!.decision.motivo).toBeUndefined()
+      expect(lectura!.guardar).toBe(true)
+    })
+
+    it('cerrada desde adentro, la misma sesión se lee: terminar ahí fue la decisión', () => {
+      const [lectura] = leer([dosDeTres])
+      expect(lectura!.decision.motivo).toBeUndefined()
+      expect(lectura!.guardar).toBe(true)
+    })
+
+    it('la serie de cierre no completa el paso', () => {
+      const conSaludo = registro('flexion-completa', [8, 8], { objetivo: { series: 3, cantidad: 8 } })
+      conSaludo.series = [...conSaludo.series, { logrado: 5, cierre: true }]
+      expect(leer([conSaludo], [], { desdeAfuera: true })[0]!.decision.motivo).toBe('a-medias')
+    })
+
+    it('si ya se leyó hoy, dice eso y no a medias', () => {
+      const manana = [registro('flexion-completa', [8, 8, 8])]
+      const historial = [guardada(leer(manana), a(9, 10), manana)]
+      const [tarde] = leer([dosDeTres], historial, { desdeAfuera: true, ahora: a(19, 5) })
+      expect(tarde!.decision.motivo).toBe('ya-leida-hoy')
+    })
+
+    it('un día rojo o una cadena congelada siguen su camino de siempre', () => {
+      expect(leer([dosDeTres], [], { desdeAfuera: true, neutra: true })[0]!.decision.motivo).toBeUndefined()
+      const congelada = leer([dosDeTres], [], {
+        desdeAfuera: true,
+        congeladas: new Set<Patron>(['empuje']),
+      })[0]!
+      expect(congelada.decision.motivo).toBeUndefined()
+      expect(congelada.decision.movimiento).toBe('neutra')
+    })
+
+    it('una sesión de ayer guardada hoy no promete leer ese día, que ya pasó', () => {
+      const [lectura] = leer([dosDeTres], [], {
+        desdeAfuera: true,
+        ahora: new Date(2026, 9, 22, 8, 0).getTime(),
+      })
+      expect(lectura!.decision.explicacion).toBe('Empuje quedó a medias: no se movió.')
+    })
+  })
 })
 
 describe('cumpleCadaSerie', () => {

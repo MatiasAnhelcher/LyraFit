@@ -31,7 +31,7 @@
  */
 
 import { diaLocal } from './borrador'
-import { lineaYaLeida } from './lineas'
+import { lineaAMedias, lineaYaLeida } from './lineas'
 import { principalMasCargado } from './musculos'
 import { animoDentroDe } from './vitalidad'
 import type {
@@ -1497,17 +1497,12 @@ function decidir(
  *
  * `fijo` y `calentamiento` son pasos que no leen aunque tengan tu eslabón: el
  * fijo mide contra números que escribiste vos, y el calentamiento no es
- * trabajo. `RegistroEjercicio` todavía no las declara; llegan con los pasos de
- * las rutinas propias, y el motor ya las respeta para que ese día no haya que
- * tocarlo.
+ * trabajo.
  */
 export type RegistroQueLee = Pick<
   RegistroEjercicio,
-  'ejercicioId' | 'objetivo' | 'series' | 'bajada' | 'reloj'
-> & {
-  fijo?: true
-  calentamiento?: true
-}
+  'ejercicioId' | 'objetivo' | 'series' | 'bajada' | 'reloj' | 'fijo' | 'calentamiento'
+>
 
 /**
  * A qué hora se leyó hoy esta cadena, o null si todavía no se leyó.
@@ -1630,10 +1625,10 @@ export interface Lectura {
   /** El avance que se evaluó: dónde estaba la cadena antes de esta sesión. */
   antes: Avance
   /**
-   * Si hay que escribir el avance de la decisión. Falso solo con
-   * `ya-leida-hoy`: esa cadena ya se leyó hoy y su avance queda como estaba,
-   * `actualizadoEn` incluido. La rama neutra de `siguienteAvance` lo reescribe,
-   * y por eso esta lectura no pasa por ahí.
+   * Si hay que escribir el avance de la decisión. Falso con `ya-leida-hoy` y
+   * con `a-medias`: en las dos la cadena no se leyó y su avance queda como
+   * estaba, `actualizadoEn` incluido. La rama neutra de `siguienteAvance` lo
+   * reescribe, y por eso estas no pasan por ahí.
    */
   guardar: boolean
 }
@@ -1653,6 +1648,11 @@ export interface SesionALeer {
   congeladas: ReadonlySet<Patron>
   /** El chequeo del día explica una sesión floja. */
   protegida: boolean
+  /**
+   * Se cierra un borrador desde afuera: un paso de cadena con menos series
+   * hechas que las del objetivo queda a medias y no se lee.
+   */
+  desdeAfuera?: boolean
   animo?: number
   /** El ánimo de cada uno de los últimos días con sesión (`Evaluacion.animoPorDia`). */
   animoPorDia?: readonly (number | undefined)[]
@@ -1671,6 +1671,10 @@ export interface SesionALeer {
  *
  * - si la cadena ya se leyó hoy, una decisión neutra con `motivo:
  *   'ya-leida-hoy'` y la hora, que no escribe el avance;
+ * - si la sesión se cierra desde afuera y el paso tiene menos series hechas
+ *   que las del objetivo, una neutra con `motivo: 'a-medias'`, que tampoco
+ *   escribe ni gasta la lectura del día. Solo cuando la cadena se habría
+ *   leído: un día rojo o una cadena congelada siguen su camino de siempre;
  * - si no, `siguienteAvance`, protegida cuando el chequeo lo pide o cuando el
  *   principal más cargado del eslabón ya trae `PREFATIGA` series de hoy, de
  *   esta sesión antes de este paso o de las anteriores del día. Esas no leyeron
@@ -1705,6 +1709,25 @@ export function leerLaSesion(sesion: SesionALeer): Lectura[] {
             '',
           motivo: 'ya-leida-hoy',
           leidaA,
+        },
+      })
+      continue
+    }
+
+    const hechas = registro.series.filter((serie) => !serie.cierre && serie.logrado > 0).length
+    const seLeeria = !sesion.neutra && !sesion.congeladas.has(patron)
+    if (sesion.desdeAfuera && seLeeria && hechas < registro.objetivo.series) {
+      lecturas.push({
+        patron,
+        antes: avance,
+        guardar: false,
+        decision: {
+          avance,
+          movimiento: 'neutra',
+          cambioDeNivel: false,
+          explicacion:
+            lineaAMedias({ patrones: [patron], esHoy: dia === diaLocal(sesion.ahora) }) ?? '',
+          motivo: 'a-medias',
         },
       })
       continue

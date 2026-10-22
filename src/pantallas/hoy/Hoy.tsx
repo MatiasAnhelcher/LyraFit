@@ -141,9 +141,9 @@ export function Hoy() {
    * hasta que la persona elige qué hacer con ella.
    */
   const sinCerrar = useLiveQuery(leerSesionSinCerrar, [])
-  const [sinCerrarResuelta, setSinCerrarResuelta] = useState<'guardada' | 'descartada' | null>(
-    null,
-  )
+  const [sinCerrarResuelta, setSinCerrarResuelta] = useState<
+    'guardada' | 'descartada' | 'ya-no-estaba' | null
+  >(null)
 
   if (!avances || !preferencias || !sesiones || !estados) {
     return (
@@ -452,9 +452,11 @@ export function Hoy() {
             borrador={sinCerrar}
             hoy={fecha}
             alGuardar={async () => {
-              await guardarSesionSinCerrar()
+              // Null es que ya no estaba: otra pantalla la guardó o la descartó
+              // en el medio. Decir "quedó guardada" podía ser falso.
+              const guardada = await guardarSesionSinCerrar()
               void respaldarEnSilencio()
-              setSinCerrarResuelta('guardada')
+              setSinCerrarResuelta(guardada ? 'guardada' : 'ya-no-estaba')
             }}
             alDescartar={async () => {
               await descartarSesionEnCurso()
@@ -467,7 +469,9 @@ export function Hoy() {
           <p className="mt-8 text-sm text-[var(--color-glosa)]" role="status">
             {sinCerrarResuelta === 'guardada'
               ? 'Listo: la sesión quedó guardada en tu historial.'
-              : 'Listo: la sesión se descartó.'}
+              : sinCerrarResuelta === 'ya-no-estaba'
+                ? 'Esa sesión ya no estaba: la guardó o la descartó otra pantalla.'
+                : 'Listo: la sesión se descartó.'}
           </p>
         )
       )}
