@@ -79,6 +79,7 @@ const MOTIVOS: Record<MotivoDeDecision, true> = {
   'a-medias': true,
   protegida: true,
   prefatiga: true,
+  meseta: true,
 }
 const CLASES_DE_PASO = new Set<ClaseDePaso>(['cadena', 'volumen', 'fijo', 'movilidad'])
 const SECCIONES_DEL_PASO = new Set<SeccionDelPaso>(['entrada', 'principal', 'final'])

@@ -509,9 +509,9 @@ describe('la versión 4: rutinas, de dónde salió cada sesión y lo nuevo de lo
       }),
     )
     if ('problema' in sana) throw new Error(sana.problema)
-    // Los cuatro motivos que guarda el motor pasan, y "toString" (que está en
+    // Los cinco motivos que guarda el motor pasan, y "toString" (que está en
     // cualquier objeto) no.
-    for (const motivo of ['ya-leida-hoy', 'a-medias', 'protegida', 'prefatiga']) {
+    for (const motivo of ['ya-leida-hoy', 'a-medias', 'protegida', 'prefatiga', 'meseta']) {
       const conMotivo = revisarCopia(
         v4({ sesiones: [{ ...base, decisiones: [{ ...base.decisiones[0]!, motivo }] }] }),
       )
