@@ -467,7 +467,7 @@ export function revisarSemana(semana: Semana, rutina: Rutina): Aviso[] {
     avisos.push({
       clave: 'seguidos',
       gravedad: 'avisa',
-      texto: `Hay ${seguidos} días de fuerza seguidos. Cada uno lee tus cadenas una vez, con lo que salga ese día.`,
+      texto: `Hay ${seguidos} días de fuerza seguidos. Cada uno lee una vez las cadenas que entrena, con lo que salga ese día.`,
     })
   }
 

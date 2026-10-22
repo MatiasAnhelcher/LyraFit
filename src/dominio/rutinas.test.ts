@@ -315,7 +315,7 @@ describe('lo que la app tiene para decir de una semana', () => {
     const seis = revisarSemana(semana({ fuerza: [1, 2, 3, 4, 5, 6] }), cuerpoCompleto)
     expect(seis.find((a) => a.clave === 'sin-recuperacion')?.texto).toMatch(/^Seis días de fuerza/)
     expect(seis.find((a) => a.clave === 'seguidos')?.texto).toBe(
-      'Hay 6 días de fuerza seguidos. Cada uno lee tus cadenas una vez, con lo que salga ese día.',
+      'Hay 6 días de fuerza seguidos. Cada uno lee una vez las cadenas que entrena, con lo que salga ese día.',
     )
   })
 })

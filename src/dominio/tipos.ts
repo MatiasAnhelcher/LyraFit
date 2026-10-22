@@ -212,16 +212,20 @@ export interface DecisionGuardada {
 }
 
 /**
- * Las tres razones que una decisión guarda aparte.
+ * Las cuatro razones que una decisión guarda aparte.
  *
  * - **ya-leida-hoy**: la cadena ya se leyó ese día en otra sesión. Es neutra y
  *   no escribe el avance: cada cadena se lee una vez por día.
  * - **a-medias**: la sesión se cerró desde afuera con el paso sin terminar. Es
  *   neutra y no gasta la lectura del día.
- * - **prefatiga**: el paso llegó después de muchas series de sus músculos, y
- *   la lectura fue protegida. Gasta la lectura del día igual que cualquier otra.
+ * - **protegida**: la lectura salió floja con una razón conocida —el chequeo
+ *   del día o la prefatiga— y se sostuvo tal cual: ni subió ni bajó. Gasta la
+ *   lectura del día igual que cualquier otra.
+ * - **prefatiga**: el paso llegó después de muchas series de sus músculos y
+ *   la lectura iba protegida, pero no salió floja, así que contó como
+ *   cualquier otra.
  */
-export type MotivoDeDecision = 'ya-leida-hoy' | 'a-medias' | 'prefatiga'
+export type MotivoDeDecision = 'ya-leida-hoy' | 'a-medias' | 'protegida' | 'prefatiga'
 
 /**
  * Una ráfaga metabólica efectivamente hecha.

@@ -8,6 +8,7 @@ import {
   TODAS,
   dichoDelDescanso,
   fraseDe,
+  momentoDeHoy,
   recordar,
   type Momento,
 } from './frases'
@@ -554,5 +555,19 @@ describe('lo que Lyra dice en el descanso', () => {
     const uno = dichoDelDescanso({ ...base, azar: 0.37 })
     const otro = dichoDelDescanso({ ...base, azar: 0.37 })
     expect(uno).toEqual(otro)
+  })
+})
+
+describe('el momento de Hoy', () => {
+  it('el día de la vuelta, después de entrenar, ya es constancia', () => {
+    // "Tomátelo con calma esta primera" no es cierto con la primera hecha.
+    expect(momentoDeHoy({ esDiaDeEntrenar: true, entrenoHoy: true, vuelve: true })).toBe('constancia')
+    expect(momentoDeHoy({ esDiaDeEntrenar: true, entrenoHoy: false, vuelve: true })).toBe('vuelta')
+  })
+
+  it('sin vuelta: abrir antes de entrenar, constancia después, descanso si no toca', () => {
+    expect(momentoDeHoy({ esDiaDeEntrenar: true, entrenoHoy: false, vuelve: false })).toBe('abrir')
+    expect(momentoDeHoy({ esDiaDeEntrenar: true, entrenoHoy: true, vuelve: false })).toBe('constancia')
+    expect(momentoDeHoy({ esDiaDeEntrenar: false, entrenoHoy: true, vuelve: true })).toBe('descanso')
   })
 })

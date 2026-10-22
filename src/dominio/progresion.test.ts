@@ -7,7 +7,8 @@ import {
   GRACIA,
   MESETA,
   PREFATIGA,
-
+  PROTEGIDA_EN_UN_DIA_FLOJO,
+  PROTEGIDA_POR_PREFATIGA,
   avanceInicial,
   cantidadParaCarga,
   ccrEfectivo,
@@ -246,6 +247,72 @@ describe('siguienteAvance', () => {
     expect(dichos[2]).toContain('Un día de práctica más así y cambiamos')
   })
 
+  it('en el techo del último eslabón no promete cambiar de ejercicio', () => {
+    const ultimo = empuje.ejercicios[empuje.ejercicios.length - 1]!
+    const avance = avanceEn(ultimo, ejercicio(ultimo).ventana.max, {
+      sesionesEnObjetivo: CONSOLIDACION - 1,
+    })
+    const d = cumpliendo(avance)
+    expect(d.movimiento).toBe('sostiene')
+    expect(d.explicacion).toContain('Un día de práctica más así y subimos.')
+  })
+
+  it('en la meseta del techo, lo que falta para cambiar sale de la gracia', () => {
+    // Señal entre la mitad y la vara de subir: ni sube ni baja, y en la meseta
+    // empuja hacia el siguiente cuando se termina la gracia.
+    const e = ejercicio('flexion-completa')
+    let avance = avanceEn('flexion-completa', e.ventana.max, {
+      senal: 0.9,
+      sesionesEnObjetivo: MESETA - 1,
+      graciaRestante: 2,
+    })
+    const leer = (a: Avance) => siguienteAvance(a, { rendimiento: 0.9, tipico: 11 }, ctx, 0)
+    const dichos: string[] = []
+    let d = leer(avance)
+    while (!d.cambioDeNivel && dichos.length < 5) {
+      dichos.push(d.explicacion)
+      avance = d.avance
+      d = leer(avance)
+    }
+    expect(dichos).toEqual([
+      'Seguimos en Flexiones completas. Faltan 2 días de práctica así para cambiar de ejercicio.',
+      'Seguimos en Flexiones completas. Un día de práctica más así y cambiamos de ejercicio.',
+    ])
+    expect(d.movimiento).toBe('nivel-arriba')
+  })
+
+  it('en la meseta del último eslabón no hay a qué cambiar, y no se promete', () => {
+    const ultimo = empuje.ejercicios[empuje.ejercicios.length - 1]!
+    const avance = avanceEn(ultimo, ejercicio(ultimo).ventana.max, {
+      senal: 0.9,
+      sesionesEnObjetivo: MESETA - 1,
+    })
+    const d = siguienteAvance(avance, { rendimiento: 0.9, tipico: 11 }, ctx, 0)
+    expect(d.movimiento).toBe('sostiene')
+    expect(d.explicacion).toBe(
+      `Seguimos en ${ejercicio(ultimo).nombre}, el último ejercicio de la cadena de Empuje.`,
+    )
+  })
+
+  it('en el piso con gracia, lo que dice que sostiene es lo que sostiene', () => {
+    const e = ejercicio('flexion-completa')
+    let avance = avanceEn('flexion-completa', e.ventana.min, { senal: 0.5, graciaRestante: 3 })
+    const leer = (a: Avance) => siguienteAvance(a, { rendimiento: 0.2, tipico: 2 }, ctx, 0)
+    const dichos: string[] = []
+    let d = leer(avance)
+    while (d.movimiento === 'sostiene' && dichos.length < 5) {
+      dichos.push(d.explicacion)
+      avance = d.avance
+      d = leer(avance)
+    }
+    expect(dichos).toEqual([
+      'Flexiones completas todavía te está costando. Lo sostenemos al menos 2 días de práctica más antes de tocar nada.',
+      'Flexiones completas todavía te está costando. Lo sostenemos al menos un día de práctica más antes de tocar nada.',
+      'Flexiones completas todavía te está costando. Esta vez lo sostenemos tal cual.',
+    ])
+    expect(d.movimiento).toBe('nivel-abajo')
+  })
+
   it('NO cambia de eslabón antes de dominar el actual', () => {
     // El defecto más caro del motor viejo: subía tras dos sesiones buenas sin
     // mirar nunca si se había llegado al objetivo declarado del ejercicio.
@@ -336,7 +403,18 @@ describe('siguienteAvance', () => {
     let avance = avanceEn('flexion-completa', 11, { senal: 0.82, sesionesEnObjetivo: MESETA - 1 })
     const d = siguienteAvance(avance, { rendimiento: 0.8, tipico: 8 }, ctx, 0)
     expect(d.avance.objetivoActual.cantidad).toBeLessThanOrEqual(9)
-    expect(d.explicacion).toContain('optimista')
+    expect(d.explicacion).toBe(
+      'El objetivo de 11 por serie no se termina de cerrar. Era optimista: lo llevamos a 8, que es lo que te salió esta vez.',
+    )
+  })
+
+  it('si lo de esta vez quedó más cerca, baja un paso y no dice que es lo que salió', () => {
+    const avance = avanceEn('flexion-completa', 11, { senal: 0.82, sesionesEnObjetivo: MESETA - 1 })
+    const d = siguienteAvance(avance, { rendimiento: 0.8, tipico: 11 }, ctx, 0)
+    expect(d.avance.objetivoActual.cantidad).toBe(10)
+    expect(d.explicacion).toBe(
+      'El objetivo de 11 por serie no se termina de cerrar. Era optimista: lo llevamos a 10.',
+    )
   })
 
   it('una sesión neutra no mueve absolutamente nada', () => {
@@ -358,6 +436,67 @@ describe('siguienteAvance', () => {
     const avance = avanceEn('flexion-completa', 8, { senal: 0.7 })
     const d = siguienteAvance(avance, { rendimiento: 1.2, tipico: 9, protegida: true }, ctx, 0)
     expect(d.avance.senal).toBeGreaterThan(0.7)
+  })
+
+  describe('una lectura floja protegida se sostiene tal cual', () => {
+    // Tres series de 3 contra 3 × el objetivo: floja con cualquier señal.
+    const floja = (avance: Avance) => {
+      const hechas = series(3, 3, 3)
+      return siguienteAvance(
+        avance,
+        {
+          rendimiento: rendimientoDeSesion(avance.objetivoActual, hechas),
+          tipico: logradoTipico(hechas),
+          protegida: true,
+        },
+        ctx,
+        5,
+      )
+    }
+    const tal = (d: ReturnType<typeof floja>, avance: Avance) => {
+      expect(d.movimiento).toBe('sostiene')
+      expect(d.cambioDeNivel).toBe(false)
+      expect(d.motivo).toBe('protegida')
+      expect(d.explicacion).toBe(PROTEGIDA_EN_UN_DIA_FLOJO)
+      expect(d.avance).toEqual({ ...avance, actualizadoEn: 5 })
+    }
+
+    it('con la señal alta y techo por delante, no sube el objetivo', () => {
+      const avance = avanceEn('flexion-completa', 10, { senal: 1 })
+      tal(floja(avance), avance)
+    })
+
+    it('en el techo, ni consolida ni cambia de eslabón', () => {
+      const techo = ejercicio('flexion-completa').ventana.max
+      for (const sesionesEnObjetivo of [1, CONSOLIDACION]) {
+        const avance = avanceEn('flexion-completa', techo, { senal: 1, sesionesEnObjetivo })
+        tal(floja(avance), avance)
+      }
+    })
+
+    it('en la meseta, ni baja ni retrocede de eslabón', () => {
+      const avance = avanceEn('flexion-completa', 8, { senal: 0.8, sesionesEnObjetivo: MESETA - 1 })
+      tal(floja(avance), avance)
+    })
+
+    it('con gracia por delante, no la gasta', () => {
+      const avance = avanceEn('flexion-completa', 8, { senal: 0.9, graciaRestante: 2 })
+      tal(floja(avance), avance)
+    })
+
+    it('una que igual cumple, aunque quede por debajo de la señal, cuenta', () => {
+      const avance = avanceEn('flexion-completa', 8, { senal: 1.2 })
+      const d = siguienteAvance(avance, { rendimiento: 1, tipico: 8, protegida: true }, ctx, 0)
+      expect(d.movimiento).toBe('subida')
+      expect(d.motivo).toBeUndefined()
+    })
+
+    it('una que sale mejor que lo que venía cuenta, aunque sea floja', () => {
+      const avance = avanceEn('flexion-completa', 8, { senal: 0.5 })
+      const d = siguienteAvance(avance, { rendimiento: 0.7, tipico: 6, protegida: true }, ctx, 0)
+      expect(d.motivo).toBeUndefined()
+      expect(d.avance.senal).toBeGreaterThan(0.5)
+    })
   })
 
   it('no sube la exigencia si la persona la está pasando mal', () => {
@@ -1142,7 +1281,21 @@ describe('varias sesiones por día', () => {
       expect(sola.movimiento).toBe('bajada')
       expect(despues.avance.senal).toBe(avances.get('empuje')!.senal)
       expect(despues.movimiento).toBe('sostiene')
-      expect(despues.motivo).toBe('prefatiga')
+      expect(despues.motivo).toBe('protegida')
+      expect(despues.explicacion).toBe(PROTEGIDA_POR_PREFATIGA)
+    })
+
+    it('la que sale bien con prefatiga cuenta, y guarda el motivo', () => {
+      const buena = registro('flexion-completa', [9, 9, 9])
+      const decision = leer([diamante, buena])[0]!.decision
+      expect(decision.movimiento).toBe('subida')
+      expect(decision.motivo).toBe('prefatiga')
+    })
+
+    it('protegida por el chequeo y sin prefatiga, dice lo del día flojo', () => {
+      const decision = leer([floja], [], { protegida: true })[0]!.decision
+      expect(decision.motivo).toBe('protegida')
+      expect(decision.explicacion).toBe(PROTEGIDA_EN_UN_DIA_FLOJO)
     })
 
     it('cuenta lo de las sesiones anteriores del día', () => {
@@ -1151,7 +1304,8 @@ describe('varias sesiones por día', () => {
       // La de la mañana leyó tracción y no empuje: empuje se lee a la tarde,
       // con las siete de pectoral de la mañana encima.
       const tarde = leer([floja], historial, { ahora: a(19, 5) })[0]!.decision
-      expect(tarde.motivo).toBe('prefatiga')
+      expect(tarde.motivo).toBe('protegida')
+      expect(tarde.explicacion).toBe(PROTEGIDA_POR_PREFATIGA)
       expect(tarde.movimiento).toBe('sostiene')
     })
 
@@ -1165,12 +1319,24 @@ describe('varias sesiones por día', () => {
     it('una lectura protegida gasta la lectura del día', () => {
       const manana = [diamante, floja]
       const primera = leer(manana)
-      expect(primera[0]!.decision.motivo).toBe('prefatiga')
+      expect(primera[0]!.decision.motivo).toBe('protegida')
       const historial = [guardada(primera, a(9, 10), manana)]
       // La de la tarde no puede volver a leer empuje para buscar otro resultado.
       const tarde = leer([registro('flexion-completa', [8, 8, 8])], historial, { ahora: a(19, 5) })
       expect(tarde[0]!.decision.motivo).toBe('ya-leida-hoy')
       expect(tarde[0]!.guardar).toBe(false)
+    })
+
+    it('una sesión que cruzó la medianoche no dice "hoy"', () => {
+      const manana = [registro('flexion-completa', [8, 8, 8])]
+      const historial = [guardada(leer(manana), a(9, 10), manana)]
+      // Del 21, arrancada a las 23:40 y cerrada el 22 a las 00:15.
+      const pasada = new Date(2026, 9, 22, 0, 15).getTime()
+      const decision = leer(manana, historial, { ahora: pasada })[0]!.decision
+      expect(decision.motivo).toBe('ya-leida-hoy')
+      expect(decision.explicacion).toBe(
+        'Empuje ya se había leído ese día a las 9:10: esta sesión sumó volumen.',
+      )
     })
 
     it('en una sesión neutra no hay nada que proteger, y no se dice', () => {

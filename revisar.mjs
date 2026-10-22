@@ -387,12 +387,12 @@ async function main() {
         await pagina.waitForTimeout(400)
         const cuenta = await pagina
           .locator('p')
-          .filter({ hasText: /Estás a .* de acá, si sale todo bien/i })
+          .filter({ hasText: /Estás a \d+ días? de práctica de acá, si sale todo bien/i })
           .first()
           .isVisible()
           .catch(() => false)
         if (!cuenta) {
-          problemas.push(`El eslabón siguiente no dice a cuántas sesiones está (${tema})`)
+          problemas.push(`El eslabón siguiente no dice a cuántos días de práctica está (${tema})`)
         }
       }
     }

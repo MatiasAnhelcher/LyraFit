@@ -67,6 +67,37 @@ describe('ya se leyó hoy', () => {
     ).toBe('Empuje ya se leyó hoy a las 9:10: esta sesión sumó volumen.')
   })
 
+  it('a la una, en singular', () => {
+    expect(lineaYaLeida([{ patron: 'empuje', hora: a(1, 20) }])).toBe(
+      'Empuje ya se leyó hoy a la 1:20: esta sesión sumó volumen.',
+    )
+    expect(
+      lineaYaLeida([
+        { patron: 'empuje', hora: a(0, 40) },
+        { patron: 'core', hora: a(1, 5) },
+      ]),
+    ).toBe('Empuje se leyó hoy a las 0:40 y core a la 1:05: esta sesión sumó volumen.')
+  })
+
+  it('una sesión de otro día no dice "hoy"', () => {
+    // Arrancó a las 23:40 y cierra a las 00:05: es del día de antes.
+    expect(lineaYaLeida([{ patron: 'empuje', hora: a(9, 10) }], { esHoy: false })).toBe(
+      'Empuje ya se había leído ese día a las 9:10: esta sesión sumó volumen.',
+    )
+    expect(
+      lineaYaLeida(
+        [
+          { patron: 'empuje', hora: a(9, 10) },
+          { patron: 'core', hora: a(9, 10) },
+          { patron: 'bisagra', hora: a(13, 30) },
+        ],
+        { esHoy: false },
+      ),
+    ).toBe(
+      'Empuje y core se habían leído ese día a las 9:10, y bisagra a las 13:30: esta sesión sumó volumen.',
+    )
+  })
+
   it('sin cadenas leídas no hay línea', () => {
     expect(lineaYaLeida([])).toBeNull()
   })
@@ -120,6 +151,14 @@ describe('las reglas de la voz, en todas', () => {
       { patron: 'bisagra', hora: a(13, 30) },
       { patron: 'core', hora: a(19, 5) },
     ]),
+    lineaYaLeida(
+      [
+        { patron: 'traccion', hora: a(1, 10) },
+        { patron: 'bisagra', hora: a(13, 30) },
+        { patron: 'core', hora: a(19, 5) },
+      ],
+      { esHoy: false },
+    ),
     lineaSinCadenas({ tipo: 'fuelle', pasosDeCadena: 0 }),
     lineaCambiado(['empuje', 'traccion', 'piernas']),
     lineaLiviana(true),

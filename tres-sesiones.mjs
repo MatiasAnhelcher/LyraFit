@@ -56,15 +56,17 @@ const notas = []
  *
  * @returns {Promise<string|null>} null si quedó guardado; si no, la razón.
  */
-async function unTabata(p, desde) {
+async function unTabata(p, desde, sinProhibidas) {
   await p.goto(`${BASE}/#/biblioteca`, { waitUntil: 'networkidle' })
   await p.waitForTimeout(500)
+  await sinProhibidas('Cadenas, a las 13:30')
   const entrada = p.getByText('El reloj', { exact: true })
   if (!(await entrada.isVisible().catch(() => false))) return 'no se llega al Reloj desde Cadenas'
   await entrada.click()
   await p.waitForTimeout(600)
   await p.getByRole('button', { name: /Flexiones/ }).first().click()
   await p.waitForTimeout(150)
+  await sinProhibidas('La configuración del Reloj')
   const empezar = p.getByRole('button', { name: 'Empezar', exact: true })
   if (!(await empezar.isEnabled().catch(() => false))) return 'con un ejercicio elegido, "Empezar" sigue inerte'
   await empezar.click()
@@ -82,6 +84,7 @@ async function unTabata(p, desde) {
 
   const ultima = p.getByText('¿Cuántas en la vuelta 8?')
   if (!(await ultima.isVisible().catch(() => false))) return 'el final no pide la vuelta 8'
+  await sinProhibidas('El final del tabata')
   await p.getByRole('button', { name: 'Sumar' }).click()
   await p.waitForTimeout(200)
   await p.getByRole('button', { name: 'Listo', exact: true }).click()
@@ -114,15 +117,21 @@ for (const viewport of [
     await alta(p)
 
     // ── 1. El plan a las 9:10 ──────────────────────────────────────────────
+    /** Entrenar, el descanso, la serie de cierre y las preguntas, a esa hora. */
+    const mirandoTodo = (hora) => ({
+      alEmpezar: () => sinProhibidas(`Entrenar a las ${hora}`),
+      alVerElDescanso: () => sinProhibidas(`El descanso de las ${hora}`),
+      alVerElFinal: (cual) => sinProhibidas(`${cual} de las ${hora}`),
+    })
     await p.clock.setFixedTime(aLas('09:10'))
-    const primera = await completarUnaSesion(p)
+    const primera = await completarUnaSesion(p, mirandoTodo('9:10'))
     if (primera) throw new Error(`la sesión de las 9:10 no llegó al cierre: ${primera}`)
     await sinProhibidas('El Cierre de las 9:10')
     const avancesDeLaManana = await leerAvances(p)
 
     // ── 2. Un tabata a las 13:30 ───────────────────────────────────────────
     await p.clock.setFixedTime(aLas('13:30'))
-    const tabata = await unTabata(p, aLas('13:30'))
+    const tabata = await unTabata(p, aLas('13:30'), sinProhibidas)
     if (tabata) throw new Error(`el tabata de las 13:30: ${tabata}`)
     if ((await leerAvances(p)) !== avancesDeLaManana) {
       fallos.push(`[${donde}] El tabata movió un avance: el Reloj no lee ninguna cadena.`)
@@ -130,7 +139,7 @@ for (const viewport of [
 
     // ── 3. El plan otra vez a las 19:05 ────────────────────────────────────
     await p.clock.setFixedTime(aLas('19:05'))
-    const tercera = await completarUnaSesion(p)
+    const tercera = await completarUnaSesion(p, mirandoTodo('19:05'))
     if (tercera) throw new Error(`la sesión de las 19:05 no llegó al cierre: ${tercera}`)
     const cierre = await texto()
     await sinProhibidas('El Cierre de las 19:05')

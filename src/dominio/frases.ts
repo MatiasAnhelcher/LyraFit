@@ -84,6 +84,27 @@ export type Momento =
   | 'ultima'
   | 'final'
 
+/**
+ * El momento de Hoy, el de la pantalla de todos los días.
+ *
+ * Entrenar hoy va antes que volver: el día de la vuelta, `vuelve` sigue en
+ * true después de la sesión —cuenta desde antes de hoy, para que el motor la
+ * lea como vuelta—, y "tomátelo con calma esta primera" ya no sería cierto.
+ */
+export function momentoDeHoy({
+  esDiaDeEntrenar,
+  entrenoHoy,
+  vuelve,
+}: {
+  esDiaDeEntrenar: boolean
+  entrenoHoy: boolean
+  vuelve: boolean
+}): Momento {
+  if (!esDiaDeEntrenar) return 'descanso'
+  if (entrenoHoy) return 'constancia'
+  return vuelve ? 'vuelta' : 'abrir'
+}
+
 /** La cara con la que lo dice. Son las mismas expresiones que tiene el dibujo. */
 export type Expresion = 'calma' | 'contenta' | 'festejo' | 'guino' | 'orgullosa' | 'piensa' | 'dormida'
 

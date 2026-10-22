@@ -31,6 +31,11 @@ export function horaDicha(instante: number): string {
   return `${fecha.getHours()}:${String(fecha.getMinutes()).padStart(2, '0')}`
 }
 
+/** "a las 9:10", y "a la 1:20": la una va en singular. */
+function aLaHora(dicha: string): string {
+  return dicha.startsWith('1:') ? `a la ${dicha}` : `a las ${dicha}`
+}
+
 const conMayuscula = (texto: string) => texto.charAt(0).toUpperCase() + texto.slice(1)
 
 /** "a", "a y b", "a, b y c". */
@@ -50,14 +55,21 @@ export interface CadenaLeida {
 }
 
 /**
- * Las cadenas que esta sesión no leyó porque ya se habían leído hoy.
+ * Las cadenas que esta sesión no leyó porque ya se habían leído ese día.
  *
  * "Empuje ya se leyó hoy a las 9:10: esta sesión sumó volumen." Con varias a la
  * misma hora van juntas; con horas distintas, cada una con la suya y en el
  * orden en que se leyeron. La hora es lo que hace que no suene a reto: dice
  * cuándo pasó lo que cuenta, no qué está mal con esta.
+ *
+ * `esHoy` es si el día de la sesión es hoy. Una que arrancó a las 23:40 y
+ * cierra a las 00:05 es del día de antes, y "hoy a las 9:10" ya no es cierto:
+ * dice "ese día".
  */
-export function lineaYaLeida(leidas: readonly CadenaLeida[]): string | null {
+export function lineaYaLeida(
+  leidas: readonly CadenaLeida[],
+  { esHoy }: { esHoy: boolean } = { esHoy: true },
+): string | null {
   if (leidas.length === 0) return null
 
   const grupos: { hora: string; patrones: Patron[] }[] = []
@@ -71,16 +83,19 @@ export function lineaYaLeida(leidas: readonly CadenaLeida[]): string | null {
 
   const [primero, ...resto] = grupos
   if (!primero) return null
-  const verbo = primero.patrones.length > 1 ? 'se leyeron' : 'se leyó'
+  const varias = primero.patrones.length > 1
+  const verbo = esHoy
+    ? `${varias ? 'se leyeron' : 'se leyó'} hoy`
+    : `${varias ? 'se habían leído' : 'se había leído'} ese día`
   const cierre = ': esta sesión sumó volumen.'
 
   if (resto.length === 0) {
-    return `${conMayuscula(cadenas(primero.patrones))} ya ${verbo} hoy a las ${primero.hora}${cierre}`
+    return `${conMayuscula(cadenas(primero.patrones))} ya ${verbo} ${aLaHora(primero.hora)}${cierre}`
   }
 
   const tramos = [
-    `${conMayuscula(cadenas(primero.patrones))} ${verbo} hoy a las ${primero.hora}`,
-    ...resto.map((g) => `${cadenas(g.patrones)} a las ${g.hora}`),
+    `${conMayuscula(cadenas(primero.patrones))} ${verbo} ${aLaHora(primero.hora)}`,
+    ...resto.map((g) => `${cadenas(g.patrones)} ${aLaHora(g.hora)}`),
   ]
   // Si un tramo ya trae su propia "y" ("bisagra y core a las 13:30"), los
   // tramos se separan con coma también antes de la última "y": sin eso, "a las

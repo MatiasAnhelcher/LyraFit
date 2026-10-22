@@ -30,6 +30,7 @@
  *    nivel sale de una cuenta y no de un número escrito a mano.
  */
 
+import { diaLocal } from './borrador'
 import { lineaYaLeida } from './lineas'
 import { principalMasCargado } from './musculos'
 import type {
@@ -88,11 +89,19 @@ export const CONSOLIDACION = 2
  *
  * Lo que va primero en una sesión rinde más (Nunes et al. 2021), así que un
  * paso que llega después de mucho trabajo de sus mismos músculos mide menos de
- * lo que la persona puede. Protegida, si sale bien cuenta y si sale floja no
- * arrastra la señal. El 6 es un criterio del equipo y no una medición: dos
+ * lo que la persona puede. Protegida, si sale bien cuenta y si sale floja se
+ * sostiene tal cual. El 6 es un criterio del equipo y no una medición: dos
  * ejercicios de tres series sobre el mismo músculo.
  */
 export const PREFATIGA = 6
+
+/** Lo que dice una lectura floja protegida por el chequeo del día. */
+export const PROTEGIDA_EN_UN_DIA_FLOJO =
+  'Esta vez no llegaste, pero en un día flojo no cuenta en contra. Seguimos con el mismo objetivo.'
+
+/** Lo que dice una lectura floja protegida por la prefatiga. */
+export const PROTEGIDA_POR_PREFATIGA =
+  'Esta vez no llegaste, pero venía después de muchas series de los mismos músculos, así que no cuenta en contra. Seguimos con el mismo objetivo.'
 
 /**
  * Tope de validez de la fórmula de Brzycki. Más allá de doce repeticiones la
@@ -619,8 +628,32 @@ export function siguienteAvance(
     }
   }
 
-  // Protegida quiere decir que una sesión floja no arrastra la señal para
-  // abajo. Si salió bien, cuenta como cualquier otra: premiar sí, castigar no.
+  // Protegida quiere decir que una sesión floja no cuenta en contra. Y tampoco
+  // a favor: con la señal alta de antes, seguir de largo subía el objetivo o
+  // cambiaba de eslabón con una lectura floja, y decía "Objetivo cumplido". En
+  // la meseta, en cambio, la bajaba o retrocedía de eslabón. Floja es por
+  // debajo de lo que venía (la señal) y por debajo de la vara de subir: una
+  // que igual cumple cuenta como cualquier otra. Se sostiene sin sumar a la
+  // meseta ni gastar gracia, porque no midió nada, y gasta la lectura del día
+  // como cualquier otra que no es neutra (`yaLeidaHoy`). Con prefatiga,
+  // `leerLaSesion` cambia el texto por uno que dice por qué.
+  if (
+    evaluacion.protegida &&
+    evaluacion.rendimiento < avance.senal &&
+    evaluacion.rendimiento < SUBE
+  ) {
+    return {
+      movimiento: 'sostiene',
+      cambioDeNivel: false,
+      explicacion: PROTEGIDA_EN_UN_DIA_FLOJO,
+      motivo: 'protegida',
+      avance: { ...avance, actualizadoEn: ahora },
+    }
+  }
+
+  // Lo que queda de protegida con una lectura por debajo de la señal es una
+  // que igual cumplió: cuenta, pero sin arrastrar la señal para abajo.
+  // Premiar sí, castigar no.
   const arrastra = !(evaluacion.protegida && evaluacion.rendimiento < avance.senal)
   const senal = arrastra
     ? SUAVIZADO * evaluacion.rendimiento + (1 - SUAVIZADO) * avance.senal
@@ -757,8 +790,8 @@ export function siguienteAvance(
         nuevos,
         medioDeAca,
         nuevos > 0
-          ? `${actual.nombre} te está costando hace varias sesiones. Antes de cambiar de ejercicio sacamos peso: ${nuevos} kg, ${conUnidad(medida, medioDeAca)} por serie.`
-          : `${actual.nombre} te está costando hace varias sesiones. Sacamos los discos y lo hacemos a peso corporal, ${conUnidad(medida, medioDeAca)} por serie. Si sigue costando, el próximo paso es volver un eslabón.`,
+          ? `${actual.nombre} te viene costando. Antes de cambiar de ejercicio sacamos peso: ${nuevos} kg, ${conUnidad(medida, medioDeAca)} por serie.`
+          : `${actual.nombre} te viene costando. Sacamos los discos y lo hacemos a peso corporal, ${conUnidad(medida, medioDeAca)} por serie. Si sigue costando, el próximo paso es volver un eslabón.`,
         'bajada',
       )
     }
@@ -842,9 +875,11 @@ export function siguienteAvance(
       // en días de práctica y no en sesiones: la cadena se lee una vez por
       // día, y una segunda sesión esa tarde no acerca el cambio.
       const faltan = Math.max(CONSOLIDACION - avance.sesionesEnObjetivo, avance.graciaRestante)
+      // En el último eslabón no hay ejercicio al que cambiar: después de
+      // consolidar se suman discos o repeticiones, y eso es subir.
       return sostener(
         faltan <= 1
-          ? `Llegaste al techo de ${actual.nombre}. Un día de práctica más así y cambiamos de ejercicio.`
+          ? `Llegaste al techo de ${actual.nombre}. Un día de práctica más así y ${siguiente ? 'cambiamos de ejercicio' : 'subimos'}.`
           : `Techo de ${actual.nombre} alcanzado. Lo sostenemos ${faltan === 2 ? 'un par de' : faltan} días de práctica antes de subir: dominar es poder repetirlo.`,
       )
     }
@@ -1024,8 +1059,14 @@ export function siguienteAvance(
     }
 
     if (avance.graciaRestante > 0) {
+      // Se sostiene mientras quede gracia: esta y las que vengan con gracia
+      // por delante. Las que siguen sin tocar nada son las que quedan después
+      // de esta, y son "al menos" porque si la señal se recupera, ninguna toca.
+      const quedan = avance.graciaRestante - 1
       return sostener(
-        `${actual.nombre} todavía te está costando. Le damos un par de días de práctica más antes de tocar nada.`,
+        quedan === 0
+          ? `${actual.nombre} todavía te está costando. Esta vez lo sostenemos tal cual.`
+          : `${actual.nombre} todavía te está costando. Lo sostenemos al menos ${quedan === 1 ? 'un día' : `${quedan} días`} de práctica más antes de tocar nada.`,
       )
     }
 
@@ -1066,11 +1107,13 @@ export function siguienteAvance(
   // Meseta. Hay que mover algo.
   if (senal >= (SUBE + BAJA) / 2) {
     // Está muy cerca: se le da el empujón.
+    // Sin contar sesiones: la cadena se lee una vez por día, y una sesión de
+    // la tarde que no se leyó pudo haberlo cerrado.
     if (cantidad < ventana.max) {
       const nueva = Math.min(cantidad + incremento(medida, cantidad), ventana.max)
       return ajustar(
         nueva,
-        `Cuatro sesiones rondando el objetivo sin terminar de cerrarlo. Estás listo igual: subimos a ${conUnidad(medida, nueva)}.`,
+        `Venís rondando el objetivo sin terminar de cerrarlo. Estás listo igual: subimos a ${conUnidad(medida, nueva)}.`,
         'subida',
       )
     }
@@ -1090,7 +1133,20 @@ export function siguienteAvance(
         'nivel-arriba',
       )
     }
-    return sostener(`Seguimos en ${actual.nombre}. La próxima cambiamos.`)
+    // Sin siguiente no hay a qué cambiar. Con gracia, el cambio llega cuando
+    // se termina: la que queda en cero es la que cambia, y lo que falta se
+    // cuenta en días de práctica porque la cadena se lee una vez por día.
+    if (!siguiente) {
+      return sostener(
+        `Seguimos en ${actual.nombre}, el último ejercicio de la cadena de ${ctx.cadena.nombre}.`,
+      )
+    }
+    const faltan = avance.graciaRestante
+    return sostener(
+      faltan === 1
+        ? `Seguimos en ${actual.nombre}. Un día de práctica más así y cambiamos de ejercicio.`
+        : `Seguimos en ${actual.nombre}. Faltan ${faltan} días de práctica así para cambiar de ejercicio.`,
+    )
   }
 
   // Está estancado abajo: el objetivo no es realista. Se lo lleva a lo que la
@@ -1099,10 +1155,14 @@ export function siguienteAvance(
   const anterior = vecino(ctx, actual.id, -1)
   const piso = anterior ? ventana.min : 1
 
+  // "Lo que te salió esta vez" solo cuando el objetivo nuevo es eso: si lo de
+  // esta vez quedó más cerca, se baja un paso y no a lo que salió.
   if (objetivoReal >= piso) {
     return ajustar(
       objetivoReal,
-      `Cuatro sesiones en ${conUnidad(medida, cantidad)} sin llegar. El objetivo era optimista: lo llevamos a ${conUnidad(medida, objetivoReal)}, que es lo que estás haciendo de verdad.`,
+      `El objetivo de ${conUnidad(medida, cantidad)} por serie no se termina de cerrar. Era optimista: lo llevamos a ${conUnidad(medida, objetivoReal)}${
+        objetivoReal === evaluacion.tipico ? ', que es lo que te salió esta vez' : ''
+      }.`,
       'bajada',
     )
   }
@@ -1111,7 +1171,7 @@ export function siguienteAvance(
     return retroceder(
       anterior,
       recalibrar(actual, Math.max(evaluacion.tipico, 1), anterior),
-      `${actual.nombre} te está quedando grande hace varias sesiones. Volvemos a ${anterior.nombre}: se progresa más rápido desde un escalón que se domina.`,
+      `${actual.nombre} te viene quedando grande. Volvemos a ${anterior.nombre}: se progresa más rápido desde un escalón que se domina.`,
     )
   }
 
@@ -1322,7 +1382,9 @@ export function leerLaSesion(sesion: SesionALeer): Lectura[] {
           avance,
           movimiento: 'neutra',
           cambioDeNivel: false,
-          explicacion: lineaYaLeida([{ patron, hora: leidaA }]) ?? '',
+          explicacion:
+            lineaYaLeida([{ patron, hora: leidaA }], { esHoy: dia === diaLocal(sesion.ahora) }) ??
+            '',
           motivo: 'ya-leida-hoy',
           leidaA,
         },
@@ -1357,11 +1419,17 @@ export function leerLaSesion(sesion: SesionALeer): Lectura[] {
       ctx,
       sesion.ahora,
     )
-    // El motivo solo si leyó: una sesión neutra no protegió nada.
+    // El motivo solo si leyó: una sesión neutra no protegió nada. La floja
+    // que se sostuvo por protegida dice por qué, y la prefatiga gana sobre el
+    // chequeo porque es la razón que mira este paso y no el día entero.
     const conMotivo =
-      prefatiga && decision.movimiento !== 'neutra'
-        ? { ...decision, motivo: 'prefatiga' as const }
-        : decision
+      decision.motivo === 'protegida'
+        ? prefatiga
+          ? { ...decision, explicacion: PROTEGIDA_POR_PREFATIGA }
+          : decision
+        : prefatiga && decision.movimiento !== 'neutra'
+          ? { ...decision, motivo: 'prefatiga' as const }
+          : decision
     lecturas.push({ patron, decision: conMotivo, antes: avance, guardar: true })
   }
   return lecturas

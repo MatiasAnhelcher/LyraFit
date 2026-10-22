@@ -180,8 +180,8 @@ export function FichaEjercicio() {
             <>
               Estás a{' '}
               <span className="cifra text-[var(--color-tinta)]">{sesionesHasta}</span>{' '}
-              {sesionesHasta === 1 ? 'sesión' : 'sesiones'} de acá, si sale todo bien. No es
-              una promesa: es la misma cuenta que va a hacer el motor mañana.
+              {sesionesHasta === 1 ? 'día de práctica' : 'días de práctica'} de acá, si sale todo
+              bien. No es una promesa: es la misma cuenta que va a hacer el motor mañana.
             </>
           ) : (
             <>

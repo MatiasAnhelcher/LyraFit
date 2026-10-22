@@ -67,7 +67,8 @@ const filaDeHoy = async () => {
 }
 
 try {
-  await alta(p)
+  // El alta también es una pantalla recorrida: cada paso, contra la lista.
+  await alta(p, { enCadaPaso: (nombre) => sinProhibidas(`El alta (${nombre})`) })
 
   // ── 3. La escala de energía ───────────────────────────────────────────────
   await ir('/estado')
@@ -133,12 +134,14 @@ try {
   if (/\bdormiste (mal|menos)\b/i.test(diarioConHora)) {
     fallos.push('El aviso de cafeína le dice "dormiste" a alguien que todavía no se acostó.')
   }
+  await sinProhibidas('El diario, con el aviso de cafeína')
   await ir('/')
   if (!(await texto()).includes('Tomaste cafeína')) {
     fallos.push('Con la hora de acostarse en la base, Hoy no muestra el aviso de cafeína.')
   } else {
     notas.push('Con la hora de acostarse en la base: "CORTE SUGERIDO · 13:00" y el aviso en Hoy.')
   }
+  await sinProhibidas('Hoy, con el aviso de cafeína')
 
   // ── 4. Ajustes y las fichas ───────────────────────────────────────────────
   await ir('/ajustes')

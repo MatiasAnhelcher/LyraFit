@@ -164,7 +164,11 @@ export function Cierre({
             <div key={patron}>
               <Rotulo className="mb-2">{NOMBRE_PATRON[patron].toUpperCase()}</Rotulo>
               <Glosa
-                cita={REGLA[decision.movimiento] ?? 'Regla del motor'}
+                cita={
+                  decision.motivo === 'protegida'
+                    ? 'Regla · lectura protegida'
+                    : (REGLA[decision.movimiento] ?? 'Regla del motor')
+                }
                 {...(decision.movimiento === 'bajada' || decision.movimiento === 'nivel-abajo'
                   ? { tono: 'ambar' as const }
                   : {})}

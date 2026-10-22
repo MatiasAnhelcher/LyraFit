@@ -84,7 +84,7 @@ import { SesionSinCerrar } from '@/componentes/sinCerrar'
 import { FilaDeCadenaChica } from '@/componentes/filaDeCadena'
 import { Lyra } from '@/componentes/lyra'
 import { useIrA } from '@/componentes/movimiento'
-import { fraseDe, recordar, type Momento } from '@/dominio/frases'
+import { fraseDe, momentoDeHoy, recordar, type Momento } from '@/dominio/frases'
 import { Cargando, Glosa, Rotulo, Simbolo } from '@/componentes/ui'
 import { Encabezado, FORMATO_FECHA } from './Encabezado'
 import { Plan } from './Plan'
@@ -367,13 +367,7 @@ export function Hoy() {
    * la app, que es lo que separa una voz de un cartel. Si hoy toca descansar,
    * habla de descansar; si volvés después de faltar, habla de volver.
    */
-  const momento: Momento = !esDiaDeEntrenar
-    ? 'descanso'
-    : vuelve
-      ? 'vuelta'
-      : entrenoHoy
-        ? 'constancia'
-        : 'abrir'
+  const momento = momentoDeHoy({ esDiaDeEntrenar, entrenoHoy, vuelve })
 
   /*
    * La frase, sorteada UNA vez por (momento, azar) y no en cada render.
