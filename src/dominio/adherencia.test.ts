@@ -517,10 +517,13 @@ describe('viene sin cortar, para las frases de costumbre', () => {
     expect(vieneSinCortar([sesion('2026-03-01'), sesion('2026-03-06'), sesion('2026-03-14'), sesion(hoy)], hoy)).toBe(false)
   })
 
-  it('con menos de tres semanas de historia, no', () => {
+  it('con dos semanas de historia, no; con una sesión en la primera de las tres, sí', () => {
     const hoy = '2026-03-21'
-    const dosSemanas = rutina('2026-03-09', [0, 1, 2, 3, 4, 5, 6], 2)
+    // Todos los días desde el 8: catorce días antes de hoy, ninguno en la
+    // primera semana de la ventana (del 1 al 7).
+    const dosSemanas = rutina('2026-03-08', [0, 1, 2, 3, 4, 5, 6], 2)
     expect(vieneSinCortar(dosSemanas, hoy)).toBe(false)
+    expect(vieneSinCortar([sesion('2026-03-07'), ...dosSemanas], hoy)).toBe(true)
     expect(vieneSinCortar([], hoy)).toBe(false)
   })
 

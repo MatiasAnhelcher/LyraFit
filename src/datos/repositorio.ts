@@ -41,7 +41,7 @@ import {
   type PruebaDelAlta,
 } from '@/dominio/apertura'
 import { ajusteDelDia, bandaSostenida, cadenasCongeladas } from '@/dominio/estado'
-import { animoReciente } from '@/dominio/vitalidad'
+import { animoPorDia, promedioDeAnimos } from '@/dominio/vitalidad'
 import {
   cambiarDeNivelLaTira,
   cierreDelBorrador,
@@ -419,8 +419,10 @@ export async function cerrarSesion(entrada: CierreDeSesion): Promise<ResumenSesi
     const ajuste = ajusteDelDia(bandaSostenida(estados, dia))
     // El ánimo de los últimos días con sesión, hoy incluido: el motor dice
     // "las últimas sesiones se te hicieron cuesta arriba", y con la respuesta
-    // de hoy sola lo decía después de una sola.
-    const animo = animoReciente([...historial, sesion])
+    // de hoy sola lo decía después de una sola. Día por día también, para que
+    // el motor sepa qué daría repetir la respuesta de hoy antes de prometer.
+    const animos = animoPorDia([...historial, sesion])
+    const animo = promedioDeAnimos(animos)
 
     /**
      * La barra cargable, o nada.
@@ -456,6 +458,7 @@ export async function cerrarSesion(entrada: CierreDeSesion): Promise<ResumenSesi
       congeladas: cadenasCongeladas(estados, dia),
       protegida: ajuste.protegida,
       ...(animo !== undefined ? { animo } : {}),
+      animoPorDia: animos,
       ...(preferencias.pesoCorporalKg !== undefined
         ? { pesoCorporalKg: preferencias.pesoCorporalKg }
         : {}),

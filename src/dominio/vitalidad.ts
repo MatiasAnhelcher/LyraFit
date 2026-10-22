@@ -166,6 +166,9 @@ export function vitalidad(sesiones: Sesion[], ultimas = 10): Vitalidad | null {
   }
 }
 
+/** Los días con sesión que promedia `animoReciente`. */
+export const DIAS_DE_ANIMO = 3
+
 /**
  * Ánimo medio de los últimos días con sesión, de -2 a +2.
  *
@@ -178,7 +181,19 @@ export function vitalidad(sesiones: Sesion[], ultimas = 10): Vitalidad | null {
  * ese día. Con sesiones, una tarde de tres sesiones mala tapaba la semana
  * entera, y una buena la tapaba igual.
  */
-export function animoReciente(sesiones: Sesion[], ultimos = 3): number | undefined {
+export function animoReciente(sesiones: Sesion[], ultimos = DIAS_DE_ANIMO): number | undefined {
+  return promedioDeAnimos(animoPorDia(sesiones, ultimos))
+}
+
+/**
+ * El ánimo de cada uno de los últimos días con sesión, del más nuevo al más
+ * viejo: el promedio de lo que se contestó ese día, o undefined si ese día no
+ * se contestó. Un día sin respuesta igual ocupa su lugar en la ventana.
+ */
+export function animoPorDia(
+  sesiones: readonly Sesion[],
+  ultimos = DIAS_DE_ANIMO,
+): (number | undefined)[] {
   const porDia = new Map<string, number[]>()
   for (const s of [...sesiones].sort((a, b) => b.finalizadaEn - a.finalizadaEn)) {
     const delDia = porDia.get(s.fecha)
@@ -187,12 +202,36 @@ export function animoReciente(sesiones: Sesion[], ultimos = 3): number | undefin
     if (s.animo !== undefined) lista.push(s.animo)
     porDia.set(s.fecha, lista)
   }
-  const valores = [...porDia.values()]
-    .filter((lista) => lista.length > 0)
-    .map((lista) => lista.reduce((a, b) => a + b, 0) / lista.length)
+  return [...porDia.values()].map((lista) =>
+    lista.length > 0 ? lista.reduce((a, b) => a + b, 0) / lista.length : undefined,
+  )
+}
 
+/** El promedio de los días contestados, o undefined con menos de dos. */
+export function promedioDeAnimos(dias: readonly (number | undefined)[]): number | undefined {
+  const valores = dias.filter((v): v is number => v !== undefined)
   if (valores.length < 2) return undefined
   return valores.reduce((a, b) => a + b, 0) / valores.length
+}
+
+/**
+ * El ánimo que daría `animoReciente` dentro de `adelante` días de práctica si
+ * cada uno se contesta como hoy: los días nuevos entran adelante de la
+ * ventana y empujan afuera a los más viejos. `dias` es `animoPorDia`, con hoy
+ * primero.
+ *
+ * Es lo que necesita el motor para prometer un plazo: con el promedio, la
+ * misma respuesta repetida mueve el ánimo, y "un día más así y cambiamos"
+ * salía con el ánimo de hoy en cero y al día siguiente, contestando lo mismo,
+ * el freno lo paraba.
+ */
+export function animoDentroDe(
+  dias: readonly (number | undefined)[],
+  adelante: number,
+  ultimos = DIAS_DE_ANIMO,
+): number | undefined {
+  const nuevos: (number | undefined)[] = Array.from({ length: adelante }, () => dias[0])
+  return promedioDeAnimos([...nuevos, ...dias].slice(0, ultimos))
 }
 
 /**

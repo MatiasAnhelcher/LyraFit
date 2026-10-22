@@ -33,6 +33,7 @@
 import { diaLocal } from './borrador'
 import { lineaYaLeida } from './lineas'
 import { principalMasCargado } from './musculos'
+import { animoDentroDe } from './vitalidad'
 import type {
   Avance,
   Cadena,
@@ -475,6 +476,12 @@ export interface Evaluacion {
    * de dejar.
    */
   animo?: number
+  /**
+   * El ánimo de cada uno de esos días, con hoy primero (`animoPorDia`). Lo usa
+   * `seCumple` para saber cuánto daría el promedio repitiendo la respuesta de
+   * hoy. Sin esto, se supone que el ánimo de los días que vienen es `animo`.
+   */
+  animoPorDia?: readonly (number | undefined)[]
 }
 
 export interface Contexto {
@@ -669,7 +676,8 @@ function avanzar(
   // La floja con la protección vencida cuenta como cualquier otra, y lo que
   // la movió es la racha: varios días con el mismo objetivo. Se firma como
   // meseta y no como prefatiga, que es la protegida que no salió floja.
-  if (esFlojaProtegida(avance, evaluacion) && venceLaProteccion(avance)) {
+  // Una neutra no leyó: no hay protección que venza ni meseta que firmar.
+  if (!evaluacion.neutra && esFlojaProtegida(avance, evaluacion) && venceLaProteccion(avance)) {
     return decision.motivo ? decision : deLaMeseta(decision)
   }
   if (decision.movimiento !== 'bajada' && decision.movimiento !== 'nivel-abajo') return decision
@@ -750,6 +758,18 @@ function textoAlTipico(medida: Medida, cantidad: number, objetivoReal: number, e
 
 /** Las decisiones que salen de la meseta lo dicen, y el Cierre las firma con esa regla. */
 const deLaMeseta = (decision: Decision): Decision => ({ ...decision, motivo: 'meseta' })
+
+/**
+ * La misma lectura, `dias` días de práctica más adelante, con el ánimo que
+ * daría contestar como hoy cada uno de esos días (`Evaluacion.animoPorDia`).
+ */
+function conAnimoDentroDe(evaluacion: Evaluacion, dias: number): Evaluacion {
+  if (!evaluacion.animoPorDia) return evaluacion
+  const { animo, ...resto } = evaluacion
+  void animo
+  const despues = animoDentroDe(evaluacion.animoPorDia, dias)
+  return despues === undefined ? resto : { ...resto, animo: despues }
+}
 
 function decidir(
   avance: Avance,
@@ -841,14 +861,16 @@ function decidir(
    * la consolidación, porque con la misma lectura la señal se sigue moviendo
    * (`SUAVIZADO`) y puede cruzar una vara: "un día de práctica más así y
    * cambiamos" salía con la señal de hoy por encima de la de subir y, haciendo
-   * lo mismo, mañana quedaba abajo. El freno por ánimo y la protección entran
-   * solos en la cuenta. Simulando no se revisa (ver `avanzar`).
+   * lo mismo, mañana quedaba abajo. La protección entra sola en la cuenta, y
+   * el freno por ánimo con el ánimo que daría contestar como hoy cada día
+   * (`animoDentroDe`): es un promedio, y la misma respuesta lo mueve.
+   * Simulando no se revisa (ver `avanzar`).
    */
   const seCumple = (dias: number, movimiento: Movimiento): boolean => {
     if (simulando) return true
     let siguienteDia = sostener('').avance
     for (let dia = 1; dia <= dias; dia++) {
-      const d = avanzar(siguienteDia, evaluacion, ctx, ahora, true)
+      const d = avanzar(siguienteDia, conAnimoDentroDe(evaluacion, dia), ctx, ahora, true)
       if (dia === dias) return d.movimiento === movimiento
       if (d.movimiento !== 'sostiene') return false
       siguienteDia = d.avance
@@ -1156,7 +1178,7 @@ function decidir(
         `${
           evaluacion.cumplido
             ? `Dominaste ${actual.nombre} con ${conUnidad(medida, cantidad)}.`
-            : `Sostuviste el techo de ${actual.nombre} estos días.`
+            : `Llevás varios días de práctica con este objetivo en ${actual.nombre}.`
         } Subís a ${siguiente.nombre}, arrancando en ${conUnidad(siguiente.medida, nueva)}.`,
         'nivel-arriba',
       )
@@ -1190,7 +1212,7 @@ function decidir(
             : `${
                 evaluacion.cumplido
                   ? `Dominaste ${actual.nombre} con ${puestos} kg.`
-                  : `Sostuviste ${actual.nombre} con ${puestos} kg estos días.`
+                  : `Llevás varios días de práctica con ${puestos} kg sobre ${actual.nombre}.`
               } Subimos a ${nuevos} y volvés a ${ventana.min} por serie.`,
           'subida',
         )
@@ -1632,6 +1654,8 @@ export interface SesionALeer {
   /** El chequeo del día explica una sesión floja. */
   protegida: boolean
   animo?: number
+  /** El ánimo de cada uno de los últimos días con sesión (`Evaluacion.animoPorDia`). */
+  animoPorDia?: readonly (number | undefined)[]
   pesoCorporalKg?: number
   /** El contexto de cada cadena: sus ejercicios, la barra y lo que está cerrado. */
   contextoDe: (patron: Patron) => Contexto
@@ -1722,6 +1746,7 @@ export function leerLaSesion(sesion: SesionALeer): Lectura[] {
         ...(cumpleCadaSerie(registro.objetivo, registro.series, carga) ? { cumplido: true } : {}),
         ...(tipicoEsCuenta ? { tipicoEsCuenta: true } : {}),
         ...(sesion.animo !== undefined ? { animo: sesion.animo } : {}),
+        ...(sesion.animoPorDia ? { animoPorDia: sesion.animoPorDia } : {}),
       },
       ctx,
       sesion.ahora,

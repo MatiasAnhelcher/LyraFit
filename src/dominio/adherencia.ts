@@ -293,8 +293,8 @@ export const SEMANAS_SIN_CORTAR = 3
  * Tampoco alcanza con una sesión en cada una de las tres semanas: el primer
  * día de una y el último de la siguiente dejan casi dos semanas sin nada.
  *
- * Con menos de tres semanas de historia da que no: la frase diría algo que
- * todavía no pasó.
+ * Pide una sesión en la primera de las tres semanas: con dos semanas de
+ * historia da que no, porque la frase diría algo que todavía no pasó.
  */
 export function vieneSinCortar(sesiones: Sesion[], hoy: string): boolean {
   const desde = sumarDias(hoy, -(7 * SEMANAS_SIN_CORTAR - 1))

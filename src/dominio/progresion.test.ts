@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { CADENAS, EJERCICIOS, POR_ID, cadenaDe } from './biblioteca'
 import { RECORTE_DE_VUELTA } from './adherencia'
 import { loProhibido } from './palabras'
+import { promedioDeAnimos } from './vitalidad'
 import {
   BAJA,
   CONSOLIDACION,
@@ -634,6 +635,18 @@ describe('siguienteAvance', () => {
           }
         }
       }
+    })
+
+    it('una neutra no vence nada ni se firma como meseta, aunque venga protegida y floja', () => {
+      // Un día rojo es neutra y protegida a la vez: no leyó, así que no hay
+      // meseta que firmar, y el Cierre diría "varios días con el mismo
+      // objetivo" arriba de "esta no mueve el plan".
+      const aUnaDeVencer = avanceEn('flexion-completa', 8, { senal: 0.9, protegidasSeguidas: MESETA - 1 })
+      const d = siguienteAvance(aUnaDeVencer, { rendimiento: 0.6, tipico: 6, neutra: true, protegida: true }, ctx, 0)
+      expect(d.movimiento).toBe('neutra')
+      expect(d.motivo).toBeUndefined()
+      expect(d.avance.protegidasSeguidas).toBe(MESETA - 1)
+      expect(d.avance.objetivoActual).toEqual(aUnaDeVencer.objetivoActual)
     })
 
     it('cualquier lectura que cuenta corta la racha, y una neutra no', () => {
@@ -1898,15 +1911,99 @@ describe('lo que dice el motor es cierto', () => {
     expect(promesas).toBeGreaterThan(100)
   })
 
+  it('cada plazo prometido se cumple contestando el ánimo como hoy, aunque el promedio se mueva', () => {
+    // El ánimo es el promedio de los últimos días: la misma respuesta
+    // repetida lo mueve. "Un día más así y cambiamos" salía con el promedio en
+    // cero y, contestando lo mismo, al día siguiente el freno lo paraba.
+    const ANTES: (number | undefined)[][] = [[], [1], [2, 2], [1, 1], [1, -1], [-1, -1], [undefined, 1], [-2, 2]]
+    const HOY = [-2, -1, undefined, 1, 2]
+    /** `animoPorDia` el día `k` después de hoy, contestando siempre `hoy`. */
+    const dias = (antes: (number | undefined)[], hoy: number | undefined, k: number) =>
+      [...Array.from({ length: k + 1 }, () => hoy), ...antes].slice(0, 3)
+    const conAnimo = (base: { rendimiento: number; tipico: number; cumplido?: boolean }, porDia: (number | undefined)[]) => {
+      const animo = promedioDeAnimos(porDia)
+      return { ...base, animoPorDia: porDia, ...(animo !== undefined ? { animo } : {}) }
+    }
+    let promesas = 0
+    for (const cadena of CADENAS) {
+      const contexto = { cadena, ejercicios: POR_ID }
+      for (const id of cadena.ejercicios) {
+        const e = ejercicio(id)
+        for (const sesionesEnObjetivo of [0, 1]) {
+          for (const graciaRestante of [0, 1, 2]) {
+            const avance: Avance = {
+              patron: cadena.patron,
+              ejercicioId: id,
+              objetivoActual: { series: e.series, cantidad: e.ventana.max },
+              senal: 1,
+              sesionesEnObjetivo,
+              graciaRestante,
+              actualizadoEn: 0,
+            }
+            for (const antes of ANTES) {
+              for (const hoy of HOY) {
+                const base = { rendimiento: 1, tipico: e.ventana.max, cumplido: true }
+                const d = siguienteAvance(avance, conAnimo(base, dias(antes, hoy, 0)), contexto, 0)
+                for (const [patron, plazo] of PROMESAS) {
+                  const m = d.explicacion.match(patron)
+                  if (!m) continue
+                  promesas++
+                  const n = plazo(m)
+                  const donde = `${id} antes ${JSON.stringify(antes)} hoy ${hoy}: "${d.explicacion}"`
+                  let siguiente = d.avance
+                  for (let k = 1; k <= n; k++) {
+                    const despues = siguienteAvance(siguiente, conAnimo(base, dias(antes, hoy, k)), contexto, 0)
+                    if (k < n) expect(despues.movimiento, `día ${k} de ${n}, ${donde}`).toBe('sostiene')
+                    else expect(['subida', 'nivel-arriba'], `día ${k} de ${n}, ${donde}`).toContain(despues.movimiento)
+                    siguiente = despues.avance
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+    expect(promesas).toBeGreaterThan(100)
+  })
+
   it('"Llegaste al techo" y "Dominaste" solo si cada serie llegó', () => {
     let vistas = 0
     for (const { avance, evaluacion, ctx: contexto } of grilla()) {
       const sinCumplir = { ...evaluacion, cumplido: false }
       const d = siguienteAvance(avance, sinCumplir, contexto, 0)
       expect(d.explicacion, d.explicacion).not.toMatch(/Llegaste al techo|Dominaste|Objetivo cumplido/)
-      if (/Estás en el techo|Sostuviste/.test(d.explicacion)) vistas++
+      if (/Estás en el techo|con este objetivo en |kg sobre /.test(d.explicacion)) vistas++
     }
     expect(vistas).toBeGreaterThan(0)
+  })
+
+  it('cambiar de eslabón sin haber cumplido no dice que dominó ni que sostuvo el techo', () => {
+    // Dos días cerca y un tercero que tampoco llegó, con la señal arriba.
+    const completa = ejercicio('flexion-completa')
+    let avance = avanceEn('flexion-completa', completa.ventana.max, { senal: 0.971 })
+    const dias = [
+      series(12, 11, 10),
+      series(12, 11, 11),
+      series(13, 12, 11),
+    ]
+    let ultima = siguienteAvance(avance, { rendimiento: 0, tipico: 0 }, ctx, 0)
+    for (const hechas of dias) {
+      ultima = siguienteAvance(
+        avance,
+        {
+          rendimiento: rendimientoDeSesion(avance.objetivoActual, hechas),
+          tipico: logradoTipico(hechas),
+          ...(cumpleCadaSerie(avance.objetivoActual, hechas) ? { cumplido: true } : {}),
+        },
+        ctx,
+        0,
+      )
+      avance = ultima.avance
+    }
+    expect(ultima.movimiento).toBe('nivel-arriba')
+    expect(ultima.explicacion).not.toMatch(/Dominaste|Sostuviste|Llegaste/)
+    expect(ultima.explicacion).toMatch(/^Llevás varios días de práctica con este objetivo en Flexiones completas\. Subís a /)
   })
 
   it('"Quedaste cerca" desde la mitad entre las dos varas y sin llegar', () => {
