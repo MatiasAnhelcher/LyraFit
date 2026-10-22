@@ -394,7 +394,7 @@ export function Hoy() {
    * importa: dos renders seguidos dan el mismo resultado.
    */
   if (!ultimoSorteo || ultimoSorteo.azar !== azar || ultimoSorteo.momento !== momento) {
-    const sorteada = fraseDe(momento, azar, dichas, total)
+    const sorteada = fraseDe(momento, azar, dichas, total, vuelve)
     if (sorteada) dichas = recordar(dichas, sorteada.texto)
     ultimoSorteo = { azar, momento, dijo: sorteada }
   }

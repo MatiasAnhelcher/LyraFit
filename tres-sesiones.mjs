@@ -79,6 +79,7 @@ async function unTabata(p, desde, sinProhibidas) {
     ahora += 5000
     await p.clock.setFixedTime(ahora)
     await p.waitForTimeout(300)
+    await sinProhibidas('El tabata en marcha')
   }
   if (!(await termino())) return 'el tabata no llegó a TERMINASTE'
 
@@ -89,6 +90,7 @@ async function unTabata(p, desde, sinProhibidas) {
   await p.waitForTimeout(200)
   await p.getByRole('button', { name: 'Listo', exact: true }).click()
   await p.waitForTimeout(1500)
+  await sinProhibidas('Después de guardar el tabata')
   return null
 }
 
@@ -114,12 +116,13 @@ for (const viewport of [
 
   try {
     await p.clock.setFixedTime(aLas('09:00'))
-    await alta(p)
+    await alta(p, { enCadaPaso: (paso) => sinProhibidas(`El alta (${paso})`) })
 
     // ── 1. El plan a las 9:10 ──────────────────────────────────────────────
-    /** Entrenar, el descanso, la serie de cierre y las preguntas, a esa hora. */
+    /** Cada pantalla de Entrenar, el descanso, la serie de cierre y las preguntas, a esa hora. */
     const mirandoTodo = (hora) => ({
       alEmpezar: () => sinProhibidas(`Entrenar a las ${hora}`),
+      enCadaVuelta: (vuelta) => sinProhibidas(`Entrenar a las ${hora}, vuelta ${vuelta}`),
       alVerElDescanso: () => sinProhibidas(`El descanso de las ${hora}`),
       alVerElFinal: (cual) => sinProhibidas(`${cual} de las ${hora}`),
     })

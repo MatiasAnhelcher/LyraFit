@@ -45,21 +45,28 @@ interface Paso {
 /**
  * Corre el motor `sesiones` veces contra alguien cuya capacidad real está dada
  * por `capacidad`, y devuelve la trayectoria completa.
+ *
+ * Con `protegida`, todas las lecturas van protegidas (un chequeo flojo, o la
+ * prefatiga de una rutina que siempre carga los mismos músculos antes), y la
+ * racha de protegidas seguidas se cuenta como la cuenta `leerLaSesion` desde
+ * el historial.
  */
 function simular(
   patron: Patron,
-  capacidad: (e: Ejercicio) => number,
+  capacidad: (e: Ejercicio, sesion: number) => number,
   sesiones: number,
+  { protegida = false } = {},
 ): Paso[] {
   const cadena = cadenaDe(patron)
   const ctx = { cadena, ejercicios: POR_ID }
   let avance: Avance = avanceInicial(cadena, POR_ID, 0)
   const traza: Paso[] = []
+  let protegidasSeguidas = 0
 
   for (let i = 1; i <= sesiones; i++) {
     const ejercicio = POR_ID.get(avance.ejercicioId)!
     const objetivo = avance.objetivoActual
-    const logrado = Math.max(0, Math.min(capacidad(ejercicio), objetivo.cantidad))
+    const logrado = Math.max(0, Math.min(capacidad(ejercicio, i), objetivo.cantidad))
     const series: Serie[] = Array.from({ length: objetivo.series }, () => ({ logrado }))
 
     const decision = siguienteAvance(
@@ -67,10 +74,12 @@ function simular(
       {
         rendimiento: rendimientoDeSesion(objetivo, series),
         tipico: logradoTipico(series),
+        ...(protegida ? { protegida, protegidasSeguidas } : {}),
       },
       ctx,
       i,
     )
+    protegidasSeguidas = decision.motivo === 'protegida' ? protegidasSeguidas + 1 : 0
 
     traza.push({
       sesion: i,
@@ -138,6 +147,30 @@ describe('el motor nunca se traba', () => {
     'en %s, nadie se queda clavado tampoco cumpliendo a medias',
     (patron) => {
       const traza = simular(patron, capacidadHasta(patron, 3), 80)
+      expect(estancamientoMaximo(traza)).toBeLessThanOrEqual(MESETA + 1)
+    },
+  )
+
+  // La protección no puede ser una puerta trasera para el mismo defecto: con
+  // todas las lecturas protegidas, una floja no contaba nunca y la cadena
+  // quedaba con la misma frase para siempre.
+  it.each(CADENAS.map((c) => c.patron))(
+    'en %s, con todas las lecturas protegidas, alguien que siempre queda corto igual ve cambios',
+    (patron) => {
+      const traza = simular(patron, (e) => Math.max(1, e.ventana.min - 1), 60, { protegida: true })
+      expect(estancamientoMaximo(traza)).toBeLessThanOrEqual(MESETA + 1)
+    },
+  )
+
+  it.each(CADENAS.map((c) => c.patron))(
+    'en %s, con todas protegidas y un día bueno de cada cuatro, el objetivo no sube como un trinquete',
+    (patron) => {
+      const traza = simular(
+        patron,
+        (e, sesion) => (sesion % 4 === 0 ? e.ventana.min + 3 : e.ventana.min + 1),
+        80,
+        { protegida: true },
+      )
       expect(estancamientoMaximo(traza)).toBeLessThanOrEqual(MESETA + 1)
     },
   )

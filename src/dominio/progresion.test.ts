@@ -1,10 +1,12 @@
 import { describe, expect, it } from 'vitest'
-import { EJERCICIOS, POR_ID, cadenaDe } from './biblioteca'
+import { CADENAS, EJERCICIOS, POR_ID, cadenaDe } from './biblioteca'
 import { RECORTE_DE_VUELTA } from './adherencia'
+import { loProhibido } from './palabras'
 import {
   BAJA,
   CONSOLIDACION,
   GRACIA,
+  LLEGASTE_AL_TOTAL,
   MESETA,
   PREFATIGA,
   PROTEGIDA_EN_UN_DIA_FLOJO,
@@ -13,6 +15,7 @@ import {
   cantidadParaCarga,
   ccrEfectivo,
   conUnidad,
+  cumpleCadaSerie,
   incremento,
   indiceDeCarga,
   leerLaSesion,
@@ -20,12 +23,14 @@ import {
   mueveElPlan,
   pasosQueSiguenTuNivel,
   porcentajeDeCadena,
+  protegidasSeguidas,
   recalibrar,
   rellenoDeVentana,
   rendimientoDeSesion,
   proyectar,
   requisitoDicho,
   siguienteAvance,
+  SUBE,
   ubicarEnCadena,
   unaPorPatron,
   yaLeidaHoy,
@@ -34,7 +39,7 @@ import {
   type RegistroQueLee,
   type SesionALeer,
 } from './progresion'
-import type { Avance, Objetivo, Patron, Serie, Sesion, TipoSesion } from './tipos'
+import type { Avance, MotivoDeDecision, Objetivo, Patron, Serie, Sesion, TipoSesion } from './tipos'
 
 const empuje = cadenaDe('empuje')
 const ctx = { cadena: empuje, ejercicios: POR_ID }
@@ -281,17 +286,40 @@ describe('siguienteAvance', () => {
     expect(d.movimiento).toBe('nivel-arriba')
   })
 
-  it('en la meseta del último eslabón no hay a qué cambiar, y no se promete', () => {
-    const ultimo = empuje.ejercicios[empuje.ejercicios.length - 1]!
-    const avance = avanceEn(ultimo, ejercicio(ultimo).ventana.max, {
-      senal: 0.9,
-      sesionesEnObjetivo: MESETA - 1,
-    })
-    const d = siguienteAvance(avance, { rendimiento: 0.9, tipico: 11 }, ctx, 0)
-    expect(d.movimiento).toBe('sostiene')
+  it('en la meseta del último eslabón no hay a qué cambiar, pero se sube igual', () => {
+    // Antes se sostenía, y con la señal entre las dos varas se sostenía para
+    // siempre, con la misma frase.
+    const ultimo = ejercicio(empuje.ejercicios[empuje.ejercicios.length - 1]!)
+    const max = ultimo.ventana.max
+    const avance = avanceEn(ultimo.id, max, { senal: 0.9, sesionesEnObjetivo: MESETA - 1 })
+    const d = siguienteAvance(avance, { rendimiento: 0.9, tipico: max }, ctx, 0)
+    const nueva = max + incremento(ultimo.medida, max)
+    expect(d.movimiento).toBe('subida')
+    expect(d.motivo).toBe('meseta')
+    expect(d.cambioDeNivel).toBe(false)
+    expect(d.avance.objetivoActual.cantidad).toBe(nueva)
     expect(d.explicacion).toBe(
-      `Seguimos en ${ejercicio(ultimo).nombre}, el último ejercicio de la cadena de Empuje.`,
+      `Llevás varios días de práctica con este objetivo y estás listo: subimos a ${conUnidad(ultimo.medida, nueva)}.`,
     )
+  })
+
+  it('pasado el techo del último eslabón, ya no lo nombra como techo y lo que promete lo cumple', () => {
+    const ultimo = ejercicio(empuje.ejercicios[empuje.ejercicios.length - 1]!)
+    const encima = ultimo.ventana.max + 1
+    let avance = avanceEn(ultimo.id, encima)
+    const dichos: string[] = []
+    let d = cumpliendo(avance)
+    while (d.movimiento === 'sostiene' && dichos.length < 5) {
+      dichos.push(d.explicacion)
+      avance = d.avance
+      d = cumpliendo(avance)
+    }
+    expect(dichos).toEqual([
+      `Seguís sumando sobre ${ultimo.nombre}: lo sostenemos en ${conUnidad(ultimo.medida, encima)} por serie un par de días de práctica antes de subir.`,
+      `Seguís sumando sobre ${ultimo.nombre}. Un día de práctica más así y subimos.`,
+    ])
+    expect(d.movimiento).toBe('subida')
+    expect(d.avance.objetivoActual.cantidad).toBeGreaterThan(encima)
   })
 
   it('en el piso con gracia, lo que dice que sostiene es lo que sostiene', () => {
@@ -306,8 +334,8 @@ describe('siguienteAvance', () => {
       d = leer(avance)
     }
     expect(dichos).toEqual([
-      'Flexiones completas todavía te está costando. Lo sostenemos al menos 2 días de práctica más antes de tocar nada.',
-      'Flexiones completas todavía te está costando. Lo sostenemos al menos un día de práctica más antes de tocar nada.',
+      'Flexiones completas todavía te está costando. Lo sostenemos tal cual, y seguimos en este ejercicio al menos 2 días de práctica más.',
+      'Flexiones completas todavía te está costando. Lo sostenemos tal cual, y seguimos en este ejercicio al menos un día de práctica más.',
       'Flexiones completas todavía te está costando. Esta vez lo sostenemos tal cual.',
     ])
     expect(d.movimiento).toBe('nivel-abajo')
@@ -406,6 +434,14 @@ describe('siguienteAvance', () => {
     expect(d.explicacion).toBe(
       'El objetivo de 11 por serie no se termina de cerrar. Era optimista: lo llevamos a 8, que es lo que te salió esta vez.',
     )
+    expect(d.motivo).toBe('meseta')
+  })
+
+  it('si lo típico es una traducción de otros kilos, no dice que es lo que te salió', () => {
+    const avance = avanceEn('flexion-completa', 11, { senal: 0.82, sesionesEnObjetivo: MESETA - 1 })
+    const d = siguienteAvance(avance, { rendimiento: 0.8, tipico: 8, tipicoTraducido: true }, ctx, 0)
+    expect(d.avance.objetivoActual.cantidad).toBe(8)
+    expect(d.explicacion).toBe('El objetivo de 11 por serie no se termina de cerrar. Era optimista: lo llevamos a 8.')
   })
 
   it('si lo de esta vez quedó más cerca, baja un paso y no dice que es lo que salió', () => {
@@ -491,11 +527,148 @@ describe('siguienteAvance', () => {
       expect(d.motivo).toBeUndefined()
     })
 
-    it('una que sale mejor que lo que venía cuenta, aunque sea floja', () => {
+    it('una que sale mejor que lo que venía sube la señal, pero no baja nada', () => {
       const avance = avanceEn('flexion-completa', 8, { senal: 0.5 })
+      // Sin protección, la señal sube y aun así queda por debajo de la vara de
+      // bajar: baja el objetivo. Protegida, una peor se sostenía y esta, que
+      // salió mejor, bajaba.
+      expect(siguienteAvance(avance, { rendimiento: 0.7, tipico: 6 }, ctx, 0).movimiento).toBe('bajada')
       const d = siguienteAvance(avance, { rendimiento: 0.7, tipico: 6, protegida: true }, ctx, 0)
-      expect(d.motivo).toBeUndefined()
+      expect(d.movimiento).toBe('sostiene')
+      expect(d.motivo).toBe('protegida')
+      expect(d.explicacion).toBe(PROTEGIDA_EN_UN_DIA_FLOJO)
+      expect(d.avance.objetivoActual).toEqual(avance.objetivoActual)
+      expect(d.avance.ejercicioId).toBe(avance.ejercicioId)
       expect(d.avance.senal).toBeGreaterThan(0.5)
+    })
+
+    it('ninguna protegida que no llegó baja el objetivo ni retrocede de eslabón', () => {
+      for (const id of empuje.ejercicios) {
+        const e = ejercicio(id)
+        for (const cantidad of [e.ventana.min, Math.round((e.ventana.min + e.ventana.max) / 2), e.ventana.max]) {
+          for (const senal of [0.2, 0.5, 0.76, 0.9, 1.1]) {
+            for (const sesionesEnObjetivo of [0, MESETA - 1]) {
+              for (const graciaRestante of [0, 2]) {
+                const avance = avanceEn(id, cantidad, { senal, sesionesEnObjetivo, graciaRestante })
+                for (const rendimiento of [0, 0.3, 0.6, 0.8, 0.94, 0.99]) {
+                  const d = siguienteAvance(
+                    avance,
+                    { rendimiento, tipico: 1, protegida: true, protegidasSeguidas: MESETA - 2 },
+                    ctx,
+                    0,
+                  )
+                  const donde = `${id} ${cantidad} señal ${senal} r ${rendimiento}`
+                  expect(['bajada', 'nivel-abajo'], donde).not.toContain(d.movimiento)
+                }
+              }
+            }
+          }
+        }
+      }
+    })
+  })
+
+  describe('la protección vence', () => {
+    // Si no venciera, alguien que siempre hace diamantes antes de las
+    // completas quedaba con la misma frase para siempre.
+    const avance = avanceEn('flexion-completa', 10, { senal: 0.9 })
+    const floja = (seguidas: number) =>
+      siguienteAvance(
+        avance,
+        { rendimiento: 0.6, tipico: 7, protegida: true, protegidasSeguidas: seguidas },
+        ctx,
+        5,
+      )
+
+    it(`sostiene las primeras ${MESETA - 1} flojas protegidas seguidas`, () => {
+      for (let seguidas = 0; seguidas < MESETA - 1; seguidas++) {
+        expect(floja(seguidas).motivo, `${seguidas} antes`).toBe('protegida')
+      }
+    })
+
+    it(`a la ${MESETA}ª, lleva el objetivo a lo que la persona hace, y lo dice como meseta`, () => {
+      const d = floja(MESETA - 1)
+      expect(d.movimiento).toBe('bajada')
+      expect(d.motivo).toBe('meseta')
+      expect(d.cambioDeNivel).toBe(false)
+      expect(d.avance.ejercicioId).toBe('flexion-completa')
+      expect(d.avance.objetivoActual.cantidad).toBe(7)
+      expect(d.avance.sesionesEnObjetivo).toBe(0)
+      expect(d.explicacion).toBe(
+        'El objetivo de 10 por serie no se termina de cerrar. Era optimista: lo llevamos a 7, que es lo que te salió esta vez.',
+      )
+    })
+
+    it('vencida y sin adónde bajar el objetivo, cuenta como cualquier otra', () => {
+      const piso = avanceEn('flexion-completa', 5, { senal: 0.5 })
+      const evaluacion = { rendimiento: 0.2, tipico: 1, protegida: true }
+      expect(siguienteAvance(piso, { ...evaluacion, protegidasSeguidas: 0 }, ctx, 0).motivo).toBe('protegida')
+      const d = siguienteAvance(piso, { ...evaluacion, protegidasSeguidas: MESETA - 1 }, ctx, 0)
+      expect(d.movimiento).toBe('nivel-abajo')
+      expect(d.avance.ejercicioId).not.toBe('flexion-completa')
+    })
+  })
+
+  describe('el día que llega al total, no baja nada', () => {
+    it('ni con la señal hundida por lo de antes', () => {
+      const avance = avanceEn('flexion-completa', 8, { senal: 0.4 })
+      const d = siguienteAvance(avance, { rendimiento: 1, tipico: 8 }, ctx, 0)
+      expect(d.movimiento).toBe('sostiene')
+      expect(d.explicacion).toBe(LLEGASTE_AL_TOTAL)
+      expect(d.avance.objetivoActual).toEqual(avance.objetivoActual)
+    })
+
+    it('ni en la meseta de abajo', () => {
+      const avance = avanceEn('flexion-completa', 11, { senal: 0.6, sesionesEnObjetivo: MESETA - 1 })
+      const d = siguienteAvance(avance, { rendimiento: 1, tipico: 11 }, ctx, 0)
+      expect(d.movimiento).toBe('sostiene')
+      expect(d.explicacion).toBe(LLEGASTE_AL_TOTAL)
+    })
+
+    it('en ningún eslabón, con ninguna señal', () => {
+      for (const id of empuje.ejercicios) {
+        const e = ejercicio(id)
+        for (const cantidad of [e.ventana.min, e.ventana.max]) {
+          for (const senal of [0, 0.3, 0.6, 0.8]) {
+            for (const sesionesEnObjetivo of [0, MESETA - 1]) {
+              const avance = avanceEn(id, cantidad, { senal, sesionesEnObjetivo })
+              for (const rendimiento of [1, 1.1, 1.25]) {
+                const d = siguienteAvance(avance, { rendimiento, tipico: cantidad }, ctx, 0)
+                expect(['bajada', 'nivel-abajo'], `${id} ${cantidad} ${senal}`).not.toContain(d.movimiento)
+                expect(d.explicacion).not.toMatch(/cortas|costando|grande|no se termina de cerrar/)
+              }
+            }
+          }
+        }
+      }
+    })
+  })
+
+  describe('lo que dice al sostener, de cerca y de lejos', () => {
+    it('"quedaste cerca" solo si quedó cerca', () => {
+      const cerca = siguienteAvance(avanceEn('flexion-completa', 8, { senal: 0.8 }), { rendimiento: 0.9, tipico: 8 }, ctx, 0)
+      expect(cerca.movimiento).toBe('sostiene')
+      expect(cerca.explicacion).toBe('Quedaste cerca. Repetimos el mismo objetivo para consolidarlo.')
+
+      const lejos = siguienteAvance(avanceEn('flexion-completa', 8, { senal: 0.95 }), { rendimiento: 0.7, tipico: 6 }, ctx, 0)
+      expect(lejos.movimiento).toBe('sostiene')
+      expect(lejos.explicacion).toBe('Repetimos el mismo objetivo para consolidarlo.')
+
+      const llego = siguienteAvance(avanceEn('flexion-completa', 8, { senal: 0.6 }), { rendimiento: 1, tipico: 8 }, ctx, 0)
+      expect(llego.movimiento).toBe('sostiene')
+      expect(llego.explicacion).toBe('Repetimos el mismo objetivo para consolidarlo.')
+    })
+
+    it('"objetivo cumplido" solo si se cumplió', () => {
+      // La señal pasa la vara de subir también con una sesión que no llegó,
+      // por lo que venía de antes.
+      const avance = avanceEn('flexion-completa', 8, { senal: 1.2 })
+      const sinCumplir = siguienteAvance(avance, { rendimiento: 0.9, tipico: 8 }, ctx, 0)
+      expect(sinCumplir.movimiento).toBe('subida')
+      expect(sinCumplir.avance.senal).toBeGreaterThanOrEqual(SUBE)
+      expect(sinCumplir.explicacion).toBe('Subimos a 9 por serie.')
+      const cumplido = siguienteAvance(avance, { rendimiento: 1, tipico: 8, cumplido: true }, ctx, 0)
+      expect(cumplido.explicacion).toBe('Objetivo cumplido. Subimos a 9 por serie.')
     })
   })
 
@@ -747,8 +920,11 @@ describe('eslabones cerrados', () => {
 
     const d = siguienteAvance(avance, evaluacion, ctxCerrado, 0)
     expect(d.cambioDeNivel).toBe(false)
-    expect(d.explicacion).not.toContain('La próxima cambiamos')
-    expect(d.explicacion).toContain(diamante.nombre)
+    expect(d.movimiento).toBe('sostiene')
+    expect(d.explicacion).toBe(
+      `Seguimos en ${completa.nombre}. Lo que sigue, ${diamante.nombre}, se abre cuando llegues a Dominadas completas.`,
+    )
+    expect(d.explicacion).not.toMatch(/cambiamos|cambiar de ejercicio/)
   })
 
   it('bajar a un eslabón cerrado sí puede: bajar nunca es el riesgo', () => {
@@ -900,6 +1076,22 @@ describe('el freno por ánimo, y hasta dónde llega', () => {
     const d = siguienteAvance(avance, { rendimiento: 1, tipico: e.ventana.max, ...mal }, ctx, 0)
     expect(d.cambioDeNivel).toBe(false)
     expect(d.explicacion).toContain('cuesta arriba')
+  })
+
+  it('consolidando en el techo, no promete un cambio que el freno va a parar', () => {
+    const e = ejercicio('flexion-pared')
+    const avance = avanceEn('flexion-pared', e.ventana.max, { sesionesEnObjetivo: CONSOLIDACION - 1 })
+    const evaluacion = { rendimiento: 1, tipico: e.ventana.max }
+    expect(siguienteAvance(avance, evaluacion, ctx, 0).explicacion).toContain(
+      'Un día de práctica más así y cambiamos de ejercicio.',
+    )
+    const d = siguienteAvance(avance, { ...evaluacion, ...mal }, ctx, 0)
+    expect(d.movimiento).toBe('sostiene')
+    expect(d.explicacion).toBe(
+      `Llegaste al techo de ${e.nombre}. Lo sostenemos acá: las últimas sesiones se te hicieron cuesta arriba y el paso a ${ejercicio('flexion-inclinada-alta').nombre} pide más.`,
+    )
+    // Y lo que dice se cumple: al día siguiente, igual de mal, tampoco cambia.
+    expect(siguienteAvance(d.avance, { ...evaluacion, ...mal }, ctx, 0).cambioDeNivel).toBe(false)
   })
 
   it('en el techo y con el eslabón dominado, cambia de nivel igual', () => {
@@ -1298,6 +1490,38 @@ describe('varias sesiones por día', () => {
       expect(decision.explicacion).toBe(PROTEGIDA_EN_UN_DIA_FLOJO)
     })
 
+    it('con chequeo y prefatiga juntos, dice lo de la prefatiga', () => {
+      // La prefatiga es la razón que mira este paso, y no el día entero.
+      const decision = leer([diamante, floja], [], { protegida: true })[0]!.decision
+      expect(decision.motivo).toBe('protegida')
+      expect(decision.movimiento).toBe('sostiene')
+      expect(decision.explicacion).toBe(PROTEGIDA_POR_PREFATIGA)
+    })
+
+    it(`a la ${MESETA}ª protegida seguida sobre el mismo objetivo, vence, y la meseta gana sobre la prefatiga`, () => {
+      // Seis por serie contra ocho: floja contra la señal, pero lo bastante
+      // cerca como para que el objetivo pueda ir a lo que hace.
+      const corta = registro('flexion-completa', [6, 6, 6])
+      const dias = (n: number) =>
+        Array.from({ length: n }, (_, i) => {
+          const dia = `2026-10-${String(20 - i).padStart(2, '0')}`
+          const cuando = new Date(2026, 9, 20 - i, 9, 10).getTime()
+          return { ...guardada(leer([diamante, corta], [], { dia, ahora: cuando }), cuando, [diamante, corta]), fecha: dia }
+        })
+      for (const sesion of dias(MESETA - 1)) expect(sesion.decisiones![0]!.motivo).toBe('protegida')
+
+      const todavia = leer([diamante, corta], dias(MESETA - 2))[0]!.decision
+      expect(todavia.motivo).toBe('protegida')
+
+      const vencida = leer([diamante, corta], dias(MESETA - 1))[0]!.decision
+      expect(vencida.movimiento).toBe('bajada')
+      expect(vencida.motivo).toBe('meseta')
+      expect(vencida.avance.objetivoActual.cantidad).toBe(6)
+      expect(vencida.explicacion).toBe(
+        'El objetivo de 8 por serie no se termina de cerrar. Era optimista: lo llevamos a 6, que es lo que te salió esta vez.',
+      )
+    })
+
     it('cuenta lo de las sesiones anteriores del día', () => {
       const manana = [diamante, registro('remo-australiano-alto', [10, 10, 10])]
       const historial = [guardada(leer(manana), a(9, 10), manana)]
@@ -1344,5 +1568,152 @@ describe('varias sesiones por día', () => {
       expect(decision.movimiento).toBe('neutra')
       expect(decision.motivo).toBeUndefined()
     })
+  })
+})
+
+describe('protegidasSeguidas', () => {
+  const avance = avanceEn('flexion-completa', 8)
+  function sesion(
+    finalizadaEn: number,
+    motivo?: MotivoDeDecision,
+    { ejercicioId = 'flexion-completa', cantidad = 8, neutra = false, patron = 'empuje' as Patron } = {},
+  ): Sesion {
+    return {
+      id: `s-${finalizadaEn}`,
+      fecha: '2026-10-20',
+      finalizadaEn,
+      duracionSegundos: 1800,
+      tipo: 'plan',
+      registros: [{ ejercicioId, objetivo: { series: 3, cantidad }, series: series(6, 6, 6) }],
+      decisiones: [
+        {
+          patron,
+          movimiento: neutra ? 'neutra' : 'sostiene',
+          explicacion: '',
+          cambioDeNivel: false,
+          ...(motivo ? { motivo } : {}),
+        },
+      ],
+    }
+  }
+
+  it('cuenta las protegidas de la última para atrás, en el orden en que se cerraron', () => {
+    expect(protegidasSeguidas(avance, [])).toBe(0)
+    expect(protegidasSeguidas(avance, [sesion(1), sesion(2, 'protegida'), sesion(3, 'protegida')])).toBe(2)
+    expect(protegidasSeguidas(avance, [sesion(3, 'protegida'), sesion(1, 'protegida'), sesion(2)])).toBe(1)
+  })
+
+  it('las neutras ni cortan ni suman', () => {
+    const historial = [
+      sesion(1, 'protegida'),
+      sesion(2, 'ya-leida-hoy', { neutra: true }),
+      sesion(3, 'protegida'),
+    ]
+    expect(protegidasSeguidas(avance, historial)).toBe(2)
+  })
+
+  it('las de otra cadena no cuentan', () => {
+    const historial = [sesion(1, 'protegida'), sesion(2, undefined, { patron: 'traccion' })]
+    expect(protegidasSeguidas(avance, historial)).toBe(1)
+  })
+
+  it('una protegida sobre otro ejercicio u otro objetivo corta la racha', () => {
+    // Después de cambiar de nivel a mano, las de antes no hablan del objetivo
+    // de ahora.
+    const otroEjercicio = [sesion(1, 'protegida', { ejercicioId: 'flexion-diamante' }), sesion(2, 'protegida')]
+    expect(protegidasSeguidas(avance, otroEjercicio)).toBe(1)
+    const otroObjetivo = [sesion(1, 'protegida', { cantidad: 10 }), sesion(2, 'protegida')]
+    expect(protegidasSeguidas(avance, otroObjetivo)).toBe(1)
+  })
+})
+
+describe('cumpleCadaSerie', () => {
+  const objetivo: Objetivo = { series: 3, cantidad: 8 }
+
+  it('cada serie llegó', () => {
+    expect(cumpleCadaSerie(objetivo, series(8, 8, 8))).toBe(true)
+    expect(cumpleCadaSerie(objetivo, series(10, 9, 8))).toBe(true)
+  })
+
+  it('una corta no, aunque el total alcance', () => {
+    expect(cumpleCadaSerie(objetivo, series(12, 8, 7))).toBe(false)
+  })
+
+  it('una que falta tampoco', () => {
+    expect(cumpleCadaSerie(objetivo, series(8, 8))).toBe(false)
+  })
+
+  it('la de cierre no cuenta, ni a favor ni en contra', () => {
+    expect(cumpleCadaSerie(objetivo, [...series(8, 8, 8), { logrado: 2, cierre: true }])).toBe(true)
+    expect(cumpleCadaSerie(objetivo, [...series(8, 8), { logrado: 9, cierre: true }])).toBe(false)
+  })
+})
+
+describe('lo que dice el motor no usa palabras prohibidas', () => {
+  // Lo ve la persona tal cual en el Cierre. Las líneas, las frases, las
+  // rutinas y la biblioteca ya pasan por `loProhibido`; esto cubre las
+  // explicaciones, recorriendo una grilla que pasa por todas las ramas.
+  it('ni las fijas', () => {
+    for (const texto of [PROTEGIDA_EN_UN_DIA_FLOJO, PROTEGIDA_POR_PREFATIGA, LLEGASTE_AL_TOTAL]) {
+      expect(loProhibido(texto), texto).toBeNull()
+    }
+  })
+
+  it('ni las que arma cada rama', () => {
+    const barra = { pesoCorporalKg: 75, cargaMaximaKg: 45, pasoDeDiscoKg: 2.5 }
+    const vistas = new Set<string>()
+    for (const cadena of CADENAS) {
+      for (let i = 0; i < cadena.ejercicios.length; i++) {
+        const e = ejercicio(cadena.ejercicios[i]!)
+        const siguiente = cadena.ejercicios[i + 1]
+        const contextos = [
+          { cadena, ejercicios: POR_ID },
+          { cadena, ejercicios: POR_ID, barra },
+          ...(siguiente
+            ? [
+                { cadena, ejercicios: POR_ID, cerrados: new Map<string, Cierre>([[siguiente, { motivo: 'sin-barra' }]]) },
+                {
+                  cadena,
+                  ejercicios: POR_ID,
+                  cerrados: new Map<string, Cierre>([[siguiente, { motivo: 'requisito', requisito: e }]]),
+                },
+              ]
+            : []),
+        ]
+        const medio = Math.round((e.ventana.min + e.ventana.max) / 2)
+        for (const cantidad of [e.ventana.min, medio, e.ventana.max, e.ventana.max + 6]) {
+          for (const kg of [undefined, 10]) {
+            for (const senal of [0.5, 0.8, 0.9, 1]) {
+              for (const sesionesEnObjetivo of [0, CONSOLIDACION, MESETA - 1]) {
+                for (const graciaRestante of [0, 1, 3]) {
+                  const avance: Avance = {
+                    patron: cadena.patron,
+                    ejercicioId: e.id,
+                    objetivoActual: { series: e.series, cantidad, ...(kg ? { kg } : {}) },
+                    senal,
+                    sesionesEnObjetivo,
+                    graciaRestante,
+                    actualizadoEn: 0,
+                  }
+                  for (const contexto of contextos) {
+                    for (const rendimiento of [0.3, 0.8, 0.9, 1.1]) {
+                      for (const tipico of [Math.max(1, cantidad - 3), cantidad]) {
+                        for (const extra of [{}, { protegida: true }, { animo: -1 }, { cumplido: true }]) {
+                          const d = siguienteAvance(avance, { rendimiento, tipico, ...extra }, contexto, 0)
+                          vistas.add(d.explicacion)
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+    // Que la grilla de verdad haya recorrido: si no, esto no probaría nada.
+    expect(vistas.size).toBeGreaterThan(200)
+    for (const texto of vistas) expect(loProhibido(texto), texto).toBeNull()
   })
 })

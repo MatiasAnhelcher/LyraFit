@@ -9,6 +9,7 @@ import {
   dichoDelDescanso,
   fraseDe,
   momentoDeHoy,
+  PIDEN_CONTINUIDAD,
   recordar,
   type Momento,
 } from './frases'
@@ -568,6 +569,36 @@ describe('el momento de Hoy', () => {
   it('sin vuelta: abrir antes de entrenar, constancia después, descanso si no toca', () => {
     expect(momentoDeHoy({ esDiaDeEntrenar: true, entrenoHoy: false, vuelve: false })).toBe('abrir')
     expect(momentoDeHoy({ esDiaDeEntrenar: true, entrenoHoy: true, vuelve: false })).toBe('constancia')
-    expect(momentoDeHoy({ esDiaDeEntrenar: false, entrenoHoy: true, vuelve: true })).toBe('descanso')
+    expect(momentoDeHoy({ esDiaDeEntrenar: false, entrenoHoy: false, vuelve: false })).toBe('descanso')
+    expect(momentoDeHoy({ esDiaDeEntrenar: false, entrenoHoy: false, vuelve: true })).toBe('descanso')
+  })
+
+  it('un día de descanso en el que igual entrenó es constancia, no descanso', () => {
+    // "Hoy toca descansar" es falso con la sesión de hoy ya hecha.
+    expect(momentoDeHoy({ esDiaDeEntrenar: false, entrenoHoy: true, vuelve: false })).toBe('constancia')
+    expect(momentoDeHoy({ esDiaDeEntrenar: false, entrenoHoy: true, vuelve: true })).toBe('constancia')
+  })
+})
+
+describe('las frases de continuidad el día de la vuelta', () => {
+  // Un barrido fino del azar: con 25 frases, de a 0.01 sale cada una.
+  const BARRIDO = Array.from({ length: 101 }, (_, i) => i / 100)
+  const constancia = FRASES.find((g) => g.momento === 'constancia')!
+
+  it('después de semanas sin entrenar, ninguna dice que la persona viene sin cortar', () => {
+    for (const azar of BARRIDO) {
+      const frase = fraseDe('constancia', azar, [], 50, true)
+      expect(frase).not.toBeNull()
+      expect(PIDEN_CONTINUIDAD.has(frase!.texto)).toBe(false)
+    }
+  })
+
+  it('sin vuelta, siguen saliendo', () => {
+    const dichas = new Set(BARRIDO.map((azar) => fraseDe('constancia', azar, [], 50)!.texto))
+    for (const frase of PIDEN_CONTINUIDAD) expect(dichas.has(frase)).toBe(true)
+  })
+
+  it('las tres están entre las de constancia, así que el filtro saca algo de verdad', () => {
+    for (const frase of PIDEN_CONTINUIDAD) expect(constancia.lineas).toContain(frase)
   })
 })

@@ -98,10 +98,12 @@ export function FichaEjercicio() {
   /**
    * A qué distancia estás de este ejercicio.
    *
-   * Las sesiones se cuentan SOLO para el eslabón que viene. Es la misma regla
-   * que el alta ya había aprendido y que acá me volvió a morder: `proyectar`
-   * corre el motor contra alguien que cumple siempre, así que desde flexiones
-   * declinadas da dieciséis sesiones hasta la flexión a una mano. La cuenta es
+   * Los días de práctica se cuentan SOLO para el eslabón que viene (cada
+   * cadena se lee una vez por día, así que son días y no sesiones). Es la
+   * misma regla que el alta ya había aprendido y que acá me volvió a morder:
+   * `proyectar` corre el motor contra alguien que cumple siempre, así que
+   * desde flexiones declinadas da dieciséis lecturas hasta la flexión a una
+   * mano. La cuenta es
    * exacta y la frase es una mentira — nadie hace ese camino en seis semanas—,
    * y una promesa que no se cree hace más daño que no dar ninguna.
    *
@@ -110,7 +112,7 @@ export function FichaEjercicio() {
    *
    * Y con los eslabones cerrados que mira el motor: si este no se abre
    * cumpliendo —sin barra, o la palanca frontal sin dominadas—, contar
-   * sesiones hasta acá sería la misma promesa falsa.
+   * días hasta acá sería la misma promesa falsa.
    */
   const posicionActual = avance ? cadena.ejercicios.indexOf(avance.ejercicioId) : -1
   const eslabonesDeDistancia =
@@ -180,8 +182,9 @@ export function FichaEjercicio() {
             <>
               Estás a{' '}
               <span className="cifra text-[var(--color-tinta)]">{sesionesHasta}</span>{' '}
-              {sesionesHasta === 1 ? 'día de práctica' : 'días de práctica'} de acá, si sale todo
-              bien. No es una promesa: es la misma cuenta que va a hacer el motor mañana.
+              {sesionesHasta === 1 ? 'día' : 'días'} de práctica de{' '}
+              {NOMBRE_PATRON[ejercicio.patron].toLowerCase()} de acá, si sale todo bien. No es una
+              promesa: es la misma cuenta que va a hacer el motor mañana.
             </>
           ) : (
             <>

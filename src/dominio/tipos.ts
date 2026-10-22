@@ -212,7 +212,7 @@ export interface DecisionGuardada {
 }
 
 /**
- * Las cuatro razones que una decisión guarda aparte.
+ * Las razones que una decisión guarda aparte.
  *
  * - **ya-leida-hoy**: la cadena ya se leyó ese día en otra sesión. Es neutra y
  *   no escribe el avance: cada cadena se lee una vez por día.
@@ -224,8 +224,11 @@ export interface DecisionGuardada {
  * - **prefatiga**: el paso llegó después de muchas series de sus músculos y
  *   la lectura iba protegida, pero no salió floja, así que contó como
  *   cualquier otra.
+ * - **meseta**: el objetivo se movió porque llevaba varios días de práctica
+ *   igual (`MESETA`), o porque venció la protección de una racha de
+ *   protegidas. El Cierre la firma con esa regla y no con la del movimiento.
  */
-export type MotivoDeDecision = 'ya-leida-hoy' | 'a-medias' | 'protegida' | 'prefatiga'
+export type MotivoDeDecision = 'ya-leida-hoy' | 'a-medias' | 'protegida' | 'prefatiga' | 'meseta'
 
 /**
  * Una ráfaga metabólica efectivamente hecha.

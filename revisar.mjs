@@ -337,9 +337,9 @@ async function main() {
     await revisarDesborde(pagina, `Ficha de ejercicio (${tema})`)
 
     // La distancia se dice de tres formas y las tres tienen que salir: en
-    // sesiones solo para el eslabón que viene, en eslabones para todo lo que
-    // está más lejos, y "ya pasaste por acá" para lo que quedó atrás. La
-    // primera versión de esto contaba sesiones hasta cualquier ejercicio y
+    // días de práctica solo para el eslabón que viene, en eslabones para todo
+    // lo que está más lejos, y "ya pasaste por acá" para lo que quedó atrás.
+    // La primera versión de esto contaba sesiones hasta cualquier ejercicio y
     // prometía la flexión a una mano en dieciséis sesiones.
     for (const [id, esperado] of [
       ['flexion-pared', /Ya pasaste por acá/i],
@@ -358,8 +358,9 @@ async function main() {
     await capturar(pagina, `7b-ficha-lejos-${tema}`)
     await revisarDesborde(pagina, `Ficha de un ejercicio lejano (${tema})`)
 
-    // Y la tercera redacción, la única que cuenta sesiones: el eslabón que
-    // viene. Se deriva del avance real en vez de escribirlo a mano, porque
+    // Y la tercera redacción, la única que cuenta días de práctica: el
+    // eslabón que viene. La expresión mira también la concordancia: "1 día",
+    // "7 días", nunca "1 días" ni "7 día". Se deriva del avance real en vez de escribirlo a mano, porque
     // dónde cae la persona depende de lo que contestó en el alta.
     const proximo = await pagina.evaluate(async () => {
       const base = await new Promise((res, rej) => {
@@ -387,7 +388,7 @@ async function main() {
         await pagina.waitForTimeout(400)
         const cuenta = await pagina
           .locator('p')
-          .filter({ hasText: /Estás a \d+ días? de práctica de acá, si sale todo bien/i })
+          .filter({ hasText: /Estás a (?:1 día|(?:[2-9]|\d{2,}) días) de práctica de [a-zñáéíóú]+ de acá, si sale todo bien/i })
           .first()
           .isVisible()
           .catch(() => false)

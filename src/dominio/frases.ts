@@ -87,9 +87,12 @@ export type Momento =
 /**
  * El momento de Hoy, el de la pantalla de todos los días.
  *
- * Entrenar hoy va antes que volver: el día de la vuelta, `vuelve` sigue en
- * true después de la sesión —cuenta desde antes de hoy, para que el motor la
- * lea como vuelta—, y "tomátelo con calma esta primera" ya no sería cierto.
+ * Entrenar hoy va antes que todo. Antes que volver: el día de la vuelta,
+ * `vuelve` sigue en true después de la sesión —cuenta desde antes de hoy, para
+ * que el motor la lea como vuelta—, y "tomátelo con calma esta primera" ya no
+ * sería cierto. Y antes que descansar: quien entrenó un día de descanso no
+ * puede leer "hoy toca no entrenar". Lo mismo ordenan el rótulo del Plan y el
+ * del día.
  */
 export function momentoDeHoy({
   esDiaDeEntrenar,
@@ -100,8 +103,8 @@ export function momentoDeHoy({
   entrenoHoy: boolean
   vuelve: boolean
 }): Momento {
-  if (!esDiaDeEntrenar) return 'descanso'
   if (entrenoHoy) return 'constancia'
+  if (!esDiaDeEntrenar) return 'descanso'
   return vuelve ? 'vuelta' : 'abrir'
 }
 
@@ -593,6 +596,17 @@ export const DESDE_SESIONES: ReadonlyMap<string, number> = new Map([
   ['Se te está haciendo normal. Eso es lo bueno.', 10],
 ])
 
+/**
+ * Las frases que hablan de seguir sin cortar. El día de la vuelta —después de
+ * semanas sin entrenar— no son ciertas aunque la persona lleve muchas
+ * sesiones, y `fraseDe` las saca.
+ */
+export const PIDEN_CONTINUIDAD: ReadonlySet<string> = new Set([
+  'Nadie sostiene esto por ganas. Lo sostenés por costumbre.',
+  'Semana tras semana, ahí seguís.',
+  'Se te está haciendo normal. Eso es lo bueno.',
+])
+
 const POR_MOMENTO = new Map(FRASES.map((g) => [g.momento, g]))
 
 /**
@@ -610,17 +624,23 @@ const POR_MOMENTO = new Map(FRASES.map((g) => [g.momento, g]))
  * `sesiones` es cuántas lleva la persona (ver `DESDE_SESIONES`). Por defecto
  * es cero a propósito: una pantalla que se olvide de pasarlo se pierde algunas
  * frases, pero no dice ninguna falsa.
+ *
+ * `vuelve` es si la persona vuelve después de un tiempo sin entrenar: saca las
+ * frases de continuidad (`PIDEN_CONTINUIDAD`).
  */
 export function fraseDe(
   momento: Momento,
   azar: number,
   dichas: readonly string[] = [],
   sesiones = 0,
+  vuelve = false,
 ): { texto: string; expresion: Expresion } | null {
   const grupo = POR_MOMENTO.get(momento)
   if (!grupo) return null
 
-  const ciertas = grupo.lineas.filter((l) => (DESDE_SESIONES.get(l) ?? 0) <= sesiones)
+  const ciertas = grupo.lineas.filter(
+    (l) => (DESDE_SESIONES.get(l) ?? 0) <= sesiones && !(vuelve && PIDEN_CONTINUIDAD.has(l)),
+  )
   if (ciertas.length === 0) return null
 
   const recientes = new Set(dichas)

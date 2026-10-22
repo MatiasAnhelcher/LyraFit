@@ -470,8 +470,8 @@ function Plan({
       <div className="flex-1">
         <h1 className="text-3xl font-bold leading-tight tracking-tight">Tu punto de partida</h1>
         <p className="mt-3 max-w-[42ch] text-sm leading-relaxed text-[var(--color-glosa)]">
-          Sale de lo que acabás de responder. Si algo quedó fácil o difícil, la app lo
-          corrige sola en un par de días de práctica.
+          Sale de lo que acabás de responder. Si algo quedó fácil o difícil, la app lo va
+          ajustando sola con lo que hagas cada día de práctica.
         </p>
 
         {/* La misma fila reglada que se va a ver en Hoy todos los días. Es a
@@ -525,7 +525,7 @@ function Plan({
             <span className="font-semibold text-[var(--color-tinta)]">{siguiente.nombre}</span>:{' '}
             {sesiones === 1 ? 'un' : 'unos'}{' '}
             <span className="cifra font-semibold text-[var(--color-tinta)]">{sesiones}</span>{' '}
-            {sesiones === 1 ? 'día' : 'días'} de práctica si sale todo bien. Al final de esa
+            {sesiones === 1 ? 'día' : 'días'} de práctica de empuje si sale todo bien. Al final de esa
             cadena está {meta.nombre.toLowerCase()},
             y eso lleva años. La app no te va a apurar para llegar.
           </p>
