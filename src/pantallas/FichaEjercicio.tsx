@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import { useParams } from 'react-router-dom'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { NOMBRE_PATRON, POR_ID, buscarEjercicio, cadenaDe } from '@/dominio/biblioteca'
@@ -9,6 +10,7 @@ import { FiguraEjercicio } from '@/componentes/figura'
 import { LinkConPasaje } from '@/componentes/movimiento'
 import { CuerpoDoble } from '@/componentes/cuerpo'
 import { APORTE, NOMBRE_MUSCULO, PISO_DE_DOSIS, type Aporte, type Musculo } from '@/dominio/musculos'
+import type { Patron } from '@/dominio/tipos'
 import {
   fijarNivel,
   leerAvances,
@@ -48,6 +50,15 @@ export function FichaEjercicio() {
     },
     [],
   )
+  /**
+   * Mientras se fija el nivel, y lo que salió mal. Desde que fijar el nivel
+   * puede cerrar una sesión entera, falla por lo mismo que cualquier cierre
+   * —la base llena, el modo privado— y antes fallaba callado: la pantalla
+   * quedaba igual y no se sabía si había pasado algo. Si falla no queda nada a
+   * medias: es una sola transacción.
+   */
+  const [cambiando, setCambiando] = useState(false)
+  const [errorAlCambiar, setErrorAlCambiar] = useState<string | null>(null)
 
   if (!ejercicio) {
     return (
@@ -68,6 +79,25 @@ export function FichaEjercicio() {
 
   const cadena = cadenaDe(ejercicio.patron)
   const posicion = cadena.ejercicios.indexOf(ejercicio.id)
+
+  async function empezarAca(patron: Patron, ejercicioId: string, conSesion: boolean) {
+    setCambiando(true)
+    setErrorAlCambiar(null)
+    try {
+      await fijarNivel(patron, ejercicioId)
+      // La copia automática también: mover el nivel cambia el avance fuera de
+      // una sesión, y puede cerrar la que estaba a medio hacer.
+      respaldarPronto()
+    } catch {
+      setErrorAlCambiar(
+        conSesion
+          ? 'No se pudo cambiar el nivel. Tu sesión a medio hacer sigue como estaba: probá de nuevo.'
+          : 'No se pudo cambiar el nivel. Probá de nuevo.',
+      )
+    } finally {
+      setCambiando(false)
+    }
+  }
   const avance = avances.get(ejercicio.patron)
   const esActual = avance?.ejercicioId === ejercicio.id
   const record = recordDe(sesiones, ejercicio.id)
@@ -402,11 +432,8 @@ export function FichaEjercicio() {
       {!esActual && esEslabon && (
         <div className="mt-8">
           <AccionQuieta
-            onClick={() =>
-              // La copia automática también: mover el nivel cambia el avance
-              // fuera de una sesión, y puede cerrar la que estaba a medio hacer.
-              void fijarNivel(ejercicio.patron, ejercicio.id).then(respaldarPronto)
-            }
+            deshabilitado={cambiando}
+            onClick={() => void empezarAca(ejercicio.patron, ejercicio.id, cierraUnaSesion === true)}
           >
             Empezar la cadena de {NOMBRE_PATRON[ejercicio.patron].toLowerCase()} acá
           </AccionQuieta>
@@ -418,6 +445,11 @@ export function FichaEjercicio() {
           {cierraUnaSesion && (
             <p className="mt-2 text-xs leading-relaxed text-[var(--color-glosa)]">
               Tenés una sesión a medio hacer: se cierra con lo hecho.
+            </p>
+          )}
+          {errorAlCambiar && (
+            <p role="alert" className="mt-3 max-w-[40ch] text-sm text-[var(--color-ambar)]">
+              {errorAlCambiar}
             </p>
           )}
         </div>

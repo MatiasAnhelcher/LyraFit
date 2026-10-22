@@ -371,17 +371,28 @@ export function mismaSesion(
  * La hora de inicio que va en el borrador al anotar una serie.
  *
  * La primera serie la escribe; después no se mueve, aunque la sesión se
- * retome horas más tarde. Un borrador viejo que ya tenía trabajo adentro
- * sigue sin hora: la primera serie fue antes de que esto existiera, y poner
- * la de ahora sería mostrar en Tu día una hora en la que no empezó nada.
+ * retome horas más tarde. Un borrador viejo que ya tenía algo anotado sigue
+ * sin hora: la primera serie fue antes de que esto existiera, y poner la de
+ * ahora sería mostrar en Tu día una hora en la que no empezó nada.
+ *
+ * "Algo anotado" es cualquier serie, también una en 0, y no `tieneTrabajo`,
+ * que solo cuenta las que tienen repeticiones: un borrador viejo con una
+ * serie en 0 ya había empezado, aunque no tenga nada que guardar.
  */
 export function iniciadaEn(
   previo: Pick<SesionEnCurso, 'iniciadaEn' | 'hechas' | 'rafagas'> | null | undefined,
   ahora: number,
 ): number | undefined {
   if (previo?.iniciadaEn !== undefined) return previo.iniciadaEn
-  if (previo && tieneTrabajo(previo)) return undefined
+  if (previo && anotoAlgo(previo)) return undefined
   return ahora
+}
+
+function anotoAlgo(borrador: Pick<SesionEnCurso, 'hechas' | 'rafagas'>): boolean {
+  return (
+    Object.values(borrador.hechas ?? {}).some((series) => series.length > 0) ||
+    (borrador.rafagas?.length ?? 0) > 0
+  )
 }
 
 const enPlural = (n: number, uno: string, varios: string) => `${n} ${n === 1 ? uno : varios}`

@@ -19,11 +19,12 @@
  * 2. **El borrador vencido.** Una sesión entera hasta "Antes de cerrar", sin
  *    tocar "Cerrar la sesión"; siete horas después Hoy la ofrece con
  *    "Guardarla" y "Descartarla", Entrenar no la pisa, y guardarla deja la
- *    sesión con todas sus series. Si guardarla falla, se dice y la sesión
- *    sigue ofrecida. Un borrador viejo, sin el día ni el plan, también se
- *    ofrece, y descartarlo lo borra. Cambiar de nivel a mano desde una ficha
- *    lo cierra con lo hecho: la ficha lo dice antes, y la sesión queda
- *    guardada con todas sus series y su día.
+ *    sesión con todas sus series y lo dice, sin ningún aviso de error. Si
+ *    guardarla falla, se dice y la sesión sigue ofrecida. Un borrador viejo,
+ *    sin el día ni el plan, también se ofrece, y descartarlo lo borra.
+ *    Cambiar de nivel a mano desde una ficha lo cierra con lo hecho: la ficha
+ *    lo dice antes, si falla lo dice y no cambia nada, y si sale bien la
+ *    sesión queda guardada con todas sus series y su día.
  * 3. **El archivo roto.** Una copia con una sesión sin registros se rechaza
  *    con un mensaje y la base queda intacta.
  * 4. **Restaurar una copia vieja.** Aparece un resumen y una confirmación,
@@ -39,6 +40,10 @@
  * 6. **El cierre que falla.** Si falla guardar la sesión, aparece un aviso y
  *    el borrador sigue entero. Si falla borrar el borrador, la sesión tampoco
  *    queda guardada: es una sola transacción, todo o nada.
+ * 7. **Dos pantallas a la vez.** "Guardarla" desde Entrenar guarda sin decir
+ *    que falló. Y con Entrenar en "Antes de cerrar" en una pestaña, la ficha
+ *    de otra cambia de nivel y cierra esa sesión: Entrenar no la vuelve a
+ *    guardar ni a escribir como borrador, y dice que ya se guardó.
  *
  * El quinto portón de la tabla del rol 12 —"IndexedDB no abre"— no está:
  * es otro arreglo.
@@ -361,6 +366,15 @@ const errores = (lista, caso) => {
       if (sesiones[0].fecha !== '2026-10-21') fallos.push(`[${caso}] La sesión quedó con fecha ${sesiones[0].fecha} y es del miércoles.`)
     }
     if (curso.length !== 0) fallos.push(`[${caso}] Después de guardarla quedó el borrador.`)
+    // Que la base esté bien no alcanza: con la transacción cortada, la sesión
+    // se guardaba y la pantalla decía que no.
+    const dice = await p.getByRole('alert').allInnerTexts()
+    if (dice.some((t) => t.includes('No se pudo'))) {
+      fallos.push(`[${caso}] "Guardarla" guardó la sesión y la pantalla dice que no: ${JSON.stringify(dice)}`)
+    }
+    if (!(await sePuede(p.getByText('Listo: la sesión quedó guardada en tu historial.')))) {
+      fallos.push(`[${caso}] Después de "Guardarla", Hoy no dice que la sesión quedó guardada.`)
+    }
     const cifra = await p.locator('.cifra-identidad').innerText().catch(() => '')
     if (cifra.trim() !== '001') fallos.push(`[${caso}] Hoy dice "${cifra}" sesiones después de guardarla.`)
     const frase = textoDeHoy?.split('\n').find((l) => l.startsWith('Quedó sin cerrar')) ?? ''
@@ -410,6 +424,22 @@ const errores = (lista, caso) => {
     await p.waitForTimeout(800)
     if (!(await sePuede(p.getByText('Tenés una sesión a medio hacer: se cierra con lo hecho.')))) {
       fallos.push(`[${caso}] La ficha no avisa que cambiar de nivel cierra la sesión a medio hacer.`)
+    }
+    // Si guardar la sesión falla, la ficha lo dice y no cambia nada.
+    await fallar(p, 'sesiones')
+    await tocar(p, 'Empezar la cadena de empuje acá')
+    await p.waitForTimeout(800)
+    await fallar(p, null)
+    {
+      const dice = await p.getByRole('alert').allInnerTexts()
+      const { curso, sesiones, avances: tras } = await laBase(p)
+      if (!dice.some((t) => t.includes('No se pudo cambiar el nivel. Tu sesión a medio hacer sigue como estaba'))) {
+        fallos.push(`[${caso}] Si cambiar de nivel falla, la ficha no lo dice: ${JSON.stringify(dice)}`)
+      }
+      if (curso.length !== 1 || sesiones.length !== 1 || tras.find((a) => a.patron === 'empuje')?.ejercicioId !== empuje) {
+        fallos.push(`[${caso}] Cambiar de nivel falló y cambió algo: ${curso.length} borradores, ${sesiones.length} sesiones.`)
+      }
+      notas.push(`${caso}: si cambiar de nivel falla, la ficha dice "${dice.join(' ')}".`)
     }
     if (!(await tocar(p, 'Empezar la cadena de empuje acá'))) {
       fallos.push(`[${caso}] La ficha de ${destino} no ofrece empezar la cadena ahí.`)
@@ -716,6 +746,96 @@ const errores = (lista, caso) => {
   if (sesiones.length !== 1 || curso.length !== 0) {
     fallos.push(`[${caso}] Sin falla, cerrar dejó ${sesiones.length} sesiones y ${curso.length} borradores (se esperaba 1 y 0).`)
   }
+  errores(deJs, caso)
+  await navegador.close()
+}
+
+// ─── 7. Dos pantallas a la vez ───────────────────────────────────────────
+
+{
+  const caso = '7 · dos pantallas'
+  const { navegador, contexto, pagina: a, fallos: deJs } = await empezar('2026-10-21T19:00:00')
+
+  // "Guardarla" desde Entrenar: la otra puerta de la misma función, que con
+  // la transacción cortada guardaba la sesión y decía "No se pudo guardar".
+  await ponerFila(a, 'curso', {
+    id: 'actual',
+    arrancadaEn: Date.parse('2026-10-20T19:00:00-03:00'),
+    duracionAcumulada: 900,
+    actualizadoEn: Date.parse('2026-10-20T19:15:00-03:00'),
+    corta: false,
+    indice: 0,
+    etapa: 'series',
+    hechas: { 'flexion-pared': [{ logrado: 6 }, { logrado: 5 }] },
+  })
+  await a.goto(`${BASE}/#/entrenar`, { waitUntil: 'networkidle' })
+  await a.waitForTimeout(1000)
+  if (!(await tocar(a, 'Guardarla'))) fallos.push(`[${caso}] Entrenar no ofrece "Guardarla" con un borrador vencido.`)
+  await a.waitForTimeout(1200)
+  {
+    const dice = await a.getByRole('alert').allInnerTexts()
+    const { sesiones } = await laBase(a)
+    if (dice.some((t) => t.includes('No se pudo'))) {
+      fallos.push(`[${caso}] "Guardarla" en Entrenar guardó la sesión y dice que no: ${JSON.stringify(dice)}`)
+    }
+    if (sesiones.length !== 1) fallos.push(`[${caso}] "Guardarla" en Entrenar dejó ${sesiones.length} sesiones.`)
+    if (await sePuede(a.locator('[data-prueba="sesion-sin-cerrar"]'))) {
+      fallos.push(`[${caso}] Después de "Guardarla", Entrenar sigue mostrando la sesión sin cerrar.`)
+    }
+  }
+
+  // Entrenar sigue con una sesión nueva hasta "Antes de cerrar"...
+  if (!(await hastaLasPreguntas(a))) fallos.push(`[${caso}] La sesión no llegó a "Antes de cerrar".`)
+  await a.waitForTimeout(400)
+  const [borrador] = (await laBase(a)).curso
+  const anotadas = borrador ? seriesHechas(Object.values(borrador.hechas)) : 0
+  if (!borrador?.idDeLaSesion) fallos.push(`[${caso}] El borrador no lleva el id de su sesión.`)
+
+  // ...y en otra pestaña, la ficha cambia de nivel y la cierra con lo hecho.
+  const b = await contexto.newPage()
+  b.on('pageerror', (e) => deJs.push(`Error de JavaScript en la ficha: ${e.message}`))
+  const empuje = (await laBase(a)).avances.find((x) => x.patron === 'empuje')?.ejercicioId
+  const destino = empuje === 'flexion-pared' ? 'flexion-inclinada-alta' : 'flexion-pared'
+  await b.goto(`${BASE}/#/biblioteca/${destino}`, { waitUntil: 'networkidle' })
+  await b.waitForTimeout(800)
+  if (!(await tocar(b, 'Empezar la cadena de empuje acá'))) {
+    fallos.push(`[${caso}] La ficha de ${destino} no ofrece empezar la cadena ahí.`)
+  }
+  await b.waitForTimeout(1000)
+  await b.close()
+
+  // Entrenar se entera solo, o al tocar "Cerrar la sesión": las dos valen.
+  // Lo que no vale es guardar la misma sesión dos veces.
+  await a.waitForTimeout(1200)
+  const placa = a.locator('[data-prueba="sesion-ya-guardada"]')
+  let como = 'sola, al refrescarse'
+  if (!(await sePuede(placa))) {
+    como = 'al tocar "Cerrar la sesión"'
+    await tocar(a, 'Cerrar la sesión')
+    await a.waitForTimeout(1500)
+  }
+  {
+    const { sesiones, curso } = await laBase(a)
+    const esta = sesiones.filter((s) => s.id === borrador?.idDeLaSesion)
+    if (sesiones.length !== 2 || esta.length !== 1) {
+      fallos.push(
+        `[${caso}] Quedaron ${sesiones.length} sesiones y tenían que ser 2: la de "Guardarla" y esta, una sola vez.`,
+      )
+    } else if (seriesHechas(esta[0].registros) !== anotadas) {
+      fallos.push(`[${caso}] La sesión cerrada desde la ficha tiene ${seriesHechas(esta[0].registros)} series y se anotaron ${anotadas}.`)
+    }
+    if (curso.length !== 0) fallos.push(`[${caso}] Entrenar volvió a escribir el borrador de una sesión ya guardada.`)
+    const texto = (await sePuede(placa)) ? await placa.innerText() : null
+    if (!texto?.includes('Esta sesión ya se guardó desde otra pantalla.')) {
+      fallos.push(`[${caso}] Entrenar no dice que la sesión ya se guardó desde otra pantalla: ${JSON.stringify(texto)}`)
+    }
+    if (await sePuede(a.getByRole('alert'))) fallos.push(`[${caso}] Entrenar muestra un aviso de error con la sesión ya guardada.`)
+    notas.push(`${caso}: Entrenar se enteró ${como} y dice "${texto?.replace(/\s+/g, ' ')}"; ${sesiones.length} sesiones.`)
+  }
+  await tocar(a, 'Ir a Hoy')
+  await a.waitForTimeout(800)
+  if (!a.url().endsWith('#/')) fallos.push(`[${caso}] "Ir a Hoy" no fue a Hoy: ${a.url()}`)
+
   errores(deJs, caso)
   await navegador.close()
 }

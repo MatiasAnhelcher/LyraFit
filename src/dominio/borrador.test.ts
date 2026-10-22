@@ -461,6 +461,14 @@ describe('la hora de inicio', () => {
   it('un borrador viejo con trabajo adentro sigue sin hora: no se inventa', () => {
     expect(iniciadaEn(borrador(), 100)).toBeUndefined()
   })
+
+  it('tampoco uno viejo con solo una serie en 0 o una ráfaga: ya había empezado', () => {
+    expect(iniciadaEn(borrador({ hechas: { 'puente-gluteos': [{ logrado: 0 }] } }), 100)).toBeUndefined()
+    expect(
+      iniciadaEn(borrador({ hechas: {}, rafagas: [{ rafagaId: 'jumping-jacks', segundos: 20, despuesDe: null }] }), 100),
+    ).toBeUndefined()
+    expect(iniciadaEn(borrador({ hechas: { 'puente-gluteos': [] } }), 100)).toBe(100)
+  })
 })
 
 describe('guardar desde afuera', () => {

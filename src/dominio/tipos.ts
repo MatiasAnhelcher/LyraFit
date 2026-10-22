@@ -900,6 +900,17 @@ export interface SesionEnCurso {
    * inventa: ningún otro campo guarda la hora de arranque.
    */
   iniciadaEn?: number
+  /**
+   * El id que va a tener la sesión al guardarse. Lo pone Entrenar al arrancar
+   * y no cambia, ni al retomar.
+   *
+   * Es lo que permite saber que una sesión ya se guardó desde otra pantalla
+   * —la Ficha que cambia de nivel, "Guardarla" en otra pestaña— mientras esta
+   * seguía abierta: entonces no se vuelve a guardar ni a escribir como
+   * borrador, que era guardar dos veces las mismas series. Ausente en los
+   * viejos; uno retomado sin id toma el de la pantalla en el primer guardado.
+   */
+  idDeLaSesion?: string
 }
 
 /** Un ejercicio del plan, como lo guarda el borrador: qué se pedía de él. */

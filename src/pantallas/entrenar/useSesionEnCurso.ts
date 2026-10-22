@@ -28,6 +28,7 @@ import {
   fechaISO,
   guardarSesionEnCurso,
   leerSesionEnCurso,
+  nuevoId,
   type ResumenSesion,
 } from '@/datos/repositorio'
 
@@ -119,6 +120,18 @@ export function useSesionEnCurso({
    * actualiza en cada guardado. Null es una sesión que arranca de cero.
    */
   const retomado = useRef<LoQueSeConserva | null>(null)
+  /**
+   * El id que va a tener la sesión en el historial, desde que arranca.
+   *
+   * Va en cada guardado del borrador y en el cierre. Con él, una sesión que
+   * otra pantalla ya guardó —la Ficha al cambiar de nivel, "Guardarla" en otra
+   * pestaña— no se vuelve a escribir como borrador ni se guarda otra vez con
+   * las mismas series. Una retomada sigue con el suyo; un borrador viejo no
+   * tiene, y se queda con este.
+   */
+  const [idDeLaSesion, setIdDeLaSesion] = useState(nuevoId)
+  /** Si otra pantalla ya guardó esta sesión. Lo descubren el guardado del borrador o el cierre. */
+  const [yaGuardada, setYaGuardada] = useState(false)
 
   /**
    * Retomar lo que había quedado a medio hacer.
@@ -144,6 +157,7 @@ export function useSesionEnCurso({
           setArrancadaEn(Date.now())
         } else if (borrador && destino === 'retomar') {
           retomado.current = loQueSeConserva(borrador)
+          if (borrador.idDeLaSesion) setIdDeLaSesion(borrador.idDeLaSesion)
           setIndice(borrador.indice)
           setHechas(borrador.hechas)
           setEtapa(borrador.etapa)
@@ -265,6 +279,7 @@ export function useSesionEnCurso({
   // decide qué hacer con él, y recién después arranca la sesión de hoy.
   function arrancarDeNuevo() {
     retomado.current = null
+    setIdDeLaSesion(nuevoId())
     setSinCerrar(null)
     setDia(fechaISO())
     setArrancadaEn(Date.now())
@@ -277,6 +292,7 @@ export function useSesionEnCurso({
   function deCero() {
     void descartarSesionEnCurso()
     retomado.current = null
+    setIdDeLaSesion(nuevoId())
     setHechas({})
     setIndice(0)
     setEtapa('series')
@@ -311,6 +327,9 @@ export function useSesionEnCurso({
     rafagas,
     setRafagas,
     retomado,
+    idDeLaSesion,
+    yaGuardada,
+    marcarYaGuardada: () => setYaGuardada(true),
     arrancarDeNuevo,
     deCero,
   }
@@ -345,6 +364,10 @@ function loQueSeConserva(borrador: SesionEnCurso): LoQueSeConserva {
  * guardarse— y el segundo pisaría la sesión que todavía no se mostró. Es un
  * hook aparte del que retoma porque necesita el plan y el tipo ya calculados,
  * y el plan se arma con lo que se retomó.
+ *
+ * Y no se escribe el de una sesión que otra pantalla ya guardó: la base no lo
+ * deja (`guardarSesionEnCurso`), y desde ahí la pantalla lo dice en vez de
+ * seguir anotando series que no van a ningún lado (`alYaGuardada`).
  */
 export function useGuardarBorrador({
   listo,
@@ -352,6 +375,9 @@ export function useGuardarBorrador({
   sinCerrar,
   cerrando,
   retomado,
+  idDeLaSesion,
+  yaGuardada,
+  alYaGuardada,
   arrancadaEn,
   esCorta,
   esDiaDeFuelle,
@@ -372,6 +398,10 @@ export function useGuardarBorrador({
   cerrando: { current: boolean }
   /** Lo que traía el borrador retomado, de `useSesionEnCurso`. Se actualiza acá. */
   retomado: { current: LoQueSeConserva | null }
+  idDeLaSesion: string
+  yaGuardada: boolean
+  /** Cuando la base no escribe el borrador porque la sesión ya está en el historial. */
+  alYaGuardada: () => void
   arrancadaEn: number | undefined
   esCorta: boolean
   esDiaDeFuelle: boolean
@@ -386,7 +416,7 @@ export function useGuardarBorrador({
   tipo: TipoSesion
 }) {
   useEffect(() => {
-    if (!listo || resumen || sinCerrar || cerrando.current || pasos.length === 0) return
+    if (!listo || resumen || sinCerrar || yaGuardada || cerrando.current || pasos.length === 0) return
     const algo =
       Object.values(hechas).some((series) => series.length > 0) || rafagas.length > 0
     if (!algo) return
@@ -403,6 +433,7 @@ export function useGuardarBorrador({
       ...(inicio !== undefined ? { iniciadaEn: inicio } : {}),
     }
     void guardarSesionEnCurso({
+      idDeLaSesion,
       arrancadaEn: desde,
       // Se recalcula acá y no se toma del cronómetro para no meter `duracion`
       // como dependencia del efecto: escribiría en la base una vez por segundo.
@@ -421,6 +452,10 @@ export function useGuardarBorrador({
       ...(previo?.origen ? { origen: previo.origen } : {}),
       ...(previo?.cambios ? { cambios: previo.cambios } : {}),
       ...(inicio !== undefined ? { iniciadaEn: inicio } : {}),
+    }).then((guardado) => {
+      // Si mientras tanto empezó el cierre de esta pantalla, el aviso no va:
+      // ese cierre lo resuelve solo, y dice lo suyo.
+      if (guardado === 'ya-guardada' && !cerrando.current) alYaGuardada()
     })
     // `cerrando` y `retomado` son refs: se leen en el momento, no disparan nada.
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -428,6 +463,8 @@ export function useGuardarBorrador({
     listo,
     resumen,
     sinCerrar,
+    yaGuardada,
+    idDeLaSesion,
     hechas,
     indice,
     etapa,

@@ -58,6 +58,7 @@ import {
   leerEstados,
   leerPreferencias,
   leerSesiones,
+  SesionYaGuardada,
   type ResumenSesion,
 } from '@/datos/repositorio'
 import { respaldarEnSilencio } from '@/datos/respaldo'
@@ -155,6 +156,9 @@ export function Entrenar() {
     rafagas,
     setRafagas,
     retomado,
+    idDeLaSesion,
+    yaGuardada,
+    marcarYaGuardada,
     arrancarDeNuevo,
     deCero,
   } = useSesionEnCurso({ parametros, semana, estados })
@@ -222,6 +226,9 @@ export function Entrenar() {
     sinCerrar,
     cerrando,
     retomado,
+    idDeLaSesion,
+    yaGuardada,
+    alYaGuardada: marcarYaGuardada,
     arrancadaEn,
     esCorta,
     esDiaDeFuelle,
@@ -254,6 +261,31 @@ export function Entrenar() {
         />
         <button onClick={() => navegar('/')} className="rotulo mt-10 self-start">
           Salir
+        </button>
+      </div>
+    )
+  }
+
+  // Otra pantalla ya guardó esta sesión, con lo que tenía su borrador: la
+  // Ficha al cambiar de nivel, o "Guardarla" en otra pestaña. Seguir acá sería
+  // anotar series que no van a ningún lado, o guardarlas dos veces.
+  if (yaGuardada) {
+    return (
+      <div className="mx-auto flex min-h-dvh w-full max-w-lg flex-col justify-center px-4">
+        <section data-prueba="sesion-ya-guardada" role="status">
+          <Rotulo>SESIÓN GUARDADA</Rotulo>
+          <p className="mt-3 max-w-[40ch] leading-relaxed">
+            Esta sesión ya se guardó desde otra pantalla.
+          </p>
+          <p className="mt-2 max-w-[40ch] text-xs leading-relaxed text-[var(--color-glosa)]">
+            Está en tu historial con lo que se había anotado hasta ese momento.
+          </p>
+        </section>
+        <button
+          onClick={() => navegar('/')}
+          className="boton-contorno boton-contorno-fuerte mt-6 self-start"
+        >
+          Ir a Hoy
         </button>
       </div>
     )
@@ -523,11 +555,18 @@ export function Entrenar() {
         // El borrador se borra adentro de la misma transacción que guarda la
         // sesión: o quedan las dos cosas hechas o ninguna.
         cierraElBorrador: true,
+        idDeLaSesion,
       })
       setResumen(cerrada)
       // El respaldo ocurre solo, sin avisar y sin poder romper nada.
       void respaldarEnSilencio()
-    } catch {
+    } catch (error) {
+      // Ya la había guardado otra pantalla: no se guarda dos veces, se dice.
+      // `cerrando` queda prendido, que no hay borrador que volver a escribir.
+      if (error instanceof SesionYaGuardada) {
+        marcarYaGuardada()
+        return
+      }
       // Antes no había `catch`: el botón dejaba de decir "Guardando…" y no
       // pasaba nada más. Ahora se dice, y no se pierde nada: la transacción
       // no llegó a borrar el borrador, así que la sesión sigue entera acá y
