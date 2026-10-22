@@ -15,6 +15,7 @@ import {
   REGIMEN,
   SIN_COBERTURA,
   SIN_PRIMARIO,
+  dichoSinDatos,
   loQueFalta,
   musculosAlcanzables,
   principalMasCargado,
@@ -498,9 +499,9 @@ function semanaDe(ids: string[], cuantas = 4): Sesion[] {
 describe('qué te está faltando', () => {
   const base = { hoy: HOY, rutina: CUERPO_COMPLETO, tieneBarra: true }
 
-  it('con menos de tres sesiones no afirma nada', () => {
+  it('con menos de tres días de práctica no afirma nada', () => {
     const dos = [sesion('2026-09-20', [reg('flexion-completa', 3)]), sesion('2026-09-18', [reg('flexion-completa', 3)])]
-    expect(loQueFalta({ ...base, sesiones: dos })).toEqual({ clase: 'sin-datos', sesiones: 2 })
+    expect(loQueFalta({ ...base, sesiones: dos })).toEqual({ clase: 'sin-datos', dias: 2 })
     expect(MINIMO_PARA_OPINAR).toBe(3)
   })
 
@@ -511,7 +512,7 @@ describe('qué te está faltando', () => {
         finalizadaEn: new Date(`2026-09-20T${String(h).padStart(2, '0')}:00:00`).getTime(),
       }),
     )
-    expect(loQueFalta({ ...base, sesiones: tarde })).toEqual({ clase: 'sin-datos', sesiones: 3 })
+    expect(loQueFalta({ ...base, sesiones: tarde })).toEqual({ clase: 'sin-datos', dias: 1 })
     // Con un segundo día, todavía no; con el tercero, ya opina.
     const segundo = sesion('2026-09-18', [reg('flexion-completa', 3)])
     expect(loQueFalta({ ...base, sesiones: [...tarde, segundo] }).clase).toBe('sin-datos')
@@ -519,6 +520,24 @@ describe('qué te está faltando', () => {
     expect(loQueFalta({ ...base, sesiones: [...tarde, segundo, tercero] }).clase).not.toBe(
       'sin-datos',
     )
+  })
+
+  it('cuenta solo los días de estas cuatro semanas, y lo dice en días de práctica', () => {
+    // Meses de historial y nada en la ventana: cero días, no "N sesiones".
+    const viejas = ['2026-08-01', '2026-07-20', '2026-07-10'].map((fecha) =>
+      sesion(fecha, [reg('flexion-completa', 3)], { id: `vieja-${fecha}` }),
+    )
+    expect(loQueFalta({ ...base, sesiones: viejas })).toEqual({ clase: 'sin-datos', dias: 0 })
+    expect(dichoSinDatos(0)).toBe(
+      'Sin sesiones en las últimas cuatro semanas, todavía no hay con qué decir que te falte nada.',
+    )
+    expect(dichoSinDatos(1)).toBe(
+      'Con un día de práctica en las últimas cuatro semanas, todavía no hay con qué decir que te falte nada.',
+    )
+    expect(dichoSinDatos(2)).toMatch(/^Con dos días de práctica /)
+    for (let dias = 0; dias < MINIMO_PARA_OPINAR; dias++) {
+      expect(dichoSinDatos(dias)).not.toMatch(/sesiones? (todavía|no)|\d+ sesion/)
+    }
   })
 
   it('en "La mínima" señala el patrón entero que la rutina no incluye', () => {

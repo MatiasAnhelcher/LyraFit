@@ -13,9 +13,13 @@
  *      mañana, así que sus avances quedan IDÉNTICOS byte por byte a los de las
  *      9:10, `actualizadoEn` incluido, y las decisiones de la tercera son
  *      neutras, con `motivo: 'ya-leida-hoy'` y `leidaA` en la hora de la
- *      primera. El Cierre lo dice con la hora: "ya se leyó hoy a las 9:10".
+ *      primera. El Cierre lo dice con la hora, "ya se leyeron hoy a las
+ *      9:10", y ya no dice "Como no completaste…".
  *   4. **ÚLTIMOS 28 DÍAS cuenta un día**, no tres.
  *   5. **Ningún texto recorrido dice algo de `PROHIBIDAS`** (`lib/palabras.mjs`).
+ *   6. **La energía del chequeo es la de antes solo en la primera.** Con el
+ *      chequeo de las 9:00, la sesión de las 9:10 guarda `vitalidadPre` y la
+ *      de las 19:05 no: a esa hora, la energía de la mañana ya no es la de antes.
  *
  * El reloj fijo es lo que hace que la hora sea la del enunciado: con
  * `setFixedTime` la sesión entera cierra a las 9:10 en punto. El tabata, en
@@ -117,6 +121,11 @@ for (const viewport of [
   try {
     await p.clock.setFixedTime(aLas('09:00'))
     await alta(p, { enCadaPaso: (paso) => sinProhibidas(`El alta (${paso})`) })
+    // El chequeo de la mañana, solo con la energía: es el dato de `vitalidadPre`.
+    await conLaBase(p, ['estados'], `async (leer, poner) => {
+      poner('estados', { fecha: '${DIA}', energia: 4, actualizadoEn: ${aLas('09:00').getTime()} })
+    }`)
+    await p.reload({ waitUntil: 'networkidle' })
 
     // ── 1. El plan a las 9:10 ──────────────────────────────────────────────
     /** Cada pantalla de Entrenar, el descanso, la serie de cierre y las preguntas, a esa hora. */
@@ -146,8 +155,11 @@ for (const viewport of [
     if (tercera) throw new Error(`la sesión de las 19:05 no llegó al cierre: ${tercera}`)
     const cierre = await texto()
     await sinProhibidas('El Cierre de las 19:05')
-    if (!/ya se ley(ó|eron) hoy a las 9:10/.test(cierre)) {
+    if (!cierre.includes('ya se leyeron hoy a las 9:10')) {
       fallos.push(`[${donde}] El Cierre de las 19:05 no dice que las cadenas ya se leyeron hoy a las 9:10.`)
+    }
+    if (cierre.includes('Como no completaste')) {
+      fallos.push(`[${donde}] El Cierre de las 19:05 todavía dice "Como no completaste…".`)
     }
 
     const avancesDeLaNoche = await leerAvances(p)
@@ -163,6 +175,12 @@ for (const viewport of [
       fallos.push(`[${donde}] Quedaron ${sesiones.length} sesiones guardadas y tenían que ser 3.`)
     } else {
       const [manana, reloj, noche] = sesiones
+      if (manana.vitalidadPre !== 4 || noche.vitalidadPre !== undefined) {
+        fallos.push(
+          `[${donde}] La energía de antes tiene que ser la del chequeo solo en la primera: ` +
+            `9:10 guardó ${manana.vitalidadPre}, 19:05 guardó ${noche.vitalidadPre}.`,
+        )
+      }
       const leidas = manana.decisiones ?? []
       if (leidas.length === 0 || leidas.some((d) => d.movimiento === 'neutra')) {
         fallos.push(`[${donde}] La sesión de las 9:10 no leyó sus cadenas: ${JSON.stringify(leidas)}`)

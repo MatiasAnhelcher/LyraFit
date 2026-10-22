@@ -24,8 +24,8 @@ import { POR_ID } from './biblioteca'
 /** Series mínimas para que la calibración signifique algo. */
 export const SERIES_MINIMAS = 30
 
-/** Sesiones mínimas para hablar del delta de vitalidad. */
-export const SESIONES_MINIMAS = 8
+/** Días medidos mínimos para hablar del delta de vitalidad. */
+export const DIAS_MINIMOS = 8
 
 /**
  * Cambio mínimo que se puede llamar cambio, en repeticiones.
@@ -133,33 +133,46 @@ export function frasePorCalibracion(c: Calibracion): string {
 }
 
 export interface Vitalidad {
-  sesiones: number
+  /** Días medidos: cada uno es la primera sesión de ese día. */
+  dias: number
   /** Promedio de cuánto sube la energía de principio a fin de la sesión. */
   delta: number
-  /** Cuántas veces de las medidas subió. */
+  /** En cuántos de los días medidos subió. */
   subieron: number
-  /** El cambio de cada sesión medida, de la más vieja a la más nueva. */
+  /** El cambio de cada día medido, del más viejo al más nuevo. */
   serie: number[]
 }
 
 /**
- * El delta de vitalidad de las últimas sesiones.
+ * El delta de vitalidad de los últimos días medidos.
  *
  * Es el número más honesto que la app puede dar sobre lo que entrenar le hace
  * a la cabeza, porque no es un promedio de estudios ajenos: es lo que le pasó
  * a esta persona.
+ *
+ * Mide solo la primera sesión de cada día, la misma regla de
+ * `vitalidadDeAntes`, y la aplica también al leer: las sesiones guardadas
+ * antes de esa regla traen la energía del chequeo repetida en la segunda y la
+ * tercera del día, y contarlas sería comparar la mañana con la noche. Un día
+ * cuya primera sesión no se midió (un Reloj, o sin contestar la energía al
+ * terminar) no se mide con otra de más tarde.
  */
 export function vitalidad(sesiones: Sesion[], ultimas = 10): Vitalidad | null {
-  const medidas = [...sesiones]
+  const primeras = new Map<string, Sesion>()
+  for (const s of sesiones) {
+    const antes = primeras.get(s.fecha)
+    if (!antes || s.finalizadaEn < antes.finalizadaEn) primeras.set(s.fecha, s)
+  }
+  const medidas = [...primeras.values()]
     .sort((a, b) => b.finalizadaEn - a.finalizadaEn)
     .filter((s) => s.vitalidadPre !== undefined && s.vitalidadPost !== undefined)
     .slice(0, ultimas)
 
-  if (medidas.length < SESIONES_MINIMAS) return null
+  if (medidas.length < DIAS_MINIMOS) return null
 
   const deltas = medidas.map((s) => (s.vitalidadPost ?? 0) - (s.vitalidadPre ?? 0))
   return {
-    sesiones: deltas.length,
+    dias: deltas.length,
     delta: Math.round((deltas.reduce((a, b) => a + b, 0) / deltas.length) * 10) / 10,
     subieron: deltas.filter((d) => d > 0).length,
     serie: [...deltas].reverse(),
@@ -168,6 +181,23 @@ export function vitalidad(sesiones: Sesion[], ultimas = 10): Vitalidad | null {
 
 /** Los días con sesión que promedia `animoReciente`. */
 export const DIAS_DE_ANIMO = 3
+
+/**
+ * La energía de antes de una sesión: la del chequeo de ese día, y solo en la
+ * primera sesión del día.
+ *
+ * El chequeo dice cómo llegaste al día, no a cada sesión. A la tercera ese
+ * número ya no es el de antes: reusarlo haría que el delta compare la energía
+ * de la mañana con la de la noche y se lo cargue a una sesión. Sin medición
+ * no hay delta, y está bien que no lo haya.
+ */
+export function vitalidadDeAntes(
+  energia: number | undefined,
+  dia: string,
+  historial: readonly Pick<Sesion, 'fecha'>[],
+): number | undefined {
+  return historial.some((s) => s.fecha === dia) ? undefined : energia
+}
 
 /**
  * Ánimo medio de los últimos días con sesión, de -2 a +2.
