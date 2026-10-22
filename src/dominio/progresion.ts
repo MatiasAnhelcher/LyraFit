@@ -772,7 +772,7 @@ export function siguienteAvance(
       const faltaPoco = nueva >= ventana.max
       const techo = cierre
         ? `es el techo de ${actual.nombre}.`
-        : `es el techo de ${actual.nombre}, y con eso pasás de nivel.`
+        : `es el techo de ${actual.nombre}, y sostenido ahí pasás de nivel.`
       return ajustar(
         nueva,
         faltaPoco
@@ -811,11 +811,13 @@ export function siguienteAvance(
     // y subir de palanca con un buen día es cómo se llega a un ejercicio que no
     // se puede sostener.
     if (avance.graciaRestante > 0 || avance.sesionesEnObjetivo < CONSOLIDACION) {
-      const faltan = CONSOLIDACION - avance.sesionesEnObjetivo
+      // Las que faltan, contando esta, cuentan la gracia: después de un
+      // retroceso se sostiene mientras quede, aunque ya lleves dos.
+      const faltan = Math.max(CONSOLIDACION - avance.sesionesEnObjetivo, avance.graciaRestante)
       return sostener(
         faltan <= 1
           ? `Llegaste al techo de ${actual.nombre}. Una sesión más así y cambiamos de ejercicio.`
-          : `Techo de ${actual.nombre} alcanzado. Lo sostenemos un par de sesiones antes de subir: dominar es poder repetirlo.`,
+          : `Techo de ${actual.nombre} alcanzado. Lo sostenemos ${faltan === 2 ? 'un par de' : faltan} sesiones antes de subir: dominar es poder repetirlo.`,
       )
     }
 
@@ -1184,8 +1186,25 @@ export function ubicarEnCadena(
 }
 
 /**
+ * Cuánto de la ventana de un eslabón ya recorrió un objetivo, de 0 a 1.
+ *
+ * Es el relleno del segmento actual en la barra de cada cadena: el piso de la
+ * ventana es 0, el techo es 1, y lo de afuera se acota. No sirve
+ * `porcentajeDeCadena` para esto porque esa mide la cadena ENTERA y redondea
+ * a un entero: con once eslabones, un 60 % no dice dónde está la estrella
+ * dentro del séptimo.
+ *
+ * Una ventana sin recorrido (piso igual al techo) da 0 y no NaN.
+ */
+export function rellenoDeVentana(ejercicio: Ejercicio, cantidad: number): number {
+  const recorrido = ejercicio.ventana.max - ejercicio.ventana.min
+  if (recorrido <= 0) return 0
+  return Math.min(1, Math.max(0, (cantidad - ejercicio.ventana.min) / recorrido))
+}
+
+/**
  * Qué porcentaje de la cadena llevás recorrido, contando el ejercicio actual
- * y lo que falta para dominarlo. Sirve para la barra de progreso.
+ * y lo que falta para dominarlo.
  */
 export function porcentajeDeCadena(
   avance: Avance,
@@ -1201,9 +1220,7 @@ export function porcentajeDeCadena(
   const actual = ejercicios.get(avance.ejercicioId)
   if (!actual) return 0
 
-  const recorrido = actual.ventana.max - actual.ventana.min
-  const hecho = avance.objetivoActual.cantidad - actual.ventana.min
-  const dentroDelNivel = recorrido > 0 ? Math.min(1, Math.max(0, hecho / recorrido)) : 0
+  const dentroDelNivel = rellenoDeVentana(actual, avance.objetivoActual.cantidad)
 
   return Math.round(((posicion + dentroDelNivel) / total) * 100)
 }

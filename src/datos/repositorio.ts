@@ -94,7 +94,7 @@ export async function leerAvances(): Promise<Map<Patron, Avance>> {
 
   // Se arma en el orden de las cadenas y no en el que devuelve la base: el
   // mapa se recorre para dibujar, y si el orden cambiara entre lecturas las
-  // cuatro constelaciones de la carta bailarían de lugar sin motivo.
+  // barras de las cadenas bailarían de lugar sin motivo.
   for (const cadena of CADENAS) {
     // Fecha 0 a propósito en el inicial: es un avance que todavía no se guardó
     // nunca, y un Date.now() acá haría que cada lectura devolviera un objeto
@@ -316,7 +316,12 @@ export async function contarSesiones(): Promise<number> {
 /** Lo que devuelve cerrar una sesión: qué cambió en cada patrón entrenado. */
 export interface ResumenSesion {
   sesion: Sesion
-  decisiones: { patron: Patron; decision: Decision }[]
+  /**
+   * `antes` es el avance que el motor evaluó: dónde estaba la cadena antes de
+   * esta sesión. No sale del objetivo del registro, que en un día ámbar viene
+   * recortado y no es dónde te tenía el motor.
+   */
+  decisiones: { patron: Patron; decision: Decision; antes: Avance }[]
   /** El número de sesión en la vida de esta persona. */
   numeroDeSesion: number
 }
@@ -493,7 +498,7 @@ export async function cerrarSesion(entrada: CierreDeSesion): Promise<ResumenSesi
       },
     )
 
-    decisiones.push({ patron: ejercicio.patron, decision })
+    decisiones.push({ patron: ejercicio.patron, decision, antes: avance })
   }
 
   // Lo que el motor acaba de decidir se guarda con la sesión, no solo se

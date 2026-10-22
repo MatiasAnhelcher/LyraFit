@@ -354,10 +354,81 @@ async function main() {
     }
 
     await pagina.goto(`${BASE}/#/progreso`, { waitUntil: 'networkidle' })
-    // Los novecientos milisegundos son por el chunk lazy de recharts.
+    // Los novecientos milisegundos son por el chunk lazy de Progreso y su encendido.
     await pagina.waitForTimeout(900)
     await capturar(pagina, `8-progreso-${tema}`)
     await revisarDesborde(pagina, `Progreso (${tema})`)
+
+    /*
+     * LAS BARRAS DE CADENA: una por cadena, y que digan lo que dibujan.
+     *
+     * Cada barra es un `role="img"` cuyo texto es lo único que oye un lector
+     * de pantalla, así que se verifica contra lo dibujado: tantos segmentos
+     * como el total que dice "eslabón N de T", N dentro del rango, y los N−1
+     * anteriores llenos. Una barra que dijera una cosa y mostrara otra pasaría
+     * cualquier captura.
+     *
+     * Y que la estrella y el relleno caigan donde dicen: la estrella se ubica
+     * con un `calc` sobre el ancho de la barra, que con otro hueco u otro
+     * borde se corre de eslabón sin que cambie ningún número. Se mide lo que
+     * se ve —el centro del núcleo dibujado y el rectángulo del relleno—, así
+     * que también falla un relleno trabado en `scaleX(0)` o corrido. Para
+     * cuando se mide, el encendido (a lo sumo 656 ms) ya terminó.
+     */
+    const barras = await pagina.locator('section[aria-labelledby="tus-cadenas"] .bc').evaluateAll((els) =>
+      els.map((el) => {
+        const actual = el.querySelector('.bc-seg--actual')
+        const relleno = actual?.querySelector('.bc-relleno')
+        const marca = el.querySelector('.bc-marca')
+        const nucleo = marca?.querySelector('.estrella-nucleo')?.getBoundingClientRect()
+        const caja = actual?.getBoundingClientRect()
+        const lleno = relleno?.getBoundingClientRect()
+        const f = Number(marca?.style.getPropertyValue('--f') ?? NaN)
+        return {
+          texto: el.getAttribute('aria-label') ?? '',
+          rol: el.getAttribute('role'),
+          segmentos: el.querySelectorAll('.bc-seg').length,
+          hechos: el.querySelectorAll('.bc-seg--hecho').length,
+          actuales: el.querySelectorAll('.bc-seg--actual').length,
+          // Cuánto se corre el núcleo de la estrella de donde cae el objetivo en el eslabón actual,
+          // a lo ancho y de la línea media de la barra.
+          corrimiento: caja && nucleo ? Math.abs(nucleo.left + nucleo.width / 2 - (caja.left + f * caja.width)) : NaN,
+          altura: caja && nucleo ? Math.abs(nucleo.top + nucleo.height / 2 - (caja.top + caja.height / 2)) : NaN,
+          // Cuánto se corre el relleno, por cualquiera de sus dos bordes, de la fracción que dice su ancho.
+          desvioDelRelleno:
+            actual && caja && lleno
+              ? Math.max(
+                  Math.abs(lleno.left - (caja.left + actual.clientLeft)),
+                  Math.abs(lleno.width - (parseFloat(relleno.style.width) / 100) * actual.clientWidth),
+                )
+              : NaN,
+        }
+      }),
+    )
+    if (barras.length !== 5) {
+      problemas.push(`Progreso dibujó ${barras.length} barras de cadena y son cinco cadenas (${tema})`)
+    }
+    for (const b of barras) {
+      const m = /eslabón (\d+) de (\d+)/.exec(b.texto)
+      if (b.rol !== 'img' || !m) {
+        problemas.push(`Una barra de cadena no se anuncia como imagen con su eslabón: "${b.texto}" (${tema})`)
+        continue
+      }
+      const [n, total] = [Number(m[1]), Number(m[2])]
+      if (b.segmentos !== total || n < 1 || n > total || b.hechos !== n - 1 || b.actuales !== 1) {
+        problemas.push(
+          `La barra dice "${b.texto}" y dibuja ${b.segmentos} segmentos, ${b.hechos} llenos y ${b.actuales} actual (${tema})`,
+        )
+      }
+      if (!(b.corrimiento <= 1.5) || !(b.altura <= 1.5)) {
+        problemas.push(
+          `En "${b.texto}" la estrella cae a ${b.corrimiento.toFixed(1)} px de su objetivo y a ${b.altura.toFixed(1)} px de la línea de la barra (${tema})`,
+        )
+      }
+      if (!(b.desvioDelRelleno <= 1)) {
+        problemas.push(`En "${b.texto}" el relleno se desvía ${b.desvioDelRelleno.toFixed(1)} px de su fracción (${tema})`)
+      }
+    }
 
     // Aserciones de contenido sobre Progreso, que hasta acá no tenía NINGUNA:
     // solo se le miraba el desborde y la consola, así que una sección entera

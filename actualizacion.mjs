@@ -70,8 +70,18 @@ async function compilar(donde, salida = 'dist') {
 
 async function worktree(destino, ref) {
   sh('git', ['worktree', 'add', '--detach', destino, ref])
-  // Las dependencias son las mismas: instalarlas de nuevo sería un minuto por gusto.
-  sh('ln', ['-s', join(process.cwd(), 'node_modules'), join(destino, 'node_modules')])
+  // Con el mismo package-lock se reusan las dependencias de acá: instalarlas
+  // de nuevo sería un minuto por gusto. Pero cuando una versión agrega o saca
+  // un paquete, la otra no compila con las nuestras —la que sacó recharts no
+  // le sirve a la publicada, que todavía lo importa—, y entonces se instalan
+  // las suyas.
+  const lock = (d) => readFileSync(join(d, 'package-lock.json'), 'utf8')
+  if (lock(destino) === lock(process.cwd())) {
+    sh('ln', ['-s', join(process.cwd(), 'node_modules'), join(destino, 'node_modules')])
+  } else {
+    console.log(`  ${ref} tiene otras dependencias: se instalan las suyas.`)
+    sh('npm', ['ci', '--no-audit', '--no-fund'], { cwd: destino })
+  }
 }
 
 console.log(`Compilando la versión publicada (${PUBLICADA})…`)

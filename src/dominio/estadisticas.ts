@@ -24,7 +24,7 @@
 import type { Objetivo, Patron, Serie, Sesion } from './tipos'
 import { POR_ID } from './biblioteca'
 import { indiceDeCarga } from './progresion'
-import { diasEntre, lunesDe } from './adherencia'
+import { diasEntre, lunesDe, sumarDias } from './adherencia'
 
 /**
  * Las series sin la de cierre.
@@ -247,6 +247,14 @@ export interface PuntoDeFuerza {
   /** El índice de carga de la mejor serie del día en esta cadena. */
   carga: number
   ejercicioId: string
+  /** Si esa mejor serie llevaba discos. */
+  conDiscos: boolean
+  /**
+   * La mejor serie con discos del día, si hubo alguna. Entrenar deja sumar o
+   * sacar peso en medio de la sesión, así que el día en que entran los discos
+   * la mejor serie puede ser una de antes, sin peso.
+   */
+  conDiscosLaMejor?: { carga: number; ejercicioId: string }
 }
 
 /**
@@ -259,8 +267,13 @@ export interface PuntoDeFuerza {
  * línea sube parejo a través de toda la cadena.
  *
  * Es una estimación, y en la pantalla se dice.
+ *
+ * Los discos cuentan: con `pesoCorporalKg`, cada serie se mide con su propia
+ * carga, y gana la mejor serie y no la de más repeticiones, porque los kilos
+ * cambian de una serie a otra. Sin peso corporal no hay cómo pasar kilos a
+ * esta escala y la serie con discos vale lo mismo que sin ellos.
  */
-export function curvaDeFuerza(sesiones: Sesion[], patron: Patron): PuntoDeFuerza[] {
+export function curvaDeFuerza(sesiones: Sesion[], patron: Patron, pesoCorporalKg?: number): PuntoDeFuerza[] {
   const porDia = new Map<string, PuntoDeFuerza>()
 
   for (const sesion of sesiones) {
@@ -276,18 +289,166 @@ export function curvaDeFuerza(sesiones: Sesion[], patron: Patron): PuntoDeFuerza
       // Meterlo en la curva haría subir la línea en un día que midió otra cosa.
       if (registro.reloj) continue
 
-      const mejor = Math.max(0, ...sinCierre(registro.series).map((s) => s.logrado))
-      if (mejor <= 0) continue
-
-      const carga = indiceDeCarga(ejercicio, mejor)
-      const previo = porDia.get(sesion.fecha)
-      if (!previo || carga > previo.carga) {
-        porDia.set(sesion.fecha, { fecha: sesion.fecha, carga, ejercicioId: ejercicio.id })
+      for (const serie of sinCierre(registro.series)) {
+        if (serie.logrado <= 0) continue
+        const carga = indiceDeCarga(ejercicio, serie.logrado, {
+          ...(serie.kg !== undefined ? { kg: serie.kg } : {}),
+          ...(pesoCorporalKg !== undefined ? { pesoCorporalKg } : {}),
+        })
+        const previo = porDia.get(sesion.fecha)
+        const conDiscos = (serie.kg ?? 0) > 0
+        const conDiscosLaMejor =
+          conDiscos && !(previo?.conDiscosLaMejor && previo.conDiscosLaMejor.carga >= carga)
+            ? { carga, ejercicioId: ejercicio.id }
+            : previo?.conDiscosLaMejor
+        const mejor = !previo || carga > previo.carga ? { carga, ejercicioId: ejercicio.id, conDiscos } : previo
+        porDia.set(sesion.fecha, {
+          fecha: sesion.fecha,
+          carga: mejor.carga,
+          ejercicioId: mejor.ejercicioId,
+          conDiscos: mejor.conDiscos,
+          ...(conDiscosLaMejor ? { conDiscosLaMejor } : {}),
+        })
       }
     }
   }
 
   return [...porDia.values()].sort((a, b) => a.fecha.localeCompare(b.fecha))
+}
+
+/**
+ * Las semanas que se dibujan en Progreso: los lunes de las últimas `cuantas`,
+ * de la más vieja a la de hoy.
+ *
+ * Arrancan en la semana de la primera sesión si es más nueva que eso: quien
+ * entrena hace tres semanas ve tres columnas y no nueve semanas vacías antes
+ * de haber empezado. Las semanas del medio sin sesiones SÍ están, vacías: un
+ * mes de vacaciones es un hueco en el eje, no algo que se pliega y desaparece.
+ *
+ * Siempre trae por lo menos la semana de hoy, aunque la primera sesión tenga
+ * una fecha más nueva: pasa con el reloj del teléfono adelantado o con un
+ * viaje hacia el oeste, y sin esta semana la pantalla no tendría eje.
+ */
+export function ultimasSemanas(hoy: string, cuantas: number, primera?: string): string[] {
+  const actual = lunesDe(hoy)
+  const desdeHoy = sumarDias(actual, -7 * (cuantas - 1))
+  const desde = primera ? lunesDe(primera) : desdeHoy
+  const inicio = desde > actual ? actual : desde > desdeHoy ? desde : desdeHoy
+  const semanas: string[] = []
+  for (let lunes = inicio; lunes <= actual; lunes = sumarDias(lunes, 7)) semanas.push(lunes)
+  return semanas
+}
+
+/** El cambio de eslabón que empezó en una semana. */
+export interface CambioDeEslabon {
+  /** El ejercicio que venías haciendo. */
+  de: string
+  /** Tu última marca en ese ejercicio, antes de cambiar. */
+  cargaAntes: number
+  /** El ejercicio con el que terminó la semana. */
+  a: string
+}
+
+export interface SemanaDeFuerza {
+  /** Lunes de esa semana, en formato AAAA-MM-DD. */
+  semana: string
+  /** El índice de carga de la mejor serie de la semana en esta cadena. */
+  carga: number
+  /** El ejercicio de esa mejor serie. */
+  ejercicioId: string
+  /** Si esa mejor serie llevaba discos. */
+  conDiscos: boolean
+  /** Si en esta semana cambiaste de eslabón. */
+  cambio?: CambioDeEslabon
+  /** Si en esta semana le sumaste discos al mismo ejercicio. */
+  discos?: DiscosNuevos
+}
+
+/** El primer día con discos en un ejercicio que venías haciendo sin peso. */
+export interface DiscosNuevos {
+  /** Ese día, en formato AAAA-MM-DD. */
+  desde: string
+  /** El ejercicio al que se los sumaste. */
+  ejercicioId: string
+  /** Tu última marca sin discos, antes de ese día. */
+  cargaAntes: number
+  /** Tu mejor serie con discos de ese día. */
+  carga: number
+}
+
+/**
+ * La fuerza de una cadena por semana: la mejor marca de cada una.
+ *
+ * Es `curvaDeFuerza` agrupada por semana, así que hereda sus filtros —ni la
+ * serie de cierre, ni la bajada, ni el reloj— y su escala. Devuelve una
+ * entrada por cada lunes de `semanas`, en el mismo orden, y `null` en las
+ * semanas en que esta cadena no se entrenó: la columna queda vacía, no en cero,
+ * porque no entrenar no es haber perdido fuerza.
+ *
+ * El cambio de eslabón se busca día por día y no en la mejor marca: el día del
+ * salto hacés el eslabón viejo en su techo, y el nuevo arranca casi siempre un
+ * poco más abajo en esta escala. Si los dos caen en la misma semana, la mejor
+ * marca es la del viejo, y mirarla correría el cambio a la semana siguiente.
+ * Se compara contra el día anterior aunque caiga antes de `semanas`, así que
+ * el cambio de la primera columna también se ve.
+ *
+ * Los discos, igual y por la misma razón: el día que llegás al techo del
+ * último eslabón lo hacés sin peso, y si los discos entran después en esa
+ * semana, la mejor marca sigue siendo la de sin peso. Entran el primer día
+ * con alguna serie con discos, aunque la mejor de ese día sea sin peso.
+ */
+export function fuerzaPorSemana(
+  sesiones: Sesion[],
+  patron: Patron,
+  semanas: string[],
+  pesoCorporalKg?: number,
+): (SemanaDeFuerza | null)[] {
+  const mejores = new Map<string, SemanaDeFuerza>()
+  const cambios = new Map<string, CambioDeEslabon>()
+  const discos = new Map<string, DiscosNuevos>()
+  let anterior: PuntoDeFuerza | undefined
+  for (const punto of curvaDeFuerza(sesiones, patron, pesoCorporalKg)) {
+    const semana = lunesDe(punto.fecha)
+    if (anterior && anterior.ejercicioId !== punto.ejercicioId) {
+      // El primer cambio de la semana dice de dónde venías; el último, adónde
+      // llegaste. Ir y volver en la misma semana no es un cambio.
+      const ya = cambios.get(semana)
+      cambios.set(
+        semana,
+        ya ? { ...ya, a: punto.ejercicioId } : { de: anterior.ejercicioId, cargaAntes: anterior.carga, a: punto.ejercicioId },
+      )
+    } else if (
+      anterior &&
+      punto.conDiscosLaMejor &&
+      !anterior.conDiscosLaMejor &&
+      punto.conDiscosLaMejor.ejercicioId === anterior.ejercicioId &&
+      !discos.has(semana)
+    ) {
+      discos.set(semana, {
+        desde: punto.fecha,
+        ejercicioId: punto.conDiscosLaMejor.ejercicioId,
+        cargaAntes: anterior.carga,
+        carga: punto.conDiscosLaMejor.carga,
+      })
+    }
+    anterior = punto
+
+    const previa = mejores.get(semana)
+    if (!previa || punto.carga > previa.carga) {
+      mejores.set(semana, { semana, carga: punto.carga, ejercicioId: punto.ejercicioId, conDiscos: punto.conDiscos })
+    }
+  }
+  return semanas.map((s) => {
+    const mejor = mejores.get(s)
+    if (!mejor) return null
+    const cambio = cambios.get(s)
+    const conDiscos = discos.get(s)
+    return {
+      ...mejor,
+      ...(cambio && cambio.de !== cambio.a ? { cambio } : {}),
+      ...(conDiscos ? { discos: conDiscos } : {}),
+    }
+  })
 }
 
 export interface Totales {

@@ -65,8 +65,9 @@ muestra cada vez que decide algo. Nada de esperar a "sentirte listo".
   cadena baja un eslabón —o se saltea si ya está en el primero—, la sesión lo
   dice en una línea, las ráfagas no la cargan y el motor no se entera: no es
   un fallo ni un progreso. La app pregunta dónde, nunca por qué.
-- **Progreso** con una curva de fuerza que no se corta cuando cambiás de
-  ejercicio, y el mapa de dónde estás en cada cadena.
+- **Progreso** como un tablero de barras: dónde estás en cada cadena, un
+  segmento por eslabón, y cuánta fuerza movés semana a semana, en columnas que
+  no se desploman cuando cambiás de ejercicio.
 - **Una figura que se mueve** en cada ejercicio, de una postura a la otra. Lo
   que nadie entiende de un ejercicio no es la postura quieta —eso ya lo dice el
   texto— sino qué se mueve y hasta dónde.
@@ -321,7 +322,7 @@ src/
     frases.ts        las 343 cosas que Lyra puede decir, y cuándo
     metabolico.ts    el fuelle: qué ráfaga entra en cada hueco, y cuánta
     bajada.ts        el volumen que el motor no mira, y cuánto dura la sesión
-    estadisticas.ts  la curva de fuerza, récords, semanas
+    estadisticas.ts  la fuerza por semana, récords, semanas
     borrador.ts      de qué día es la sesión a medias, y qué hacer con ella
     copia.ts         la copia de seguridad, revisada fila por fila
   datos/         la persistencia
@@ -356,9 +357,9 @@ Tres decisiones que parecen detalles y son las que hacen que funcione:
   hacer nada.
 - **Cambiar de eslabón se calcula, no se inventa.** Cada ejercicio sabe qué
   fracción del peso del cuerpo mueve, así que cuánto bajar al subir de nivel
-  sale de una cuenta. De ahí sale también la curva de fuerza: el índice de carga
-  queda igual a los dos lados del salto, y por eso el gráfico no se desploma
-  justo cuando progresás.
+  sale de una cuenta. De ahí sale también la fuerza por semana: el índice de
+  carga queda igual a los dos lados del salto, y por eso las columnas no se
+  desploman justo cuando progresás.
 
 ### Local-first
 
@@ -397,9 +398,11 @@ cadenas, que llevan además su forma (▲ ▼ ■ ● ▬) porque nada depende s
 color.
 
 Tiene dos registros y ninguno más. **El registro** son filas regladas con
-filetes de 1 px, cero sombras y cifras tabulares. **La carta** es una banda de
-cielo nocturno a sangre donde cada cadena se dibuja como una constelación con
-su propia silueta y el "estás acá" es lo único que brilla en toda la app.
+filetes de 1 px, cero sombras y cifras tabulares. **La barra de cadena** es
+una fila de segmentos, uno por eslabón y todos del mismo ancho, en la luz de
+su cadena: lo hecho lleno, el actual relleno hasta donde está tu objetivo y lo
+que falta hueco, sin candados. El "estás acá" es una estrella en el borde del
+relleno, y es lo único que brilla en toda la app.
 
 Tres voces con jurisdicción estricta: Sora para el dato (cifras, títulos y la
 acción), Inter para la interfaz y la cursiva de Newsreader para el motor —nada
@@ -454,11 +457,11 @@ entre las tres, y solo se precarga Sora.
   exactamente lo que pasa cuando bloqueás el celular durante el descanso.
 - **`HashRouter` en vez de `BrowserRouter`**, para andar igual en GitHub Pages,
   en un subdirectorio o abierta desde un archivo.
-- **Los gráficos tienen su propia paleta**, separada de la de interfaz, y la
-  carta tiene una tercera: un color calibrado para texto sobre papel no puede
-  ser el mismo que un punto de luz sobre negro.
-- **La pantalla de Progreso se carga aparte.** Es la única que usa la librería
-  de gráficos, y esa librería pesa casi tanto como el resto de la app junta.
+- **Progreso no usa librería de gráficos.** Las barras, las columnas y los
+  puntos son CSS sobre números que ya calculó el dominio, con medidas en rem:
+  crecen con la letra grande en vez de quedar dibujados en píxeles fijos, y la
+  pantalla entera pesa 5,5 kB. La librería que había antes pesaba casi tanto
+  como el resto de la app junta.
 
 ### Los tests
 

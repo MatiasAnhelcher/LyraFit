@@ -17,6 +17,7 @@ import {
   mueveElPlan,
   porcentajeDeCadena,
   recalibrar,
+  rellenoDeVentana,
   rendimientoDeSesion,
   proyectar,
   requisitoDicho,
@@ -218,6 +219,25 @@ describe('siguienteAvance', () => {
     expect(d.avance.graciaRestante).toBe(GRACIA)
   })
 
+  it('en el techo, "una sesión más" es siempre la víspera del cambio, aunque quede gracia', () => {
+    // Después de un retroceso se llega al techo con gracia, y el motor sostiene
+    // mientras quede aunque ya lleves dos. Lo que dice tiene que coincidir con
+    // lo que hace.
+    const e = ejercicio('flexion-completa')
+    let avance = avanceEn('flexion-completa', e.ventana.max, { graciaRestante: 3 })
+    const dichos: string[] = []
+    let d = cumpliendo(avance)
+    while (!d.cambioDeNivel) {
+      dichos.push(d.explicacion)
+      avance = d.avance
+      d = cumpliendo(avance)
+    }
+    expect(dichos).toHaveLength(3)
+    expect(dichos[0]).toContain('Lo sostenemos 3 sesiones')
+    expect(dichos[1]).toContain('Lo sostenemos un par de sesiones')
+    expect(dichos[2]).toContain('Una sesión más así y cambiamos')
+  })
+
   it('NO cambia de eslabón antes de dominar el actual', () => {
     // El defecto más caro del motor viejo: subía tras dos sesiones buenas sin
     // mirar nunca si se había llegado al objetivo declarado del ejercicio.
@@ -417,6 +437,42 @@ describe('avanceInicial y porcentaje', () => {
     expect(primero).toBeGreaterThanOrEqual(0)
     expect(ultimo).toBeLessThanOrEqual(100)
     expect(ultimo).toBeGreaterThan(primero)
+  })
+})
+
+describe('rellenoDeVentana', () => {
+  // El relleno del segmento actual en la barra de cada cadena.
+  it('va de 0 en el piso a 1 en el techo, con repeticiones', () => {
+    const diamante = ejercicio('flexion-diamante') // ventana de 5 a 12
+    expect(rellenoDeVentana(diamante, 5)).toBe(0)
+    expect(rellenoDeVentana(diamante, 12)).toBe(1)
+    expect(rellenoDeVentana(diamante, 9)).toBeCloseTo(4 / 7)
+  })
+
+  it('y con segundos', () => {
+    const plancha = ejercicio('plancha') // ventana de 15 a 30 segundos
+    expect(rellenoDeVentana(plancha, 15)).toBe(0)
+    expect(rellenoDeVentana(plancha, 22.5)).toBeCloseTo(0.5)
+    expect(rellenoDeVentana(plancha, 30)).toBe(1)
+  })
+
+  it('acota lo que cae fuera de la ventana', () => {
+    const diamante = ejercicio('flexion-diamante')
+    expect(rellenoDeVentana(diamante, 2)).toBe(0)
+    expect(rellenoDeVentana(diamante, 20)).toBe(1)
+  })
+
+  it('una ventana sin recorrido da 0 y no NaN', () => {
+    const plana = { ...ejercicio('flexion-diamante'), ventana: { min: 8, max: 8 } }
+    expect(rellenoDeVentana(plana, 8)).toBe(0)
+  })
+
+  it('es la misma cuenta que usa el porcentaje de la cadena', () => {
+    const a = avanceEn('flexion-diamante', 9)
+    const posicion = empuje.ejercicios.indexOf('flexion-diamante')
+    expect(porcentajeDeCadena(a, empuje, POR_ID)).toBe(
+      Math.round(((posicion + rellenoDeVentana(ejercicio('flexion-diamante'), 9)) / empuje.ejercicios.length) * 100),
+    )
   })
 })
 

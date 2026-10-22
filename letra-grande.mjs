@@ -22,6 +22,10 @@
  *     nada fijo los tapa.
  *   - **En la serie,** el número, los dos pasos y la acción principal se ven
  *     sin scrollear, con la predicción ("Voy") y al anotar.
+ *   - **El eje de FUERZA POR SEMANA,** con dos, tres, nueve y diez semanas de
+ *     sesiones, y de dos a doce a 320 con la letra al 150 %: cada rótulo debajo de su columna, adentro de las barras y sin
+ *     pisar al otro, con la fecha más ancha del año. Es lo más angosto de
+ *     Progreso, y con una sola semana —lo que deja el alta— no se ve.
  *
  * ## Qué afirma y qué es deuda
  *
@@ -37,7 +41,15 @@
  * Con otro puerto: `BASE=http://localhost:4187 node letra-grande.mjs`.
  */
 
-import { BASE, abrir, alta, completarUnaSesion, revisarQueSirvaLoCompilado, trasElPasaje } from './lib/portones.mjs'
+import {
+  BASE,
+  abrir,
+  alta,
+  completarUnaSesion,
+  conLaBase,
+  revisarQueSirvaLoCompilado,
+  trasElPasaje,
+} from './lib/portones.mjs'
 
 await revisarQueSirvaLoCompilado(BASE)
 
@@ -102,6 +114,26 @@ const medirLaPantalla = (p) =>
     for (const s of document.querySelectorAll('.segmento')) {
       if (visible(s) && s.scrollWidth > s.clientWidth + 0.5) {
         problemas.push({ armazon: delArmazon(s), texto: `el segmento ${nombre(s)} se sale de su celda: ${s.scrollWidth} px en ${s.clientWidth}` })
+      }
+    }
+    // Las filas de cadena de Hoy y del Cierre: rótulo, barra y cuenta adentro
+    // de la fila, y cada eslabón con ancho para verse. A 320 con la letra
+    // grande la barra quedaba de un dedo y el rótulo se salía de su columna.
+    for (const fila of document.querySelectorAll('.fila-cadena-chica')) {
+      if (!fila.checkVisibility()) continue
+      const caja = fila.getBoundingClientRect()
+      for (const hijo of fila.children) {
+        const r = hijo.getBoundingClientRect()
+        if (r.left < caja.left - 0.5 || r.right > caja.right + 0.5) {
+          problemas.push({ armazon: false, texto: `en la fila de ${fila.textContent.trim().slice(0, 20)}, ${nombre(hijo)} se sale de la fila` })
+        }
+      }
+      const angosto = [...fila.querySelectorAll('.bc-seg')].find((seg) => seg.getBoundingClientRect().width < 4)
+      if (angosto) {
+        problemas.push({
+          armazon: false,
+          texto: `en la fila de ${fila.textContent.trim().slice(0, 20)}, un eslabón mide ${angosto.getBoundingClientRect().width.toFixed(1)} px de ancho`,
+        })
       }
     }
     // Las etiquetas de la barra, enteras y en un renglón: son del armazón.
@@ -185,6 +217,68 @@ async function revisarLaSerie(p, telefono, momento) {
   }
 }
 
+/** Una sesión de flexiones por semana, de `desde` a `hasta` semanas antes de LUNES. */
+function sesionesDeFuerza(desde, hasta) {
+  const sesiones = []
+  for (let atras = desde; atras >= hasta; atras--) {
+    const dia = new Date(LUNES.getTime() - atras * 7 * 864e5)
+    const fecha = dia.toISOString().slice(0, 10)
+    sesiones.push({
+      id: `eje-${fecha}`,
+      fecha,
+      finalizadaEn: dia.getTime(),
+      duracionSegundos: 1800,
+      tipo: 'plan',
+      registros: [
+        { ejercicioId: 'flexion-completa', objetivo: { series: 3, cantidad: 8 }, series: [{ logrado: 8 + (atras % 4) }] },
+      ],
+    })
+  }
+  return sesiones
+}
+
+/**
+ * El eje de FUERZA con `semanas` en pantalla: los rótulos que se esperan,
+ * cada uno debajo de su columna, adentro de las barras y de la placa, y con
+ * dos píxeles de aire entre uno y otro. La primera fecha se mide con el texto
+ * más ancho que puede tener, "30 sept": la del reloj fijo del portón es más
+ * angosta y escondería un choque que en septiembre sí pasa.
+ */
+async function revisarElEjeDeFuerza(p, telefono, semanas, esperados) {
+  await ir(p, '/progreso')
+  await p.waitForTimeout(400)
+  const { rotulos, problemas } = await p.evaluate(() => {
+    const columnas = [...document.querySelector('.fila-fuerza .fuerza-columnas').children].map((c) => c.getBoundingClientRect())
+    const placa = document.querySelector('.fuerza-eje').closest('.placa').getBoundingClientRect()
+    const spans = [...document.querySelectorAll('.fuerza-eje > div > span')]
+    const primera = spans[0]?.querySelector('.series-fecha')
+    if (spans[0]?.hasAttribute('data-inicio') && primera?.textContent) primera.textContent = '30 sept'
+    const rotulos = spans
+      .map((s, j) => ({ j, texto: s.textContent.trim(), fecha: s.querySelector('.series-fecha') }))
+      .filter((r) => r.texto && r.fecha.checkVisibility({ visibilityProperty: true }))
+      .map((r) => ({ ...r, caja: r.fecha.getBoundingClientRect() }))
+    const problemas = []
+    rotulos.forEach((r, i) => {
+      const suya = columnas[r.j]
+      if (r.caja.left > suya.right + 0.5 || r.caja.right < suya.left - 0.5) problemas.push(`«${r.texto}» no queda debajo de su columna`)
+      if (r.caja.left < columnas[0].left - 0.5 || r.caja.right > columnas[columnas.length - 1].right + 0.5 || r.caja.right > placa.right) {
+        problemas.push(`«${r.texto}» se sale de las barras`)
+      }
+      const antes = rotulos[i - 1]
+      if (antes && antes.caja.right + 2 > r.caja.left) problemas.push(`«${antes.texto}» y «${r.texto}» se pisan`)
+    })
+    return { rotulos: rotulos.map((r) => r.texto), problemas }
+  })
+  if (rotulos.length !== esperados) {
+    fallos.push(`[${telefono.nombre}] Progreso con ${semanas} semanas: el eje de fuerza tiene ${rotulos.length} rótulos y se esperaban ${esperados} (${rotulos.join(', ')}).`)
+  }
+  for (const problema of problemas) fallos.push(`[${telefono.nombre}] Progreso con ${semanas} semanas, eje de fuerza: ${problema}.`)
+}
+
+/** Las filas de cadena que la medida de la pantalla mira de verdad. */
+const filasVisibles = (p) =>
+  p.evaluate(() => [...document.querySelectorAll('.fila-cadena-chica')].filter((f) => f.checkVisibility()).length)
+
 async function ir(p, ruta) {
   await p.goto(`${BASE}/#${ruta}`, { waitUntil: 'networkidle' })
   await p.waitForTimeout(600)
@@ -211,6 +305,11 @@ for (const telefono of TELEFONOS) {
 
   await ir(p, '/')
   await revisarLaPantalla(p, telefono, 'Hoy')
+  // Que las filas de cadena se hayan medido: si cambian de clase, se esconden o
+  // Hoy deja de dibujarlas, el bloque que las mide pasaría en verde sin mirar
+  // nada. Se cuentan con el mismo criterio de visibilidad que usa la medida.
+  const filasDeHoy = await filasVisibles(p)
+  if (filasDeHoy !== 5) fallos.push(`[${telefono.nombre}] Hoy dibujó ${filasDeHoy} filas de cadena y son cinco cadenas.`)
   await revisarQueSeAlcance(p, telefono, 'Hoy', 'Empezar', { dentro: 'main' })
 
   await ir(p, '/biblioteca')
@@ -267,8 +366,59 @@ for (const telefono of TELEFONOS) {
   else {
     await revisarLaPantalla(p, telefono, 'El Cierre')
     await revisarQueSeAlcance(p, telefono, 'El Cierre', 'Listo')
+    if ((await filasVisibles(p)) === 0) {
+      fallos.push(`[${telefono.nombre}] El Cierre no dibujó ninguna fila de cadena: la medida de la fila chica no miró nada.`)
+    }
   }
 
+  // El eje de FUERZA con historia. La sesión de recién es la de esta semana:
+  // con una más, la semana pasada, son dos —solo "esta"—; con tres, "esta"
+  // todavía arranca en su columna; con nueve, todavía sin fecha; con diez, la
+  // primera con fecha, que es donde quedan más cerca.
+  for (const [desde, hasta, semanas, esperados] of [
+    [1, 1, 2, 1],
+    [2, 2, 3, 1],
+    [8, 3, 9, 1],
+    [9, 9, 10, 2],
+  ]) {
+    await p.evaluate((s) => {
+      window.__sesiones = s
+    }, sesionesDeFuerza(desde, hasta))
+    await conLaBase(p, ['sesiones'], async (leer, poner) => {
+      for (const s of window.__sesiones) poner('sesiones', s)
+    })
+    await p.reload({ waitUntil: 'networkidle' })
+    await revisarElEjeDeFuerza(p, telefono, semanas, esperados)
+  }
+
+  fallos.push(...errores.map((e) => `[${telefono.nombre}] ${e}`))
+  await navegador.close()
+}
+
+// El eje de FUERZA con la letra al 150 % (la del navegador en algunos
+// teléfonos), a 320, de dos a doce semanas: es donde "esta" tiene menos lugar
+// y donde la primera fecha ya no entra.
+{
+  const telefono = { nombre: '320×568 al 150 %', width: 320, height: 568 }
+  const { navegador, contexto, pagina: p, fallos: errores } = await abrir({ viewport: { width: 320, height: 568 } })
+  await contexto.addInitScript(() => {
+    const poner = () => document.documentElement.style.setProperty('font-size', '150%')
+    if (document.documentElement) poner()
+    else document.addEventListener('readystatechange', poner, { once: true })
+  })
+  await p.clock.setFixedTime(LUNES)
+  await alta(p)
+  for (let semanas = 2; semanas <= 12; semanas++) {
+    const atras = semanas - 1
+    await p.evaluate((s) => {
+      window.__sesiones = s
+    }, sesionesDeFuerza(atras, semanas === 2 ? 0 : atras))
+    await conLaBase(p, ['sesiones'], async (leer, poner) => {
+      for (const s of window.__sesiones) poner('sesiones', s)
+    })
+    await p.reload({ waitUntil: 'networkidle' })
+    await revisarElEjeDeFuerza(p, telefono, semanas, 1)
+  }
   fallos.push(...errores.map((e) => `[${telefono.nombre}] ${e}`))
   await navegador.close()
 }
@@ -287,4 +437,4 @@ if (fallos.length > 0) {
   process.exit(1)
 }
 
-console.log('\nCon la letra al 125 %, a 360 y a 320, ningún texto se corta, nada scrollea a lo ancho, y Empezar y "Listo" se alcanzan.')
+console.log('\nCon la letra al 125 %, a 360 y a 320, ningún texto se corta, nada scrollea a lo ancho, Empezar y "Listo" se alcanzan, y el eje de fuerza se lee de dos a doce semanas, también con la letra al 150 %.')

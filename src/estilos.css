@@ -4,8 +4,8 @@
  * PULSO — el sistema visual de LyraFit.
  *
  * LyraFit es un instrumento de noche: grafito azulado, tinta casi blanca y una
- * sola luz menta, que marca QUÉ HACER AHORA. Tu historia es una carta de
- * estrellas, y la estrella blanca quiere decir "estás acá": nada más brilla
+ * sola luz menta, que marca QUÉ HACER AHORA. Tu historia son las barras de
+ * tus cadenas, y la estrella blanca quiere decir "estás acá": nada más brilla
  * así. El coral es de Lyra y el ámbar de lo que pide cuidado. El resto del
  * color es de las cinco cadenas, y cada una lleva además su forma, porque
  * nada depende solo del color.
@@ -15,10 +15,9 @@
  *   EL REGISTRO: filas regladas con filetes de 1 px, cero sombras y cifras
  *   tabulares. Densidad de instrumento. El 68% de los días la app es solo esto.
  *
- *   LA CARTA es una banda de cielo a sangre. Las estrellas solo funcionan
- *   sobre negro, y la silueta de cada cadena tiene que ser memorizable, así
- *   que no cambia nunca de aspecto. Con un solo negro en toda la app, la
- *   carta no se separa por su valor sino por sus cantos y sus estrellas.
+ *   EL TABLERO: placas con cifras grandes y barras de completud. Cada cadena
+ *   es una barra con un segmento por eslabón, en su luz, y la estrella marca
+ *   dónde estás. Es lo que se ve en Progreso, en Hoy y en el Cierre.
  *
  * TRES VOCES, con jurisdicción estricta:
  *   Sora            -> el dato: cifras, títulos y la acción (el instrumento)
@@ -175,20 +174,11 @@
   --dominio-sueno-campo: #0d0e18;
   --dominio-sueno-luz: #a0aaee;    /* el índigo de antes del amanecer, 8,67:1 */
 
-  /* --- LA CARTA: el hueco del cielo, la única superficie sin placa ---
-         Contra el fondo da 1,01:1: se lee por sus cantos (1,29:1) y por sus
-         estrellas, no por su valor. */
-  --carta-fondo: #05070a;
-  --carta-canto: #1c2430;
-  --carta-estrella: #ffffff;
-  --carta-rotulo: #8d99ad;
-  --carta-futuro-nodo: #7a869b;
-  /* 3,46:1 sobre la carta, pero 2,94 sobre papel-alto: en la fila "estás
-     acá" el punteado va en regla-fuerte. */
-  --carta-futuro-linea: #5a6678;
+  /* El núcleo de la estrella: blanco puro, el único. */
+  --estrella: #ffffff;
 
-  /* Rampa de patrón. Un solo juego: el nodo de la carta, el glifo de la fila
-     y la línea de la curva son el mismo color, en este orden.
+  /* Rampa de patrón. Un solo juego: el glifo de la fila y la luz de la
+     barra de cada cadena son el mismo color, en este orden.
      Cada cadena tiene además su FORMA (`.glifo[data-patron]`), porque con
      cinco colores alguno siempre se parece a otro en alguna visión. Medido
      con la simulación de Machado 2009 en OKLab, el par más cercano es
@@ -206,13 +196,6 @@
   --luz-piernas: #d3f57a;
   --luz-core: #8a73ff;
   --luz-bisagra: #f25c9c;
-
-  --color-grafico-1: #ffb08c;
-  --color-grafico-2: #5bc0ff;
-  --color-grafico-3: #d3f57a;
-  --color-grafico-4: #8a73ff;
-  --color-grafico-5: #f25c9c;
-  --color-grafico-grilla: #222a35;
 
   /* Inter va antes de las fuentes del sistema también en la cifra: un glifo
      que Sora no tiene (como ↑) cae en Inter y no en la letra del teléfono. */
@@ -264,8 +247,8 @@
    * llegar el atributo.
    *
    * El cierre comparte la noche —es el mismo momento, con el pulso todavía
-   * alto— pero NO comparte el apagado de decoración de más abajo. Ahí la
-   * carta y la voz del motor son el contenido, no el adorno.
+   * alto— pero NO comparte el apagado de decoración de más abajo. Ahí las
+   * barras y la voz del motor son el contenido, no el adorno.
    */
   :root[data-pantalla='entrenar'],
   :root[data-pantalla='cierre'],
@@ -517,8 +500,8 @@
     margin: 0;
   }
 
-  /* El motor tiene la forma de la carta, porque es el que te mueve en ella:
-     un nodo a la altura del primer renglón y el hilo que baja por el margen.
+  /* El motor lleva un nodo a la altura del primer renglón y el hilo que baja
+     por el margen, porque es el que te mueve de eslabón.
      Nada de coral: el coral es de Lyra, y el motor no es Lyra. Nada más en la
      app lleva este nodo. */
   .glosa-motor {
@@ -772,102 +755,244 @@
   .glifo[data-patron='bisagra']  { clip-path: inset(30% 0 30% 0); }                /* ▬ */
 
   /* ------------------------------------------------------------------ *
-   * 3. LA CARTA — banda de noche a sangre.
+   * 3. LA BARRA DE CADENA — un segmento por eslabón.
    *
-   * La decisión más audaz del sistema: en tema CLARO hay bandas de cielo
-   * negro insertadas en la página. Tres razones duras, ninguna estética:
-   *   a) las estrellas y los halos solo funcionan sobre fondo oscuro;
-   *   b) la silueta del asterismo tiene que ser memorizable, y no puede
-   *      serlo si cambia de aspecto según la hora del día;
-   *   c) bajo sol directo, negro con nodos claros es el mayor contraste
-   *      disponible del sistema.
+   * Reemplaza a la carta de estrellas (PB, 21/10/2026). Todos los
+   * segmentos miden lo mismo, así que la barra se lee de un vistazo:
+   * cuántos hiciste, dónde estás y cuántos faltan. El relleno del actual
+   * es cuánto de la ventana del eslabón ya recorrió tu objetivo.
+   *
+   * Hecho: lleno en la luz de la cadena. Actual: contorno en la luz y
+   * relleno. Lo que falta: contorno en regla-fuerte (3,46:1 sobre papel),
+   * hueco. Nada de candados ni tachados: lo que falta está sin iluminar.
    * ------------------------------------------------------------------ */
 
-  .carta {
+  .bc {
+    --g: 3px;
+    --alto: 12px;
     position: relative;
-    background-color: var(--carta-fondo);
-    /* A sangre sin importar el padding del contenedor. */
-    margin-inline: calc(50% - 50vw);
-    padding-inline: calc(50vw - 50%);
-    border-block: 1px solid var(--carta-canto);
+    display: flex;
+    gap: var(--g);
+    height: var(--alto);
+    /* La estrella toma el color de acá. */
+    color: var(--luz);
+  }
+  .bc--s { --g: 2px; --alto: 10px; }
+  .bc--l { --g: 4px; --alto: 16px; }
+
+  .bc-seg {
+    position: relative;
+    flex: 1 1 0;
+    min-width: 0;
+    border-radius: 999px;
+    border: 1.5px solid var(--color-regla-fuerte);
+    overflow: hidden;
+  }
+  .bc-seg--hecho {
+    background-color: var(--luz);
+    border-color: var(--luz);
+  }
+  .bc-seg--actual {
+    border-color: var(--luz);
+  }
+  /* El eslabón que acabás de dominar, en el Cierre, cuando el nuevo arranca
+     en su piso: se llena con su propio relleno en vez de aparecer lleno. */
+  .bc-seg--recien {
+    background-color: transparent;
+  }
+  .bc-relleno {
+    position: absolute;
+    inset-block: 0;
+    left: 0;
+    background-color: var(--luz);
+    border-radius: 999px;
+    transform-origin: left center;
   }
 
-  .carta svg {
+  /* La estrella y la huella se ubican en el borde del relleno: el inicio del
+     segmento `--i` más `--f` de su ancho. */
+  .bc-marca,
+  .bc-huella {
+    position: absolute;
+    top: 50%;
+    width: 0;
+    height: 0;
+    left: calc((var(--i) + var(--f)) * (100% - (var(--n) - 1) * var(--g)) / var(--n) + var(--i) * var(--g));
+  }
+  .bc-marca svg {
+    position: absolute;
+    left: -22px;
+    top: -22px;
+    width: 44px;
+    height: 44px;
+    overflow: visible;
+  }
+  .bc--s .bc-marca svg {
+    transform: scale(0.64);
+  }
+
+  /* La huella: dónde estabas antes del salto. Una forma vacía, lo único de
+     la app que registra el pasado así. Va debajo de la barra y en glosa
+     (7,45:1 sobre papel): adentro de la franja quedaba luz sobre luz encima
+     de un eslabón hecho, o tapada por el núcleo de la estrella. A 4 px del
+     borde no toca la espiga de la estrella ni el texto de abajo. */
+  .bc-huella::before {
+    content: '';
+    position: absolute;
+    width: 7px;
+    height: 7px;
+    left: -3.5px;
+    top: calc(var(--alto) / 2 + 4px);
+    border-radius: 50%;
+    border: 1.25px solid var(--color-glosa);
+  }
+
+  /* La fila de TUS CADENAS en Progreso: nombre y cuenta, la barra, el pie. */
+  .fila-cadena {
     display: block;
-    width: 100%;
-    height: auto;
+    padding: 0.875rem var(--margen) 0.8125rem;
+  }
+  .fila-cadena-cabeza {
+    display: flex;
+    align-items: center;
+    gap: 0.625rem;
+    min-height: 1.25rem;
+    margin-bottom: 0.75rem;
+  }
+  .fila-cadena-cabeza .nombre {
+    flex: 1;
+    min-width: 0;
+  }
+  .fila-cadena-pie {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    column-gap: 0.75rem;
+    margin-top: 0.6875rem;
+  }
+  .fila-cadena-pie > .rotulo:first-child {
+    flex: 1 1 auto;
+    min-width: 0;
   }
 
-  /* El rótulo de cada fila —el nombre de la cadena, con su forma adelante—
-     va en la tinta de la carta: así las filas se distinguen sin el color. */
-  .carta .rotulo,
-  .carta-glifo {
-    fill: var(--carta-rotulo);
+  /* "7 de 11": el número en tinta, el resto en glosa. */
+  .cuenta-cadena {
+    flex: none;
+    font-family: var(--font-cifra);
+    font-variant-numeric: tabular-nums lining-nums;
+    font-weight: 600;
+    font-size: 0.8125rem;
+    color: var(--color-glosa);
+    white-space: nowrap;
+  }
+  .cuenta-cadena b {
+    font-weight: 600;
+    font-size: 1.125rem;
+    color: var(--color-tinta);
   }
 
-  /* El camino que ya hiciste: grueso, y con la luz del patrón. */
-  .trazo-recorrido {
-    fill: none;
-    stroke: var(--luz);
-    stroke-width: 2.25;
-    stroke-linecap: round;
-    stroke-linejoin: round;
+  /* Los puntos de consolidación, en el techo: "●● 2 DE 2". */
+  .pips {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.375rem;
+  }
+  .pips > span:first-child {
+    display: inline-flex;
+    gap: 4px;
+  }
+  .pips i {
+    display: block;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    border: 1.5px solid var(--color-regla-fuerte);
+  }
+  .pips i.lleno {
+    background-color: var(--luz);
+    border-color: var(--luz);
   }
 
-  /* Lo que falta: fino y punteado. No está prohibido, está sin iluminar.
-     Cero candados, cero tachados, cero "bloqueado". La ausencia de luz
-     comunica sin castigar. */
-  .trazo-futuro {
-    fill: none;
-    stroke: var(--carta-futuro-linea);
-    stroke-width: 1;
-    stroke-dasharray: 2 4;
-    stroke-linecap: round;
+  /* La fila chica: Hoy y las cadenas que no saltaron en el Cierre. 44 de
+     alto, el nombre de la cadena en rótulo, la barra s y la cuenta. La
+     cuenta mide 4rem porque "10 de 11" mide 3,79. */
+  .fila-cadena-chica {
+    display: grid;
+    grid-template-columns: 5.75rem 1fr 4rem;
+    align-items: center;
+    column-gap: 0.75rem;
+    min-height: 44px;
+    padding: 0.375rem var(--margen);
+  }
+  .fila-cadena-chica > .rotulo {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    white-space: nowrap;
+  }
+  .fila-cadena-chica .cuenta-cadena {
+    text-align: right;
+  }
+  .fila-cadena-chica .cuenta-cadena b {
+    font-size: 0.9375rem;
   }
 
-  .nodo-hecho {
-    fill: var(--luz);
+  /* Donde la barra no entra al lado del nombre —a 320, o con letra grande—,
+     baja a su propio renglón y ocupa todo el ancho. Se mide la placa y no la
+     pantalla, y en rem, así que la letra grande también la hace bajar. */
+  .placa-cadenas {
+    container-type: inline-size;
+  }
+  @container (max-width: 20rem) {
+    .fila-cadena-chica {
+      grid-template-columns: 1fr auto;
+      row-gap: 0.375rem;
+      padding-block: 0.5rem 0.625rem;
+    }
+    .fila-cadena-chica > .bc {
+      grid-column: 1 / -1;
+      grid-row: 2;
+    }
   }
 
-  .nodo-futuro {
-    fill: none;
-    stroke: var(--carta-futuro-nodo);
-    stroke-width: 1.25;
+  /* Las filas de una placa de cadenas, separadas por un filete de regla. */
+  .placa > .fila-cadena + .fila-cadena,
+  .placa > .fila-cadena-chica + .fila-cadena-chica,
+  .placa > .fila-cadena-chica + .fila-cadena,
+  .placa > .fila-cadena + .fila-cadena-chica {
+    box-shadow: inset 0 1px 0 var(--color-regla);
   }
 
-  /* El terminus: rombo hueco. "El fin de la carta". */
-  .nodo-terminal {
-    fill: none;
-    stroke: var(--carta-futuro-nodo);
-    stroke-width: 1.25;
+  /* La cadena que saltó, abierta en el Cierre. */
+  .fila-cadena--salto {
+    padding-block: 0.75rem 0.8125rem;
   }
-
-  /* La huella: dónde estabas antes del salto. Es el único elemento de la
-     app que registra el pasado con una forma vacía, y en la pantalla de
-     cierre es lo que hace visible el movimiento. */
-  .nodo-huella {
-    fill: none;
-    stroke: var(--luz);
-    stroke-width: 1.25;
-    opacity: 0.55;
+  .fila-cadena--salto .fila-cadena-cabeza {
+    margin-bottom: 0.625rem;
+  }
+  .salto-nuevo {
+    margin-top: 0.75rem;
+  }
+  .salto-nuevo-nombre {
+    font-family: var(--font-cifra);
+    font-weight: 600;
+    font-size: 1.0625rem;
+    line-height: 1.2;
+  }
+  .salto-nuevo .texto-chico {
+    margin-top: 0.1875rem;
   }
 
   /* ------------------------------------------------------------------ *
    * 4. LA ESTRELLA — el elemento firma. La única luz de toda la app.
    *
    * Ningún otro elemento de la interfaz brilla, jamás. Por eso el
-   * "estás acá" es imposible de no ver: es literalmente lo único
-   * iluminado en la pantalla. Ese monopolio es la mitad del trabajo.
-   *
-   * Tres refuerzos redundantes en el mismo punto, porque esto se mira con
-   * sol y de reojo:
-   *   1. es lo único con halo;
-   *   2. es lo único con núcleo blanco puro (20,17:1 sobre la carta);
-   *   3. es exactamente donde la línea cambia de 2.25px sólidos a 1px
-   *      punteados. La frontera de materia coincide con la luz.
+   * "estás acá" es imposible de no ver: es literalmente lo único con halo
+   * en la pantalla. Ese monopolio es la mitad del trabajo.
    * ------------------------------------------------------------------ */
 
   .estrella {
+    transform-box: fill-box;
     transform-origin: center;
   }
 
@@ -879,10 +1004,9 @@
   }
 
   /* Espigas ASIMÉTRICAS (19 vs 11). Eso las lee como difracción anamórfica
-     de un telescopio y no como un signo "+". Es el detalle que separa esto
-     de un ícono genérico. */
+     de un telescopio y no como un signo "+". */
   .estrella-espiga {
-    stroke: var(--luz);
+    stroke: currentColor;
     stroke-width: 1;
     stroke-linecap: round;
     opacity: 0.6;
@@ -890,13 +1014,421 @@
 
   .estrella-corona {
     fill: none;
-    stroke: var(--luz);
+    stroke: currentColor;
     stroke-width: 1;
     opacity: 0.75;
   }
 
+  /* El núcleo lleva un filete del fondo, que sale 1,5 px por fuera, porque
+     ahora se apoya sobre un relleno claro: blanco sobre la lima de piernas
+     da 1,23:1; con el filete, blanco contra el fondo, 19,9:1. */
   .estrella-nucleo {
-    fill: var(--carta-estrella);
+    fill: var(--estrella);
+    stroke: var(--color-fondo);
+    stroke-width: 3;
+    paint-order: stroke;
+  }
+
+  /* ------------------------------------------------------------------ *
+   * 4b. EL TABLERO DE PROGRESO — placas, cifras y columnas.
+   * ------------------------------------------------------------------ */
+
+  .seccion-titulo {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 0.75rem;
+  }
+
+  /* El acumulador: la cifra de sesiones grande, series y minutos al lado. */
+  .acumulador {
+    padding: 1.25rem var(--margen) 1.125rem;
+  }
+  /* Flex y no grilla: con la letra grande, a 360, series y minutos no
+     entran al lado de la cifra y bajan a su propio renglón. */
+  .acumulador-grilla {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-end;
+    justify-content: space-between;
+    gap: 1rem;
+  }
+  .acumulador-cifras {
+    display: grid;
+    grid-auto-flow: column;
+    column-gap: 1.25rem;
+    padding-left: 1rem;
+    border-left: 1px solid var(--color-regla);
+  }
+  .cifra-tablero {
+    font-family: var(--font-cifra);
+    font-weight: 300;
+    font-variant-numeric: lining-nums tabular-nums;
+    font-size: clamp(3rem, 15.5vw, 4rem);
+    line-height: 0.86;
+    letter-spacing: -0.03em;
+    margin-left: -0.04em;
+  }
+  .cifra-kpi {
+    font-family: var(--font-cifra);
+    font-weight: 600;
+    font-variant-numeric: tabular-nums lining-nums;
+    font-size: 1.375rem;
+    line-height: 1.05;
+  }
+  .acumulador .rotulo {
+    margin-top: 0.375rem;
+  }
+  .acumulador .tira {
+    margin-top: 1.125rem;
+  }
+
+  /* FUERZA POR SEMANA: una fila por cadena, una columna por semana. */
+  .fila-fuerza {
+    display: grid;
+    grid-template-columns: 5.5rem 1fr;
+    column-gap: 0.75rem;
+    align-items: end;
+    padding: 0.875rem var(--margen) 0.75rem;
+  }
+  .fila-fuerza > div:first-child .rotulo {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+  }
+  .fuerza-valor {
+    margin-top: 0.5rem;
+    font-family: var(--font-cifra);
+    font-weight: 600;
+    font-variant-numeric: tabular-nums lining-nums;
+    font-size: 1.25rem;
+    line-height: 1.1;
+  }
+  .fuerza-desde {
+    margin-top: 0.125rem;
+  }
+  /* Base en cero. Gris (regla-fuerte) hasta la altura de tu primera semana;
+     encima, en la luz de la cadena, lo que creció desde ahí. Un filete de
+     1,5 px de papel separa las dos partes: el corte no depende del color. */
+  .fuerza-columnas {
+    display: flex;
+    align-items: flex-end;
+    gap: 4px;
+    height: 56px;
+    border-bottom: 1px solid var(--color-regla);
+  }
+  .fuerza-col {
+    position: relative;
+    flex: 1 1 0;
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-end;
+    min-width: 0;
+    height: 100%;
+    transform-origin: center bottom;
+  }
+  .fuerza-col > span {
+    display: block;
+  }
+  .fuerza-col > span:first-child {
+    border-start-start-radius: 4px;
+    border-start-end-radius: 4px;
+  }
+  .fuerza-sobre {
+    background-color: var(--luz);
+    margin-bottom: 1.5px;
+  }
+  .fuerza-base {
+    background-color: var(--color-regla-fuerte);
+  }
+  /* La semana en que cambiaste de eslabón: una raya en tinta; punteada si
+     el eslabón nuevo se mide distinto. */
+  .fuerza-col[data-cambio]::before {
+    content: '';
+    position: absolute;
+    left: -2.75px;
+    top: -6px;
+    bottom: 0;
+    border-left: 1.5px solid var(--color-tinta);
+  }
+  .fuerza-col[data-cambio='medida']::before {
+    border-left-style: dashed;
+  }
+  .fuerza-eje {
+    display: grid;
+    /* minmax(0, …): sin eso, los rótulos, que no se parten, ensanchan esta
+       pista más que la de las barras y cada fecha se corre de su columna. */
+    grid-template-columns: 5.5rem minmax(0, 1fr);
+    column-gap: 0.75rem;
+    padding: 0 var(--margen) 0.875rem;
+  }
+  /* El eje tiene las mismas columnas y el mismo hueco que las barras de
+     arriba. La primera fecha arranca en el borde izquierdo de su columna y
+     "esta", desde la séptima semana, termina en el derecho de la suya: así
+     ninguna se sale de las barras. Medido de 1 a 12 semanas, a 320, 360 y
+     390, con la letra al 100, 125 y 150 %. */
+  .fuerza-eje > div {
+    container-type: inline-size;
+    display: flex;
+    gap: 4px;
+    padding-top: 0.375rem;
+  }
+  /* La primera fecha y "esta" necesitan unos 5,5 rem de eje para no pisarse
+     (los dos crecen con la letra). Más angosto, se queda solo "esta". */
+  @container (max-width: 5.5rem) {
+    .fuerza-eje span[data-inicio] .series-fecha {
+      visibility: hidden;
+    }
+  }
+  .fuerza-eje > div > span {
+    flex: 1 1 0;
+    min-width: 0;
+    display: flex;
+    justify-content: flex-start;
+  }
+  .fuerza-eje > div > span[data-fin] {
+    justify-content: flex-end;
+  }
+  .leyenda {
+    display: grid;
+    gap: 0.5rem;
+    padding: 0.75rem var(--margen) 0.875rem;
+    box-shadow: inset 0 1px 0 var(--color-regla);
+  }
+  .leyenda > span {
+    display: grid;
+    grid-template-columns: 14px 1fr;
+    align-items: center;
+    column-gap: 0.625rem;
+  }
+  .leyenda-dos {
+    display: inline-flex;
+    flex-direction: column;
+    justify-self: center;
+    width: 10px;
+    height: 16px;
+  }
+  .leyenda-dos b {
+    display: block;
+    height: 6px;
+    margin-bottom: 1.5px;
+    border-radius: 2px 2px 0 0;
+    background-color: var(--color-glosa);
+  }
+  .leyenda-dos b + b {
+    flex: 1;
+    margin: 0;
+    border-radius: 0;
+    background-color: var(--color-regla-fuerte);
+  }
+  .leyenda-marca {
+    justify-self: center;
+    height: 16px;
+    border-left: 1.5px solid var(--color-tinta);
+  }
+  .leyenda-marca[data-medida] {
+    border-left-style: dashed;
+  }
+
+  /* LO QUE TE DEJA ENTRENAR: dos baldosas, que se apilan con letra grande. */
+  .baldosas {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(9.5rem, 1fr));
+    gap: 0.75rem;
+  }
+  .baldosa {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+    padding: 1rem;
+  }
+  .baldosa-valor {
+    margin-top: 0.375rem;
+    font-family: var(--font-cifra);
+    font-weight: 600;
+    font-variant-numeric: tabular-nums lining-nums;
+    font-size: 1.75rem;
+    line-height: 1.05;
+  }
+  .puntos-energia {
+    display: flex;
+    gap: 3px;
+    margin-top: 0.625rem;
+  }
+  .puntos-energia i {
+    flex: 1;
+    height: 8px;
+    border-radius: 4px;
+    border: 1.5px solid var(--color-regla-fuerte);
+  }
+  .puntos-energia i.subio {
+    background-color: var(--color-tinta);
+    border-color: var(--color-tinta);
+  }
+
+  /* SERIES POR SEMANA: columnas de 104, la de esta semana en tinta. */
+  .series-semana {
+    padding: 1.125rem var(--margen) 0.875rem;
+  }
+  .series-semana-cabeza {
+    display: flex;
+    align-items: flex-end;
+    gap: 0.75rem;
+  }
+  .series-semana-cifra {
+    font-family: var(--font-cifra);
+    font-weight: 300;
+    font-variant-numeric: tabular-nums lining-nums;
+    font-size: 2.75rem;
+    line-height: 0.86;
+    letter-spacing: -0.03em;
+  }
+  .series-columnas {
+    display: flex;
+    align-items: flex-end;
+    gap: 6px;
+    height: 104px;
+    margin-top: 1.125rem;
+    border-bottom: 1px solid var(--color-regla);
+  }
+  .series-pie {
+    display: flex;
+    gap: 6px;
+    margin-top: 0.375rem;
+  }
+  .series-columnas > div,
+  .series-pie > div {
+    flex: 1 1 0;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+  }
+  .series-columnas > div {
+    justify-content: flex-end;
+    height: 100%;
+  }
+  .series-pie > div {
+    gap: 0.375rem;
+  }
+  .series-n {
+    margin-bottom: 5px;
+    font-family: var(--font-cifra);
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+    font-size: 0.625rem;
+    line-height: 1;
+    color: var(--color-tenue);
+  }
+  .series-c {
+    width: 100%;
+    border-radius: 6px 6px 0 0;
+    background-color: var(--color-regla-fuerte);
+    transform-origin: center bottom;
+  }
+  .series-c[data-cero] {
+    border-radius: 1px;
+  }
+  .series-columnas > [data-ahora] .series-n {
+    color: var(--color-tinta);
+  }
+  .series-columnas > [data-ahora] .series-c {
+    background-color: var(--color-tinta);
+  }
+  /* Los puntos no pasan del ancho de su semana: con cuatro sesiones o más
+     bajan a otro renglón en vez de juntarse con los de la semana de al lado. */
+  .puntos-sesion {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 2px;
+    max-width: 100%;
+    min-height: 4px;
+  }
+  .puntos-sesion i {
+    width: 4px;
+    height: 4px;
+    border-radius: 50%;
+    background-color: var(--color-glosa);
+  }
+  .series-fecha {
+    /* Abajo de todo, para que las fechas queden alineadas aunque una semana
+       tenga más renglones de puntos que otra. */
+    margin-top: auto;
+    height: 10px;
+    font-family: var(--font-sans);
+    font-weight: 600;
+    font-size: 0.5625rem;
+    line-height: 1;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--color-glosa);
+    white-space: nowrap;
+  }
+
+  /* QUÉ ESTÁS ENTRENANDO: el cuerpo en su placa y la barra de cada músculo
+     en la luz de su cadena. El cero es una píldora hueca, sin rojo. */
+  .cuerpo-placa {
+    padding: 1.125rem var(--margen) 0.875rem;
+  }
+  .niveles {
+    display: flex;
+    justify-content: center;
+    gap: 1.125rem;
+    margin-top: 0.875rem;
+  }
+  .niveles span {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.375rem;
+  }
+  .niveles i {
+    width: 16px;
+    height: 8px;
+    border-radius: 4px;
+    background-color: var(--color-tinta);
+  }
+  .barra-musculo {
+    display: flex;
+    align-items: center;
+    height: 8px;
+    margin-top: 7px;
+  }
+  .barra-musculo i {
+    display: block;
+    height: 8px;
+    border-radius: 4px;
+    background-color: var(--luz, var(--color-tinta));
+    transform-origin: left center;
+  }
+  .barra-musculo i[data-cero] {
+    width: 8px;
+    background: none;
+    border: 1.5px solid var(--color-regla-fuerte);
+  }
+
+  /* El tablero se enciende UNA vez por carga de la app: la primera vez que
+     se abre Progreso, los segmentos y las columnas se llenan escalonados 14
+     ms. Las visitas siguientes no animan, y con movimiento reducido nada.
+     Solo transform: el estado final es el estilo propio de cada elemento. */
+  @keyframes llenar-x {
+    from { transform: scaleX(0); }
+  }
+  @keyframes llenar-y {
+    from { transform: scaleY(0); }
+  }
+  .enciende :is(.bc-seg--hecho, .bc-relleno) {
+    transform-origin: left center;
+    animation: llenar-x var(--dur-asentar) var(--sal-asentar) backwards;
+    animation-delay: calc(var(--orden, 0) * 24ms + var(--k, 0) * 14ms);
+  }
+  .enciende :is(.fuerza-col, .series-c) {
+    animation: llenar-y var(--dur-asentar) var(--sal-asentar) backwards;
+    animation-delay: calc(var(--orden, 0) * 24ms + var(--k, 0) * 14ms);
+  }
+  .enciende .barra-musculo i:not([data-cero]) {
+    animation: llenar-x var(--dur-asentar) var(--sal-asentar) backwards;
+    animation-delay: calc(var(--k, 0) * 14ms);
   }
 
   /* ------------------------------------------------------------------ *
@@ -1102,7 +1634,7 @@
     --dur-media: 280ms;     /* los pasajes y lo que viaja entre pantallas */
     --dur-asentar: 420ms;   /* la estrella se posa, la marca se enciende */
     --dur-larga: 700ms;     /* la regla del cierre */
-    --dur-lenta: 900ms;     /* el trazo de la carta */
+    --dur-lenta: 900ms;     /* el relleno del eslabón nuevo en el cierre */
 
     /* Salidas: acelera al irse, frena al llegar. Asimétricas a propósito —
        lo que se va no merece el tiempo de lo que llega. Un dato que llega no
@@ -1359,22 +1891,18 @@
     from { opacity: 0; transform: translateY(6px); }
   }
 
-  /* ── (5) TRAZAR ─────────────────────────────────────────────────────
-     Un recorrido que se dibuja. El path lleva `pathLength="1"`, así
-     `stroke-dasharray: 1` y `stroke-dashoffset: 1 → 0` funcionan en CSS
-     puro, sin medir el path con getTotalLength() y sin una línea de JS.
+  /* ── (5) LLENAR ─────────────────────────────────────────────────────
+     El relleno del eslabón nuevo entra desde la izquierda, de 0,7 a 1,6 s:
+     después de la regla y antes de que la estrella se pose. Con `scaleX` y
+     no con `width`, que movería el layout de la fila en cada cuadro.
 
      Arranca rápido y frena largo, como la aguja de un instrumento llegando
-     a su marca. Se usa SOLO en Cierre cuando hubo salto de nodo. En Hoy
-     jamás: Hoy se abre veinte veces por semana y una animación repetida
+     a su marca. Se usa SOLO en el Cierre cuando hubo salto de eslabón. En
+     Hoy jamás: Hoy se abre veinte veces por semana y una animación repetida
      deja de ser énfasis y pasa a ser ruido. */
-  .anim-trazo {
-    stroke-dasharray: 1;
-    stroke-dashoffset: 0;
-    animation: trazar var(--dur-lenta) var(--sal-ambas) 700ms backwards;
-  }
-  @keyframes trazar {
-    from { stroke-dashoffset: 1; }
+  .anim-llenar {
+    transform-origin: left center;
+    animation: llenar-x var(--dur-lenta) var(--sal-ambas) 700ms backwards;
   }
 
   /* La misma primitiva en su versión recta: la regla que se imprime y abre
@@ -1388,7 +1916,7 @@
     from { transform: scaleX(0); }
   }
 
-  /* Y la llegada de la luz al final del trazo. Sin rebote: la estrella se
+  /* Y la llegada de la luz al final del relleno. Sin rebote: la estrella se
      posa, no salta. Un overshoot elástico convertiría un dato en un juguete
      — por eso `responder` tiene resorte y esto no. */
   .anim-estrella {
@@ -1409,6 +1937,12 @@
   }
   @keyframes encender {
     from { opacity: 0; transform: scale(0.4); }
+  }
+
+  /* El Cierre terminado con un toque (pasados 500 ms): todo salta a su
+     estado final, que es el estilo propio de cada primitiva. */
+  [data-terminada] :is(.revelar, .anim-regla, .anim-estrella, .anim-llenar, .anim-encender) {
+    animation: none;
   }
 
   /* El arco del descanso. No es decoración: es el reloj.
@@ -1520,16 +2054,16 @@
     font-size: 1.0625rem;
   }
   /*
-   * Durante el esfuerzo no hay carta, ni tira, ni glosa: con el pulso a 140 y
+   * Durante el esfuerzo no hay barras, ni tira, ni glosa: con el pulso a 140 y
    * el sol de frente, todo lo que no sea el número que hay que mirar estorba.
    *
    * Ojo con el alcance: esto vale para la sesión, NO para el cierre. El cierre
    * usa `data-pantalla='cierre'`, que hereda la misma noche pero conserva la
-   * composición — ahí la carta y la voz del motor son exactamente el
+   * composición — ahí las barras y la voz del motor son exactamente el
    * contenido, y apagarlas dejaba la pantalla más importante de la app en una
    * lista de rótulos sin nada adentro.
    */
-  [data-pantalla='entrenar'] .carta,
+  [data-pantalla='entrenar'] .bc,
   [data-pantalla='entrenar'] .tira,
   [data-pantalla='entrenar'] .glosa {
     display: none;
@@ -1579,7 +2113,7 @@
   [data-dominio='sueno']  { --campo: var(--dominio-sueno-campo);  --luz-dominio: var(--dominio-sueno-luz); }
 
   /* El campo a sangre: toca los dos bordes aunque el contenedor tenga
-     margen. Mismo recurso que la carta. */
+     margen. */
   .campo {
     margin-inline: calc(50% - 50vw);
     padding-inline: calc(50vw - 50%);
@@ -2259,15 +2793,15 @@
    MOVIMIENTO REDUCIDO
 
    La información NO se pierde, solo se congela. La diferencia importa: si el
-   trazado y la estrella simplemente no ocurrieran, una persona con movimiento
-   reducido no vería que avanzó de nodo — el dato dependería del movimiento,
+   relleno y la estrella simplemente no ocurrieran, una persona con movimiento
+   reducido no vería que avanzó de eslabón — el dato dependería del movimiento,
    que es exactamente el error que hay que evitar.
 
    La regla operativa, que el portón `movimiento.mjs` verifica elemento por
    elemento: **el estado con movimiento reducido es el estado FINAL**, nunca el
    inicial. Por eso cada primitiva declara como estilo propio cómo termina y
    anima solo desde cómo empieza: acá alcanza con apagarlas, y lo que queda es
-   la regla impresa, el trazo dibujado, la estrella posada, la marca encendida
+   la regla impresa, el relleno lleno, la estrella posada, la marca encendida
    y el texto a la vista.
 
    Se lee del atributo `data-movimiento` y no del media query. El atributo lo
