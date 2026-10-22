@@ -74,6 +74,30 @@ export interface Ejercicio {
   ccr: number
   /** Segundos de descanso sugeridos entre series. */
   descansoSegundos: number
+  /**
+   * Lo que hace falta para hacerlo. Opcional en el tipo y obligatorio por
+   * test en cuanto el catálogo lo cargue: un ejercicio sin equipo no se puede
+   * filtrar por lo que tenés.
+   */
+  equipo?: Equipo[]
+  /**
+   * Para una variante que no es eslabón: a qué eslabón equivale, en qué
+   * cadena. Es lo que deja compararla en la curva de fuerza.
+   */
+  equivale?: { patron: Patron; nivel: number }
+  /** Un accesorio: suma trabajo y nunca se compara con una cadena. */
+  accesorio?: true
+  /**
+   * La banda de dificultad de lo que no es eslabón. No se llama `nivel`
+   * porque `nivel` ya es la posición en la cadena, y es obligatorio.
+   */
+  grado?: 1 | 2 | 3
+  /** La cantidad es por lado: se hace dos veces, una con cada lado. */
+  porLado?: true
+  /** Otros nombres con los que se lo busca. */
+  alias?: string[]
+  /** Las articulaciones que carga, para la molestia por zona. */
+  carga?: Articulacion[]
 }
 
 /** El rango de repeticiones (o segundos) en el que se trabaja un ejercicio. */
@@ -164,6 +188,17 @@ export interface RegistroEjercicio {
    * La curva de fuerza los saltea; el mapa muscular los cuenta.
    */
   reloj?: true
+  /** El id del paso del que salió, en una sesión armada con pasos. */
+  paso?: string
+  /**
+   * Un paso fijo: el ejercicio y los números los puso la persona, así que no
+   * lee la cadena aunque sea su eslabón.
+   */
+  fijo?: true
+  /** Entrada en calor: no es trabajo, y no lee ni suma a la fuerza. */
+  calentamiento?: true
+  /** Si se cambió en plena sesión, el ejercicio que había antes. */
+  cambiadoDe?: string
 }
 
 /**
@@ -181,6 +216,124 @@ export interface RegistroEjercicio {
  * pérdida de capacidad lo que en realidad es no haber descansado.
  */
 export type TipoSesion = 'plan' | 'corta' | 'vuelta' | 'fuelle' | 'reloj'
+
+// ─── La reestructura: zonas, equipo, rutinas propias y de dónde salió cada sesión ───
+
+/** Las zonas del cuerpo como mapa, más el cuerpo completo. */
+export type Sector =
+  | 'pecho'
+  | 'espalda'
+  | 'hombros'
+  | 'brazos'
+  | 'core'
+  | 'piernas'
+  | 'gluteos'
+  | 'cuerpo'
+
+/** Lo que un ejercicio puede necesitar. `nada` es el piso. */
+export type Equipo =
+  | 'nada'
+  | 'silla'
+  | 'pared'
+  | 'marco'
+  | 'toalla'
+  | 'objetos'
+  | 'escalon'
+  | 'barra-baja'
+  | 'barra'
+  | 'banda'
+  | 'paralelas'
+  | 'anillas'
+  | 'discos'
+
+export type Articulacion = 'muneca' | 'codo' | 'hombro' | 'lumbar' | 'cadera' | 'rodilla' | 'tobillo'
+
+/** Dónde va un paso en la sesión. */
+export type SeccionDelPaso = 'entrada' | 'principal' | 'final'
+
+/**
+ * Qué hace un paso.
+ *
+ * - `cadena`: el motor pone el ejercicio y los números, y es lo único que lee
+ *   la cadena.
+ * - `volumen`: un eslabón más fácil que suma trabajo; se guarda con `bajada`.
+ * - `fijo`: el ejercicio y los números los elegiste vos.
+ * - `movilidad`: una ficha de movilidad, con su dosis.
+ */
+export type ClaseDePaso = 'cadena' | 'volumen' | 'fijo' | 'movilidad'
+
+/** Un paso de una rutina propia. */
+export interface PasoDeRutina {
+  /** Del paso y no del ejercicio: así un ejercicio puede ir dos veces. */
+  id: string
+  clase: ClaseDePaso
+  /** En `cadena` y `volumen`. */
+  patron?: Patron
+  /** En `fijo` y `movilidad`. */
+  ejercicioId?: string
+  /** 1 a 10. En `cadena` y `volumen` manda el motor. */
+  series: number
+  /** Repeticiones o segundos según la medida; solo en `fijo` y `movilidad`. */
+  cantidad?: number
+  kg?: number
+  /** Si falta, el de la ficha. */
+  descansoSegundos?: number
+  seccion: SeccionDelPaso
+  /** La progresión de un fijo lee solo las sesiones posteriores a esto. */
+  editadoEn?: number
+}
+
+/** Una rutina armada por la persona. */
+export interface RutinaPropia {
+  /** `crypto.randomUUID()`. */
+  id: string
+  /** 1 a 40 caracteres. */
+  nombre: string
+  /** 0 a 30: una rutina que ya existía puede quedar sin pasos. */
+  pasos: PasoDeRutina[]
+  /** 1 a 24 caracteres. Las carpetas son los valores distintos. */
+  carpeta?: string
+  creadaEn: number
+  actualizadaEn: number
+  /** De dónde salió, si salió de algo. */
+  desde?: { clase: 'mix'; sector: Sector } | { clase: 'sesion'; sesionId: string }
+  /** Pasos a los que no se les vuelve a ofrecer "¿Que siga tu nivel?". */
+  dejarFijo?: string[]
+}
+
+/**
+ * De dónde salió una sesión.
+ *
+ * Es aparte de `tipo` a propósito: `tipo` dice cómo la lee el motor y esto
+ * dice qué empezó la persona. Una rutina, un mix o un ejercicio solo se leen
+ * como `plan`; el nombre se copia para que el historial siga diciendo lo que
+ * era aunque la rutina se borre o se renombre.
+ */
+export type OrigenDeSesion =
+  | { clase: 'plan'; nombre: string; liviana?: true }
+  | { clase: 'rutina'; rutinaId: string; nombre: string; liviana?: true }
+  | { clase: 'mix'; sector: Sector; nombre: string; version: 'completa' | 'corta' | 'liviana' }
+  | { clase: 'ejercicio'; ejercicioId: string; nombre: string; liviana?: true }
+  | { clase: 'repetir'; sesionId: string; nombre: string; liviana?: true }
+  | { clase: 'libre'; nombre: string }
+  | { clase: 'movilidad'; sector: Sector | 'todo'; nombre: string }
+  | { clase: 'rapida'; cual: 'corta' | 'fuelle' | 'densa' | 'reloj'; nombre: string }
+
+/** Una ficha de movilidad hecha: una cifra por serie. */
+export interface RegistroMovilidad {
+  ejercicioId: string
+  logrado: number[]
+}
+
+/** Lo que se cambió en plena sesión, para el Cierre y "Guardar como rutina". */
+export type CambioEnSesion =
+  | { clase: 'cambio'; pasoId: string; de: string; a: string }
+  | { clase: 'salteado'; pasoId: string }
+  | { clase: 'al-final'; pasoId: string }
+  | { clase: 'agregado'; pasoId: string; ejercicioId: string }
+
+/** Las secciones de Entrenar que se pueden plegar. */
+export type SeccionDelCentro = 'para-vos' | 'rutinas' | 'rapidas' | 'todos'
 
 /** Una sesión de entrenamiento completa. */
 /**
@@ -306,6 +459,19 @@ export interface Sesion {
    * rendimiento. Por eso el motor la mira antes de subir la exigencia.
    */
   animo?: number
+  /** De dónde salió. Ausente en las sesiones viejas: lo deduce `origenDe`. */
+  origen?: OrigenDeSesion
+  /**
+   * Cuándo se anotó la primera serie. Ausente en las viejas: ahí se muestra
+   * la hora de cierre, rotulada como tal, y nunca `finalizadaEn` menos la
+   * duración, que al retomar se re-ancla y daría una hora falsa.
+   */
+  iniciadaEn?: number
+  /**
+   * Las fichas de movilidad hechas. Aparte de `registros`, como `rafagas`,
+   * para no ensuciar el volumen ni la fuerza.
+   */
+  movilidad?: RegistroMovilidad[]
 }
 
 /**
@@ -575,6 +741,24 @@ export interface Preferencias {
    * el esquema de la base.
    */
   revisionDeRequisitos?: RevisionDeRequisitos
+  /**
+   * Cómo se arma la semana: con días de fuerza y descanso, o libre, sin
+   * plan. Ausente: `'semana'`, que es lo que hubo siempre.
+   */
+  modoPlan?: 'semana' | 'libre'
+  /** Equipo que se suma a la barra y al escalón. Ausente: no lo tiene. */
+  tieneBanda?: boolean
+  tieneParalelas?: boolean
+  tieneAnillas?: boolean
+  /** Lo que Entrenar recuerda: qué secciones quedaron plegadas y qué vista del cuerpo. */
+  centro?: { cerradas: SeccionDelCentro[]; vista: 'frente' | 'espalda' | 'lista' }
+  /**
+   * Hasta qué novedades vio. No se migra: alta hecha y sin este campo quiere
+   * decir que la persona actualizó la app.
+   */
+  novedadesVistas?: number
+  /** Si ya vio la explicación de la primera vez en Entrenar. */
+  primeraVezVista?: true
 }
 
 /** Lo que dejó escrito la revisión única de los requisitos. */
@@ -707,6 +891,15 @@ export interface SesionEnCurso {
   pasos?: PasoDelBorrador[]
   /** Qué clase de sesión era, por lo mismo que `pasos`. */
   tipo?: TipoSesion
+  /** De dónde salió. Ausente en los borradores viejos: es el plan. */
+  origen?: OrigenDeSesion
+  /** Lo que se cambió en plena sesión. */
+  cambios?: CambioEnSesion[]
+  /**
+   * Cuándo se anotó la primera serie. Ausente en los viejos, y no se
+   * inventa: ningún otro campo guarda la hora de arranque.
+   */
+  iniciadaEn?: number
 }
 
 /** Un ejercicio del plan, como lo guarda el borrador: qué se pedía de él. */
@@ -714,4 +907,14 @@ export interface PasoDelBorrador {
   ejercicioId: string
   objetivo: Objetivo
   bajada?: true
+  /**
+   * El id del paso. En los borradores viejos falta, y `normalizarBorrador`
+   * pone el del ejercicio, que es la clave con la que ya estaba en `hechas`.
+   */
+  id?: string
+  clase?: ClaseDePaso
+  seccion?: SeccionDelPaso
+  fijo?: true
+  calentamiento?: true
+  descansoSegundos?: number
 }

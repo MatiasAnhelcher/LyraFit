@@ -26,23 +26,65 @@ import { esDiaValido } from './borrador'
 import { contestoElChequeo } from './estado'
 import { movimientoGuardado } from './movimiento'
 import type { DiaDelDiario } from './nutricion'
-import type { Avance, Estado, Patron, Preferencias, Sesion, TipoSesion } from './tipos'
+import type {
+  Avance,
+  ClaseDePaso,
+  Estado,
+  MotivoDeDecision,
+  PasoDeRutina,
+  Patron,
+  Preferencias,
+  RutinaPropia,
+  SeccionDelCentro,
+  SeccionDelPaso,
+  Sector,
+  Sesion,
+  TipoSesion,
+} from './tipos'
 
 /** Lo que queda de un archivo que pasó la revisión: la forma de hoy, completa. */
 export interface CopiaRevisada {
-  version: 3
+  version: 4
   exportadoEn: string
   sesiones: Sesion[]
   avances: Avance[]
   estados: Estado[]
   preferencias: Preferencias
   diario: DiaDelDiario[]
+  /** Las rutinas propias. Las copias de antes de la v4 entran sin ninguna. */
+  rutinas: RutinaPropia[]
 }
 
 export type RevisionDeCopia = { copia: CopiaRevisada } | { problema: string }
 
 const PATRONES = new Set<Patron>(['empuje', 'traccion', 'piernas', 'core', 'bisagra'])
 const TIPOS = new Set<TipoSesion>(['plan', 'corta', 'vuelta', 'fuelle', 'reloj'])
+const SECTORES = new Set<Sector>([
+  'pecho',
+  'espalda',
+  'hombros',
+  'brazos',
+  'core',
+  'piernas',
+  'gluteos',
+  'cuerpo',
+])
+/**
+ * Un Record y no un Set: si `MotivoDeDecision` suma un motivo, esto no compila
+ * hasta sumarlo acá. Con un Set, una copia con el motivo nuevo se rechazaba
+ * entera sin que nada avisara.
+ */
+const MOTIVOS: Record<MotivoDeDecision, true> = {
+  'ya-leida-hoy': true,
+  'a-medias': true,
+  protegida: true,
+  prefatiga: true,
+}
+const CLASES_DE_PASO = new Set<ClaseDePaso>(['cadena', 'volumen', 'fijo', 'movilidad'])
+const SECCIONES_DEL_PASO = new Set<SeccionDelPaso>(['entrada', 'principal', 'final'])
+const SECCIONES_DEL_CENTRO = new Set<SeccionDelCentro>(['para-vos', 'rutinas', 'rapidas', 'todos'])
+/** Lo más largo que puede ser una rutina, y lo que pide la copia. */
+export const TOPE_DE_PASOS = 30
 
 type Fila = Record<string, unknown>
 
@@ -51,6 +93,44 @@ const esNumero = (x: unknown): x is number => typeof x === 'number' && Number.is
 const esTexto = (x: unknown): x is string => typeof x === 'string' && x.length > 0
 /** Un campo opcional: o no está, o tiene la forma pedida. */
 const opcional = (x: unknown, forma: (x: unknown) => boolean) => x === undefined || forma(x)
+const esVerdad = (x: unknown) => x === true
+const enteroEntre = (min: number, max: number) => (x: unknown) =>
+  Number.isInteger(x) && (x as number) >= min && (x as number) <= max
+const textoDeHasta = (max: number) => (x: unknown) => esTexto(x) && x.length <= max
+
+/**
+ * Si `origen` tiene la forma de una de las ocho clases.
+ *
+ * Una clase que no se conoce rechaza la copia, como un `tipo` que no se
+ * conoce: la app no sabría qué decir de esa sesión en el historial.
+ */
+function origenSano(o: unknown): boolean {
+  if (!esFila(o) || !esTexto(o.nombre)) return false
+  const liviana = opcional(o.liviana, esVerdad)
+  switch (o.clase) {
+    case 'plan':
+      return liviana
+    case 'rutina':
+      return liviana && esTexto(o.rutinaId)
+    case 'mix':
+      return (
+        SECTORES.has(o.sector as Sector) &&
+        (o.version === 'completa' || o.version === 'corta' || o.version === 'liviana')
+      )
+    case 'ejercicio':
+      return liviana && esTexto(o.ejercicioId)
+    case 'repetir':
+      return liviana && esTexto(o.sesionId)
+    case 'libre':
+      return true
+    case 'movilidad':
+      return o.sector === 'todo' || SECTORES.has(o.sector as Sector)
+    case 'rapida':
+      return o.cual === 'corta' || o.cual === 'fuelle' || o.cual === 'densa' || o.cual === 'reloj'
+    default:
+      return false
+  }
+}
 
 /** Por qué un objetivo no sirve, o null si sirve. */
 function objetivoRoto(o: unknown): string | null {
@@ -73,6 +153,14 @@ function sesionRota(s: unknown): string | null {
     const objetivo = objetivoRoto(r.objetivo)
     if (objetivo) return `en el ejercicio ${i + 1}, ${objetivo}`
     if (!Array.isArray(r.series)) return `el ejercicio ${i + 1} no tiene series`
+    if (
+      !opcional(r.paso, esTexto) ||
+      !opcional(r.cambiadoDe, esTexto) ||
+      !opcional(r.fijo, esVerdad) ||
+      !opcional(r.calentamiento, esVerdad)
+    ) {
+      return `el ejercicio ${i + 1} tiene una marca que no se entiende`
+    }
     for (const serie of r.series) {
       if (!esFila(serie) || !esNumero(serie.logrado)) {
         return `una serie del ejercicio ${i + 1} no tiene número`
@@ -103,10 +191,34 @@ function sesionRota(s: unknown): string | null {
       s.decisiones,
       (lista) =>
         Array.isArray(lista) &&
-        lista.every((d) => esFila(d) && typeof d.explicacion === 'string'),
+        lista.every(
+          (d) =>
+            esFila(d) &&
+            typeof d.explicacion === 'string' &&
+            opcional(d.motivo, (m) => typeof m === 'string' && Object.hasOwn(MOTIVOS, m)) &&
+            opcional(d.leidaA, esNumero),
+        ),
     )
   ) {
     return 'una decisión del motor está incompleta'
+  }
+  if (!opcional(s.origen, origenSano)) return 'no se entiende de dónde salió'
+  if (!opcional(s.iniciadaEn, esNumero)) return 'la hora en que empezó no es un número'
+  if (
+    !opcional(
+      s.movilidad,
+      (lista) =>
+        Array.isArray(lista) &&
+        lista.every(
+          (m) =>
+            esFila(m) &&
+            esTexto(m.ejercicioId) &&
+            Array.isArray(m.logrado) &&
+            m.logrado.every(esNumero),
+        ),
+    )
+  ) {
+    return 'la movilidad está incompleta'
   }
   if (![s.esfuerzo, s.vitalidadPre, s.vitalidadPost, s.animo].every((x) => opcional(x, esNumero))) {
     return 'una de las respuestas del final no es un número'
@@ -187,6 +299,133 @@ function diaRoto(d: unknown): string | null {
   return null
 }
 
+/**
+ * Por qué un paso de rutina no sirve, o null si sirve.
+ *
+ * Un `ejercicioId` que la app no conoce no rompe nada: el paso entra y se ve
+ * como "ya no está". Lo que no entra es un paso sin la forma que la pantalla
+ * y el plan necesitan.
+ */
+function pasoRoto(p: unknown): string | null {
+  if (!esFila(p) || !esTexto(p.id)) return 'un paso no tiene identificador'
+  if (!CLASES_DE_PASO.has(p.clase as ClaseDePaso)) return 'un paso es de una clase que no existe'
+  if (!SECCIONES_DEL_PASO.has(p.seccion as SeccionDelPaso)) return 'un paso no dice dónde va'
+  if (!enteroEntre(1, 10)(p.series)) return 'un paso tiene series fuera de 1 a 10'
+  if (!opcional(p.cantidad, enteroEntre(1, 300))) return 'un paso tiene una cantidad fuera de 1 a 300'
+  if (!opcional(p.kg, (k) => esNumero(k) && k >= 0)) return 'los kilos de un paso no son un número'
+  if (!opcional(p.descansoSegundos, enteroEntre(0, 600))) {
+    return 'el descanso de un paso está fuera de 0 a 600 segundos'
+  }
+  if (!opcional(p.editadoEn, esNumero)) return 'la fecha de edición de un paso no es un número'
+  const deCadena = p.clase === 'cadena' || p.clase === 'volumen'
+  if (deCadena && !PATRONES.has(p.patron as Patron)) return 'un paso de cadena no dice cuál'
+  if (!deCadena && !esTexto(p.ejercicioId)) return 'un paso no dice qué ejercicio es'
+  return null
+}
+
+function rutinaRota(r: unknown): string | null {
+  if (!esFila(r) || !esTexto(r.id)) return 'no tiene identificador'
+  if (!textoDeHasta(40)(r.nombre)) return 'el nombre tiene que tener de 1 a 40 letras'
+  if (!opcional(r.carpeta, textoDeHasta(24))) return 'la carpeta tiene que tener de 1 a 24 letras'
+  if (!esNumero(r.creadaEn) || !esNumero(r.actualizadaEn)) return 'faltan sus fechas'
+  if (
+    !opcional(
+      r.desde,
+      (d) =>
+        esFila(d) &&
+        ((d.clase === 'mix' && SECTORES.has(d.sector as Sector)) ||
+          (d.clase === 'sesion' && esTexto(d.sesionId))),
+    )
+  ) {
+    return 'no se entiende de dónde salió'
+  }
+  if (!opcional(r.dejarFijo, (l) => Array.isArray(l) && l.every(esTexto))) {
+    return 'la lista de pasos fijos está rota'
+  }
+  if (!Array.isArray(r.pasos) || r.pasos.length > TOPE_DE_PASOS) {
+    return `tiene que tener de 0 a ${TOPE_DE_PASOS} pasos`
+  }
+  for (const paso of r.pasos) {
+    const motivo = pasoRoto(paso)
+    if (motivo) return motivo
+  }
+  if (repetido(r.pasos.map((p) => (p as Fila).id)) !== undefined) {
+    return 'tiene dos pasos con el mismo identificador'
+  }
+  return null
+}
+
+/**
+ * Una rutina sana, rearmada con los campos que se conocen.
+ *
+ * A diferencia de las sesiones, lo que no se conoce no pasa: una rutina se
+ * edita y se vuelve a guardar entera, y un campo ajeno viajaría para siempre
+ * sin que nada lo lea ni lo revise.
+ */
+function rutinaRearmada(r: Fila): RutinaPropia {
+  const pasos = (r.pasos as Fila[]).map((p): PasoDeRutina => {
+    const deCadena = p.clase === 'cadena' || p.clase === 'volumen'
+    return {
+      id: p.id as string,
+      clase: p.clase as ClaseDePaso,
+      ...(deCadena ? { patron: p.patron as Patron } : { ejercicioId: p.ejercicioId as string }),
+      series: p.series as number,
+      ...(p.cantidad !== undefined ? { cantidad: p.cantidad as number } : {}),
+      ...(p.kg !== undefined ? { kg: p.kg as number } : {}),
+      ...(p.descansoSegundos !== undefined ? { descansoSegundos: p.descansoSegundos as number } : {}),
+      seccion: p.seccion as SeccionDelPaso,
+      ...(p.editadoEn !== undefined ? { editadoEn: p.editadoEn as number } : {}),
+    }
+  })
+  const desde = r.desde as Fila | undefined
+  return {
+    id: r.id as string,
+    nombre: r.nombre as string,
+    pasos,
+    ...(r.carpeta !== undefined ? { carpeta: r.carpeta as string } : {}),
+    creadaEn: r.creadaEn as number,
+    actualizadaEn: r.actualizadaEn as number,
+    ...(desde
+      ? {
+          desde:
+            desde.clase === 'mix'
+              ? { clase: 'mix' as const, sector: desde.sector as Sector }
+              : { clase: 'sesion' as const, sesionId: desde.sesionId as string },
+        }
+      : {}),
+    ...(r.dejarFijo !== undefined ? { dejarFijo: [...(r.dejarFijo as string[])] } : {}),
+  }
+}
+
+/**
+ * Las preferencias que trajo la reestructura, normalizadas.
+ *
+ * Son comodidades de pantalla y no datos: un valor que no se entiende vuelve
+ * al de siempre —que es no tenerlo— en vez de rechazar la copia entera, igual
+ * que `movimiento`. `centro.cerradas` se queda con las secciones que existen.
+ */
+export function preferenciasNuevasGuardadas(p: Fila): Fila {
+  const limpias: Fila = { ...p }
+  if (p.modoPlan !== 'semana' && p.modoPlan !== 'libre') delete limpias.modoPlan
+  for (const campo of ['tieneBanda', 'tieneParalelas', 'tieneAnillas'] as const) {
+    if (typeof p[campo] !== 'boolean') delete limpias[campo]
+  }
+  if (!esNumero(p.novedadesVistas)) delete limpias.novedadesVistas
+  if (p.primeraVezVista !== true) delete limpias.primeraVezVista
+  if (esFila(p.centro)) {
+    const { vista, cerradas } = p.centro
+    limpias.centro = {
+      cerradas: Array.isArray(cerradas)
+        ? cerradas.filter((s) => SECCIONES_DEL_CENTRO.has(s as SeccionDelCentro))
+        : ['rapidas', 'todos'],
+      vista: vista === 'frente' || vista === 'espalda' || vista === 'lista' ? vista : 'frente',
+    }
+  } else {
+    delete limpias.centro
+  }
+  return limpias
+}
+
 /** El primer valor repetido de una lista, o undefined. */
 function repetido(valores: unknown[]): unknown {
   const vistos = new Set<unknown>()
@@ -209,7 +448,7 @@ function repetido(valores: unknown[]): unknown {
 export function revisarCopia(dato: unknown): RevisionDeCopia {
   if (!esFila(dato)) return { problema: 'El archivo no tiene el formato de una copia de LyraFit.' }
   const version = dato.version
-  if (version !== 1 && version !== 2 && version !== 3) {
+  if (version !== 1 && version !== 2 && version !== 3 && version !== 4) {
     return { problema: 'La copia es de una versión que esta app todavía no entiende.' }
   }
   if (!Array.isArray(dato.sesiones) || !Array.isArray(dato.avances)) {
@@ -217,6 +456,9 @@ export function revisarCopia(dato: unknown): RevisionDeCopia {
   }
   if (!opcional(dato.estados, Array.isArray) || !opcional(dato.diario, Array.isArray)) {
     return { problema: 'A la copia se le rompió la lista del chequeo diario o la del diario.' }
+  }
+  if (!opcional(dato.rutinas, Array.isArray)) {
+    return { problema: 'A la copia se le rompió la lista de rutinas.' }
   }
   if (typeof dato.exportadoEn !== 'string' || Number.isNaN(Date.parse(dato.exportadoEn))) {
     return { problema: 'A la copia le falta la fecha en que se hizo.' }
@@ -226,6 +468,7 @@ export function revisarCopia(dato: unknown): RevisionDeCopia {
   const avances = dato.avances as unknown[]
   const estados = (dato.estados ?? []) as unknown[]
   const diario = (dato.diario ?? []) as unknown[]
+  const rutinas = (dato.rutinas ?? []) as unknown[]
 
   for (const [i, s] of sesiones.entries()) {
     const motivo = sesionRota(s)
@@ -243,6 +486,10 @@ export function revisarCopia(dato: unknown): RevisionDeCopia {
     const motivo = diaRoto(d)
     if (motivo) return { problema: `El día ${i + 1} del diario de la copia está roto: ${motivo}.` }
   }
+  for (const [i, r] of rutinas.entries()) {
+    const motivo = rutinaRota(r)
+    if (motivo) return { problema: `La rutina ${i + 1} de la copia está rota: ${motivo}.` }
+  }
 
   // Sin preferencias no hay alta completada, y la app manda al test de nivel,
   // que al terminar pisa los niveles que se acaban de restaurar.
@@ -258,6 +505,7 @@ export function revisarCopia(dato: unknown): RevisionDeCopia {
     [avances.map((a) => (a as Fila).patron), 'La copia tiene dos niveles para la misma cadena.'],
     [estados.map((e) => (e as Fila).fecha), 'La copia tiene dos chequeos del mismo día.'],
     [diario.map((d) => (d as Fila).fecha), 'La copia tiene dos días del diario con la misma fecha.'],
+    [rutinas.map((r) => (r as Fila).id), 'Hay dos rutinas con el mismo identificador en la copia.'],
   ]
   for (const [valores, problema] of claves) {
     if (repetido(valores) !== undefined) return { problema }
@@ -265,7 +513,7 @@ export function revisarCopia(dato: unknown): RevisionDeCopia {
 
   return {
     copia: {
-      version: 3,
+      version: 4,
       exportadoEn: dato.exportadoEn,
       sesiones: (sesiones as Fila[]).map(
         (s) => ({ ...s, tipo: s.tipo ?? 'plan' }) as unknown as Sesion,
@@ -277,10 +525,11 @@ export function revisarCopia(dato: unknown): RevisionDeCopia {
       // que es lo que esa persona tenía; y un valor que no se entiende no
       // rompe la copia, porque no es un dato: se vuelve a seguir al teléfono.
       preferencias: {
-        ...preferencias,
+        ...preferenciasNuevasGuardadas(preferencias),
         movimiento: movimientoGuardado(preferencias),
       } as unknown as Preferencias,
       diario: diario as DiaDelDiario[],
+      rutinas: (rutinas as Fila[]).map(rutinaRearmada),
     },
   }
 }
@@ -290,6 +539,8 @@ export function revisarCopia(dato: unknown): RevisionDeCopia {
 /** Lo que trae una copia (o lo que hay hoy en el teléfono), contado. */
 export interface ResumenDeCopia {
   sesiones: number
+  /** Rutinas propias. */
+  rutinas: number
   /** Días del diario con algo anotado. */
   diario: number
   /** Chequeos diarios contestados. Una molestia avisada sola no es uno. */
@@ -300,7 +551,7 @@ export interface ResumenDeCopia {
 }
 
 export function resumenDeCopia(
-  copia: Pick<CopiaRevisada, 'sesiones' | 'estados' | 'diario'>,
+  copia: Pick<CopiaRevisada, 'sesiones' | 'estados' | 'diario'> & { rutinas?: unknown[] },
 ): ResumenDeCopia {
   const dias = [
     ...copia.sesiones.map((s) => s.fecha),
@@ -309,6 +560,7 @@ export function resumenDeCopia(
   ].sort()
   return {
     sesiones: copia.sesiones.length,
+    rutinas: copia.rutinas?.length ?? 0,
     diario: copia.diario.length,
     // Una fila con la molestia sola no es un chequeo: no se contestó nada.
     // Entra en el rango de días, porque es algo guardado ese día.
@@ -346,6 +598,7 @@ export function detalleDelResumen(r: ResumenDeCopia): string {
   } else {
     partes.push('sin nada anotado')
   }
+  if (r.rutinas > 0) partes.push(enPlural(r.rutinas, 'rutina', 'rutinas'))
   if (r.diario > 0) partes.push(enPlural(r.diario, 'día del diario', 'días del diario'))
   if (r.chequeos > 0) partes.push(enPlural(r.chequeos, 'chequeo', 'chequeos'))
   return partes.join(' · ')
@@ -356,10 +609,30 @@ export function detalleDelResumen(r: ResumenDeCopia): string {
  * porque es lo único que no se puede deshacer desde la app.
  */
 export function fraseDelReemplazo(deLaCopia: ResumenDeCopia, actual: ResumenDeCopia): string {
-  if (actual.sesiones === 0) {
-    return `Hoy no tenés sesiones guardadas. El archivo trae ${cuantasSesiones(deLaCopia.sesiones)}.`
+  // Las rutinas se nombran solo si hay alguna de algún lado: sin rutinas, la
+  // frase de siempre, que es la que se lee más fácil.
+  if (actual.rutinas === 0 && deLaCopia.rutinas === 0) {
+    if (actual.sesiones === 0) {
+      return `Hoy no tenés sesiones guardadas. El archivo trae ${cuantasSesiones(deLaCopia.sesiones)}.`
+    }
+    return `Vas a reemplazar ${cuantasSesiones(actual.sesiones)} por ${deLaCopia.sesiones}.`
   }
-  return `Vas a reemplazar ${cuantasSesiones(actual.sesiones)} por ${deLaCopia.sesiones}.`
+  const cuanto = (r: ResumenDeCopia) =>
+    `${r.sesiones === 0 ? 'ninguna sesión' : cuantasSesiones(r.sesiones)} y ${
+      r.rutinas === 0 ? 'ninguna rutina' : enPlural(r.rutinas, 'rutina', 'rutinas')
+    }`
+  // Solo lo que hay: "reemplazar ninguna sesión" o "trae ninguna sesión" no
+  // se dicen. Del lado de la copia que reemplaza, en cambio, van las dos
+  // cosas: "por 12 sesiones y ninguna rutina" es justo lo que se pierde.
+  const loQueHay = (r: ResumenDeCopia) =>
+    [
+      ...(r.sesiones > 0 ? [cuantasSesiones(r.sesiones)] : []),
+      ...(r.rutinas > 0 ? [enPlural(r.rutinas, 'rutina', 'rutinas')] : []),
+    ].join(' y ')
+  if (actual.sesiones === 0 && actual.rutinas === 0) {
+    return `Hoy no tenés sesiones ni rutinas guardadas. El archivo trae ${loQueHay(deLaCopia)}.`
+  }
+  return `Vas a reemplazar ${loQueHay(actual)} por ${cuanto(deLaCopia)}.`
 }
 
 /**

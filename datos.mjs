@@ -21,19 +21,21 @@
  *    "Guardarla" y "Descartarla", Entrenar no la pisa, y guardarla deja la
  *    sesión con todas sus series. Si guardarla falla, se dice y la sesión
  *    sigue ofrecida. Un borrador viejo, sin el día ni el plan, también se
- *    ofrece; cambiar de nivel a mano desde una ficha no lo borra, y
- *    descartarlo sí.
+ *    ofrece, y descartarlo lo borra. Cambiar de nivel a mano desde una ficha
+ *    lo cierra con lo hecho: la ficha lo dice antes, y la sesión queda
+ *    guardada con todas sus series y su día.
  * 3. **El archivo roto.** Una copia con una sesión sin registros se rechaza
  *    con un mensaje y la base queda intacta.
  * 4. **Restaurar una copia vieja.** Aparece un resumen y una confirmación,
- *    que nombra la sesión a medio hacer que también se borraría; "Mejor no"
- *    no toca nada; "Sí, reemplazar" deja antes una copia automática con lo
- *    que había. Si esa copia no se puede guardar, lo dice y no reemplaza
- *    hasta un segundo toque; si el reemplazo falla, la base queda como
- *    estaba.
+ *    que cuenta las rutinas y nombra la sesión a medio hacer que también se
+ *    borraría; "Mejor no" no toca nada; "Sí, reemplazar" deja antes una copia
+ *    automática con lo que había, rutinas incluidas. Si esa copia no se puede
+ *    guardar, lo dice y no reemplaza hasta un segundo toque; si el reemplazo
+ *    falla, la base queda como estaba. Una copia v3 deja las rutinas vacías y
+ *    la cola de sincronización limpia; una v4 trae sus rutinas idénticas.
  * 5. **Borrar todo.** Si borrar las copias falla, se dice y no aparece
- *    "Listo"; si sale bien, la base y la carpeta de copias quedan vacías y el
- *    "Listo" aparece recién entonces.
+ *    "Listo"; si sale bien, la base (rutinas incluidas) y la carpeta de copias
+ *    quedan vacías y el "Listo" aparece recién entonces.
  * 6. **El cierre que falla.** Si falla guardar la sesión, aparece un aviso y
  *    el borrador sigue entero. Si falla borrar el borrador, la sesión tampoco
  *    queda guardada: es una sola transacción, todo o nada.
@@ -116,14 +118,14 @@ async function empezar(hora) {
   return abierto
 }
 
-const TABLAS = ['sesiones', 'curso', 'avances', 'preferencias', 'estados', 'diario', 'pendientes']
+const TABLAS = ['sesiones', 'curso', 'avances', 'preferencias', 'estados', 'diario', 'pendientes', 'rutinas']
 /** Todas las tablas, leídas directo de IndexedDB. */
 // La lista va escrita dos veces porque `conLaBase` serializa la función y no
 // se lleva `TABLAS`.
 const laBase = (p) =>
   conLaBase(p, TABLAS, async (leer) => {
     const salida = {}
-    for (const t of ['sesiones', 'curso', 'avances', 'preferencias', 'estados', 'diario', 'pendientes']) {
+    for (const t of ['sesiones', 'curso', 'avances', 'preferencias', 'estados', 'diario', 'pendientes', 'rutinas']) {
       salida[t] = await leer(t)
     }
     return salida
@@ -143,13 +145,44 @@ const lasCopias = (p) =>
     for await (const [nombre, archivo] of carpeta.entries()) {
       const texto = await (await archivo.getFile()).text()
       let sesiones = null
+      let rutinas = null
       try {
-        sesiones = JSON.parse(texto).sesiones.length
+        const copia = JSON.parse(texto)
+        sesiones = copia.sesiones.length
+        rutinas = copia.rutinas?.length ?? null
       } catch {}
-      copias.push({ nombre, bytes: texto.length, sesiones })
+      copias.push({ nombre, bytes: texto.length, sesiones, rutinas })
     }
     return copias
   })
+
+/**
+ * Un JSON con las claves ordenadas: lo mismo en cualquier orden de campos.
+ * La copia rearma cada rutina campo por campo, y el orden de las claves de un
+ * objeto no es un dato.
+ */
+const canonico = (valor) =>
+  JSON.stringify(valor, (_, v) =>
+    v && typeof v === 'object' && !Array.isArray(v)
+      ? Object.fromEntries(Object.entries(v).sort(([a], [b]) => a.localeCompare(b)))
+      : v,
+  )
+
+/** Escribe una fila directo en IndexedDB, por atrás de la app. */
+const ponerFila = (p, tabla, fila) =>
+  p.evaluate(
+    async ([t, f]) => {
+      const req = indexedDB.open('lyrafit')
+      const db = await new Promise((r) => (req.onsuccess = () => r(req.result)))
+      await new Promise((r) => {
+        const tx = db.transaction(t, 'readwrite')
+        tx.objectStore(t).put(f)
+        tx.oncomplete = () => r()
+      })
+      db.close()
+    },
+    [tabla, fila],
+  )
 
 const seriesHechas = (registrosOHechas) =>
   registrosOHechas.flatMap((r) => r.series ?? r).filter((s) => s.logrado > 0).length
@@ -334,20 +367,10 @@ const errores = (lista, caso) => {
     notas.push(`${caso}: Hoy dijo "${frase}" y se guardaron ${guardadas} de ${anotadas} series.`)
   }
 
-  // Un borrador como los de antes: sin día, sin plan, sin tipo. Va directo a
-  // la base con un `evaluate` propio porque `conLaBase` serializa la función
-  // y no se lleva el id del ejercicio.
+  // Un borrador como los de antes: sin día, sin plan, sin tipo, escrito
+  // directo en la base.
   const ejercicio = Object.keys(borrador?.hechas ?? {})[0] ?? 'flexion-pared'
-  await p.evaluate(async (viejo) => {
-    const req = indexedDB.open('lyrafit')
-    const db = await new Promise((r) => (req.onsuccess = () => r(req.result)))
-    await new Promise((r) => {
-      const tx = db.transaction('curso', 'readwrite')
-      tx.objectStore('curso').put(viejo)
-      tx.oncomplete = () => r()
-    })
-    db.close()
-  }, {
+  const borradorViejo = {
     id: 'actual',
     arrancadaEn: Date.parse('2026-10-20T19:00:00-03:00'),
     duracionAcumulada: 900,
@@ -356,40 +379,13 @@ const errores = (lista, caso) => {
     indice: 0,
     etapa: 'series',
     hechas: { [ejercicio]: [{ logrado: 6 }, { logrado: 5 }] },
-  })
+  }
+  await ponerFila(p, 'curso', borradorViejo)
   await p.reload({ waitUntil: 'networkidle' })
   await p.waitForTimeout(1200)
   const textoViejo = (await sePuede(oferta)) ? await oferta.innerText() : null
   if (!textoViejo?.includes('del martes 20/10, con 2 series')) {
     fallos.push(`[${caso}] Un borrador viejo, sin el día, no se ofrece bien: ${JSON.stringify(textoViejo)}`)
-  }
-
-  // Cambiar de nivel a mano desde una ficha no la borra. Antes "Empezar la
-  // cadena acá" tiraba el borrador siempre, y la sesión vencida desaparecía
-  // sin mostrarse; se guarda con lo que se anotó, así que no pierde nada.
-  {
-    const { avances } = await laBase(p)
-    const empuje = avances.find((a) => a.patron === 'empuje')?.ejercicioId
-    const destino = empuje === 'flexion-pared' ? 'flexion-inclinada-alta' : 'flexion-pared'
-    await p.goto(`${BASE}/#/biblioteca/${destino}`, { waitUntil: 'networkidle' })
-    await p.waitForTimeout(800)
-    if (!(await tocar(p, 'Empezar la cadena de empuje acá'))) {
-      fallos.push(`[${caso}] La ficha de ${destino} no ofrece empezar la cadena ahí.`)
-    }
-    await p.waitForTimeout(600)
-    const { curso, avances: despues } = await laBase(p)
-    if (despues.find((a) => a.patron === 'empuje')?.ejercicioId !== destino) {
-      fallos.push(`[${caso}] "Empezar la cadena acá" no movió empuje a ${destino}.`)
-    }
-    const hechasDelViejo = { [ejercicio]: [{ logrado: 6 }, { logrado: 5 }] }
-    if (JSON.stringify(curso[0]?.hechas) !== JSON.stringify(hechasDelViejo)) {
-      fallos.push(`[${caso}] Cambiar de nivel a mano borró la sesión vencida que Hoy ofrecía guardar.`)
-    }
-    await p.goto(`${BASE}/#/`, { waitUntil: 'networkidle' })
-    await p.waitForTimeout(800)
-    if (!(await sePuede(oferta))) {
-      fallos.push(`[${caso}] Después de cambiar de nivel a mano, Hoy dejó de ofrecer la sesión vencida.`)
-    }
   }
 
   await tocar(p, 'Descartarla')
@@ -398,6 +394,42 @@ const errores = (lista, caso) => {
     const { sesiones, curso } = await laBase(p)
     if (curso.length !== 0) fallos.push(`[${caso}] "Descartarla" no borró el borrador.`)
     if (sesiones.length !== 1) fallos.push(`[${caso}] "Descartarla" cambió las sesiones guardadas (${sesiones.length}).`)
+  }
+
+  // Cambiar de nivel a mano desde una ficha cierra la sesión a medio hacer
+  // con lo hecho. Antes "Empezar la cadena acá" tiraba el borrador que todavía
+  // se retomaba —Entrenar lo rearmaba con el eslabón nuevo y las series del
+  // viejo quedaban afuera—, y eso era perderlas igual. Ahora se guardan, y la
+  // ficha lo dice antes del toque.
+  {
+    await ponerFila(p, 'curso', borradorViejo)
+    const { avances } = await laBase(p)
+    const empuje = avances.find((a) => a.patron === 'empuje')?.ejercicioId
+    const destino = empuje === 'flexion-pared' ? 'flexion-inclinada-alta' : 'flexion-pared'
+    await p.goto(`${BASE}/#/biblioteca/${destino}`, { waitUntil: 'networkidle' })
+    await p.waitForTimeout(800)
+    if (!(await sePuede(p.getByText('Tenés una sesión a medio hacer: se cierra con lo hecho.')))) {
+      fallos.push(`[${caso}] La ficha no avisa que cambiar de nivel cierra la sesión a medio hacer.`)
+    }
+    if (!(await tocar(p, 'Empezar la cadena de empuje acá'))) {
+      fallos.push(`[${caso}] La ficha de ${destino} no ofrece empezar la cadena ahí.`)
+    }
+    await p.waitForTimeout(800)
+    const { curso, sesiones, avances: despues } = await laBase(p)
+    if (despues.find((a) => a.patron === 'empuje')?.ejercicioId !== destino) {
+      fallos.push(`[${caso}] "Empezar la cadena acá" no movió empuje a ${destino}.`)
+    }
+    if (curso.length !== 0) fallos.push(`[${caso}] Cambiar de nivel a mano dejó el borrador sin cerrar.`)
+    const cerrada = sesiones.find((s) => s.fecha === '2026-10-20')
+    if (sesiones.length !== 2 || !cerrada) {
+      fallos.push(`[${caso}] Cambiar de nivel a mano no guardó la sesión a medio hacer: ${sesiones.length} sesiones.`)
+    } else if (seriesHechas(cerrada.registros) !== 2) {
+      fallos.push(`[${caso}] La sesión cerrada al cambiar de nivel tiene ${seriesHechas(cerrada.registros)} series y se anotaron 2.`)
+    }
+    await p.goto(`${BASE}/#/`, { waitUntil: 'networkidle' })
+    await p.waitForTimeout(800)
+    if (await sePuede(oferta)) fallos.push(`[${caso}] Después de cerrarla con el cambio de nivel, Hoy la sigue ofreciendo.`)
+    notas.push(`${caso}: cambiar de nivel a mano cerró la sesión a medio hacer con ${cerrada ? seriesHechas(cerrada.registros) : 0} de 2 series, del ${cerrada?.fecha}.`)
   }
 
   // 3. El archivo roto.
@@ -446,6 +478,19 @@ const errores = (lista, caso) => {
 
   // 4. Restaurar una copia vieja.
   caso = '4 · restaurar'
+  // Una rutina armada por la persona, como la escribe la app.
+  const rutina = {
+    id: 'rutina-del-porton',
+    nombre: 'Pecho en casa',
+    carpeta: 'Casa',
+    creadaEn: Date.parse('2026-10-19T10:00:00-03:00'),
+    actualizadaEn: Date.parse('2026-10-19T10:05:00-03:00'),
+    pasos: [
+      { id: 'p1', clase: 'cadena', patron: 'empuje', series: 3, seccion: 'principal' },
+      { id: 'p2', clase: 'fijo', ejercicioId: 'flexion-diamante', series: 2, cantidad: 8, seccion: 'principal' },
+    ],
+  }
+  await ponerFila(p, 'rutinas', rutina)
   // Con una sesión a medio hacer: restaurar la borra y no va en ninguna copia,
   // así que la confirmación tiene que nombrarla. Se escribe parado en Ajustes,
   // donde nada reescribe el borrador.
@@ -472,19 +517,19 @@ const errores = (lista, caso) => {
   if (!resumen) {
     fallos.push(`[${caso}] Elegir una copia vieja no mostró ninguna confirmación.`)
   } else {
-    if (!resumen.includes('Vas a reemplazar 1 sesión por 0')) {
+    if (!resumen.includes('Vas a reemplazar 2 sesiones y 1 rutina por ninguna sesión y ninguna rutina.')) {
       fallos.push(`[${caso}] El resumen no dice qué se reemplaza: "${resumen.replace(/\s+/g, ' ')}"`)
     }
     if (!resumen.includes('que quedó sin cerrar, con 4 series, también se borra')) {
       fallos.push(`[${caso}] La confirmación no avisa que la sesión a medio hacer también se borra: "${resumen.replace(/\s+/g, ' ')}"`)
     }
   }
-  if ((await laBase(p)).sesiones.length !== 1) fallos.push(`[${caso}] Se reemplazó antes de confirmar.`)
+  if ((await laBase(p)).sesiones.length !== 2) fallos.push(`[${caso}] Se reemplazó antes de confirmar.`)
   await tocar(p, 'Mejor no')
   if (await sePuede(confirmar)) fallos.push(`[${caso}] "Mejor no" no cerró la confirmación.`)
   {
-    const { sesiones, curso } = await laBase(p)
-    if (sesiones.length !== 1) fallos.push(`[${caso}] "Mejor no" cambió la base.`)
+    const { sesiones, curso, rutinas } = await laBase(p)
+    if (sesiones.length !== 2 || rutinas.length !== 1) fallos.push(`[${caso}] "Mejor no" cambió la base.`)
     if (curso.length !== 1) fallos.push(`[${caso}] "Mejor no" borró la sesión a medio hacer.`)
   }
 
@@ -503,7 +548,7 @@ const errores = (lista, caso) => {
     if (!(await sePuede(boton(p, 'Reemplazar sin copia')))) {
       fallos.push(`[${caso}] Sin poder guardar la copia de antes, el botón no dice que va sin copia.`)
     }
-    if (sesiones.length !== 1 || curso.length !== 1) {
+    if (sesiones.length !== 2 || curso.length !== 1) {
       fallos.push(`[${caso}] Sin poder guardar la copia de antes, reemplazó igual en el primer toque.`)
     }
     notas.push(`${caso}: sin copia de antes, dice "${dice.join(' ').replace(/\s+/g, ' ')}".`)
@@ -518,13 +563,14 @@ const errores = (lista, caso) => {
   await fallar(p, null)
   {
     const dice = await p.getByRole('status').allInnerTexts()
-    const { sesiones, avances, curso } = await laBase(p)
+    const { sesiones, avances, curso, rutinas } = await laBase(p)
     if (!dice.some((t) => t.includes('No se pudo restaurar. Tus datos quedaron como estaban.'))) {
       fallos.push(`[${caso}] Si el reemplazo falla, no lo dice: ${JSON.stringify(dice)}`)
     }
     if (
-      sesiones.length !== 1 ||
+      sesiones.length !== 2 ||
       curso.length !== 1 ||
+      canonico(rutinas) !== canonico([rutina]) ||
       JSON.stringify(avances) !== JSON.stringify(antes.avances)
     ) {
       fallos.push(
@@ -538,20 +584,60 @@ const errores = (lista, caso) => {
   await tocar(p, 'Sí, reemplazar')
   await p.waitForTimeout(1500)
   {
-    const { sesiones } = await laBase(p)
+    const { sesiones, rutinas, pendientes } = await laBase(p)
     const copias = (await lasCopias(p)) ?? []
     const previa = copias.find((c) => c.nombre.includes('antes-de-restaurar'))
     const avisoFinal = await p.getByRole('status').allInnerTexts()
     if (sesiones.length !== 0) fallos.push(`[${caso}] Después de confirmar hay ${sesiones.length} sesiones y la copia traía 0.`)
+    // Una copia v3 no conoce las rutinas: entran vacías, y las de antes no
+    // quedan pegadas a un historial que no es el suyo.
+    if (rutinas.length !== 0) fallos.push(`[${caso}] Después de restaurar una copia v3 quedaron ${rutinas.length} rutinas.`)
+    if (pendientes.length !== 0) {
+      fallos.push(`[${caso}] Restaurar dejó ${pendientes.length} filas en la cola de sincronización, que nombran datos que ya no están.`)
+    }
     if (!avisoFinal.some((t) => t.includes('Listo: 0 sesiones restauradas.'))) {
       fallos.push(`[${caso}] Después de reemplazar no dice "Listo": ${JSON.stringify(avisoFinal)}`)
     }
     if (!previa) {
       fallos.push(`[${caso}] No quedó una copia automática antes de reemplazar: ${JSON.stringify(copias)}`)
-    } else if (previa.sesiones !== 1) {
-      fallos.push(`[${caso}] La copia de antes tiene ${previa.sesiones} sesiones y tenía que tener lo que había: 1.`)
+    } else if (previa.sesiones !== 2 || previa.rutinas !== 1) {
+      fallos.push(
+        `[${caso}] La copia de antes tiene ${previa.sesiones} sesiones y ${previa.rutinas} rutinas, ` +
+          'y tenía que tener lo que había: 2 y 1.',
+      )
     }
-    notas.push(`${caso}: resumen "${resumen?.split('\n').find((l) => l.startsWith('Vas a reemplazar')) ?? ''}", copia previa ${previa?.nombre} con ${previa?.sesiones} sesión.`)
+    notas.push(`${caso}: resumen "${resumen?.split('\n').find((l) => l.startsWith('Vas a reemplazar')) ?? ''}", copia previa ${previa?.nombre} con ${previa?.sesiones} sesiones y ${previa?.rutinas} rutina.`)
+  }
+
+  // Una copia v4 trae sus rutinas, idénticas.
+  await elegir(
+    'lyrafit-2026-10-21.json',
+    Buffer.from(
+      JSON.stringify({
+        version: 4,
+        exportadoEn: '2026-10-21T12:00:00.000Z',
+        sesiones: [],
+        avances: antes.avances,
+        estados: [],
+        preferencias,
+        diario: [],
+        rutinas: [rutina],
+      }),
+    ),
+  )
+  {
+    const frase = (await sePuede(confirmar)) ? await confirmar.innerText() : ''
+    if (!frase.includes('Hoy no tenés sesiones ni rutinas guardadas. El archivo trae 1 rutina.')) {
+      fallos.push(`[${caso}] El resumen de una copia v4 no cuenta su rutina: "${frase.replace(/\s+/g, ' ')}"`)
+    }
+  }
+  await tocar(p, 'Sí, reemplazar')
+  await p.waitForTimeout(1500)
+  {
+    const { rutinas } = await laBase(p)
+    if (canonico(rutinas) !== canonico([rutina])) {
+      fallos.push(`[${caso}] La rutina de una copia v4 no volvió idéntica: ${JSON.stringify(rutinas)}`)
+    }
   }
 
   // 5. Borrar todo.

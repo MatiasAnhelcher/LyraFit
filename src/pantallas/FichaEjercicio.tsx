@@ -9,7 +9,15 @@ import { FiguraEjercicio } from '@/componentes/figura'
 import { LinkConPasaje } from '@/componentes/movimiento'
 import { CuerpoDoble } from '@/componentes/cuerpo'
 import { APORTE, NOMBRE_MUSCULO, PISO_DE_DOSIS, type Aporte, type Musculo } from '@/dominio/musculos'
-import { fijarNivel, leerAvances, leerPreferencias, leerSesiones } from '@/datos/repositorio'
+import {
+  fijarNivel,
+  leerAvances,
+  leerPreferencias,
+  leerSesionEnCurso,
+  leerSesiones,
+} from '@/datos/repositorio'
+import { alCambiarDeNivel } from '@/dominio/borrador'
+import { respaldarPronto } from '@/datos/respaldo'
 import { Accion, AccionQuieta, Cargando, Glifo, Objetivo, Rotulo, Simbolo, nombreUnidad } from '@/componentes/ui'
 
 /**
@@ -31,6 +39,15 @@ export function FichaEjercicio() {
   const avances = useLiveQuery(leerAvances, [])
   const sesiones = useLiveQuery(() => leerSesiones(), [])
   const preferencias = useLiveQuery(leerPreferencias, [])
+  // Si fijar el nivel va a cerrar una sesión a medio hacer: se dice antes del
+  // toque, con la misma regla que usa `fijarNivel`.
+  const cierraUnaSesion = useLiveQuery(
+    async () => {
+      const borrador = await leerSesionEnCurso()
+      return borrador !== null && alCambiarDeNivel(borrador) === 'cerrar'
+    },
+    [],
+  )
 
   if (!ejercicio) {
     return (
@@ -384,7 +401,13 @@ export function FichaEjercicio() {
           corrupción de datos, no un texto raro. */}
       {!esActual && esEslabon && (
         <div className="mt-8">
-          <AccionQuieta onClick={() => void fijarNivel(ejercicio.patron, ejercicio.id)}>
+          <AccionQuieta
+            onClick={() =>
+              // La copia automática también: mover el nivel cambia el avance
+              // fuera de una sesión, y puede cerrar la que estaba a medio hacer.
+              void fijarNivel(ejercicio.patron, ejercicio.id).then(respaldarPronto)
+            }
+          >
             Empezar la cadena de {NOMBRE_PATRON[ejercicio.patron].toLowerCase()} acá
           </AccionQuieta>
           <p className="mt-3 text-xs leading-relaxed text-[var(--color-glosa)]">
@@ -392,6 +415,11 @@ export function FichaEjercicio() {
             corregilo desde acá: arranca en {ejercicio.ventana.min}{' '}
             {nombreUnidad(ejercicio.medida)} por serie.
           </p>
+          {cierraUnaSesion && (
+            <p className="mt-2 text-xs leading-relaxed text-[var(--color-glosa)]">
+              Tenés una sesión a medio hacer: se cierra con lo hecho.
+            </p>
+          )}
         </div>
       )}
 

@@ -61,6 +61,30 @@ export async function respaldarEnSilencio(): Promise<boolean> {
   return guardarCopia((datos) => `lyrafit-${datos.exportadoEn.slice(0, 10)}.json`)
 }
 
+/** Cuánto se espera antes de la copia de `respaldarPronto`, para juntar cambios seguidos. */
+export const ESPERA_DE_LA_COPIA = 2000
+
+let agendada: ReturnType<typeof setTimeout> | null = null
+
+/**
+ * La copia automática fuera de una sesión.
+ *
+ * Hasta ahora corría solo al cerrar una sesión, así que una rutina armada un
+ * día sin entrenar quedaba afuera de toda copia hasta la próxima. Esto la
+ * agenda para dentro de `ESPERA_DE_LA_COPIA`: salir del Constructor, borrar,
+ * duplicar o mover una rutina, guardar una sesión como rutina o mover un nivel
+ * a mano la piden, y varias seguidas —borrar tres rutinas al hilo— hacen una
+ * sola copia, con todo adentro. Es la misma `respaldarEnSilencio`, así que
+ * nunca lanza: una copia que falla no rompe lo que la pidió.
+ */
+export function respaldarPronto(): void {
+  if (agendada !== null) clearTimeout(agendada)
+  agendada = setTimeout(() => {
+    agendada = null
+    void respaldarEnSilencio()
+  }, ESPERA_DE_LA_COPIA)
+}
+
 /**
  * La copia de lo que hay, justo antes de que una restauración lo reemplace.
  *

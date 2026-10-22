@@ -11,9 +11,13 @@
  * se está probando nada—:
  *
  * 1. **La migración del esquema.** Se instala la versión publicada, se generan
- *    datos reales, y se sirve la versión nueva encima. Ninguna fila puede
- *    desaparecer ni cambiar, y las pantallas nuevas tienen que saber leer
- *    filas viejas a las que les faltan los campos que se agregaron después.
+ *    datos reales en las siete tablas —una sesión entera, una a medio hacer,
+ *    un chequeo y un día del diario—, y se sirve la versión nueva encima.
+ *    Ninguna fila puede desaparecer ni cambiar un byte, la tabla nueva de
+ *    rutinas tiene que estar y vacía, y las pantallas nuevas tienen que saber
+ *    leer filas viejas a las que les faltan los campos que se agregaron
+ *    después. La sesión a medio hacer, escrita por la versión publicada, se
+ *    guarda desde la versión nueva con todas sus series.
  *
  * 2. **La actualización en caliente.** El service worker se genera con
  *    `skipWaiting` y `clientsClaim`, así que el worker nuevo toma el control de
@@ -211,13 +215,49 @@ const navegador = await chromium.launch({ executablePath: CHROMIUM })
   await alta(p)
   await unaSesion(p)
 
+  // Una sesión a medio hacer, escrita por la versión publicada: una serie y
+  // afuera, sin cerrar. Primero se sale del resumen de la sesión anterior y se
+  // pasa por Hoy: ir a /entrenar desde /entrenar no remonta la pantalla, y el
+  // resumen seguiría ahí.
+  const listoDelResumen = p.getByRole('button', { name: 'Listo', exact: true })
+  if (await listoDelResumen.isVisible().catch(() => false)) await listoDelResumen.click()
+  await p.goto(`${BASE}/#/`, { waitUntil: 'networkidle' })
+  await p.waitForTimeout(500)
+  await p.goto(`${BASE}/#/entrenar`, { waitUntil: 'networkidle' })
+  await p.waitForTimeout(700)
+  for (const nombre of ['Voy', 'Anotar serie']) {
+    const b = p.getByRole('button', { name: nombre, exact: true })
+    if (await b.isVisible().catch(() => false)) { await b.click(); await p.waitForTimeout(300) }
+  }
+  await p.goto(`${BASE}/#/`, { waitUntil: 'networkidle' })
+  await p.waitForTimeout(500)
+  // Un chequeo y un día del diario, con la forma que escribe la app, para que
+  // ninguna de las siete tablas llegue vacía a la migración.
+  await p.evaluate(async () => {
+    const d = new Date()
+    const hoy = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+    const base = await new Promise((res, rej) => {
+      const r = indexedDB.open('lyrafit')
+      r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error)
+    })
+    await new Promise((res, rej) => {
+      const tx = base.transaction(['estados', 'diario'], 'readwrite')
+      tx.objectStore('estados').put({ fecha: hoy, sueno: 4, energia: 4, musculos: 4, actualizadoEn: Date.now() })
+      tx.objectStore('diario').put({ fecha: hoy, sueno: '7-8', porcionesDeProteina: 3, actualizadoEn: Date.now() })
+      tx.oncomplete = () => res(); tx.onerror = () => rej(tx.error)
+    })
+    base.close()
+  })
+
   const antes = await leerBase(p)
   console.log(`  antes:   esquema v${antes.version} · ${antes.tablas.map((t) => `${t}=${antes.filas[t].length}`).join(' ')}`)
   if ((antes.filas.sesiones?.length ?? 0) < 1) fallos.push('La versión publicada no dejó ninguna sesión: la prueba no valdría.')
 
-  const huella = (b) => JSON.stringify(
-    ['sesiones', 'avances', 'estados', 'preferencias'].map((t) => b.filas[t] ?? []),
-  )
+  // Las siete tablas de v4, byte por byte.
+  const SIETE = ['sesiones', 'avances', 'estados', 'preferencias', 'pendientes', 'curso', 'diario']
+  const vacias = SIETE.filter((t) => (antes.filas[t]?.length ?? 0) === 0)
+  if (vacias.length) fallos.push(`La versión publicada dejó tablas vacías (${vacias.join(', ')}): la prueba no las mediría.`)
+  const huella = (b) => JSON.stringify(SIETE.map((t) => b.filas[t] ?? []))
   const antesHuella = huella(antes)
 
   // El service worker se saca del medio: acá se prueba el esquema, no el cache.
@@ -235,13 +275,60 @@ const navegador = await chromium.launch({ executablePath: CHROMIUM })
   const despues = await leerBase(p)
   console.log(`  después: esquema v${despues.version} · ${despues.tablas.map((t) => `${t}=${despues.filas[t].length}`).join(' ')}`)
 
-  for (const t of ['sesiones', 'avances', 'estados', 'preferencias', 'pendientes']) {
+  for (const t of SIETE) {
     const a = antes.filas[t]?.length ?? 0
     const d = despues.filas[t]?.length ?? 0
     if (d < a) fallos.push(`PÉRDIDA DE DATOS en ${t}: ${a} → ${d} filas`)
   }
   if (antesHuella !== huella(despues)) {
-    fallos.push('El contenido de los datos existentes cambió durante la migración.')
+    const cambiadas = SIETE.filter((t) => JSON.stringify(antes.filas[t] ?? []) !== JSON.stringify(despues.filas[t] ?? []))
+    fallos.push(`El contenido de los datos existentes cambió durante la migración: ${cambiadas.join(', ')}.`)
+  }
+  if (!despues.tablas.includes('rutinas')) fallos.push('La versión nueva no creó la tabla de rutinas.')
+  else if (despues.filas.rutinas.length !== 0) fallos.push(`La tabla de rutinas nació con ${despues.filas.rutinas.length} filas.`)
+  // Las sesiones viejas siguen sin hora de inicio: no se inventa al migrar.
+  if ((despues.filas.sesiones ?? []).some((x) => x.iniciadaEn !== undefined || x.origen !== undefined)) {
+    fallos.push('A una sesión vieja se le escribió una hora de inicio o un origen al migrar.')
+  }
+
+  // La sesión a medio hacer que dejó la versión publicada: vencida, Hoy la
+  // ofrece, y "Guardarla" —que la normaliza y la cierra desde afuera— la deja
+  // en el historial con todas sus series.
+  const borradorViejo = antes.filas.curso[0]
+  const seriesDelViejo = Object.values(borradorViejo?.hechas ?? {}).flat().filter((x) => x.logrado > 0).length
+  await p.evaluate(async () => {
+    const base = await new Promise((res, rej) => {
+      const r = indexedDB.open('lyrafit')
+      r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error)
+    })
+    await new Promise((res, rej) => {
+      const tx = base.transaction('curso', 'readwrite')
+      const almacen = tx.objectStore('curso')
+      const q = almacen.get('actual')
+      q.onsuccess = () => {
+        if (q.result) almacen.put({ ...q.result, actualizadoEn: q.result.actualizadoEn - 7 * 60 * 60 * 1000 })
+      }
+      tx.oncomplete = () => res(); tx.onerror = () => rej(tx.error)
+    })
+    base.close()
+  })
+  await p.reload({ waitUntil: 'networkidle' })
+  await p.waitForTimeout(1500)
+  const guardarla = p.getByRole('button', { name: 'Guardarla', exact: true })
+  if (!(await guardarla.isVisible().catch(() => false))) {
+    fallos.push('La sesión a medio hacer de la versión publicada, vencida, no se ofrece en Hoy.')
+  } else {
+    await guardarla.click()
+    await p.waitForTimeout(1800)
+    const conElViejo = await leerBase(p)
+    const nueva = conElViejo.filas.sesiones.find((x) => !antes.filas.sesiones.some((v) => v.id === x.id))
+    const guardadas = nueva ? nueva.registros.flatMap((r) => r.series).filter((x) => x.logrado > 0).length : 0
+    if (!nueva) fallos.push('"Guardarla" no dejó la sesión a medio hacer en el historial.')
+    else if (guardadas !== seriesDelViejo) {
+      fallos.push(`La sesión a medio hacer de la versión publicada tenía ${seriesDelViejo} series y se guardaron ${guardadas}.`)
+    }
+    if (conElViejo.filas.curso.length !== 0) fallos.push('Después de "Guardarla" quedó el borrador.')
+    console.log(`  la sesión a medio hacer de la versión publicada se guardó con ${guardadas} de ${seriesDelViejo} series`)
   }
 
   // Y las pantallas nuevas tienen que leer filas viejas sin los campos nuevos.

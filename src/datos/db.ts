@@ -19,13 +19,21 @@
 
 import Dexie, { type Table } from 'dexie'
 import type { DiaDelDiario } from '@/dominio/nutricion'
-import type { Avance, Estado, Patron, Preferencias, Sesion, SesionEnCurso } from '@/dominio/tipos'
+import type {
+  Avance,
+  Estado,
+  Patron,
+  Preferencias,
+  RutinaPropia,
+  Sesion,
+  SesionEnCurso,
+} from '@/dominio/tipos'
 import { RUTINA_POR_DEFECTO } from '@/dominio/rutinas'
 
 /** Una escritura a la espera de viajar al servidor, cuando exista un servidor. */
 export interface Pendiente {
   id?: number
-  tabla: 'sesiones' | 'avances' | 'preferencias' | 'estados' | 'diario'
+  tabla: 'sesiones' | 'avances' | 'preferencias' | 'estados' | 'diario' | 'rutinas'
   clave: string
   operacion: 'guardar' | 'borrar'
   creadoEn: number
@@ -39,6 +47,7 @@ export class BaseLyraFit extends Dexie {
   estados!: Table<Estado, string>
   curso!: Table<SesionEnCurso, string>
   diario!: Table<DiaDelDiario, string>
+  rutinas!: Table<RutinaPropia, string>
 
   constructor() {
     super('lyrafit')
@@ -124,6 +133,22 @@ export class BaseLyraFit extends Dexie {
       estados: 'fecha, actualizadoEn',
       curso: 'id',
       diario: 'fecha, actualizadoEn',
+    })
+
+    // v5 — las rutinas propias. Tabla nueva y nada viejo cambia de forma, así
+    // que no hay `upgrade`, con el mismo criterio que v3 y v4. Las siete
+    // tablas de v4 van letra por letra: un índice mal copiado es una migración
+    // que nadie pidió. Sin índices nuevos: las rutinas son decenas de filas y
+    // se ordenan en memoria, y las sesiones de un día salen del índice `fecha`.
+    this.version(5).stores({
+      sesiones: 'id, fecha, finalizadaEn',
+      avances: 'patron, actualizadoEn',
+      preferencias: 'id',
+      pendientes: '++id, creadoEn',
+      estados: 'fecha, actualizadoEn',
+      curso: 'id',
+      diario: 'fecha, actualizadoEn',
+      rutinas: 'id, actualizadaEn',
     })
   }
 }

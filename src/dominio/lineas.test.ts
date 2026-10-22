@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import {
   RECUPERACION_CON_FUENTE,
   horaDicha,
+  lineaAMedias,
   lineaCambiado,
   lineaLiviana,
   lineaSinCadenas,
@@ -143,6 +144,27 @@ describe('la versión liviana', () => {
   })
 })
 
+describe('a medias', () => {
+  it('de hoy, dice que se puede leer hoy', () => {
+    expect(lineaAMedias({ patrones: ['empuje'], esHoy: true })).toBe(
+      'Empuje quedó a medias: no se movió y se puede leer hoy.',
+    )
+    expect(lineaAMedias({ patrones: ['empuje', 'traccion'], esHoy: true })).toBe(
+      'Empuje y tracción quedaron a medias: no se movieron y se pueden leer hoy.',
+    )
+  })
+
+  it('de otro día, no promete nada de un día que ya pasó', () => {
+    expect(lineaAMedias({ patrones: ['empuje'], esHoy: false })).toBe(
+      'Empuje quedó a medias: no se movió.',
+    )
+  })
+
+  it('sin cadenas, no hay línea', () => {
+    expect(lineaAMedias({ patrones: [], esHoy: true })).toBeNull()
+  })
+})
+
 describe('las reglas de la voz, en todas', () => {
   const todas = [
     lineaYaLeida([{ patron: 'empuje', hora: a(9, 10) }]),
@@ -162,6 +184,7 @@ describe('las reglas de la voz, en todas', () => {
     lineaSinCadenas({ tipo: 'fuelle', pasosDeCadena: 0 }),
     lineaCambiado(['empuje', 'traccion', 'piernas']),
     lineaLiviana(true),
+    lineaAMedias({ patrones: ['traccion', 'empuje', 'piernas', 'bisagra', 'core'], esHoy: true }),
   ].filter((l): l is string => l !== null)
 
   it('nada de lo prohibido, 140 como mucho, sin exclamación', () => {

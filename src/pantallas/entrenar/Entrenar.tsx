@@ -154,6 +154,7 @@ export function Entrenar() {
     sinCerrar,
     rafagas,
     setRafagas,
+    retomado,
     arrancarDeNuevo,
     deCero,
   } = useSesionEnCurso({ parametros, semana, estados })
@@ -220,6 +221,7 @@ export function Entrenar() {
     resumen,
     sinCerrar,
     cerrando,
+    retomado,
     arrancadaEn,
     esCorta,
     esDiaDeFuelle,
