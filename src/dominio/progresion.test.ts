@@ -219,6 +219,25 @@ describe('siguienteAvance', () => {
     expect(d.avance.graciaRestante).toBe(GRACIA)
   })
 
+  it('en el techo, "una sesión más" es siempre la víspera del cambio, aunque quede gracia', () => {
+    // Después de un retroceso se llega al techo con gracia, y el motor sostiene
+    // mientras quede aunque ya lleves dos. Lo que dice tiene que coincidir con
+    // lo que hace.
+    const e = ejercicio('flexion-completa')
+    let avance = avanceEn('flexion-completa', e.ventana.max, { graciaRestante: 3 })
+    const dichos: string[] = []
+    let d = cumpliendo(avance)
+    while (!d.cambioDeNivel) {
+      dichos.push(d.explicacion)
+      avance = d.avance
+      d = cumpliendo(avance)
+    }
+    expect(dichos).toHaveLength(3)
+    expect(dichos[0]).toContain('Lo sostenemos 3 sesiones')
+    expect(dichos[1]).toContain('Lo sostenemos un par de sesiones')
+    expect(dichos[2]).toContain('Una sesión más así y cambiamos')
+  })
+
   it('NO cambia de eslabón antes de dominar el actual', () => {
     // El defecto más caro del motor viejo: subía tras dos sesiones buenas sin
     // mirar nunca si se había llegado al objetivo declarado del ejercicio.

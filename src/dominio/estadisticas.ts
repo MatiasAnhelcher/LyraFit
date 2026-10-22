@@ -249,6 +249,12 @@ export interface PuntoDeFuerza {
   ejercicioId: string
   /** Si esa mejor serie llevaba discos. */
   conDiscos: boolean
+  /**
+   * La mejor serie con discos del día, si hubo alguna. Entrenar deja sumar o
+   * sacar peso en medio de la sesión, así que el día en que entran los discos
+   * la mejor serie puede ser una de antes, sin peso.
+   */
+  conDiscosLaMejor?: { carga: number; ejercicioId: string }
 }
 
 /**
@@ -290,14 +296,19 @@ export function curvaDeFuerza(sesiones: Sesion[], patron: Patron, pesoCorporalKg
           ...(pesoCorporalKg !== undefined ? { pesoCorporalKg } : {}),
         })
         const previo = porDia.get(sesion.fecha)
-        if (!previo || carga > previo.carga) {
-          porDia.set(sesion.fecha, {
-            fecha: sesion.fecha,
-            carga,
-            ejercicioId: ejercicio.id,
-            conDiscos: (serie.kg ?? 0) > 0,
-          })
-        }
+        const conDiscos = (serie.kg ?? 0) > 0
+        const conDiscosLaMejor =
+          conDiscos && !(previo?.conDiscosLaMejor && previo.conDiscosLaMejor.carga >= carga)
+            ? { carga, ejercicioId: ejercicio.id }
+            : previo?.conDiscosLaMejor
+        const mejor = !previo || carga > previo.carga ? { carga, ejercicioId: ejercicio.id, conDiscos } : previo
+        porDia.set(sesion.fecha, {
+          fecha: sesion.fecha,
+          carga: mejor.carga,
+          ejercicioId: mejor.ejercicioId,
+          conDiscos: mejor.conDiscos,
+          ...(conDiscosLaMejor ? { conDiscosLaMejor } : {}),
+        })
       }
     }
   }
@@ -349,6 +360,20 @@ export interface SemanaDeFuerza {
   conDiscos: boolean
   /** Si en esta semana cambiaste de eslabón. */
   cambio?: CambioDeEslabon
+  /** Si en esta semana le sumaste discos al mismo ejercicio. */
+  discos?: DiscosNuevos
+}
+
+/** El primer día con discos en un ejercicio que venías haciendo sin peso. */
+export interface DiscosNuevos {
+  /** Ese día, en formato AAAA-MM-DD. */
+  desde: string
+  /** El ejercicio al que se los sumaste. */
+  ejercicioId: string
+  /** Tu última marca sin discos, antes de ese día. */
+  cargaAntes: number
+  /** Tu mejor serie con discos de ese día. */
+  carga: number
 }
 
 /**
@@ -366,6 +391,11 @@ export interface SemanaDeFuerza {
  * marca es la del viejo, y mirarla correría el cambio a la semana siguiente.
  * Se compara contra el día anterior aunque caiga antes de `semanas`, así que
  * el cambio de la primera columna también se ve.
+ *
+ * Los discos, igual y por la misma razón: el día que llegás al techo del
+ * último eslabón lo hacés sin peso, y si los discos entran después en esa
+ * semana, la mejor marca sigue siendo la de sin peso. Entran el primer día
+ * con alguna serie con discos, aunque la mejor de ese día sea sin peso.
  */
 export function fuerzaPorSemana(
   sesiones: Sesion[],
@@ -375,6 +405,7 @@ export function fuerzaPorSemana(
 ): (SemanaDeFuerza | null)[] {
   const mejores = new Map<string, SemanaDeFuerza>()
   const cambios = new Map<string, CambioDeEslabon>()
+  const discos = new Map<string, DiscosNuevos>()
   let anterior: PuntoDeFuerza | undefined
   for (const punto of curvaDeFuerza(sesiones, patron, pesoCorporalKg)) {
     const semana = lunesDe(punto.fecha)
@@ -386,6 +417,19 @@ export function fuerzaPorSemana(
         semana,
         ya ? { ...ya, a: punto.ejercicioId } : { de: anterior.ejercicioId, cargaAntes: anterior.carga, a: punto.ejercicioId },
       )
+    } else if (
+      anterior &&
+      punto.conDiscosLaMejor &&
+      !anterior.conDiscosLaMejor &&
+      punto.conDiscosLaMejor.ejercicioId === anterior.ejercicioId &&
+      !discos.has(semana)
+    ) {
+      discos.set(semana, {
+        desde: punto.fecha,
+        ejercicioId: punto.conDiscosLaMejor.ejercicioId,
+        cargaAntes: anterior.carga,
+        carga: punto.conDiscosLaMejor.carga,
+      })
     }
     anterior = punto
 
@@ -398,7 +442,12 @@ export function fuerzaPorSemana(
     const mejor = mejores.get(s)
     if (!mejor) return null
     const cambio = cambios.get(s)
-    return cambio && cambio.de !== cambio.a ? { ...mejor, cambio } : mejor
+    const conDiscos = discos.get(s)
+    return {
+      ...mejor,
+      ...(cambio && cambio.de !== cambio.a ? { cambio } : {}),
+      ...(conDiscos ? { discos: conDiscos } : {}),
+    }
   })
 }
 

@@ -10,9 +10,12 @@
  * registro crudo de repeticiones se desploma cada vez que se cambia de eslabón
  * —pasás de hacer quince a hacer seis— y muestra un retroceso justo en el
  * momento de mayor logro. El índice de carga lo resuelve porque hace
- * comparables dos ejercicios distintos, así que FUERZA POR SEMANA casi no se
- * mueve cuando subís a un eslabón que se mide igual. Es una estimación y la
- * pantalla lo dice, igual que dice cuándo no traduce bien.
+ * comparables dos ejercicios distintos, así que FUERZA POR SEMANA no se
+ * desploma cuando subís a un eslabón que se mide igual: entre el techo del
+ * viejo y la entrada al nuevo baja como mucho un 3,2 %, y en los primeros
+ * saltos de cada cadena sube.
+ * Es una estimación y la pantalla lo dice, igual que dice cuándo no traduce
+ * bien.
  */
 
 import { useState, type CSSProperties } from 'react'
@@ -94,14 +97,28 @@ const medidaDe = (id: string) => POR_ID.get(id)?.medida
 const enPalabras = (id: string) => (medidaDe(id) === 'segundos' ? 'segundos' : 'repeticiones')
 
 /**
- * El rótulo de cada columna, el mismo en FUERZA y en SERIES. La de esta semana
- * dice "esta"; la primera y cada cuatro llevan la fecha, siempre que queden a
- * dos columnas de "esta" para no pisarse. Con una sola semana, su fecha.
+ * El rótulo de cada columna de SERIES. La de esta semana dice "esta"; la
+ * primera y cada cuatro llevan la fecha, siempre que queden a dos columnas de
+ * "esta" para no pisarse. Con una sola semana, su fecha.
  */
 function rotuloDeSemana(j: number, semanas: string[]): string {
   const ultima = semanas.length - 1
   if (j === ultima) return ultima > 0 ? 'esta' : fechaCorta(semanas[j]!)
   if (j % 4 === 0 && ultima - j >= 2) return fechaCorta(semanas[j]!)
+  return ''
+}
+
+/**
+ * El rótulo de cada columna de FUERZA, que son más angostas que las de SERIES
+ * (a 320 con la letra grande avanzan menos de 10 px): solo la primera fecha y
+ * "esta". La fecha va recién desde la décima semana: con la más ancha, "30
+ * sept", y a 320 con la letra al 125 %, ahí le quedan 10 px hasta "esta". Si
+ * el eje es más angosto que eso, la esconde el CSS.
+ */
+function rotuloDeFuerza(j: number, semanas: string[]): string {
+  const ultima = semanas.length - 1
+  if (j === ultima) return ultima > 0 ? 'esta' : fechaCorta(semanas[j]!)
+  if (j === 0 && ultima >= 9) return fechaCorta(semanas[0]!)
   return ''
 }
 
@@ -112,13 +129,25 @@ function rotuloDeSemana(j: number, semanas: string[]): string {
  * cuando el eslabón que sigue está cerrado —sin barra, o con un requisito sin
  * cumplir—: ahí suma repeticiones arriba del techo, y "2 de 2" anunciaría un
  * cambio que no va a pasar. En el último eslabón sí consolida.
+ *
+ * Las sesiones que hacen falta son dos, o más si queda gracia: después de un
+ * retroceso, o cuando el eslabón nuevo arranca en su techo, el motor sostiene
+ * mientras haya gracia aunque ya lleves dos. Cada sesión sostenida suma una y
+ * gasta una de gracia, así que la cuenta no se mueve mientras falten. Cuando
+ * ya no falta ninguna dice "listo" y deja de contar: el motor puede seguir
+ * sosteniendo por un día flojo o por el ánimo, y "5 de 5" diría que hacían
+ * falta cinco.
  */
 function FilaDeCadena({ avance, k, consolida }: { avance: Avance; k: number; consolida: boolean }) {
   const e = enCadena(avance)
-  const sostenidas = Math.min(avance.sesionesEnObjetivo, CONSOLIDACION)
+  const sostenidas = avance.sesionesEnObjetivo
+  const faltan = Math.max(avance.graciaRestante, CONSOLIDACION - sostenidas, 0)
+  const listo = faltan === 0
+  const requeridas = listo ? CONSOLIDACION : sostenidas + faltan
   const nombre = NOMBRE_PATRON[avance.patron]
   const pips = e.enTecho && consolida
-  const etiqueta = `${textoDeLaBarra(e)}${pips ? `, sostenido ${sostenidas} de ${CONSOLIDACION}` : ''}`
+  const sostenido = listo ? ', techo sostenido' : `, sostenido ${sostenidas} de ${requeridas}`
+  const etiqueta = `${textoDeLaBarra(e)}${pips ? sostenido : ''}`
 
   return (
     <LinkConPasaje
@@ -142,12 +171,12 @@ function FilaDeCadena({ avance, k, consolida }: { avance: Avance; k: number; con
         {pips && (
           <span className="pips" style={{ '--luz': LUZ[avance.patron] } as CSSProperties}>
             <span aria-hidden>
-              {Array.from({ length: CONSOLIDACION }, (_, i) => (
-                <i key={i} className={i < sostenidas ? 'lleno' : ''} />
+              {Array.from({ length: requeridas }, (_, i) => (
+                <i key={i} className={listo || i < sostenidas ? 'lleno' : ''} />
               ))}
             </span>
             <span className="rotulo">
-              {sostenidas} de {CONSOLIDACION}
+              {listo ? 'listo' : `${sostenidas} de ${requeridas}`}
             </span>
           </span>
         )}
@@ -165,10 +194,13 @@ function cambioDe(s: SemanaDeFuerza): 'medida' | 'eslabon' | undefined {
 }
 
 /**
- * Sin columnas: "todavía" solo si la cadena no se entrenó nunca. Si se entrenó
- * antes de estas doce semanas, decir "todavía" sería borrarle esa historia.
+ * Sin columnas: "todavía" solo si la cadena no tiene ninguna marca. Si la tiene
+ * fuera de estas semanas —antes, o con el reloj del teléfono adelantado—,
+ * decir "todavía" sería borrarle esa historia. Se dice "columnas" y no
+ * "series" porque la bajada y el reloj son series que acá no cuentan.
  */
-const sinSemanas = (entrenada: boolean) => (entrenada ? 'Sin semanas en estas doce' : 'Todavía sin semanas')
+const sinSemanas = (entrenada: boolean, cuantas: number) =>
+  entrenada ? `Sin columnas ${cuantas === 1 ? 'esta semana' : `en estas ${cuantas} semanas`}` : 'Todavía sin columnas'
 
 /** Lo que dice cada fila, con palabras, para el lector de pantalla. */
 function lecturaDeFuerza(
@@ -179,7 +211,7 @@ function lecturaDeFuerza(
 ): string {
   const nombre = NOMBRE_PATRON[patron]
   const hay = semanas.flatMap((s) => (s ? [s] : []))
-  if (hay.length === 0) return `${nombre}: ${sinSemanas(entrenada).toLowerCase()}.`
+  if (hay.length === 0) return `${nombre}: ${sinSemanas(entrenada, semanas.length).toLowerCase()}.`
   const primera = hay[0]!
   const ultima = hay[hay.length - 1]!
   if (hay.length === 1) {
@@ -246,7 +278,7 @@ function FilaDeFuerza({
           {NOMBRE_PATRON[patron]}
         </p>
         {!primera || !ultima ? (
-          <p className="texto-chico fuerza-desde mt-2.5">{sinSemanas(entrenada)}</p>
+          <p className="texto-chico fuerza-desde mt-2.5">{sinSemanas(entrenada, semanas.length)}</p>
         ) : hay.length === 1 ? (
           <>
             <p className="fuerza-valor">{coma(ultima.carga)}</p>
@@ -286,7 +318,8 @@ function notasDeFuerza(
   for (const { patron, semanas } of filas) {
     const cadena = NOMBRE_PATRON[patron].toLowerCase()
     const hay = semanas.flatMap((s) => (s ? [s] : []))
-    hay.forEach((s, i) => {
+    let discosDichos = false
+    hay.forEach((s) => {
       // Un eslabón que se mide distinto. `fraccionDelMaximo` satura en doce
       // segundos o menos, así que de repeticiones a segundos esta escala no
       // traduce bien: hay saltos en los que ni el techo del eslabón nuevo
@@ -294,18 +327,19 @@ function notasDeFuerza(
       const nuevo = s.cambio && POR_ID.get(s.cambio.a)
       if (s.cambio && nuevo && cambioDe(s) === 'medida' && indiceDeCarga(nuevo, nuevo.ventana.max) < s.cambio.cargaAntes) {
         notas.push(
-          `En ${cadena}, la semana del ${fechaCorta(s.semana)} pasaste a un eslabón que se mide en ${enPalabras(s.cambio.a)}. Esta escala no traduce bien ${enPalabras(s.cambio.de)} a ${enPalabras(s.cambio.a)}: ni el techo de ese eslabón llega a tu marca anterior, así que mientras estés ahí la columna queda más abajo.`,
+          `En ${cadena}, la semana del ${fechaCorta(s.semana)} pasaste a un eslabón que se mide en ${enPalabras(s.cambio.a)}. Esta escala no traduce bien ${enPalabras(s.cambio.de)} a ${enPalabras(s.cambio.a)}: ni el techo de ese eslabón llega a tu marca anterior, así que la columna puede quedar más abajo aunque no hayas perdido fuerza.`,
         )
       }
 
       // Los discos. En el último eslabón el motor los suma y te devuelve a
       // pocas repeticiones, y en esta escala muchas sin peso pueden contar más
-      // que pocas con discos. Se dice la semana en que entraron, si la columna
-      // bajó con el mismo ejercicio.
-      const previa = hay[i - 1]
-      if (previa && s.conDiscos && !previa.conDiscos && s.ejercicioId === previa.ejercicioId && s.carga < previa.carga) {
+      // que pocas con discos. Se dice el día en que entraron, y solo si ese
+      // día quedó por debajo de tu última marca sin peso. Una vez por cadena:
+      // si sacaste y volviste a poner, la explicación es la misma.
+      if (!discosDichos && s.discos && s.discos.carga < s.discos.cargaAntes) {
+        discosDichos = true
         notas.push(
-          `En ${cadena}, la semana del ${fechaCorta(s.semana)} sumaste discos y bajaste de repeticiones: en esta escala, tu serie sin peso de antes cuenta más que la de ahora con discos, y por eso la columna baja.`,
+          `En ${cadena}, el ${fechaCorta(s.discos.desde)} sumaste discos y bajaste de ${enPalabras(s.discos.ejercicioId)}. En esta escala, tu serie sin peso de antes cuenta más que la primera con discos, así que la columna puede bajar aunque no hayas perdido fuerza.`,
         )
       }
     })
@@ -340,7 +374,10 @@ function Baldosas({ vit, cal }: { vit: Vitalidad | null; cal: Calibracion | null
             {vit.delta > 0 ? '+' : vit.delta < 0 ? '−' : ''}
             {coma(Math.abs(vit.delta), 1)}
           </p>
-          <p className="texto-chico">de antes a después, últimas {vit.sesiones} sesiones con chequeo</p>
+          <p className="texto-chico">
+            de antes a después, en {vit.sesiones === 1 ? 'la última sesión' : `las últimas ${vit.sesiones} sesiones`}{' '}
+            con chequeo del día y energía al terminar
+          </p>
           <div className="puntos-energia" aria-hidden>
             {vit.serie.map((d, i) => (
               <i key={i} className={d > 0 ? 'subio' : ''} />
@@ -529,8 +566,8 @@ export function Progreso() {
           Fuerza por semana
         </p>
         <p className="texto-glosa -mt-1 mb-3 max-w-[42ch]">
-          Tu mejor serie de cada semana, en una escala que compara ejercicios distintos: por eso casi
-          no se mueve cuando subís a un eslabón que se mide igual. Es una estimación, no una medición.
+          Tu mejor serie de cada semana, en una escala que compara ejercicios distintos: por eso no se
+          desploma cuando subís a un eslabón que se mide igual. Es una estimación, no una medición.
         </p>
         <div className="placa">
           {fuerza.map((f, k) => (
@@ -543,14 +580,21 @@ export function Progreso() {
               entrenada={f.entrenada}
             />
           ))}
-          {/* El eje, columna por columna y con los mismos rótulos que SERIES:
-              la fecha de cada semana queda debajo de su columna. */}
+          {/* El eje, columna por columna: cada rótulo queda debajo de su
+              columna, la primera fecha pegada a su borde izquierdo. "Esta"
+              termina en el borde derecho de la suya desde la séptima semana;
+              antes arranca en el izquierdo, hacia las columnas vacías que
+              siguen. Así siempre tiene siete columnas para entrar. */}
           <div className="fuerza-eje" aria-hidden>
             <span />
             <div>
               {Array.from({ length: Math.max(SEMANAS, semanas.length) }, (_, j) => (
-                <span key={j}>
-                  <span className="series-fecha">{j < semanas.length ? rotuloDeSemana(j, semanas) : ''}</span>
+                <span
+                  key={j}
+                  {...(j === semanas.length - 1 && j >= 6 ? { 'data-fin': '' } : {})}
+                  {...(j === 0 && semanas.length > 1 ? { 'data-inicio': '' } : {})}
+                >
+                  <span className="series-fecha">{j < semanas.length ? rotuloDeFuerza(j, semanas) : ''}</span>
                 </span>
               ))}
             </div>
@@ -578,8 +622,8 @@ export function Progreso() {
         </div>
         {semanas.length === 1 ? (
           <p className="texto-glosa mt-3 max-w-[42ch]">
-            Con una semana, cada cadena que entrenaste tiene una columna. Desde la segunda se ve si
-            crece.
+            Con una semana, cada columna es tu mejor serie de esa semana en esa cadena. Desde la
+            segunda se ve si crece.
           </p>
         ) : (
           notas.map((n) => (

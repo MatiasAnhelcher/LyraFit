@@ -95,10 +95,12 @@ export function BarraDeCadena({
   // relleno que entrar, así que entra el del eslabón que acabás de dominar: el
   // movimiento se ve sin mentir sobre dónde estás.
   const llenaElAnterior = animar && !!huella && huella.indice < e.indice && e.relleno === 0
-  // La huella solo si no cae debajo de la estrella. A menos de cuatro décimos
-  // de eslabón quedan encimadas y no se lee ningún movimiento.
+  // La huella va debajo de la barra, fuera del alcance de la estrella, así que
+  // se dibuja aunque quede cerca: en los saltos cortos es lo único que dice que
+  // te moviste. Solo se esconde si cae justo debajo, del techo de un eslabón
+  // al piso del siguiente, que es el mismo punto de la barra.
   const huellaVisible =
-    huella && Math.abs(e.indice + e.relleno - (huella.indice + huella.relleno)) >= 0.4 ? huella : null
+    huella && Math.abs(e.indice + e.relleno - (huella.indice + huella.relleno)) >= 0.1 ? huella : null
 
   return (
     <div className={`bc bc--${tamano}`} style={estilo} role="img" aria-label={textoDeLaBarra(e)}>

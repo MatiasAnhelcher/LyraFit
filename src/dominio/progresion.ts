@@ -772,7 +772,7 @@ export function siguienteAvance(
       const faltaPoco = nueva >= ventana.max
       const techo = cierre
         ? `es el techo de ${actual.nombre}.`
-        : `es el techo de ${actual.nombre}, y con eso pasás de nivel.`
+        : `es el techo de ${actual.nombre}, y sostenido ahí pasás de nivel.`
       return ajustar(
         nueva,
         faltaPoco
@@ -811,11 +811,13 @@ export function siguienteAvance(
     // y subir de palanca con un buen día es cómo se llega a un ejercicio que no
     // se puede sostener.
     if (avance.graciaRestante > 0 || avance.sesionesEnObjetivo < CONSOLIDACION) {
-      const faltan = CONSOLIDACION - avance.sesionesEnObjetivo
+      // Las que faltan, contando esta, cuentan la gracia: después de un
+      // retroceso se sostiene mientras quede, aunque ya lleves dos.
+      const faltan = Math.max(CONSOLIDACION - avance.sesionesEnObjetivo, avance.graciaRestante)
       return sostener(
         faltan <= 1
           ? `Llegaste al techo de ${actual.nombre}. Una sesión más así y cambiamos de ejercicio.`
-          : `Techo de ${actual.nombre} alcanzado. Lo sostenemos un par de sesiones antes de subir: dominar es poder repetirlo.`,
+          : `Techo de ${actual.nombre} alcanzado. Lo sostenemos ${faltan === 2 ? 'un par de' : faltan} sesiones antes de subir: dominar es poder repetirlo.`,
       )
     }
 

@@ -302,6 +302,60 @@ describe('fuerza por semana', () => {
     expect(conPeso.carga).toBeGreaterThan(sinPeso.carga)
   })
 
+  it('los discos caen en la semana en que entraron, aunque la mejor marca sea la de sin peso', () => {
+    // El lunes, flexiones a una mano en su techo sin peso; el miércoles y el
+    // viernes, los primeros días con discos.
+    const conDiscos = (fecha: string, logros: number[]): Sesion => ({
+      ...sesion(fecha, 'flexion-una-mano', logros),
+      registros: [
+        {
+          ejercicioId: 'flexion-una-mano',
+          objetivo: { series: logros.length, cantidad: logros[0] ?? 0, kg: 2.5 },
+          series: logros.map((logrado) => ({ logrado, kg: 2.5 })),
+        },
+      ],
+    })
+    const lunes = sesion('2026-09-14', 'flexion-una-mano', [12, 12, 12])
+    const fuerza = fuerzaPorSemana(
+      [lunes, conDiscos('2026-09-16', [3, 3, 2]), conDiscos('2026-09-18', [3, 3, 3]), conDiscos('2026-09-21', [4, 3, 3])],
+      'empuje',
+      semanas,
+      75,
+    )
+    const sinPeso = curvaDeFuerza([lunes], 'empuje', 75)[0]!
+    const primerDia = curvaDeFuerza([conDiscos('2026-09-16', [3, 3, 2])], 'empuje', 75)[0]!
+    expect(fuerza[1]!.conDiscos).toBe(false)
+    expect(fuerza[1]!.discos).toEqual({
+      desde: '2026-09-16',
+      ejercicioId: 'flexion-una-mano',
+      cargaAntes: sinPeso.carga,
+      carga: primerDia.carga,
+    })
+    expect(primerDia.carga).toBeLessThan(sinPeso.carga)
+    // La semana siguiente ya es toda con discos: no hay nada que entre.
+    expect(fuerza[2]!.conDiscos).toBe(true)
+    expect(fuerza[2]!.discos).toBeUndefined()
+  })
+
+  it('y entran el primer día con alguna serie con discos, aunque la mejor de ese día sea sin peso', () => {
+    // Entrenar deja sumar peso en medio de la sesión: el miércoles, la
+    // primera serie sin peso y las otras dos con discos.
+    const mixto: Sesion = {
+      ...sesion('2026-09-16', 'flexion-una-mano', [6]),
+      registros: [
+        {
+          ejercicioId: 'flexion-una-mano',
+          objetivo: { series: 3, cantidad: 6 },
+          series: [{ logrado: 6 }, { logrado: 3, kg: 2.5 }, { logrado: 3, kg: 2.5 }],
+        },
+      ],
+    }
+    const fuerza = fuerzaPorSemana([sesion('2026-09-14', 'flexion-una-mano', [6, 6, 6]), mixto], 'empuje', semanas, 75)
+    expect(fuerza[1]!.conDiscos).toBe(false)
+    expect(fuerza[1]!.discos?.desde).toBe('2026-09-16')
+    expect(fuerza[1]!.discos!.carga).toBeLessThan(fuerza[1]!.discos!.cargaAntes)
+  })
+
   it('una cadena que no se entrenó da todas vacías', () => {
     expect(fuerzaPorSemana([sesion('2026-09-08', 'plancha', [30])], 'empuje', semanas)).toEqual([
       null,

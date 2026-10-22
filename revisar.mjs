@@ -370,16 +370,19 @@ async function main() {
      *
      * Y que la estrella y el relleno caigan donde dicen: la estrella se ubica
      * con un `calc` sobre el ancho de la barra, que con otro hueco u otro
-     * borde se corre de eslabón sin que cambie ningún número. Se mide con
-     * `offsetWidth` y no con el rectángulo para que no pese el `scaleX` del
-     * encendido.
+     * borde se corre de eslabón sin que cambie ningún número. Se mide lo que
+     * se ve —el centro del núcleo dibujado y el rectángulo del relleno—, así
+     * que también falla un relleno trabado en `scaleX(0)` o corrido. Para
+     * cuando se mide, el encendido (a lo sumo 656 ms) ya terminó.
      */
     const barras = await pagina.locator('section[aria-labelledby="tus-cadenas"] .bc').evaluateAll((els) =>
       els.map((el) => {
         const actual = el.querySelector('.bc-seg--actual')
         const relleno = actual?.querySelector('.bc-relleno')
         const marca = el.querySelector('.bc-marca')
+        const nucleo = marca?.querySelector('.estrella-nucleo')?.getBoundingClientRect()
         const caja = actual?.getBoundingClientRect()
+        const lleno = relleno?.getBoundingClientRect()
         const f = Number(marca?.style.getPropertyValue('--f') ?? NaN)
         return {
           texto: el.getAttribute('aria-label') ?? '',
@@ -387,12 +390,17 @@ async function main() {
           segmentos: el.querySelectorAll('.bc-seg').length,
           hechos: el.querySelectorAll('.bc-seg--hecho').length,
           actuales: el.querySelectorAll('.bc-seg--actual').length,
-          // Cuánto se corre la estrella de donde cae el objetivo en el eslabón actual.
-          corrimiento: caja && marca ? Math.abs(marca.getBoundingClientRect().left - (caja.left + f * caja.width)) : NaN,
-          // Cuánto le falta o le sobra al relleno contra la fracción que dice su ancho.
+          // Cuánto se corre el núcleo de la estrella de donde cae el objetivo en el eslabón actual,
+          // a lo ancho y de la línea media de la barra.
+          corrimiento: caja && nucleo ? Math.abs(nucleo.left + nucleo.width / 2 - (caja.left + f * caja.width)) : NaN,
+          altura: caja && nucleo ? Math.abs(nucleo.top + nucleo.height / 2 - (caja.top + caja.height / 2)) : NaN,
+          // Cuánto se corre el relleno, por cualquiera de sus dos bordes, de la fracción que dice su ancho.
           desvioDelRelleno:
-            actual && relleno
-              ? Math.abs(relleno.offsetWidth - (parseFloat(relleno.style.width) / 100) * actual.clientWidth)
+            actual && caja && lleno
+              ? Math.max(
+                  Math.abs(lleno.left - (caja.left + actual.clientLeft)),
+                  Math.abs(lleno.width - (parseFloat(relleno.style.width) / 100) * actual.clientWidth),
+                )
               : NaN,
         }
       }),
@@ -412,8 +420,10 @@ async function main() {
           `La barra dice "${b.texto}" y dibuja ${b.segmentos} segmentos, ${b.hechos} llenos y ${b.actuales} actual (${tema})`,
         )
       }
-      if (!(b.corrimiento <= 1.5)) {
-        problemas.push(`En "${b.texto}" la estrella cae a ${b.corrimiento.toFixed(1)} px de su objetivo (${tema})`)
+      if (!(b.corrimiento <= 1.5) || !(b.altura <= 1.5)) {
+        problemas.push(
+          `En "${b.texto}" la estrella cae a ${b.corrimiento.toFixed(1)} px de su objetivo y a ${b.altura.toFixed(1)} px de la línea de la barra (${tema})`,
+        )
       }
       if (!(b.desvioDelRelleno <= 1)) {
         problemas.push(`En "${b.texto}" el relleno se desvía ${b.desvioDelRelleno.toFixed(1)} px de su fracción (${tema})`)
