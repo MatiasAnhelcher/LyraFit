@@ -42,7 +42,7 @@ import {
   type PruebaDelAlta,
 } from '@/dominio/apertura'
 import { ajusteDelDia, bandaSostenida, cadenasCongeladas } from '@/dominio/estado'
-import { animoPorDia, promedioDeAnimos } from '@/dominio/vitalidad'
+import { animoPorDia, promedioDeAnimos, vitalidadDeAntes } from '@/dominio/vitalidad'
 import {
   alCambiarDeNivel,
   cierreDelBorrador,
@@ -208,8 +208,13 @@ async function cerrarBorradorDesdeAfuera(sinLeer?: Patron): Promise<ResumenSesio
       [...avances.values()].find((a) => a.ejercicioId === ejercicioId)?.objetivoActual,
     desdeAfuera: true,
   })
-  // La energía de antes sale del chequeo de ESE día, igual que en Entrenar.
-  const vitalidadPre = (await db.estados.get(cierre.fecha))?.energia
+  // La energía de antes sale del chequeo de ESE día, igual que en Entrenar, y
+  // solo si fue la primera sesión de ese día.
+  const vitalidadPre = vitalidadDeAntes(
+    (await db.estados.get(cierre.fecha))?.energia,
+    cierre.fecha,
+    historial,
+  )
 
   return cerrarSesion({
     ...cierre,

@@ -49,6 +49,7 @@ import { dichoDeLoQueViene, loQueViene } from '@/dominio/siguiente'
 import { callar, configurarVoz, decir } from '@/voz'
 import { rafagaDelDescanso } from '@/dominio/metabolico'
 import { registrosDeLaSesion } from '@/dominio/borrador'
+import { vitalidadDeAntes } from '@/dominio/vitalidad'
 import {
   cerrarSesion,
   descartarSesionEnCurso,
@@ -181,11 +182,15 @@ export function Entrenar() {
    * uno que ya diste.
    *
    * Sin chequeo diario no hay delta, y está bien que no lo haya. Media
-   * medición no es media respuesta, es una respuesta inventada.
+   * medición no es media respuesta, es una respuesta inventada. Por lo mismo
+   * vale solo en la primera sesión del día (`vitalidadDeAntes`), y mientras
+   * el historial carga no se da por hecho que esta es la primera.
    */
   const vitalidadPre = useMemo(
-    () => estados?.find((e) => e.fecha === dia)?.energia,
-    [estados, dia],
+    () =>
+      historial &&
+      vitalidadDeAntes(estados?.find((e) => e.fecha === dia)?.energia, dia, historial),
+    [estados, dia, historial],
   )
 
   const duracion = useCronometro(resumen === null, arrancadaEn)

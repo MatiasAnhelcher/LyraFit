@@ -232,18 +232,32 @@ const navegador = await chromium.launch({ executablePath: CHROMIUM })
   await p.goto(`${BASE}/#/`, { waitUntil: 'networkidle' })
   await p.waitForTimeout(500)
   // Un chequeo y un día del diario, con la forma que escribe la app, para que
-  // ninguna de las siete tablas llegue vacía a la migración.
+  // ninguna de las siete tablas llegue vacía a la migración. Y una sesión de
+  // antes de la reestructura, sin hora de inicio ni origen: la versión
+  // publicada ya puede escribirlos, y sin esta fila el chequeo de que no se
+  // inventan al migrar no tendría nada que mirar.
   await p.evaluate(async () => {
     const d = new Date()
-    const hoy = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+    const fecha = (x) => `${x.getFullYear()}-${String(x.getMonth() + 1).padStart(2, '0')}-${String(x.getDate()).padStart(2, '0')}`
+    const hoy = fecha(d)
+    const haceTres = new Date(d.getFullYear(), d.getMonth(), d.getDate() - 3, 19)
     const base = await new Promise((res, rej) => {
       const r = indexedDB.open('lyrafit')
       r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error)
     })
     await new Promise((res, rej) => {
-      const tx = base.transaction(['estados', 'diario'], 'readwrite')
+      const tx = base.transaction(['estados', 'diario', 'sesiones'], 'readwrite')
       tx.objectStore('estados').put({ fecha: hoy, sueno: 4, energia: 4, musculos: 4, actualizadoEn: Date.now() })
       tx.objectStore('diario').put({ fecha: hoy, sueno: '7-8', porcionesDeProteina: 3, actualizadoEn: Date.now() })
+      const sesiones = tx.objectStore('sesiones')
+      const q = sesiones.getAll()
+      q.onsuccess = () => {
+        const modelo = q.result[0]
+        if (!modelo) return
+        const { iniciadaEn, origen, ...vieja } = modelo
+        void iniciadaEn; void origen
+        sesiones.put({ ...vieja, id: 'sesion-de-antes-de-la-reestructura', fecha: fecha(haceTres), finalizadaEn: haceTres.getTime() })
+      }
       tx.oncomplete = () => res(); tx.onerror = () => rej(tx.error)
     })
     base.close()
@@ -287,7 +301,10 @@ const navegador = await chromium.launch({ executablePath: CHROMIUM })
   if (!despues.tablas.includes('rutinas')) fallos.push('La versión nueva no creó la tabla de rutinas.')
   else if (despues.filas.rutinas.length !== 0) fallos.push(`La tabla de rutinas nació con ${despues.filas.rutinas.length} filas.`)
   // Las sesiones viejas siguen sin hora de inicio: no se inventa al migrar.
-  if ((despues.filas.sesiones ?? []).some((x) => x.iniciadaEn !== undefined || x.origen !== undefined)) {
+  const sinCampos = new Set((antes.filas.sesiones ?? [])
+    .filter((x) => x.iniciadaEn === undefined && x.origen === undefined).map((x) => x.id))
+  if (sinCampos.size === 0) fallos.push('No quedó ninguna sesión sin hora de inicio ni origen: la prueba no la mediría.')
+  if ((despues.filas.sesiones ?? []).some((x) => sinCampos.has(x.id) && (x.iniciadaEn !== undefined || x.origen !== undefined))) {
     fallos.push('A una sesión vieja se le escribió una hora de inicio o un origen al migrar.')
   }
 

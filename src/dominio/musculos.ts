@@ -734,9 +734,10 @@ export const MINIMO_PARA_OPINAR = 3
 export type LoQueFalta =
   /**
    * Todavía no hay con qué. No es un diagnóstico neutro: es no tener datos.
-   * `sesiones` son las de la ventana, para decirlo; el umbral cuenta días.
+   * `dias` son los días con sesión de la ventana, que es lo que cuenta el
+   * umbral y lo que se dice: tres sesiones en una tarde son un día.
    */
-  | { clase: 'sin-datos'; sesiones: number }
+  | { clase: 'sin-datos'; dias: number }
   /**
    * Un patrón entero que la rutina no incluye, así que no va a aparecer solo.
    * Es el único caso con arreglo de un toque.
@@ -746,6 +747,19 @@ export type LoQueFalta =
   | { clase: 'flojo'; musculo: Musculo; patron: Patron; series: number }
   /** No hay nada que decir, y se dice. */
   | { clase: 'parejo' }
+
+/**
+ * Lo que dice Progreso cuando todavía no hay con qué opinar. Cuenta días de
+ * práctica, como el umbral, y dentro de la ventana: quien entrenó tres veces
+ * en una tarde tiene un día, y quien tiene meses de historial y volvió hace
+ * poco no tiene "dos sesiones", tiene dos días en estas cuatro semanas.
+ */
+export function dichoSinDatos(dias: number): string {
+  const resto = 'todavía no hay con qué decir que te falte nada.'
+  if (dias === 0) return `Sin sesiones en las últimas cuatro semanas, ${resto}`
+  const cuantos = dias === 1 ? 'un día' : dias === 2 ? 'dos días' : `${dias} días`
+  return `Con ${cuantos} de práctica en las últimas cuatro semanas, ${resto}`
+}
 
 /** Qué patrones cubre una rutina, contando los bloques que alternan. */
 export function patronesDe(rutina: Rutina): Set<Patron> {
@@ -782,9 +796,8 @@ export function loQueFalta(entrada: {
   // Con dos días, "te falta piernas" es ruido. La doctrina del documento de
   // estrategia lo dice para el peso y vale igual acá: hay que poder decir
   // "todavía no sé".
-  if (new Set(dentro.map((s) => s.fecha)).size < MINIMO_PARA_OPINAR) {
-    return { clase: 'sin-datos', sesiones: dentro.length }
-  }
+  const dias = new Set(dentro.map((s) => s.fecha)).size
+  if (dias < MINIMO_PARA_OPINAR) return { clase: 'sin-datos', dias }
 
   const cuenta = seriesPorMusculo(sesiones, hoy)
   const cubre = patronesDe(rutina)

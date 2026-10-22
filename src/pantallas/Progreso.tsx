@@ -33,6 +33,7 @@ import {
   MUSCULOS_CUBIERTOS,
   NOMBRE_MUSCULO,
   SIN_COBERTURA,
+  dichoSinDatos,
   loQueFalta,
   musculosAlcanzables,
   patronDe,
@@ -375,8 +376,9 @@ function Baldosas({ vit, cal }: { vit: Vitalidad | null; cal: Calibracion | null
             {coma(Math.abs(vit.delta), 1)}
           </p>
           <p className="texto-chico">
-            de antes a después, en {vit.sesiones === 1 ? 'la última sesión' : `las últimas ${vit.sesiones} sesiones`}{' '}
-            con chequeo del día y energía al terminar
+            de antes a después de la primera sesión del día, en{' '}
+            {vit.dias === 1 ? 'tu último día' : `tus últimos ${vit.dias} días`} con chequeo y
+            energía al terminarla
           </p>
           <div className="puntos-energia" aria-hidden>
             {vit.serie.map((d, i) => (
@@ -384,7 +386,7 @@ function Baldosas({ vit, cal }: { vit: Vitalidad | null; cal: Calibracion | null
             ))}
           </div>
           <p className="texto-chico mt-2">
-            Subió en {vit.subieron} de {vit.sesiones}
+            Subió en {vit.subieron} de {vit.dias} {vit.dias === 1 ? 'día' : 'días'}
           </p>
         </div>
       )}
@@ -779,8 +781,7 @@ export function Progreso() {
         {/* El diagnóstico. Una sola cosa por vez: decir dos es no decir ninguna. */}
         {falta.clase === 'sin-datos' && (
           <p className="mt-3 max-w-[40ch] text-xs leading-relaxed text-[var(--color-glosa)]">
-            Con {falta.sesiones === 1 ? 'una sesión' : `${falta.sesiones} sesiones`} todavía no
-            hay con qué decir que te falte nada.
+            {dichoSinDatos(falta.dias)}
           </p>
         )}
 

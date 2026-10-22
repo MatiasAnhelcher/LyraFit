@@ -31,6 +31,8 @@ import { useEffect, useRef, useState } from 'react'
 import { NOMBRE_PATRON } from '@/dominio/biblioteca'
 import { seriesDeSesion } from '@/dominio/estadisticas'
 import { esHito } from '@/dominio/adherencia'
+import { diaLocal } from '@/dominio/borrador'
+import { lineaSinCadenas, lineaYaLeida } from '@/dominio/lineas'
 import type { ResumenSesion } from '@/datos/repositorio'
 import { comoReloj } from '@/hooks/useTemporizador'
 import { FilaDeCadenaChica, FilaDeSalto } from '@/componentes/filaDeCadena'
@@ -59,7 +61,7 @@ export function Cierre({
   duracion: number
   alSalir: () => void
 }) {
-  const { sesion, decisiones, numeroDeSesion } = resumen
+  const { sesion, decisiones, numeroDeSesion, pasosDeCadena } = resumen
   const series = seriesDeSesion(sesion)
   const huboSalto = decisiones.some((d) => d.decision.cambioDeNivel)
   const hito = esHito(numeroDeSesion)
@@ -125,6 +127,28 @@ export function Cierre({
     if (!terminada && performance.now() - montada > 500) setTerminada(true)
   }
 
+  /**
+   * Las cadenas que ya se habían leído ese día van juntas, en una sola línea con
+   * la hora de cada una: cuatro glosas iguales una abajo de la otra repetirían
+   * cuatro veces lo mismo. Y van después de lo que decidió esta sesión.
+   */
+  const leidasHoy = decisiones.flatMap(({ patron, decision }) =>
+    decision.motivo === 'ya-leida-hoy' && decision.leidaA !== undefined
+      ? [{ patron, hora: decision.leidaA }]
+      : [],
+  )
+  const deEstaSesion = decisiones.filter(({ decision }) => decision.motivo !== 'ya-leida-hoy')
+  // "hoy" solo si la sesión es del día en que cerró: una que arrancó a las
+  // 23:40 y cerró a las 00:05 es del día de antes, igual que en el motor.
+  const yaLeidas = lineaYaLeida(leidasHoy, {
+    esHoy: sesion.fecha === diaLocal(sesion.finalizadaEn),
+  })
+  // Sin decisiones, la razón verdadera y solo si es cierta: si la sesión
+  // tenía pasos de cadena y no se hicieron, no hubo nada que leer y del plan
+  // no se dice nada.
+  const sinCadenas =
+    decisiones.length === 0 ? lineaSinCadenas({ tipo: sesion.tipo, pasosDeCadena }) : null
+
   return (
     <div
       className="flex min-h-dvh flex-col"
@@ -160,7 +184,7 @@ export function Cierre({
         )}
 
         <div className="revelar revelar--2 mt-8 space-y-6">
-          {decisiones.map(({ patron, decision }) => (
+          {deEstaSesion.map(({ patron, decision }) => (
             <div key={patron}>
               <Rotulo className="mb-2">{NOMBRE_PATRON[patron].toUpperCase()}</Rotulo>
               <Glosa
@@ -180,12 +204,9 @@ export function Cierre({
             </div>
           ))}
 
-          {decisiones.length === 0 && (
-            <Glosa cita="Regla · progresión sin cambios">
-              La sesión quedó registrada. Como no completaste los ejercicios que tocaban, el plan
-              se mantiene igual.
-            </Glosa>
-          )}
+          {yaLeidas && <Glosa cita="Regla · una lectura por día">{yaLeidas}</Glosa>}
+
+          {sinCadenas && <Glosa cita="Regla · progresión sin cambios">{sinCadenas}</Glosa>}
         </div>
 
         {/* Lyra, al final y DESPUÉS de lo que decidió el motor.

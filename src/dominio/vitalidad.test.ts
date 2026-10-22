@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   SERIES_MINIMAS,
-  SESIONES_MINIMAS,
+  DIAS_MINIMOS,
   animoDentroDe,
   animoPorDia,
   animoReciente,
@@ -9,6 +9,7 @@ import {
   cargaInterna,
   frasePorCalibracion,
   vitalidad,
+  vitalidadDeAntes,
 } from './vitalidad'
 import type { Serie, Sesion } from './tipos'
 
@@ -120,7 +121,7 @@ describe('delta de vitalidad', () => {
   })
 
   it('espera a tener sesiones suficientes', () => {
-    const pocas = Array.from({ length: SESIONES_MINIMAS - 1 }, (_, i) =>
+    const pocas = Array.from({ length: DIAS_MINIMOS - 1 }, (_, i) =>
       sesion(i, [{ logrado: 10 }], { vitalidadPre: 3, vitalidadPost: 5 }),
     )
     expect(vitalidad(pocas)).toBeNull()
@@ -143,6 +144,48 @@ describe('delta de vitalidad', () => {
     const v = vitalidad(sesiones)!
     expect(v.serie).toEqual([1, 1, 1, -2, -2, -2, -2, -2, -2, -2])
     expect(v.serie.filter((d) => d > 0)).toHaveLength(v.subieron)
+  })
+})
+
+describe('delta de vitalidad, un día a la vez', () => {
+  // Diez días, cada uno con una sesión a las 9 que sube de 3 a 4.
+  const mananas = Array.from({ length: 10 }, (_, i) =>
+    sesion(i, [{ logrado: 10 }], { vitalidadPre: 3, vitalidadPost: 4 }),
+  )
+  /** Otra sesión el mismo día que `n`, unas horas más tarde. */
+  const tarde = (n: number, extra: Partial<Sesion>) =>
+    sesion(n, [{ logrado: 10 }], { id: `t${n}`, finalizadaEn: n * 86_400_000 + 36_000_000, ...extra })
+
+  it('las de más tarde con la energía de la mañana, guardadas antes de la regla, no cuentan', () => {
+    // Sin la regla al leer, las cinco de la noche (3 → 1) entrarían a las
+    // diez más nuevas y el delta compararía la mañana con la noche.
+    const noches = [5, 6, 7, 8, 9].map((n) => tarde(n, { vitalidadPre: 3, vitalidadPost: 1 }))
+    const v = vitalidad([...mananas, ...noches])!
+    expect(v.dias).toBe(10)
+    expect(v.delta).toBeCloseTo(1)
+    expect(v.subieron).toBe(10)
+  })
+
+  it('un día cuya primera sesión no se midió no se mide con otra de más tarde', () => {
+    // El día 9 arrancó con un Reloj sin energía; la de la tarde, medida,
+    // no ocupa su lugar.
+    const conReloj = mananas.map((s, i) => {
+      if (i !== 9) return s
+      const { vitalidadPre, vitalidadPost, ...reloj } = s
+      void vitalidadPre
+      void vitalidadPost
+      return { ...reloj, tipo: 'reloj' as const }
+    })
+    const v = vitalidad([...conReloj, tarde(9, { vitalidadPre: 3, vitalidadPost: 5 })])!
+    expect(v.dias).toBe(9)
+    expect(v.serie).toEqual(Array(9).fill(1))
+  })
+
+  it('pide días medidos, no sesiones', () => {
+    // Siete días con dos sesiones medidas cada uno son siete días, no catorce.
+    const siete = mananas.slice(0, DIAS_MINIMOS - 1)
+    const dobles = siete.map((_, n) => tarde(n, { vitalidadPre: 3, vitalidadPost: 4 }))
+    expect(vitalidad([...siete, ...dobles])).toBeNull()
   })
 })
 
@@ -222,6 +265,22 @@ describe('el ánimo día por día, y el de los días que vienen', () => {
   it('animoReciente es el de hoy', () => {
     const sesiones = [dia(1, 2), dia(2, -1), dia(3, 0)]
     expect(animoReciente(sesiones)).toBeCloseTo(animoDentroDe(animoPorDia(sesiones), 0)!)
+  })
+})
+
+describe('la energía de antes', () => {
+  it('es la del chequeo solo en la primera sesión del día', () => {
+    const deAyer = sesion(1, [{ logrado: 10 }])
+    const deHoy = sesion(2, [{ logrado: 10 }])
+    expect(vitalidadDeAntes(4, deHoy.fecha, [])).toBe(4)
+    // Una sesión de ayer no cambia nada: hoy esta es la primera.
+    expect(vitalidadDeAntes(4, deHoy.fecha, [deAyer])).toBe(4)
+    // Con una sesión hoy, el chequeo de la mañana ya no es el de antes.
+    expect(vitalidadDeAntes(4, deHoy.fecha, [deAyer, deHoy])).toBeUndefined()
+  })
+
+  it('sin chequeo no hay energía de antes', () => {
+    expect(vitalidadDeAntes(undefined, '2026-01-03', [])).toBeUndefined()
   })
 })
 
